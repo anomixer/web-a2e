@@ -1,0 +1,479 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --bg-color: #1a1a2e;
+    --panel-bg: #16213e;
+    --text-color: #e0e0e0;
+    --accent-color: #0f3460;
+    --highlight-color: #e94560;
+    --success-color: #00d9a0;
+    --warning-color: #ffc107;
+    --border-color: #333;
+    --font-mono: "Menlo", "Monaco", "Courier New", monospace;
+}
+
+body {
+    font-family:
+        -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    min-height: 100vh;
+}
+
+#app {
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+}
+
+header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1.5rem;
+    background-color: var(--panel-bg);
+    border-bottom: 1px solid var(--border-color);
+}
+
+header h1 {
+    font-size: 1.25rem;
+    font-weight: 600;
+}
+
+#controls {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+button,
+select {
+    padding: 0.4rem 0.75rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--accent-color);
+    color: var(--text-color);
+    cursor: pointer;
+    font-size: 0.875rem;
+    transition: background-color 0.2s;
+}
+
+button:hover {
+    background-color: var(--highlight-color);
+}
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+main {
+    display: flex;
+    flex: 1;
+    padding: 1rem;
+    gap: 1rem;
+}
+
+#display-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+}
+
+#screen {
+    background-color: #000;
+    border: 4px solid #333;
+    border-radius: 8px;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    width: 840px;
+    height: 576px;
+}
+
+#disk-indicators {
+    display: flex;
+    gap: 1rem;
+}
+
+.disk-slot {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+}
+
+.disk-label {
+    font-weight: 500;
+}
+
+.disk-led {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: #333;
+    transition: background-color 0.1s;
+}
+
+.disk-led.active {
+    background-color: var(--highlight-color);
+    box-shadow: 0 0 8px var(--highlight-color);
+}
+
+.disk-insert,
+.disk-eject {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+
+/* Debugger Panel */
+#debugger-panel {
+    width: 400px;
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+#debugger-panel.hidden {
+    display: none;
+}
+
+#debugger-toolbar {
+    display: flex;
+    gap: 0.25rem;
+    padding: 0.5rem;
+    background-color: var(--accent-color);
+    border-bottom: 1px solid var(--border-color);
+}
+
+#debugger-toolbar button {
+    padding: 0.3rem 0.5rem;
+    font-size: 0.75rem;
+}
+
+#debugger-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.5rem;
+}
+
+#debugger-content section {
+    margin-bottom: 1rem;
+    padding: 0.5rem;
+    background-color: rgba(0, 0, 0, 0.2);
+    border-radius: 4px;
+}
+
+#debugger-content h3 {
+    font-size: 0.875rem;
+    margin-bottom: 0.5rem;
+    color: var(--highlight-color);
+}
+
+.register-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.25rem;
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+}
+
+.register-grid label {
+    color: #888;
+}
+
+.register-grid span {
+    color: var(--success-color);
+}
+
+#flags {
+    display: flex;
+    gap: 0.25rem;
+    margin-top: 0.5rem;
+    font-family: var(--font-mono);
+}
+
+#flags label {
+    color: #888;
+    margin-right: 0.5rem;
+}
+
+.flag {
+    width: 1.5em;
+    text-align: center;
+    padding: 0.1rem;
+    background-color: #333;
+    border-radius: 2px;
+    color: #666;
+}
+
+.flag.active {
+    background-color: var(--success-color);
+    color: #000;
+}
+
+#cycles {
+    margin-top: 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+}
+
+#cycles label {
+    color: #888;
+}
+
+#cycles span {
+    color: var(--text-color);
+}
+
+#disasm-view {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.disasm-line {
+    padding: 0.1rem 0.25rem;
+    display: flex;
+    gap: 0.5rem;
+}
+
+.disasm-line:hover {
+    background-color: rgba(255, 255, 255, 0.1);
+    cursor: pointer;
+}
+
+.disasm-line.current {
+    background-color: var(--accent-color);
+}
+
+.disasm-line.breakpoint {
+    border-left: 3px solid var(--highlight-color);
+}
+
+.disasm-addr {
+    color: #888;
+}
+
+.disasm-bytes {
+    color: #666;
+    width: 8ch;
+}
+
+.disasm-instruction {
+    color: var(--success-color);
+}
+
+.disasm-operand {
+    color: var(--text-color);
+}
+
+#breakpoint-list {
+    max-height: 100px;
+    overflow-y: auto;
+    margin-bottom: 0.5rem;
+}
+
+.breakpoint-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.2rem;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+}
+
+.breakpoint-item input[type="checkbox"] {
+    cursor: pointer;
+}
+
+.breakpoint-item .bp-addr {
+    color: var(--highlight-color);
+}
+
+.breakpoint-item button {
+    padding: 0.1rem 0.3rem;
+    font-size: 0.625rem;
+}
+
+#breakpoint-add {
+    display: flex;
+    gap: 0.25rem;
+}
+
+#breakpoint-add input {
+    flex: 1;
+    padding: 0.25rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: #222;
+    color: var(--text-color);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+}
+
+#memory-controls {
+    display: flex;
+    gap: 0.25rem;
+    margin-bottom: 0.5rem;
+}
+
+#memory-controls input {
+    width: 6ch;
+    padding: 0.25rem;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: #222;
+    color: var(--text-color);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+}
+
+#memory-controls select {
+    font-size: 0.75rem;
+    padding: 0.25rem;
+}
+
+#memory-controls button {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+}
+
+#memory-dump {
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    line-height: 1.4;
+    max-height: 200px;
+    overflow-y: auto;
+    white-space: pre;
+    background-color: #111;
+    padding: 0.5rem;
+    border-radius: 4px;
+}
+
+.mem-addr {
+    color: #888;
+}
+
+.mem-byte {
+    color: var(--text-color);
+}
+
+.mem-byte.changed {
+    color: var(--highlight-color);
+}
+
+.mem-ascii {
+    color: #666;
+}
+
+#switch-display {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+.switch {
+    padding: 0.2rem 0.4rem;
+    font-family: var(--font-mono);
+    font-size: 0.625rem;
+    background-color: #333;
+    border-radius: 2px;
+    color: #666;
+}
+
+.switch.active {
+    background-color: var(--success-color);
+    color: #000;
+}
+
+.drive-status {
+    display: flex;
+    gap: 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    padding: 0.25rem;
+}
+
+.drive-label {
+    font-weight: bold;
+    color: var(--highlight-color);
+}
+
+/* Loading overlay */
+#loading {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.9);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    z-index: 1000;
+}
+
+#loading.hidden {
+    display: none;
+}
+
+.spinner {
+    width: 40px;
+    height: 40px;
+    border: 3px solid var(--border-color);
+    border-top-color: var(--highlight-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Fullscreen styles */
+:fullscreen #display-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    background-color: #000;
+}
+
+:fullscreen #screen {
+    max-width: 100%;
+    max-height: 100%;
+    width: auto;
+    height: auto;
+}
+
+:fullscreen #disk-indicators {
+    display: none;
+}
+
+/* Responsive adjustments */
+@media (max-width: 900px) {
+    main {
+        flex-direction: column;
+    }
+
+    #debugger-panel {
+        width: 100%;
+        max-height: 50vh;
+    }
+}

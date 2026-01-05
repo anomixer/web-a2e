@@ -1,0 +1,16 @@
+{
+  "name": "web-a2e",
+  "version": "1.0.0",
+  "description": "Apple //e emulator for the browser",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run build:wasm && vite build",
+    "build:wasm": "mkdir -p build && cd build && emcmake cmake .. && emmake make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu)",
+    "preview": "vite preview",
+    "clean": "rm -rf build dist public/a2e.js public/a2e.wasm"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0"
+  }
+}
