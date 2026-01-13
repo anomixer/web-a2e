@@ -345,4 +345,40 @@ uint8_t getLastDiskByte() {
   return 0;
 }
 
+EMSCRIPTEN_KEEPALIVE
+uint8_t getTrackNibble(int drive, int track, int position) {
+  // Debug function to read raw nibble from track data
+  if (g_emulator && g_emulator->getDisk().hasDisk(drive)) {
+    const auto *image = g_emulator->getDisk().getDiskImage(drive);
+    if (image) {
+      return image->getNibbleAt(track, position);
+    }
+  }
+  return 0;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getTrackNibbleCount(int drive, int track) {
+  // Debug function to get nibble count for a track
+  if (g_emulator && g_emulator->getDisk().hasDisk(drive)) {
+    const auto *image = g_emulator->getDisk().getDiskImage(drive);
+    if (image) {
+      return image->getTrackNibbleCount(track);
+    }
+  }
+  return 0;
+}
+
+EMSCRIPTEN_KEEPALIVE
+size_t getCurrentNibblePosition(int drive) {
+  // Debug function to get current nibble position within track
+  if (g_emulator && g_emulator->getDisk().hasDisk(drive)) {
+    const auto *image = g_emulator->getDisk().getDiskImage(drive);
+    if (image) {
+      return image->getCurrentNibblePosition();
+    }
+  }
+  return 0;
+}
+
 } // extern "C"
