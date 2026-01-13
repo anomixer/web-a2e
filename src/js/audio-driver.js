@@ -26,9 +26,8 @@ export class AudioDriver {
 
     try {
       // Create audio context
-      this.audioContext = new (
-        window.AudioContext || window.webkitAudioContext
-      )({
+      this.audioContext = new (window.AudioContext ||
+        window.webkitAudioContext)({
         sampleRate: this.sampleRate,
       });
 
@@ -54,7 +53,11 @@ export class AudioDriver {
 
   async startWithWorklet() {
     // Register the audio worklet
-    await this.audioContext.audioWorklet.addModule("/src/js/audio-worklet.js");
+    // In dev mode, load from src; in production, load from root
+    const workletPath = import.meta.env.DEV
+      ? "/src/js/audio-worklet.js"
+      : "/audio-worklet.js";
+    await this.audioContext.audioWorklet.addModule(workletPath);
 
     // Create worklet node
     this.workletNode = new AudioWorkletNode(

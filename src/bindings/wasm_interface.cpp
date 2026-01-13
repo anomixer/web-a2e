@@ -263,8 +263,14 @@ uint32_t getSoftSwitchState() {
 EMSCRIPTEN_KEEPALIVE
 int getDiskTrack(int drive) {
   if (g_emulator) {
-    const auto &state = g_emulator->getDisk().getDriveState(drive);
-    return state.currentTrack;
+    // Return track for the specified drive (or selected drive if drive matches)
+    auto &disk = g_emulator->getDisk();
+    if (disk.hasDisk(drive)) {
+      const auto *image = disk.getDiskImage(drive);
+      if (image) {
+        return image->getTrack();
+      }
+    }
   }
   return 0;
 }
@@ -272,8 +278,9 @@ int getDiskTrack(int drive) {
 EMSCRIPTEN_KEEPALIVE
 int getDiskPhase(int drive) {
   if (g_emulator) {
-    const auto &state = g_emulator->getDisk().getDriveState(drive);
-    return state.currentPhase;
+    // Return phase states (bitmask of active phases)
+    (void)drive; // Phase states are controller-wide
+    return g_emulator->getDisk().getPhaseStates();
   }
   return 0;
 }
@@ -281,8 +288,9 @@ int getDiskPhase(int drive) {
 EMSCRIPTEN_KEEPALIVE
 bool getDiskMotorOn(int drive) {
   if (g_emulator) {
-    const auto &state = g_emulator->getDisk().getDriveState(drive);
-    return state.motorOn;
+    // Motor state is controller-wide, not per-drive
+    (void)drive;
+    return g_emulator->getDisk().isMotorOn();
   }
   return false;
 }
@@ -290,8 +298,9 @@ bool getDiskMotorOn(int drive) {
 EMSCRIPTEN_KEEPALIVE
 bool getDiskWriteMode(int drive) {
   if (g_emulator) {
-    const auto &state = g_emulator->getDisk().getDriveState(drive);
-    return state.writeMode;
+    // Write mode (Q7) is controller-wide
+    (void)drive;
+    return g_emulator->getDisk().getQ7();
   }
   return false;
 }
@@ -299,8 +308,14 @@ bool getDiskWriteMode(int drive) {
 EMSCRIPTEN_KEEPALIVE
 int getDiskHeadPosition(int drive) {
   if (g_emulator) {
-    const auto &state = g_emulator->getDisk().getDriveState(drive);
-    return state.headPosition;
+    // Return quarter-track position
+    auto &disk = g_emulator->getDisk();
+    if (disk.hasDisk(drive)) {
+      const auto *image = disk.getDiskImage(drive);
+      if (image) {
+        return image->getQuarterTrack();
+      }
+    }
   }
   return 0;
 }
@@ -316,7 +331,7 @@ int getSelectedDrive() {
 EMSCRIPTEN_KEEPALIVE
 bool isDiskInserted(int drive) {
   if (g_emulator) {
-    return g_emulator->getDisk().isDiskInserted(drive);
+    return g_emulator->getDisk().hasDisk(drive);
   }
   return false;
 }
