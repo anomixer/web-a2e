@@ -5,8 +5,8 @@ export class DiskManager {
     constructor(wasmModule) {
         this.wasmModule = wasmModule;
         this.drives = [
-            { input: null, insertBtn: null, ejectBtn: null, led: null, filename: null },
-            { input: null, insertBtn: null, ejectBtn: null, led: null, filename: null }
+            { input: null, insertBtn: null, blankBtn: null, ejectBtn: null, led: null, filename: null },
+            { input: null, insertBtn: null, blankBtn: null, ejectBtn: null, led: null, filename: null }
         ];
     }
 
@@ -28,6 +28,7 @@ export class DiskManager {
         const drive = this.drives[driveNum];
         drive.input = container.querySelector(`#${elementId}-input`);
         drive.insertBtn = container.querySelector('.disk-insert');
+        drive.blankBtn = container.querySelector('.disk-blank');
         drive.ejectBtn = container.querySelector('.disk-eject');
         drive.led = container.querySelector('.disk-led');
         drive.nameLabel = container.querySelector('.disk-name');
@@ -36,6 +37,13 @@ export class DiskManager {
         if (drive.insertBtn) {
             drive.insertBtn.addEventListener('click', () => {
                 drive.input.click();
+            });
+        }
+
+        // Blank disk button click
+        if (drive.blankBtn) {
+            drive.blankBtn.addEventListener('click', () => {
+                this.insertBlankDisk(driveNum);
             });
         }
 
@@ -119,6 +127,39 @@ export class DiskManager {
         } catch (error) {
             console.error('Error loading disk:', error);
             alert('Error loading disk: ' + error.message);
+        }
+    }
+
+    insertBlankDisk(driveNum) {
+        const drive = this.drives[driveNum];
+
+        // Create a blank 140KB DOS 3.3 disk image (35 tracks × 16 sectors × 256 bytes)
+        const DISK_SIZE = 143360;
+        const data = new Uint8Array(DISK_SIZE);
+
+        // Allocate memory in WASM
+        const ptr = this.wasmModule._malloc(data.length);
+        this.wasmModule.HEAPU8.set(data, ptr);
+
+        // Allocate string for filename
+        const filename = 'Blank Disk.dsk';
+        const filenamePtr = this.wasmModule._malloc(filename.length + 1);
+        this.wasmModule.stringToUTF8(filename, filenamePtr, filename.length + 1);
+
+        // Insert disk
+        const success = this.wasmModule._insertDisk(driveNum, ptr, data.length, filenamePtr);
+
+        // Free memory
+        this.wasmModule._free(ptr);
+        this.wasmModule._free(filenamePtr);
+
+        if (success) {
+            drive.filename = filename;
+            if (drive.ejectBtn) drive.ejectBtn.disabled = false;
+            if (drive.nameLabel) drive.nameLabel.textContent = filename;
+            console.log(`Inserted blank disk in drive ${driveNum + 1}`);
+        } else {
+            alert('Failed to insert blank disk');
         }
     }
 

@@ -551,28 +551,41 @@ main {
 
 .drive-controls {
     display: flex;
-    gap: var(--space-sm);
+    gap: var(--space-xs);
 }
 
 .disk-insert,
+.disk-blank,
 .disk-eject {
     flex: 1;
-    padding: var(--space-sm) var(--space-md);
-    background: var(--monitor-beige);
-    border: 1px solid var(--monitor-beige-dark);
-    border-radius: var(--radius-md);
-    color: #4a4539;
+    padding: var(--space-xs) var(--space-sm);
+    background: var(--bg-light);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
     font-family: var(--font-sans);
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
     font-weight: 500;
     cursor: pointer;
     transition: all 0.2s;
 }
 
 .disk-insert:hover,
+.disk-blank:hover,
 .disk-eject:hover:not(:disabled) {
-    background: var(--monitor-beige-light);
-    border-color: var(--monitor-beige);
+    background: var(--bg-panel);
+    border-color: var(--text-muted);
+    color: var(--text-primary);
+}
+
+.disk-blank:hover {
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+}
+
+.disk-eject:hover:not(:disabled) {
+    border-color: var(--accent-orange);
+    color: var(--accent-orange);
 }
 
 .disk-eject:disabled {
