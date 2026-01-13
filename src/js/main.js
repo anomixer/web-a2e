@@ -169,12 +169,15 @@ class AppleIIeEmulator {
 
   updatePowerButton() {
     const powerBtn = document.getElementById("btn-power");
+    const powerLed = document.getElementById("monitor-power-led");
     if (this.running) {
       powerBtn.classList.remove("off");
       powerBtn.title = "Power Off";
+      powerLed?.classList.add("on");
     } else {
       powerBtn.classList.add("off");
       powerBtn.title = "Power On";
+      powerLed?.classList.remove("on");
     }
   }
 
