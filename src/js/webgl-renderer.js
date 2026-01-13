@@ -133,6 +133,26 @@ export class WebGLRenderer {
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }
 
+    clear() {
+        const gl = this.gl;
+
+        // Clear the texture to black
+        const emptyData = new Uint8Array(this.width * this.height * 4);
+        gl.bindTexture(gl.TEXTURE_2D, this.texture);
+        gl.texSubImage2D(
+            gl.TEXTURE_2D, 0,
+            0, 0,
+            this.width, this.height,
+            gl.RGBA, gl.UNSIGNED_BYTE,
+            emptyData
+        );
+
+        // Clear and redraw
+        gl.clearColor(0, 0, 0, 1);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+        this.draw();
+    }
+
     setCRTEnabled(enabled) {
         this.crtEnabled = enabled;
     }

@@ -30,27 +30,35 @@ export class DiskManager {
         drive.insertBtn = container.querySelector('.disk-insert');
         drive.ejectBtn = container.querySelector('.disk-eject');
         drive.led = container.querySelector('.disk-led');
+        drive.nameLabel = container.querySelector('.disk-name');
 
         // Insert button click
-        drive.insertBtn.addEventListener('click', () => {
-            drive.input.click();
-        });
+        if (drive.insertBtn) {
+            drive.insertBtn.addEventListener('click', () => {
+                drive.input.click();
+            });
+        }
 
         // File input change
-        drive.input.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                this.loadDisk(driveNum, e.target.files[0]);
-            }
-        });
+        if (drive.input) {
+            drive.input.addEventListener('change', (e) => {
+                if (e.target.files.length > 0) {
+                    this.loadDisk(driveNum, e.target.files[0]);
+                }
+            });
+        }
 
         // Eject button click
-        drive.ejectBtn.addEventListener('click', () => {
-            this.ejectDisk(driveNum);
-        });
+        if (drive.ejectBtn) {
+            drive.ejectBtn.addEventListener('click', () => {
+                this.ejectDisk(driveNum);
+            });
+        }
     }
 
     setupDragDrop() {
-        const displayContainer = document.getElementById('display-container');
+        const displayContainer = document.getElementById('monitor-frame');
+        if (!displayContainer) return;
 
         displayContainer.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -102,7 +110,8 @@ export class DiskManager {
 
             if (success) {
                 drive.filename = file.name;
-                drive.ejectBtn.disabled = false;
+                if (drive.ejectBtn) drive.ejectBtn.disabled = false;
+                if (drive.nameLabel) drive.nameLabel.textContent = file.name;
                 console.log(`Inserted disk in drive ${driveNum + 1}: ${file.name}`);
             } else {
                 alert(`Failed to load disk image: ${file.name}`);
@@ -122,19 +131,28 @@ export class DiskManager {
         this.wasmModule._ejectDisk(driveNum);
 
         drive.filename = null;
-        drive.ejectBtn.disabled = true;
-        drive.input.value = '';
+        if (drive.ejectBtn) drive.ejectBtn.disabled = true;
+        if (drive.input) drive.input.value = '';
+        if (drive.nameLabel) drive.nameLabel.textContent = 'No Disk';
 
         console.log(`Ejected disk from drive ${driveNum + 1}`);
     }
 
     updateLEDs() {
         // Update drive activity LEDs based on motor state
-        // This would require exposing drive state from WASM
-        // For now, we'll just use a simple approach based on recent reads
+        if (!this.wasmModule._getDiskMotorOn) return;
 
-        // TODO: Get actual motor state from emulator
-        // For now, LEDs are controlled by CSS based on activity
+        for (let driveNum = 0; driveNum < 2; driveNum++) {
+            const drive = this.drives[driveNum];
+            if (!drive.led) continue;
+
+            const motorOn = this.wasmModule._getDiskMotorOn(driveNum);
+            if (motorOn) {
+                drive.led.classList.add('active');
+            } else {
+                drive.led.classList.remove('active');
+            }
+        }
     }
 
     saveDisk(driveNum) {

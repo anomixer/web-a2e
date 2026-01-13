@@ -57,9 +57,9 @@ export class InputHandler {
   }
 
   setupKeyMap() {
-    // Letters A-Z - Apple II sends uppercase by default
+    // Letters A-Z - store as lowercase, will apply caps lock/shift later
     for (let i = 65; i <= 90; i++) {
-      this.keyMap.set(i, i); // Uppercase (A=65, B=66, etc.)
+      this.keyMap.set(i, i + 32); // Lowercase (a=97, b=98, etc.)
     }
 
     // Numbers 0-9
@@ -140,8 +140,20 @@ export class InputHandler {
       event.preventDefault();
     }
 
-    // Apply Shift modifier
-    if (this.shiftPressed) {
+    // Apply Caps Lock and Shift modifiers for letters
+    const capsLock = event.getModifierState && event.getModifierState('CapsLock');
+    if (appleKey >= 0x61 && appleKey <= 0x7a) {
+      // It's a lowercase letter
+      if (capsLock && !this.shiftPressed) {
+        // Caps lock on, no shift -> uppercase
+        appleKey = appleKey - 32;
+      } else if (!capsLock && this.shiftPressed) {
+        // Caps lock off, shift pressed -> uppercase
+        appleKey = appleKey - 32;
+      }
+      // Otherwise stays lowercase
+    } else if (this.shiftPressed) {
+      // Apply shift to non-letter keys
       appleKey = this.applyShift(appleKey, keyCode);
     }
 
@@ -188,13 +200,7 @@ export class InputHandler {
   }
 
   applyShift(key, keyCode) {
-    // Letters become lowercase when Shift is pressed (opposite of normal)
-    // Apple II sends uppercase by default, Shift gives lowercase
-    if (key >= 0x41 && key <= 0x5a) {
-      return key + 32; // A-Z -> a-z
-    }
-
-    // Number row shifted symbols
+    // Number row shifted symbols (letters handled separately)
     const shiftMap = {
       48: 0x29, // 0 -> )
       49: 0x21, // 1 -> !

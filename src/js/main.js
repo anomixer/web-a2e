@@ -72,8 +72,11 @@ class AppleIIeEmulator {
   }
 
   setupControls() {
+    const powerBtn = document.getElementById("btn-power");
+    const muteBtn = document.getElementById("btn-mute");
+
     // Power button
-    document.getElementById("btn-power").addEventListener("click", () => {
+    powerBtn.addEventListener("click", () => {
       if (this.running) {
         this.stop();
       } else {
@@ -81,14 +84,19 @@ class AppleIIeEmulator {
       }
     });
 
-    // Reset button - warm reset (preserves memory)
-    document.getElementById("btn-reset").addEventListener("click", () => {
+    // Warm reset button (preserves memory)
+    document.getElementById("btn-warm-reset").addEventListener("click", () => {
       this.wasmModule._warmReset();
+    });
+
+    // Cold reset button (full restart)
+    document.getElementById("btn-cold-reset").addEventListener("click", () => {
+      this.wasmModule._reset();
     });
 
     // Fullscreen button
     document.getElementById("btn-fullscreen").addEventListener("click", () => {
-      const container = document.getElementById("display-container");
+      const container = document.getElementById("monitor-frame");
       if (document.fullscreenElement) {
         document.exitFullscreen();
       } else {
@@ -97,41 +105,89 @@ class AppleIIeEmulator {
     });
 
     // Mute button
-    document.getElementById("btn-mute").addEventListener("click", (e) => {
+    muteBtn.addEventListener("click", () => {
       this.audioDriver.toggleMute();
-      e.target.textContent = this.audioDriver.isMuted() ? "Unmute" : "Mute";
-    });
-
-    // Speed selector
-    document.getElementById("speed-select").addEventListener("change", (e) => {
-      this.speed = parseFloat(e.target.value);
-      this.audioDriver.setSpeed(this.speed);
+      this.updateMuteButton();
     });
 
     // CRT toggle
     document.getElementById("crt-toggle").addEventListener("change", (e) => {
       this.crtEnabled = e.target.checked;
       this.renderer.setCRTEnabled(this.crtEnabled);
+
+      // Toggle scanlines visual effect
+      const screenWrapper = document.querySelector(".monitor-screen-wrapper");
+      if (this.crtEnabled) {
+        screenWrapper.classList.add("crt-enabled");
+      } else {
+        screenWrapper.classList.remove("crt-enabled");
+      }
     });
 
     // Debugger toggle
     document.getElementById("btn-debugger").addEventListener("click", () => {
-      const panel = document.getElementById("debugger-panel");
-      panel.classList.toggle("hidden");
-      if (!panel.classList.contains("hidden")) {
-        this.debugger.refresh();
-      }
+      this.toggleDebugger();
     });
+
+    // Debugger close button
+    const debuggerClose = document.getElementById("debugger-close");
+    if (debuggerClose) {
+      debuggerClose.addEventListener("click", () => {
+        this.toggleDebugger(false);
+      });
+    }
+  }
+
+  toggleDebugger(forceState) {
+    const panel = document.getElementById("debugger-panel");
+    if (forceState === false) {
+      panel.classList.add("hidden");
+    } else if (forceState === true) {
+      panel.classList.remove("hidden");
+    } else {
+      panel.classList.toggle("hidden");
+    }
+
+    if (!panel.classList.contains("hidden")) {
+      this.debugger.refresh();
+    }
+  }
+
+  updateMuteButton() {
+    const muteBtn = document.getElementById("btn-mute");
+    const iconUnmuted = muteBtn.querySelector(".icon-unmuted");
+    const iconMuted = muteBtn.querySelector(".icon-muted");
+
+    if (this.audioDriver.isMuted()) {
+      iconUnmuted.classList.add("hidden");
+      iconMuted.classList.remove("hidden");
+    } else {
+      iconUnmuted.classList.remove("hidden");
+      iconMuted.classList.add("hidden");
+    }
+  }
+
+  updatePowerButton() {
+    const powerBtn = document.getElementById("btn-power");
+    if (this.running) {
+      powerBtn.classList.remove("off");
+      powerBtn.title = "Power Off";
+    } else {
+      powerBtn.classList.add("off");
+      powerBtn.title = "Power On";
+    }
   }
 
   start() {
     if (this.running) return;
 
+    // Cold boot - full reset
+    this.wasmModule._reset();
+
     this.running = true;
     this.audioDriver.start();
-
-    document.getElementById("btn-power").textContent = "Stop";
-    console.log("Emulator started");
+    this.updatePowerButton();
+    console.log("Emulator powered on");
   }
 
   stop() {
@@ -140,8 +196,11 @@ class AppleIIeEmulator {
     this.running = false;
     this.audioDriver.stop();
 
-    document.getElementById("btn-power").textContent = "Power";
-    console.log("Emulator stopped");
+    // Clear the screen to black
+    this.renderer.clear();
+
+    this.updatePowerButton();
+    console.log("Emulator powered off");
   }
 
   renderFrame() {

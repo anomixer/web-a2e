@@ -5,201 +5,275 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Apple //e Emulator</title>
         <link rel="stylesheet" href="/styles.css" />
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     </head>
     <body>
         <div id="app">
             <header>
-                <h1>Apple //e</h1>
-                <div id="controls">
-                    <button id="btn-power" title="Power">Power</button>
-                    <button id="btn-reset" title="Reset">Reset</button>
-                    <button id="btn-fullscreen" title="Fullscreen">
-                        Fullscreen
-                    </button>
-                    <button id="btn-mute" title="Mute">Mute</button>
-                    <select id="speed-select">
-                        <option value="1">1x Speed</option>
-                        <option value="2">2x Speed</option>
-                        <option value="0">Unlimited</option>
-                    </select>
-                    <label>
-                        <input type="checkbox" id="crt-toggle" /> CRT Effect
-                    </label>
-                    <button id="btn-debugger" title="Debugger">Debugger</button>
+                <div class="header-left">
+                    <div class="logo">
+                        <span class="logo-text">Apple //e</span>
+                    </div>
+                    <span class="tagline">Apple II Enhanced Emulator</span>
                 </div>
+                <nav class="header-controls">
+                    <div class="control-group">
+                        <button id="btn-power" class="control-btn power-btn off" title="Power On">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 2v10M18.4 6.6a9 9 0 1 1-12.8 0"/>
+                            </svg>
+                        </button>
+                        <button id="btn-warm-reset" class="control-btn" title="Warm Reset (preserves memory)">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                                <path d="M3 3v5h5"/>
+                            </svg>
+                        </button>
+                        <button id="btn-cold-reset" class="control-btn" title="Cold Reset (full restart)">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21 12a9 9 0 1 1-9-9"/>
+                                <path d="M21 3v6h-6"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="control-group">
+                        <button id="btn-fullscreen" class="control-btn" title="Fullscreen">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                            </svg>
+                        </button>
+                        <button id="btn-mute" class="control-btn" title="Toggle Sound">
+                            <svg class="icon-unmuted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 5L6 9H2v6h4l5 4V5z"/>
+                                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                            </svg>
+                            <svg class="icon-muted hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M11 5L6 9H2v6h4l5 4V5z"/>
+                                <line x1="23" y1="9" x2="17" y2="15"/>
+                                <line x1="17" y1="9" x2="23" y2="15"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="control-group">
+                        <label class="toggle-label">
+                            <input type="checkbox" id="crt-toggle" />
+                            <span class="toggle-switch"></span>
+                            <span>CRT</span>
+                        </label>
+                    </div>
+                    <div class="control-group">
+                        <button id="btn-debugger" class="control-btn debugger-btn" title="Toggle Debugger">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
+                                <path d="M12 6v6l4 2"/>
+                            </svg>
+                            <span>Debug</span>
+                        </button>
+                    </div>
+                </nav>
             </header>
 
             <main>
-                <div id="display-container">
-                    <canvas id="screen" width="560" height="384"></canvas>
-                    <div id="disk-indicators">
-                        <div class="disk-slot" id="disk1">
-                            <span class="disk-label">Drive 1</span>
-                            <span class="disk-led"></span>
-                            <input
-                                type="file"
-                                id="disk1-input"
-                                accept=".dsk,.do,.po,.woz"
-                                hidden
-                            />
-                            <button class="disk-insert">Insert</button>
-                            <button class="disk-eject" disabled>Eject</button>
+                <div class="emulator-section">
+                    <div id="monitor-frame">
+                        <div class="monitor-bezel">
+                            <div class="monitor-screen-wrapper">
+                                <canvas id="screen" width="560" height="384"></canvas>
+                                <div class="scanlines"></div>
+                                <div class="screen-glare"></div>
+                            </div>
+                            <div class="monitor-badge">
+                                <span>Apple //e</span>
+                            </div>
                         </div>
-                        <div class="disk-slot" id="disk2">
-                            <span class="disk-label">Drive 2</span>
-                            <span class="disk-led"></span>
-                            <input
-                                type="file"
-                                id="disk2-input"
-                                accept=".dsk,.do,.po,.woz"
-                                hidden
-                            />
-                            <button class="disk-insert">Insert</button>
-                            <button class="disk-eject" disabled>Eject</button>
+                        <div class="monitor-base">
+                            <div class="monitor-stand"></div>
+                        </div>
+                    </div>
+
+                    <div id="disk-drives">
+                        <div class="disk-drive" id="disk1">
+                            <div class="drive-housing">
+                                <div class="drive-label">Drive 1</div>
+                                <div class="drive-slot"></div>
+                                <div class="drive-info">
+                                    <span class="disk-led" title="Drive Activity"></span>
+                                    <span class="disk-name">No Disk</span>
+                                </div>
+                            </div>
+                            <div class="drive-controls">
+                                <input type="file" id="disk1-input" accept=".dsk,.do,.po,.woz,.nib" hidden />
+                                <button class="disk-insert" title="Insert Disk">Insert</button>
+                                <button class="disk-eject" disabled title="Eject Disk">Eject</button>
+                            </div>
+                        </div>
+                        <div class="disk-drive" id="disk2">
+                            <div class="drive-housing">
+                                <div class="drive-label">Drive 2</div>
+                                <div class="drive-slot"></div>
+                                <div class="drive-info">
+                                    <span class="disk-led" title="Drive Activity"></span>
+                                    <span class="disk-name">No Disk</span>
+                                </div>
+                            </div>
+                            <div class="drive-controls">
+                                <input type="file" id="disk2-input" accept=".dsk,.do,.po,.woz,.nib" hidden />
+                                <button class="disk-insert" title="Insert Disk">Insert</button>
+                                <button class="disk-eject" disabled title="Eject Disk">Eject</button>
+                            </div>
                         </div>
                     </div>
                 </div>
 
                 <aside id="debugger-panel" class="hidden">
-                    <div id="debugger-toolbar">
-                        <button id="dbg-run" title="Run">Run</button>
-                        <button id="dbg-pause" title="Pause">Pause</button>
-                        <button id="dbg-step" title="Step">Step</button>
-                        <button id="dbg-step-over" title="Step Over">
-                            Step Over
+                    <div class="debugger-header">
+                        <h2>Debugger</h2>
+                        <button id="debugger-close" class="close-btn" title="Close Debugger">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="18" y1="6" x2="6" y2="18"/>
+                                <line x1="6" y1="6" x2="18" y2="18"/>
+                            </svg>
                         </button>
-                        <button id="dbg-step-out" title="Step Out">
-                            Step Out
+                    </div>
+                    <div id="debugger-toolbar">
+                        <button id="dbg-run" class="dbg-btn" title="Run (F5)">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <polygon points="5 3 19 12 5 21 5 3"/>
+                            </svg>
+                            Run
+                        </button>
+                        <button id="dbg-pause" class="dbg-btn" title="Pause (F6)">
+                            <svg viewBox="0 0 24 24" fill="currentColor">
+                                <rect x="6" y="4" width="4" height="16"/>
+                                <rect x="14" y="4" width="4" height="16"/>
+                            </svg>
+                            Pause
+                        </button>
+                        <button id="dbg-step" class="dbg-btn" title="Step (F10)">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M5 12h14M12 5l7 7-7 7"/>
+                            </svg>
+                            Step
+                        </button>
+                        <button id="dbg-step-over" class="dbg-btn" title="Step Over (F11)">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 8A6 6 0 0 0 6 8"/>
+                                <path d="M6 8l-4 4"/>
+                                <path d="M6 8l4 4"/>
+                                <path d="M6 16h12"/>
+                            </svg>
+                            Over
+                        </button>
+                        <button id="dbg-step-out" class="dbg-btn" title="Step Out (Shift+F11)">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M12 19V5"/>
+                                <path d="M5 12l7-7 7 7"/>
+                            </svg>
+                            Out
                         </button>
                     </div>
 
                     <div id="debugger-content">
-                        <section id="disk-monitor">
-                            <h3>Disk Activity</h3>
-                            <div id="selected-drive-info">
-                                <strong
-                                    >Selected: Drive
-                                    <span id="sel-drive">1</span></strong
-                                >
-                                | Last Byte:
-                                <span id="last-disk-byte">$00</span>
-                            </div>
-                            <div class="drive-status" id="drive1-status">
-                                <div>
-                                    <span class="drive-label">Drive 1:</span>
-                                    <span class="disk-inserted">No Disk</span>
-                                </div>
-                                <div>
-                                    QTrack:
-                                    <span class="quarter-track">0</span> (T<span
-                                        class="track"
-                                        >0</span
-                                    >) Phase: <span class="phase">0</span> Head:
-                                    <span class="head-pos">0</span>
-                                </div>
-                                <div>
-                                    Motor: <span class="motor">OFF</span> |
-                                    Mode: <span class="mode">Read</span>
-                                </div>
-                            </div>
-                            <div class="drive-status" id="drive2-status">
-                                <div>
-                                    <span class="drive-label">Drive 2:</span>
-                                    <span class="disk-inserted">No Disk</span>
-                                </div>
-                                <div>
-                                    QTrack:
-                                    <span class="quarter-track">0</span> (T<span
-                                        class="track"
-                                        >0</span
-                                    >) Phase: <span class="phase">0</span> Head:
-                                    <span class="head-pos">0</span>
-                                </div>
-                                <div>
-                                    Motor: <span class="motor">OFF</span> |
-                                    Mode: <span class="mode">Read</span>
-                                </div>
-                            </div>
-                        </section>
-
-                        <section id="cpu-state">
+                        <section id="cpu-state" class="debug-section">
                             <h3>CPU Registers</h3>
                             <div class="register-grid">
-                                <div>
-                                    <label>A:</label><span id="reg-a">00</span>
+                                <div class="register">
+                                    <label>A</label>
+                                    <span id="reg-a">00</span>
                                 </div>
-                                <div>
-                                    <label>X:</label><span id="reg-x">00</span>
+                                <div class="register">
+                                    <label>X</label>
+                                    <span id="reg-x">00</span>
                                 </div>
-                                <div>
-                                    <label>Y:</label><span id="reg-y">00</span>
+                                <div class="register">
+                                    <label>Y</label>
+                                    <span id="reg-y">00</span>
                                 </div>
-                                <div>
-                                    <label>SP:</label
-                                    ><span id="reg-sp">FF</span>
+                                <div class="register">
+                                    <label>SP</label>
+                                    <span id="reg-sp">FF</span>
                                 </div>
-                                <div>
-                                    <label>PC:</label
-                                    ><span id="reg-pc">0000</span>
+                                <div class="register wide">
+                                    <label>PC</label>
+                                    <span id="reg-pc">0000</span>
                                 </div>
                             </div>
                             <div id="flags">
-                                <label>Flags:</label>
-                                <span class="flag" id="flag-n" title="Negative"
-                                    >N</span
-                                >
-                                <span class="flag" id="flag-v" title="Overflow"
-                                    >V</span
-                                >
-                                <span class="flag" title="Unused">-</span>
-                                <span class="flag" id="flag-b" title="Break"
-                                    >B</span
-                                >
-                                <span class="flag" id="flag-d" title="Decimal"
-                                    >D</span
-                                >
-                                <span class="flag" id="flag-i" title="Interrupt"
-                                    >I</span
-                                >
-                                <span class="flag" id="flag-z" title="Zero"
-                                    >Z</span
-                                >
-                                <span class="flag" id="flag-c" title="Carry"
-                                    >C</span
-                                >
+                                <span class="flag" id="flag-n" title="Negative">N</span>
+                                <span class="flag" id="flag-v" title="Overflow">V</span>
+                                <span class="flag separator">-</span>
+                                <span class="flag" id="flag-b" title="Break">B</span>
+                                <span class="flag" id="flag-d" title="Decimal">D</span>
+                                <span class="flag" id="flag-i" title="Interrupt Disable">I</span>
+                                <span class="flag" id="flag-z" title="Zero">Z</span>
+                                <span class="flag" id="flag-c" title="Carry">C</span>
                             </div>
                             <div id="cycles">
-                                <label>Cycles:</label
-                                ><span id="cycle-count">0</span>
+                                <span class="label">Cycles:</span>
+                                <span id="cycle-count">0</span>
                             </div>
                         </section>
 
-                        <section id="disassembly">
+                        <section id="disk-monitor" class="debug-section">
+                            <h3>Disk Activity</h3>
+                            <div id="selected-drive-info">
+                                <span class="info-badge">Drive <span id="sel-drive">1</span></span>
+                                <span class="info-item">Last Byte: <code id="last-disk-byte">$00</code></span>
+                            </div>
+                            <div class="drive-status" id="drive1-status">
+                                <div class="status-header">
+                                    <span class="drive-label">Drive 1</span>
+                                    <span class="disk-inserted">No Disk</span>
+                                </div>
+                                <div class="status-details">
+                                    <span>QT: <code class="quarter-track">0</code></span>
+                                    <span>Track: <code class="track">0</code></span>
+                                    <span>Phase: <code class="phase">0</code></span>
+                                    <span>Nibble: <code class="nibble-pos">0</code></span>
+                                </div>
+                                <div class="status-mode">
+                                    <span class="motor">Motor OFF</span>
+                                    <span class="mode">Read Mode</span>
+                                </div>
+                            </div>
+                            <div class="drive-status" id="drive2-status">
+                                <div class="status-header">
+                                    <span class="drive-label">Drive 2</span>
+                                    <span class="disk-inserted">No Disk</span>
+                                </div>
+                                <div class="status-details">
+                                    <span>QT: <code class="quarter-track">0</code></span>
+                                    <span>Track: <code class="track">0</code></span>
+                                    <span>Phase: <code class="phase">0</code></span>
+                                    <span>Nibble: <code class="nibble-pos">0</code></span>
+                                </div>
+                                <div class="status-mode">
+                                    <span class="motor">Motor OFF</span>
+                                    <span class="mode">Read Mode</span>
+                                </div>
+                            </div>
+                        </section>
+
+                        <section id="disassembly" class="debug-section">
                             <h3>Disassembly</h3>
                             <div id="disasm-view"></div>
                         </section>
 
-                        <section id="breakpoints">
+                        <section id="breakpoints" class="debug-section">
                             <h3>Breakpoints</h3>
                             <div id="breakpoint-list"></div>
                             <div id="breakpoint-add">
-                                <input
-                                    type="text"
-                                    id="bp-address"
-                                    placeholder="$0000"
-                                />
+                                <input type="text" id="bp-address" placeholder="Address (e.g. $C600)" />
                                 <button id="bp-add-btn">Add</button>
                             </div>
                         </section>
 
-                        <section id="memory-viewer">
+                        <section id="memory-viewer" class="debug-section">
                             <h3>Memory</h3>
                             <div id="memory-controls">
-                                <input
-                                    type="text"
-                                    id="mem-address"
-                                    placeholder="$0000"
-                                />
+                                <input type="text" id="mem-address" placeholder="$0000" />
                                 <button id="mem-goto">Go</button>
                                 <select id="mem-bank">
                                     <option value="main">Main RAM</option>
@@ -210,7 +284,7 @@
                             <div id="memory-dump"></div>
                         </section>
 
-                        <section id="soft-switches">
+                        <section id="soft-switches" class="debug-section">
                             <h3>Soft Switches</h3>
                             <div id="switch-display">
                                 <span class="switch" id="sw-text">TEXT</span>
@@ -218,27 +292,31 @@
                                 <span class="switch" id="sw-page2">PAGE2</span>
                                 <span class="switch" id="sw-hires">HIRES</span>
                                 <span class="switch" id="sw-80col">80COL</span>
-                                <span class="switch" id="sw-80store"
-                                    >80STORE</span
-                                >
+                                <span class="switch" id="sw-80store">80STORE</span>
                                 <span class="switch" id="sw-ramrd">RAMRD</span>
-                                <span class="switch" id="sw-ramwrt"
-                                    >RAMWRT</span
-                                >
+                                <span class="switch" id="sw-ramwrt">RAMWRT</span>
                                 <span class="switch" id="sw-altzp">ALTZP</span>
                                 <span class="switch" id="sw-lcram">LCRAM</span>
-                                <span class="switch" id="sw-lcbnk2"
-                                    >LCBNK2</span
-                                >
+                                <span class="switch" id="sw-lcbnk2">LCBNK2</span>
                             </div>
                         </section>
                     </div>
                 </aside>
             </main>
 
-            <div id="loading" class="hidden">
-                <div class="spinner"></div>
-                <p>Loading emulator...</p>
+            <footer>
+                <span>Apple //e Emulator</span>
+                <span class="separator">|</span>
+                <span>Press <kbd>F1</kbd> for keyboard help</span>
+            </footer>
+
+            <div id="loading">
+                <div class="loader">
+                    <div class="loader-ring"></div>
+                    <div class="loader-ring"></div>
+                    <div class="loader-ring"></div>
+                </div>
+                <p>Initializing Apple //e...</p>
             </div>
         </div>
 

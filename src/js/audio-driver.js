@@ -31,24 +31,67 @@ export class AudioDriver {
         sampleRate: this.sampleRate,
       });
 
-      // Create gain node for volume control
-      this.gainNode = this.audioContext.createGain();
-      this.gainNode.connect(this.audioContext.destination);
-      this.gainNode.gain.value = this.muted ? 0 : 0.5;
+      // Check if audio context is suspended (browser autoplay policy)
+      if (this.audioContext.state === "suspended") {
+        console.log("Audio context suspended, using fallback timing until user interaction");
+        this.startFallbackTiming();
 
-      if (this.useWorklet) {
-        await this.startWithWorklet();
-      } else {
-        this.startWithScriptProcessor();
+        // Set up listener to resume audio on user interaction
+        this.setupAutoResumeAudio();
+        return;
       }
 
-      this.running = true;
-      console.log("Audio driver started");
+      await this.initAudioNodes();
     } catch (error) {
       console.error("Failed to start audio driver:", error);
       // Fall back to non-audio timing
       this.startFallbackTiming();
     }
+  }
+
+  async initAudioNodes() {
+    // Create gain node for volume control
+    this.gainNode = this.audioContext.createGain();
+    this.gainNode.connect(this.audioContext.destination);
+    this.gainNode.gain.value = this.muted ? 0 : 0.5;
+
+    if (this.useWorklet) {
+      await this.startWithWorklet();
+    } else {
+      this.startWithScriptProcessor();
+    }
+
+    this.running = true;
+    console.log("Audio driver started");
+  }
+
+  setupAutoResumeAudio() {
+    const resumeAudio = async () => {
+      if (this.audioContext && this.audioContext.state === "suspended") {
+        try {
+          await this.audioContext.resume();
+          console.log("Audio context resumed");
+
+          // Stop fallback timing
+          if (this.fallbackInterval) {
+            clearInterval(this.fallbackInterval);
+            this.fallbackInterval = null;
+          }
+
+          // Initialize proper audio nodes
+          await this.initAudioNodes();
+        } catch (e) {
+          console.error("Failed to resume audio context:", e);
+        }
+      }
+
+      // Remove listeners after first interaction
+      document.removeEventListener("click", resumeAudio);
+      document.removeEventListener("keydown", resumeAudio);
+    };
+
+    document.addEventListener("click", resumeAudio, { once: true });
+    document.addEventListener("keydown", resumeAudio, { once: true });
   }
 
   async startWithWorklet() {
@@ -117,6 +160,12 @@ export class AudioDriver {
         this.wasmModule._runCycles(cyclesPerTick * 10);
       } else {
         this.wasmModule._runCycles(cyclesPerTick * this.speed);
+      }
+
+      // Check for frame updates
+      const framesReady = this.wasmModule._consumeFrameSamples();
+      if (framesReady > 0 && this.onFrameReady) {
+        this.onFrameReady(framesReady);
       }
     }, 1000 / 60);
 

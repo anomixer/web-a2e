@@ -426,19 +426,19 @@ export class Debugger {
       const container = document.getElementById(`drive${drive + 1}-status`);
       if (!container) continue;
 
-      const quarterTrack = this.wasmModule._getDiskTrack(drive);
-      const track = Math.floor(quarterTrack / 4);
+      const quarterTrack = this.wasmModule._getDiskHeadPosition(drive);
+      const track = this.wasmModule._getDiskTrack(drive);
       const phase = this.wasmModule._getDiskPhase(drive);
       const motorOn = this.wasmModule._getDiskMotorOn(drive);
       const writeMode = this.wasmModule._getDiskWriteMode(drive);
-      const headPos = this.wasmModule._getDiskHeadPosition(drive);
+      const nibblePos = this.wasmModule._getCurrentNibblePosition(drive);
       const inserted = this.wasmModule._isDiskInserted(drive);
 
       const diskInserted = container.querySelector(".disk-inserted");
       const qTrack = container.querySelector(".quarter-track");
       const trackEl = container.querySelector(".track");
       const phaseEl = container.querySelector(".phase");
-      const headPosEl = container.querySelector(".head-pos");
+      const nibblePosEl = container.querySelector(".nibble-pos");
       const motorEl = container.querySelector(".motor");
       const modeEl = container.querySelector(".mode");
 
@@ -447,12 +447,12 @@ export class Debugger {
       if (qTrack) qTrack.textContent = quarterTrack;
       if (trackEl) trackEl.textContent = track;
       if (phaseEl) phaseEl.textContent = phase;
-      if (headPosEl) headPosEl.textContent = headPos;
+      if (nibblePosEl) nibblePosEl.textContent = nibblePos;
       if (motorEl) {
-        motorEl.textContent = motorOn ? "ON" : "OFF";
-        motorEl.style.color = motorOn ? "#0f0" : "#888";
+        motorEl.textContent = motorOn ? "Motor ON" : "Motor OFF";
+        motorEl.classList.toggle("on", motorOn);
       }
-      if (modeEl) modeEl.textContent = writeMode ? "Write" : "Read";
+      if (modeEl) modeEl.textContent = writeMode ? "Write Mode" : "Read Mode";
     }
 
     // Selected drive
