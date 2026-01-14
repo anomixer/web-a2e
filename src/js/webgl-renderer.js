@@ -330,29 +330,36 @@ bool isInBorder(vec2 uv) {
     return uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0;
 }
 
-// Apply realistic barrel distortion simulating curved CRT glass
+// Apply barrel distortion simulating curved CRT glass
+// This version keeps the screen filling the texture - corners stay at corners
+// while edges bow inward to create the curved appearance
 vec2 curveUV(vec2 uv) {
     if (u_curvature < 0.001) return uv;
 
-    // Convert to centered coordinates (-1 to 1)
+    // Convert to centered coordinates (-0.5 to 0.5)
     vec2 cc = uv - 0.5;
 
-    // Calculate distance from center
+    // Calculate squared distance from center
     float dist = dot(cc, cc);
 
-    // Barrel distortion formula - simulates curved glass surface
-    // The curvature affects how much the image bulges outward in the center
-    // and compresses toward the edges
-    float distortion = 1.0 + dist * u_curvature * 0.5 + dist * dist * u_curvature * 0.25;
+    // Barrel distortion formula
+    // Higher curvature = more pronounced curve
+    float k = u_curvature * 0.8; // Scale factor for reasonable curvature range
+    float distortion = 1.0 + dist * k;
 
     // Apply distortion
     cc *= distortion;
 
-    // Add slight pincushion at edges for more realistic CRT look
-    // This creates the "fish-eye" effect of looking at a curved surface
-    vec2 pincushion = cc * (1.0 + u_curvature * 0.1 * (cc.x * cc.x + cc.y * cc.y));
+    // Calculate the distortion at the corner (where dist is maximum)
+    // For a point at (0.5, 0.5), dist = 0.5^2 + 0.5^2 = 0.5
+    float cornerDist = 0.5;
+    float cornerDistortion = 1.0 + cornerDist * k;
 
-    return pincushion + 0.5;
+    // Normalize so corners map back to texture edges
+    // This keeps the screen filling the entire texture
+    cc /= cornerDistortion;
+
+    return cc + 0.5;
 }
 
 // Calculate edge fade for curved screen (darker at edges like real CRT)
@@ -366,21 +373,23 @@ bool isOutOfBounds(vec2 uv) {
     return uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0;
 }
 
-// Calculate smooth edge factor for anti-aliased curved screen edges
-// Returns 1.0 inside screen, 0.0 outside, with smooth transition at edges
-float smoothEdge(vec2 uv) {
-    // Calculate smooth falloff near edges
-    // The edge width is proportional to curvature for consistent appearance
-    float edgeWidth = 0.01 + u_curvature * 0.02;
+// Calculate smooth edge factor for rounded corners on curved screens
+// This creates subtle rounded corners that look more like a real CRT
+float smoothEdge(vec2 uv, vec2 curvedUV) {
+    if (u_curvature < 0.001) return 1.0;
 
-    // Smooth transition for each edge
-    float left = smoothstep(0.0, edgeWidth, uv.x);
-    float right = smoothstep(0.0, edgeWidth, 1.0 - uv.x);
-    float top = smoothstep(0.0, edgeWidth, uv.y);
-    float bottom = smoothstep(0.0, edgeWidth, 1.0 - uv.y);
+    // For the curved effect, we want slightly rounded corners
+    // The rounding is based on original UV to create consistent corner radius
+    vec2 centered = uv - 0.5;
 
-    // Combine all edges
-    return left * right * top * bottom;
+    // Calculate corner rounding - more curvature = more rounded corners
+    float cornerRadius = u_curvature * 0.08;
+    vec2 cornerDist = abs(centered) - (0.5 - cornerRadius);
+    cornerDist = max(cornerDist, 0.0);
+    float corner = length(cornerDist) / cornerRadius;
+
+    // Smooth falloff at corners
+    return 1.0 - smoothstep(0.8, 1.0, corner);
 }
 
 // Scanline effect
@@ -478,23 +487,24 @@ float flicker() {
 }
 
 void main() {
-    // Apply screen curvature
+    // Store original UV for edge calculations
+    vec2 origUV = v_texCoord;
+
+    // Apply screen curvature - this keeps corners at corners
+    // while bowing the edges inward for the curved effect
     vec2 uv = curveUV(v_texCoord);
 
-    // Calculate smooth edge factor for anti-aliased curved edges
-    float edgeFactor = smoothEdge(uv);
+    // Calculate smooth edge factor for rounded corners
+    float edgeFactor = smoothEdge(origUV, uv);
 
-    // If completely outside bounds, show bezel color
+    // If completely outside rounded corners, show bezel color
     if (edgeFactor < 0.001) {
         gl_FragColor = vec4(0.01, 0.01, 0.01, 1.0);
         return;
     }
 
-    // Clamp UV for texture sampling (prevents artifacts at extreme edges)
-    vec2 clampedUV = clamp(uv, 0.0, 1.0);
-
     // Add border around screen content
-    vec2 texUV = addBorder(clampedUV);
+    vec2 texUV = addBorder(uv);
 
     // Check if we're in the border area
     bool inBorder = isInBorder(texUV);
@@ -519,12 +529,12 @@ void main() {
         // Apply color adjustments
         color = adjustColor(color);
 
-        // Apply vignette
-        color *= vignette(clampedUV);
+        // Apply vignette (use curved UV for natural vignette following the curve)
+        color *= vignette(uv);
 
         // Apply edge fade for curved screens (edges are darker due to viewing angle)
         if (u_curvature > 0.001) {
-            color *= edgeFade(clampedUV);
+            color *= edgeFade(uv);
         }
 
         // Apply flicker
@@ -532,7 +542,7 @@ void main() {
     }
 
     // Blend between screen content and bezel using smooth edge factor
-    // This creates anti-aliased edges on the curved screen
+    // This creates anti-aliased rounded corners
     vec3 bezelColor = vec3(0.01);
     color = mix(bezelColor, color, edgeFactor);
 
