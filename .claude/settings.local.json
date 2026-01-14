@@ -11,7 +11,9 @@
       "Bash(node test/disk-boot-test.js:*)",
       "Bash(node -e:*)",
       "Bash(npm run build:*)",
-      "Bash(node test/compare-boot.js:*)"
+      "Bash(node test/compare-boot.js:*)",
+      "Bash(xxd:*)",
+      "Bash(grep:*)"
     ]
   }
 }

@@ -1,4 +1,4 @@
-// WebGL Renderer for Apple //e display
+// WebGL Renderer for Apple //e display with CRT effects
 
 export class WebGLRenderer {
     constructor(canvas) {
@@ -6,11 +6,32 @@ export class WebGLRenderer {
         this.gl = null;
         this.program = null;
         this.texture = null;
-        this.crtEnabled = false;
 
         // Texture dimensions
         this.width = 560;
         this.height = 384;
+
+        // CRT effect parameters (0.0 to 1.0 unless noted)
+        this.crtParams = {
+            curvature: 0.0,
+            scanlineIntensity: 0.0,
+            scanlineWidth: 0.5,
+            shadowMask: 0.0,
+            glowIntensity: 0.0,
+            glowSpread: 0.5,
+            brightness: 1.0,      // 0.5 to 1.5
+            contrast: 1.0,        // 0.5 to 1.5
+            saturation: 1.0,      // 0.0 to 2.0
+            vignette: 0.0,
+            flicker: 0.0,
+            rgbOffset: 0.0
+        };
+
+        // Time for animated effects
+        this.time = 0;
+
+        // Uniform locations
+        this.uniforms = {};
     }
 
     async init() {
@@ -36,12 +57,29 @@ export class WebGLRenderer {
             throw new Error('Shader program failed to link: ' + gl.getProgramInfoLog(this.program));
         }
 
-        // Get attribute and uniform locations
+        // Get attribute locations
         this.positionLoc = gl.getAttribLocation(this.program, 'a_position');
         this.texCoordLoc = gl.getAttribLocation(this.program, 'a_texCoord');
-        this.textureLoc = gl.getUniformLocation(this.program, 'u_texture');
-        this.crtEnabledLoc = gl.getUniformLocation(this.program, 'u_crtEnabled');
-        this.resolutionLoc = gl.getUniformLocation(this.program, 'u_resolution');
+
+        // Get all uniform locations
+        this.uniforms = {
+            texture: gl.getUniformLocation(this.program, 'u_texture'),
+            resolution: gl.getUniformLocation(this.program, 'u_resolution'),
+            textureSize: gl.getUniformLocation(this.program, 'u_textureSize'),
+            time: gl.getUniformLocation(this.program, 'u_time'),
+            curvature: gl.getUniformLocation(this.program, 'u_curvature'),
+            scanlineIntensity: gl.getUniformLocation(this.program, 'u_scanlineIntensity'),
+            scanlineWidth: gl.getUniformLocation(this.program, 'u_scanlineWidth'),
+            shadowMask: gl.getUniformLocation(this.program, 'u_shadowMask'),
+            glowIntensity: gl.getUniformLocation(this.program, 'u_glowIntensity'),
+            glowSpread: gl.getUniformLocation(this.program, 'u_glowSpread'),
+            brightness: gl.getUniformLocation(this.program, 'u_brightness'),
+            contrast: gl.getUniformLocation(this.program, 'u_contrast'),
+            saturation: gl.getUniformLocation(this.program, 'u_saturation'),
+            vignette: gl.getUniformLocation(this.program, 'u_vignette'),
+            flicker: gl.getUniformLocation(this.program, 'u_flicker'),
+            rgbOffset: gl.getUniformLocation(this.program, 'u_rgbOffset')
+        };
 
         // Create vertex buffer (full-screen quad)
         const positions = new Float32Array([
@@ -60,6 +98,9 @@ export class WebGLRenderer {
         gl.bindTexture(gl.TEXTURE_2D, this.texture);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+        // Default to nearest neighbor filtering (sharp pixels)
+        this.useNearestFilter = true;
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
         gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
 
@@ -70,6 +111,12 @@ export class WebGLRenderer {
             this.width, this.height, 0,
             gl.RGBA, gl.UNSIGNED_BYTE, emptyData
         );
+
+        // Set initial canvas size if not already set
+        if (!this.canvas.width || !this.canvas.height) {
+            this.canvas.width = this.width;
+            this.canvas.height = this.height;
+        }
 
         // Set viewport
         gl.viewport(0, 0, this.canvas.width, this.canvas.height);
@@ -104,6 +151,9 @@ export class WebGLRenderer {
     draw() {
         const gl = this.gl;
 
+        // Update time for animated effects
+        this.time += 0.016; // Approximately 60fps
+
         gl.clearColor(0, 0, 0, 1);
         gl.clear(gl.COLOR_BUFFER_BIT);
 
@@ -123,11 +173,24 @@ export class WebGLRenderer {
         // Bind texture
         gl.activeTexture(gl.TEXTURE0);
         gl.bindTexture(gl.TEXTURE_2D, this.texture);
-        gl.uniform1i(this.textureLoc, 0);
+        gl.uniform1i(this.uniforms.texture, 0);
 
-        // Set uniforms
-        gl.uniform1i(this.crtEnabledLoc, this.crtEnabled ? 1 : 0);
-        gl.uniform2f(this.resolutionLoc, this.canvas.width, this.canvas.height);
+        // Set all uniforms
+        gl.uniform2f(this.uniforms.resolution, this.canvas.width, this.canvas.height);
+        gl.uniform2f(this.uniforms.textureSize, this.width, this.height);
+        gl.uniform1f(this.uniforms.time, this.time);
+        gl.uniform1f(this.uniforms.curvature, this.crtParams.curvature);
+        gl.uniform1f(this.uniforms.scanlineIntensity, this.crtParams.scanlineIntensity);
+        gl.uniform1f(this.uniforms.scanlineWidth, this.crtParams.scanlineWidth);
+        gl.uniform1f(this.uniforms.shadowMask, this.crtParams.shadowMask);
+        gl.uniform1f(this.uniforms.glowIntensity, this.crtParams.glowIntensity);
+        gl.uniform1f(this.uniforms.glowSpread, this.crtParams.glowSpread);
+        gl.uniform1f(this.uniforms.brightness, this.crtParams.brightness);
+        gl.uniform1f(this.uniforms.contrast, this.crtParams.contrast);
+        gl.uniform1f(this.uniforms.saturation, this.crtParams.saturation);
+        gl.uniform1f(this.uniforms.vignette, this.crtParams.vignette);
+        gl.uniform1f(this.uniforms.flicker, this.crtParams.flicker);
+        gl.uniform1f(this.uniforms.rgbOffset, this.crtParams.rgbOffset);
 
         // Draw
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -153,14 +216,65 @@ export class WebGLRenderer {
         this.draw();
     }
 
+    // Set individual CRT parameter
+    setParam(name, value) {
+        if (name in this.crtParams) {
+            this.crtParams[name] = value;
+        }
+    }
+
+    // Set multiple CRT parameters at once
+    setParams(params) {
+        for (const [name, value] of Object.entries(params)) {
+            if (name in this.crtParams) {
+                this.crtParams[name] = value;
+            }
+        }
+    }
+
+    // Set texture filtering mode
+    setNearestFilter(enabled) {
+        const gl = this.gl;
+        this.useNearestFilter = enabled;
+
+        gl.bindTexture(gl.TEXTURE_2D, this.texture);
+        if (enabled) {
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+        } else {
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+            gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+        }
+    }
+
+    // Legacy method for compatibility
     setCRTEnabled(enabled) {
-        this.crtEnabled = enabled;
+        // Apply preset CRT settings
+        if (enabled) {
+            this.crtParams.curvature = 0.3;
+            this.crtParams.scanlineIntensity = 0.3;
+            this.crtParams.shadowMask = 0.2;
+            this.crtParams.vignette = 0.2;
+            this.crtParams.glowIntensity = 0.1;
+        } else {
+            this.crtParams.curvature = 0;
+            this.crtParams.scanlineIntensity = 0;
+            this.crtParams.shadowMask = 0;
+            this.crtParams.vignette = 0;
+            this.crtParams.glowIntensity = 0;
+        }
     }
 
     resize(width, height) {
-        this.canvas.width = width;
-        this.canvas.height = height;
-        this.gl.viewport(0, 0, width, height);
+        // Use device pixel ratio for sharper rendering on high-DPI displays
+        const dpr = window.devicePixelRatio || 1;
+
+        // Set the backing store size (actual pixels)
+        this.canvas.width = Math.floor(width * dpr);
+        this.canvas.height = Math.floor(height * dpr);
+
+        // Update WebGL viewport
+        this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
     }
 }
 
@@ -176,69 +290,255 @@ void main() {
 }
 `;
 
-// Fragment shader with optional CRT effect
+// Fragment shader with comprehensive CRT effects
 const FRAGMENT_SHADER_SOURCE = `
-precision mediump float;
+precision highp float;
 
 uniform sampler2D u_texture;
-uniform bool u_crtEnabled;
 uniform vec2 u_resolution;
+uniform vec2 u_textureSize;
+uniform float u_time;
+
+// CRT effect uniforms
+uniform float u_curvature;
+uniform float u_scanlineIntensity;
+uniform float u_scanlineWidth;
+uniform float u_shadowMask;
+uniform float u_glowIntensity;
+uniform float u_glowSpread;
+uniform float u_brightness;
+uniform float u_contrast;
+uniform float u_saturation;
+uniform float u_vignette;
+uniform float u_flicker;
+uniform float u_rgbOffset;
 
 varying vec2 v_texCoord;
 
-// CRT effect parameters
-const float scanlineIntensity = 0.15;
-const float curvature = 0.03;
-const float vignetteStrength = 0.3;
+// Constants
+const float PI = 3.14159265359;
+const float BORDER = 0.03; // Border size as fraction of screen (3%)
 
-vec2 curveRemapUV(vec2 uv) {
-    if (!u_crtEnabled) return uv;
-
-    uv = uv * 2.0 - 1.0;
-    vec2 offset = abs(uv.yx) / vec2(6.0, 4.0);
-    uv = uv + uv * offset * offset * curvature;
-    uv = uv * 0.5 + 0.5;
-    return uv;
+// Remap UV to add border around the screen content
+vec2 addBorder(vec2 uv) {
+    // Shrink the UV space to create a border
+    return uv * (1.0 + BORDER * 2.0) - BORDER;
 }
 
-float scanline(vec2 uv) {
-    if (!u_crtEnabled) return 1.0;
-
-    float scanlineCount = u_resolution.y * 0.5;
-    float scanlinePhase = uv.y * scanlineCount * 3.14159 * 2.0;
-    return 1.0 - scanlineIntensity * (0.5 + 0.5 * sin(scanlinePhase));
+// Check if we're in the border area (outside the actual screen content)
+bool isInBorder(vec2 uv) {
+    return uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0;
 }
 
+// Apply realistic barrel distortion simulating curved CRT glass
+vec2 curveUV(vec2 uv) {
+    if (u_curvature < 0.001) return uv;
+
+    // Convert to centered coordinates (-1 to 1)
+    vec2 cc = uv - 0.5;
+
+    // Calculate distance from center
+    float dist = dot(cc, cc);
+
+    // Barrel distortion formula - simulates curved glass surface
+    // The curvature affects how much the image bulges outward in the center
+    // and compresses toward the edges
+    float distortion = 1.0 + dist * u_curvature * 0.5 + dist * dist * u_curvature * 0.25;
+
+    // Apply distortion
+    cc *= distortion;
+
+    // Add slight pincushion at edges for more realistic CRT look
+    // This creates the "fish-eye" effect of looking at a curved surface
+    vec2 pincushion = cc * (1.0 + u_curvature * 0.1 * (cc.x * cc.x + cc.y * cc.y));
+
+    return pincushion + 0.5;
+}
+
+// Calculate edge fade for curved screen (darker at edges like real CRT)
+float edgeFade(vec2 uv) {
+    vec2 edge = smoothstep(0.0, 0.02, uv) * smoothstep(0.0, 0.02, 1.0 - uv);
+    return edge.x * edge.y;
+}
+
+// Check if UV is within screen bounds
+bool isOutOfBounds(vec2 uv) {
+    return uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0;
+}
+
+// Calculate smooth edge factor for anti-aliased curved screen edges
+// Returns 1.0 inside screen, 0.0 outside, with smooth transition at edges
+float smoothEdge(vec2 uv) {
+    // Calculate smooth falloff near edges
+    // The edge width is proportional to curvature for consistent appearance
+    float edgeWidth = 0.01 + u_curvature * 0.02;
+
+    // Smooth transition for each edge
+    float left = smoothstep(0.0, edgeWidth, uv.x);
+    float right = smoothstep(0.0, edgeWidth, 1.0 - uv.x);
+    float top = smoothstep(0.0, edgeWidth, uv.y);
+    float bottom = smoothstep(0.0, edgeWidth, 1.0 - uv.y);
+
+    // Combine all edges
+    return left * right * top * bottom;
+}
+
+// Scanline effect
+float scanlines(vec2 uv) {
+    if (u_scanlineIntensity < 0.001) return 1.0;
+
+    float scanline = sin(uv.y * u_textureSize.y * PI) * 0.5 + 0.5;
+    scanline = pow(scanline, u_scanlineWidth * 2.0 + 0.5);
+    return mix(1.0, scanline, u_scanlineIntensity);
+}
+
+// Shadow mask (aperture grille simulation)
+vec3 shadowMask(vec2 uv) {
+    if (u_shadowMask < 0.001) return vec3(1.0);
+
+    vec2 pos = uv * u_resolution;
+    int px = int(mod(pos.x, 3.0));
+
+    vec3 mask;
+    if (px == 0) {
+        mask = vec3(1.0, 0.7, 0.7);
+    } else if (px == 1) {
+        mask = vec3(0.7, 1.0, 0.7);
+    } else {
+        mask = vec3(0.7, 0.7, 1.0);
+    }
+
+    return mix(vec3(1.0), mask, u_shadowMask);
+}
+
+// Vignette effect
 float vignette(vec2 uv) {
-    if (!u_crtEnabled) return 1.0;
+    if (u_vignette < 0.001) return 1.0;
 
-    uv = uv * 2.0 - 1.0;
-    float v = 1.0 - dot(uv, uv) * vignetteStrength;
-    return clamp(v, 0.0, 1.0);
+    vec2 center = uv - 0.5;
+    float dist = length(center);
+    float vig = 1.0 - dist * dist * u_vignette * 2.0;
+    return clamp(vig, 0.0, 1.0);
+}
+
+// Phosphor glow / bloom effect
+vec3 glow(sampler2D tex, vec2 uv) {
+    if (u_glowIntensity < 0.001) return vec3(0.0);
+
+    vec3 bloom = vec3(0.0);
+    float spread = u_glowSpread * 0.01;
+
+    // Simple 9-tap blur for glow
+    for (int x = -1; x <= 1; x++) {
+        for (int y = -1; y <= 1; y++) {
+            vec2 offset = vec2(float(x), float(y)) * spread;
+            bloom += texture2D(tex, uv + offset).rgb;
+        }
+    }
+    bloom /= 9.0;
+
+    return bloom * u_glowIntensity;
+}
+
+// RGB chromatic aberration
+vec3 rgbShift(sampler2D tex, vec2 uv) {
+    if (u_rgbOffset < 0.001) return texture2D(tex, uv).rgb;
+
+    float offset = u_rgbOffset * 0.003;
+    vec2 dir = normalize(uv - 0.5);
+
+    float r = texture2D(tex, uv + dir * offset).r;
+    float g = texture2D(tex, uv).g;
+    float b = texture2D(tex, uv - dir * offset).b;
+
+    return vec3(r, g, b);
+}
+
+// Brightness/Contrast/Saturation adjustment
+vec3 adjustColor(vec3 color) {
+    // Brightness
+    color *= u_brightness;
+
+    // Contrast
+    color = (color - 0.5) * u_contrast + 0.5;
+
+    // Saturation
+    float gray = dot(color, vec3(0.299, 0.587, 0.114));
+    color = mix(vec3(gray), color, u_saturation);
+
+    return color;
+}
+
+// Flicker effect (simulates CRT refresh)
+float flicker() {
+    if (u_flicker < 0.001) return 1.0;
+
+    float f = sin(u_time * 60.0) * 0.5 + 0.5;
+    return 1.0 - u_flicker * 0.1 * f;
 }
 
 void main() {
-    vec2 uv = curveRemapUV(v_texCoord);
+    // Apply screen curvature
+    vec2 uv = curveUV(v_texCoord);
 
-    // Check bounds after curvature
-    if (uv.x < 0.0 || uv.x > 1.0 || uv.y < 0.0 || uv.y > 1.0) {
-        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
+    // Calculate smooth edge factor for anti-aliased curved edges
+    float edgeFactor = smoothEdge(uv);
+
+    // If completely outside bounds, show bezel color
+    if (edgeFactor < 0.001) {
+        gl_FragColor = vec4(0.01, 0.01, 0.01, 1.0);
         return;
     }
 
-    vec4 color = texture2D(u_texture, uv);
+    // Clamp UV for texture sampling (prevents artifacts at extreme edges)
+    vec2 clampedUV = clamp(uv, 0.0, 1.0);
 
-    // Apply scanlines
-    color.rgb *= scanline(uv);
+    // Add border around screen content
+    vec2 texUV = addBorder(clampedUV);
 
-    // Apply vignette
-    color.rgb *= vignette(uv);
+    // Check if we're in the border area
+    bool inBorder = isInBorder(texUV);
 
-    // Slight phosphor glow effect
-    if (u_crtEnabled) {
-        color.rgb = pow(color.rgb, vec3(0.9));
+    // For border area, use black; otherwise sample the texture
+    vec3 color;
+    if (inBorder) {
+        color = vec3(0.0);
+    } else {
+        // Get base color with optional RGB shift
+        color = rgbShift(u_texture, texUV);
+
+        // Add phosphor glow
+        color += glow(u_texture, texUV);
+
+        // Apply scanlines
+        color *= scanlines(texUV);
+
+        // Apply shadow mask
+        color *= shadowMask(texUV);
+
+        // Apply color adjustments
+        color = adjustColor(color);
+
+        // Apply vignette
+        color *= vignette(clampedUV);
+
+        // Apply edge fade for curved screens (edges are darker due to viewing angle)
+        if (u_curvature > 0.001) {
+            color *= edgeFade(clampedUV);
+        }
+
+        // Apply flicker
+        color *= flicker();
     }
 
-    gl_FragColor = color;
+    // Blend between screen content and bezel using smooth edge factor
+    // This creates anti-aliased edges on the curved screen
+    vec3 bezelColor = vec3(0.01);
+    color = mix(bezelColor, color, edgeFactor);
+
+    // Clamp final color
+    color = clamp(color, 0.0, 1.0);
+
+    gl_FragColor = vec4(color, 1.0);
 }
 `;

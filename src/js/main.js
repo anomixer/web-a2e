@@ -5,6 +5,7 @@ import { AudioDriver } from "./audio-driver.js";
 import { InputHandler } from "./input-handler.js";
 import { DiskManager } from "./disk-manager.js";
 import { Debugger } from "./debugger.js";
+import { DisplaySettings } from "./display-settings.js";
 
 class AppleIIeEmulator {
   constructor() {
@@ -14,10 +15,16 @@ class AppleIIeEmulator {
     this.inputHandler = null;
     this.diskManager = null;
     this.debugger = null;
+    this.displaySettings = null;
 
     this.running = false;
     this.speed = 1; // 1x, 2x, or 0 for unlimited
-    this.crtEnabled = false;
+
+    // Display aspect ratio (560:384)
+    this.aspectRatio = 560 / 384;
+
+    // Bind resize handler
+    this.handleResize = this.handleResize.bind(this);
   }
 
   async init() {
@@ -55,8 +62,18 @@ class AppleIIeEmulator {
       this.debugger = new Debugger(this.wasmModule);
       this.debugger.init();
 
+      // Set up display settings (pass renderer for shader control)
+      this.displaySettings = new DisplaySettings(this.renderer);
+      this.displaySettings.init();
+
       // Set up UI controls
       this.setupControls();
+
+      // Set up resize handling
+      this.setupResizeHandling();
+
+      // Initial resize to fit window
+      this.handleResize();
 
       // Start render loop
       this.startRenderLoop();
@@ -110,20 +127,6 @@ class AppleIIeEmulator {
       this.updateMuteButton();
     });
 
-    // CRT toggle
-    document.getElementById("crt-toggle").addEventListener("change", (e) => {
-      this.crtEnabled = e.target.checked;
-      this.renderer.setCRTEnabled(this.crtEnabled);
-
-      // Toggle scanlines visual effect
-      const screenWrapper = document.querySelector(".monitor-screen-wrapper");
-      if (this.crtEnabled) {
-        screenWrapper.classList.add("crt-enabled");
-      } else {
-        screenWrapper.classList.remove("crt-enabled");
-      }
-    });
-
     // Debugger toggle
     document.getElementById("btn-debugger").addEventListener("click", () => {
       this.toggleDebugger();
@@ -150,6 +153,85 @@ class AppleIIeEmulator {
 
     if (!panel.classList.contains("hidden")) {
       this.debugger.refresh();
+    }
+
+    // Resize monitor to account for debugger panel
+    this.handleResize();
+  }
+
+  setupResizeHandling() {
+    // Listen for window resize
+    window.addEventListener("resize", this.handleResize);
+
+    // Use ResizeObserver for more accurate container size tracking
+    if (typeof ResizeObserver !== "undefined") {
+      const main = document.querySelector("main");
+      this.resizeObserver = new ResizeObserver(() => {
+        this.handleResize();
+      });
+      this.resizeObserver.observe(main);
+    }
+  }
+
+  handleResize() {
+    const canvas = document.getElementById("screen");
+    const main = document.querySelector("main");
+    const debuggerPanel = document.getElementById("debugger-panel");
+    const diskDrives = document.getElementById("disk-drives");
+    const header = document.querySelector("header");
+    const footer = document.querySelector("footer");
+
+    // Calculate available space
+    const headerHeight = header ? header.offsetHeight : 0;
+    const footerHeight = footer ? footer.offsetHeight : 0;
+    const debuggerWidth = debuggerPanel && !debuggerPanel.classList.contains("hidden")
+      ? debuggerPanel.offsetWidth + 16 // Include gap
+      : 0;
+
+    // Get disk drives height (approximate)
+    const diskDrivesHeight = diskDrives ? diskDrives.offsetHeight + 16 : 100;
+
+    // Calculate available dimensions
+    const windowWidth = window.innerWidth;
+    const windowHeight = window.innerHeight;
+
+    // Available space for the monitor (accounting for padding)
+    const padding = 32; // 16px on each side
+    const availableWidth = windowWidth - debuggerWidth - padding;
+    const availableHeight = windowHeight - headerHeight - footerHeight - diskDrivesHeight - padding;
+
+    // Calculate the optimal canvas size maintaining aspect ratio
+    // The bezel adds approximately 72px width (28*2 + 16*2) and 88px height (24+32+16*2)
+    const bezelPaddingX = 88;
+    const bezelPaddingY = 104;
+
+    const maxCanvasWidth = availableWidth - bezelPaddingX;
+    const maxCanvasHeight = availableHeight - bezelPaddingY;
+
+    let canvasWidth, canvasHeight;
+
+    // Calculate size based on aspect ratio
+    if (maxCanvasWidth / maxCanvasHeight > this.aspectRatio) {
+      // Height is the limiting factor
+      canvasHeight = Math.max(200, maxCanvasHeight);
+      canvasWidth = canvasHeight * this.aspectRatio;
+    } else {
+      // Width is the limiting factor
+      canvasWidth = Math.max(280, maxCanvasWidth);
+      canvasHeight = canvasWidth / this.aspectRatio;
+    }
+
+    // Round to integers
+    canvasWidth = Math.floor(canvasWidth);
+    canvasHeight = Math.floor(canvasHeight);
+
+    // Apply size to canvas element (CSS size for display)
+    canvas.style.width = canvasWidth + "px";
+    canvas.style.height = canvasHeight + "px";
+
+    // Update WebGL viewport
+    if (this.renderer) {
+      this.renderer.resize(canvasWidth, canvasHeight);
     }
   }
 

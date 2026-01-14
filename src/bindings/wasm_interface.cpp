@@ -90,6 +90,13 @@ void keyUp(int keycode) {
 }
 
 EMSCRIPTEN_KEEPALIVE
+void setButton(int button, bool pressed) {
+  if (g_emulator) {
+    g_emulator->setButton(button, pressed);
+  }
+}
+
+EMSCRIPTEN_KEEPALIVE
 bool insertDisk(int drive, uint8_t *data, int size, const char *filename) {
   if (g_emulator) {
     return g_emulator->insertDisk(drive, data, size, filename);
@@ -379,6 +386,17 @@ size_t getCurrentNibblePosition(int drive) {
     }
   }
   return 0;
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool isDiskModified(int drive) {
+  if (g_emulator && g_emulator->getDisk().hasDisk(drive)) {
+    const auto *image = g_emulator->getDisk().getDiskImage(drive);
+    if (image) {
+      return image->isModified();
+    }
+  }
+  return false;
 }
 
 } // extern "C"

@@ -107,11 +107,15 @@ export class InputHandler {
       return;
     }
     if (keyCode === 18) {
+      // Alt = Open Apple (Button 0)
       this.altPressed = true;
+      this.wasmModule._setButton(0, true);
       return;
     }
     if (keyCode === 91 || keyCode === 93) {
+      // Meta/Command = Closed Apple (Button 1)
       this.metaPressed = true;
+      this.wasmModule._setButton(1, true);
       return;
     }
 
@@ -185,11 +189,15 @@ export class InputHandler {
       return;
     }
     if (keyCode === 18) {
+      // Alt = Open Apple (Button 0)
       this.altPressed = false;
+      this.wasmModule._setButton(0, false);
       return;
     }
     if (keyCode === 91 || keyCode === 93) {
+      // Meta/Command = Closed Apple (Button 1)
       this.metaPressed = false;
+      this.wasmModule._setButton(1, false);
       return;
     }
 
