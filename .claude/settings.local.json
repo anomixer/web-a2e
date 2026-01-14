@@ -15,7 +15,12 @@
       "Bash(xxd:*)",
       "Bash(grep:*)",
       "Bash(make:*)",
-      "Bash(npm run build:wasm:*)"
+      "Bash(npm run build:wasm:*)",
+      "WebFetch(domain:www.xtof.info)",
+      "WebFetch(domain:nicole.express)",
+      "WebFetch(domain:www.kreativekorp.com)",
+      "WebFetch(domain:www.appleoldies.ca)",
+      "WebFetch(domain:www.battlestations.zone)"
     ]
   }
 }

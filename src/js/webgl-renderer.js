@@ -317,7 +317,7 @@ varying vec2 v_texCoord;
 
 // Constants
 const float PI = 3.14159265359;
-const float BORDER = 0.03; // Border size as fraction of screen (3%)
+const float BORDER = 0.0; // Border disabled - causes sampling artifacts with NEAREST filtering
 
 // Remap UV to add border around the screen content
 vec2 addBorder(vec2 uv) {
