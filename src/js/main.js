@@ -20,8 +20,8 @@ class AppleIIeEmulator {
     this.running = false;
     this.speed = 1; // 1x, 2x, or 0 for unlimited
 
-    // Display aspect ratio (560:384)
-    this.aspectRatio = 560 / 384;
+    // Display aspect ratio (4:3 for authentic CRT monitor)
+    this.aspectRatio = 4 / 3;
 
     // Bind resize handler
     this.handleResize = this.handleResize.bind(this);
@@ -65,6 +65,9 @@ class AppleIIeEmulator {
       // Set up display settings (pass renderer for shader control)
       this.displaySettings = new DisplaySettings(this.renderer);
       this.displaySettings.init();
+
+      // Start with TV static "no signal" since emulator is off
+      this.renderer.setNoSignal(true);
 
       // Set up UI controls
       this.setupControls();
@@ -154,9 +157,6 @@ class AppleIIeEmulator {
     if (!panel.classList.contains("hidden")) {
       this.debugger.refresh();
     }
-
-    // Resize monitor to account for debugger panel
-    this.handleResize();
   }
 
   setupResizeHandling() {
@@ -175,8 +175,6 @@ class AppleIIeEmulator {
 
   handleResize() {
     const canvas = document.getElementById("screen");
-    const main = document.querySelector("main");
-    const debuggerPanel = document.getElementById("debugger-panel");
     const diskDrives = document.getElementById("disk-drives");
     const header = document.querySelector("header");
     const footer = document.querySelector("footer");
@@ -184,9 +182,6 @@ class AppleIIeEmulator {
     // Calculate available space
     const headerHeight = header ? header.offsetHeight : 0;
     const footerHeight = footer ? footer.offsetHeight : 0;
-    const debuggerWidth = debuggerPanel && !debuggerPanel.classList.contains("hidden")
-      ? debuggerPanel.offsetWidth + 16 // Include gap
-      : 0;
 
     // Get disk drives height (approximate)
     const diskDrivesHeight = diskDrives ? diskDrives.offsetHeight + 16 : 100;
@@ -197,7 +192,7 @@ class AppleIIeEmulator {
 
     // Available space for the monitor (accounting for padding)
     const padding = 32; // 16px on each side
-    const availableWidth = windowWidth - debuggerWidth - padding;
+    const availableWidth = windowWidth - padding;
     const availableHeight = windowHeight - headerHeight - footerHeight - diskDrivesHeight - padding;
 
     // Calculate the optimal canvas size maintaining aspect ratio
@@ -270,6 +265,7 @@ class AppleIIeEmulator {
     this.wasmModule._reset();
 
     this.running = true;
+    this.renderer.setNoSignal(false);
     this.audioDriver.start();
     this.updatePowerButton();
     console.log("Emulator powered on");
@@ -281,8 +277,8 @@ class AppleIIeEmulator {
     this.running = false;
     this.audioDriver.stop();
 
-    // Clear the screen to black
-    this.renderer.clear();
+    // Show TV static "no signal" effect
+    this.renderer.setNoSignal(true);
 
     this.updatePowerButton();
     console.log("Emulator powered off");
@@ -314,6 +310,11 @@ class AppleIIeEmulator {
 
       // Update disk LEDs
       this.diskManager.updateLEDs();
+
+      // Keep drawing when off to show animated TV static
+      if (!this.running) {
+        this.renderer.draw();
+      }
 
       requestAnimationFrame(render);
     };
