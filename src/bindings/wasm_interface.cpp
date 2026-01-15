@@ -114,7 +114,7 @@ void ejectDisk(int drive) {
 EMSCRIPTEN_KEEPALIVE
 uint8_t *getDiskData(int drive, size_t *size) {
   if (g_emulator) {
-    return const_cast<uint8_t *>(g_emulator->getDiskData(drive, size));
+    return const_cast<uint8_t *>(g_emulator->exportDiskData(drive, size));
   }
   *size = 0;
   return nullptr;

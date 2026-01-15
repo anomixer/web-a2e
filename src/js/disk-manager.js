@@ -257,12 +257,6 @@ export class DiskManager {
         // Create a blank WOZ2 format disk image
         const data = this.createBlankWozDisk();
 
-        // Debug: print structure
-        console.log('WOZ data size:', data.length);
-        console.log('First 20 bytes (header+INFO start):', Array.from(data.slice(0, 20)).map(b => b.toString(16).padStart(2, '0')).join(' '));
-        console.log('Bytes 80-100 (TMAP should start here):', Array.from(data.slice(80, 100)).map(b => b.toString(16).padStart(2, '0')).join(' '));
-        console.log('Bytes 248-268 (TRKS should start here):', Array.from(data.slice(248, 268)).map(b => b.toString(16).padStart(2, '0')).join(' '));
-
         // Allocate memory in WASM
         const ptr = this.wasmModule._malloc(data.length);
         this.wasmModule.HEAPU8.set(data, ptr);
@@ -283,7 +277,6 @@ export class DiskManager {
             drive.filename = filename;
             if (drive.ejectBtn) drive.ejectBtn.disabled = false;
             if (drive.nameLabel) drive.nameLabel.textContent = filename;
-            console.log(`Inserted blank WOZ disk in drive ${driveNum + 1}`);
         } else {
             alert('Failed to insert blank disk');
         }
@@ -380,10 +373,8 @@ export class DiskManager {
         for (let i = 0; i < 10; i++) {
             data[offset++] = 0;
         }
-        console.log('After INFO data, offset:', offset);  // Should be 80
 
         // === TMAP Chunk ===
-        console.log('TMAP chunk starting at offset:', offset);  // Should be 80
         // Chunk ID: "TMAP"
         data[offset++] = 0x54;  // 'T'
         data[offset++] = 0x4D;  // 'M'
@@ -462,20 +453,26 @@ export class DiskManager {
         return data;
     }
 
-    ejectDisk(driveNum) {
+    async ejectDisk(driveNum) {
         // Check if disk is modified
         const hasModifiedCheck = typeof this.wasmModule._isDiskModified === 'function';
         const isModified = hasModifiedCheck && this.wasmModule._isDiskModified(driveNum);
-
-        console.log(`Eject drive ${driveNum + 1}: hasModifiedCheck=${hasModifiedCheck}, isModified=${isModified}`);
+        const drive = this.drives[driveNum];
 
         if (isModified) {
-            // Show save modal
-            this.showSaveModal(driveNum);
-        } else {
-            // No modifications, eject directly
-            this.performEject(driveNum);
+            // Generate suggested filename
+            let suggestedName = drive.filename || `disk${driveNum + 1}.woz`;
+            // Ensure WOZ extension for blank disks
+            if (suggestedName === 'Blank Disk.woz' || !suggestedName.includes('.')) {
+                suggestedName = suggestedName.replace(/\.[^.]*$/, '') + '.woz';
+            }
+
+            // Go directly to OS save picker
+            await this.saveDiskWithPicker(driveNum, suggestedName);
         }
+
+        // Always eject after save attempt
+        this.performEject(driveNum);
     }
 
     updateLEDs() {
@@ -524,14 +521,30 @@ export class DiskManager {
 
     async saveDiskWithPicker(driveNum, suggestedName) {
         const sizePtr = this.wasmModule._malloc(4);
+        if (!sizePtr) {
+            console.error('saveDiskWithPicker: failed to allocate size pointer');
+            return false;
+        }
+
         const dataPtr = this.wasmModule._getDiskData(driveNum, sizePtr);
 
         if (!dataPtr) {
+            console.error('saveDiskWithPicker: _getDiskData returned null');
             this.wasmModule._free(sizePtr);
             return false;
         }
 
-        const size = this.wasmModule.HEAPU32[sizePtr >> 2];
+        // Read size from WASM memory (little-endian 32-bit value)
+        const heap = this.wasmModule.HEAPU8;
+        const size = heap[sizePtr] | (heap[sizePtr + 1] << 8) |
+                     (heap[sizePtr + 2] << 16) | (heap[sizePtr + 3] << 24);
+
+        if (size <= 0 || size > 10000000) {
+            console.error(`saveDiskWithPicker: invalid size ${size}`);
+            this.wasmModule._free(sizePtr);
+            return false;
+        }
+
         const data = new Uint8Array(this.wasmModule.HEAPU8.buffer, dataPtr, size);
 
         // Create a copy of the data since the WASM buffer may become invalid
@@ -591,7 +604,17 @@ export class DiskManager {
             return;
         }
 
-        const size = this.wasmModule.HEAPU32[sizePtr >> 2];
+        // Read size from WASM memory (little-endian 32-bit value)
+        const heap = this.wasmModule.HEAPU8;
+        const size = heap[sizePtr] | (heap[sizePtr + 1] << 8) |
+                     (heap[sizePtr + 2] << 16) | (heap[sizePtr + 3] << 24);
+
+        if (size <= 0 || size > 10000000) {
+            console.error(`saveDiskAs: invalid size ${size}`);
+            this.wasmModule._free(sizePtr);
+            return;
+        }
+
         const data = new Uint8Array(this.wasmModule.HEAPU8.buffer, dataPtr, size);
 
         this.downloadFile(new Uint8Array(data), filename);
