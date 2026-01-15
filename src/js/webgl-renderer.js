@@ -755,8 +755,8 @@ vec3 noSignalStatic(vec2 uv, float time) {
     float vignette = 1.0 - dist * 0.4;
     noise *= vignette;
 
-    // Clamp and return grayscale
-    noise = clamp(noise, 0.0, 1.0);
+    // Clamp and return grayscale - reduced brightness for less dazzling effect
+    noise = clamp(noise, 0.0, 1.0) * 0.15;
     return vec3(noise);
 }
 

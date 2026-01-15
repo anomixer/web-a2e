@@ -16,6 +16,11 @@ export class InputHandler {
 
     // Canvas element for focus management
     this.canvas = null;
+
+    // Paste queue for typing pasted text
+    this.pasteQueue = [];
+    this.pasteTimer = null;
+    this.pasteDelay = 60; // ms between characters
   }
 
   init() {
@@ -52,6 +57,16 @@ export class InputHandler {
         document.activeElement === document.body
       ) {
         this.handleKeyUp(e);
+      }
+    });
+
+    // Paste event listener
+    document.addEventListener("paste", (e) => {
+      if (
+        document.activeElement === this.canvas ||
+        document.activeElement === document.body
+      ) {
+        this.handlePaste(e);
       }
     });
   }
@@ -257,5 +272,83 @@ export class InputHandler {
     }
 
     return false;
+  }
+
+  // Handle paste event
+  handlePaste(event) {
+    event.preventDefault();
+
+    const text = (event.clipboardData || window.clipboardData).getData("text");
+    if (!text) return;
+
+    // Add characters to paste queue
+    for (const char of text) {
+      const appleKey = this.charToAppleKey(char);
+      if (appleKey !== null) {
+        this.pasteQueue.push(appleKey);
+      }
+    }
+
+    // Start processing queue if not already running
+    if (!this.pasteTimer && this.pasteQueue.length > 0) {
+      this.processPasteQueue();
+    }
+  }
+
+  // Convert character to Apple II key code
+  charToAppleKey(char) {
+    const code = char.charCodeAt(0);
+
+    // Newline -> CR
+    if (char === '\n' || char === '\r') {
+      return 0x0D;
+    }
+
+    // Tab
+    if (char === '\t') {
+      return 0x09;
+    }
+
+    // Printable ASCII (space through tilde)
+    if (code >= 0x20 && code <= 0x7E) {
+      return code;
+    }
+
+    // Skip non-printable characters
+    return null;
+  }
+
+  // Process paste queue one character at a time
+  processPasteQueue() {
+    if (this.pasteQueue.length === 0) {
+      this.pasteTimer = null;
+      return;
+    }
+
+    // Check if keyboard is ready (strobe cleared from previous character)
+    if (this.wasmModule._isKeyboardReady && !this.wasmModule._isKeyboardReady()) {
+      // Not ready yet, poll again soon
+      this.pasteTimer = setTimeout(() => {
+        this.processPasteQueue();
+      }, 5);
+      return;
+    }
+
+    const appleKey = this.pasteQueue.shift();
+    this.wasmModule._keyDown(appleKey);
+
+    // Schedule next character check
+    this.pasteTimer = setTimeout(() => {
+      this.processPasteQueue();
+    }, this.pasteDelay);
+  }
+
+  // Cancel any pending paste operation
+  cancelPaste() {
+    if (this.pasteTimer) {
+      clearTimeout(this.pasteTimer);
+      this.pasteTimer = null;
+    }
+    this.pasteQueue = [];
   }
 }

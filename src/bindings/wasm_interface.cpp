@@ -97,6 +97,14 @@ void setButton(int button, bool pressed) {
 }
 
 EMSCRIPTEN_KEEPALIVE
+bool isKeyboardReady() {
+  if (g_emulator) {
+    return g_emulator->isKeyboardReady();
+  }
+  return true;
+}
+
+EMSCRIPTEN_KEEPALIVE
 bool insertDisk(int drive, uint8_t *data, int size, const char *filename) {
   if (g_emulator) {
     return g_emulator->insertDisk(drive, data, size, filename);
