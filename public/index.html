@@ -5,9 +5,12 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Apple //e Emulator</title>
         <link rel="stylesheet" href="/styles.css" />
-        <link rel="preconnect" href="https://fonts.googleapis.com">
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+            rel="stylesheet"
+        />
     </head>
     <body>
         <div id="app">
@@ -20,57 +23,142 @@
                 </div>
                 <nav class="header-controls">
                     <div class="control-group">
-                        <button id="btn-power" class="control-btn power-btn off" title="Power On">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M12 2v10M18.4 6.6a9 9 0 1 1-12.8 0"/>
+                        <button
+                            id="btn-power"
+                            class="control-btn power-btn off"
+                            title="Power On"
+                        >
+                            <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <path d="M12 2v10M18.4 6.6a9 9 0 1 1-12.8 0" />
                             </svg>
                         </button>
-                        <button id="btn-warm-reset" class="control-btn" title="Warm Reset (preserves memory)">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-                                <path d="M3 3v5h5"/>
+                        <button
+                            id="btn-warm-reset"
+                            class="control-btn"
+                            title="Warm Reset (preserves memory)"
+                        >
+                            <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <path
+                                    d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"
+                                />
+                                <path d="M3 3v5h5" />
                             </svg>
                         </button>
-                        <button id="btn-cold-reset" class="control-btn" title="Cold Reset (full restart)">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M21 12a9 9 0 1 1-9-9"/>
-                                <path d="M21 3v6h-6"/>
+                        <button
+                            id="btn-cold-reset"
+                            class="control-btn"
+                            title="Cold Reset (full restart)"
+                        >
+                            <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <path d="M21 12a9 9 0 1 1-9-9" />
+                                <path d="M21 3v6h-6" />
                             </svg>
                         </button>
                     </div>
                     <div class="control-group">
-                        <button id="btn-fullscreen" class="control-btn" title="Fullscreen">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+                        <button
+                            id="btn-fullscreen"
+                            class="control-btn"
+                            title="Fullscreen"
+                        >
+                            <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <path
+                                    d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"
+                                />
                             </svg>
                         </button>
-                        <button id="btn-mute" class="control-btn" title="Toggle Sound">
-                            <svg class="icon-unmuted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M11 5L6 9H2v6h4l5 4V5z"/>
-                                <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                        <button
+                            id="btn-mute"
+                            class="control-btn"
+                            title="Toggle Sound"
+                        >
+                            <svg
+                                class="icon-unmuted"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <path d="M11 5L6 9H2v6h4l5 4V5z" />
+                                <path
+                                    d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"
+                                />
                             </svg>
-                            <svg class="icon-muted hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M11 5L6 9H2v6h4l5 4V5z"/>
-                                <line x1="23" y1="9" x2="17" y2="15"/>
-                                <line x1="17" y1="9" x2="23" y2="15"/>
+                            <svg
+                                class="icon-muted hidden"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <path d="M11 5L6 9H2v6h4l5 4V5z" />
+                                <line x1="23" y1="9" x2="17" y2="15" />
+                                <line x1="17" y1="9" x2="23" y2="15" />
                             </svg>
                         </button>
                     </div>
                     <div class="control-group">
-                        <button id="btn-display" class="control-btn display-btn" title="Display Settings">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-                                <line x1="8" y1="21" x2="16" y2="21"/>
-                                <line x1="12" y1="17" x2="12" y2="21"/>
+                        <button
+                            id="btn-display"
+                            class="control-btn display-btn"
+                            title="Display Settings"
+                        >
+                            <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <rect
+                                    x="2"
+                                    y="3"
+                                    width="20"
+                                    height="14"
+                                    rx="2"
+                                    ry="2"
+                                />
+                                <line x1="8" y1="21" x2="16" y2="21" />
+                                <line x1="12" y1="17" x2="12" y2="21" />
                             </svg>
                             <span>Display</span>
                         </button>
                     </div>
                     <div class="control-group">
-                        <button id="btn-debugger" class="control-btn debugger-btn" title="Toggle Debugger">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
-                                <path d="M12 6v6l4 2"/>
+                        <button
+                            id="btn-debugger"
+                            class="control-btn debugger-btn"
+                            title="Toggle Debugger"
+                        >
+                            <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <path
+                                    d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"
+                                />
+                                <path d="M12 6v6l4 2" />
                             </svg>
                             <span>Debug</span>
                         </button>
@@ -91,7 +179,10 @@
                                 <span>Apple //e</span>
                             </div>
                             <div class="monitor-power">
-                                <span class="power-led" id="monitor-power-led"></span>
+                                <span
+                                    class="power-led"
+                                    id="monitor-power-led"
+                                ></span>
                                 <span class="power-label">POWER</span>
                             </div>
                         </div>
@@ -106,16 +197,44 @@
                                 <div class="drive-label">Drive 1</div>
                                 <div class="drive-slot"></div>
                                 <div class="drive-info">
-                                    <span class="disk-led" title="Drive Activity"></span>
+                                    <span
+                                        class="disk-led"
+                                        title="Drive Activity"
+                                    ></span>
                                     <span class="disk-name">No Disk</span>
-                                    <span class="disk-track" title="Current Track">T--</span>
+                                    <span
+                                        class="disk-track"
+                                        title="Current Track"
+                                        >T--</span
+                                    >
                                 </div>
                             </div>
                             <div class="drive-controls">
-                                <input type="file" id="disk1-input" accept=".dsk,.do,.po,.woz,.nib" hidden />
-                                <button class="disk-insert" title="Insert Disk from File">Insert</button>
-                                <button class="disk-blank" title="Insert Blank Disk">Blank</button>
-                                <button class="disk-eject" disabled title="Eject Disk">Eject</button>
+                                <input
+                                    type="file"
+                                    id="disk1-input"
+                                    accept=".dsk,.do,.po,.woz,.nib"
+                                    hidden
+                                />
+                                <button
+                                    class="disk-insert"
+                                    title="Insert Disk from File"
+                                >
+                                    Insert
+                                </button>
+                                <button
+                                    class="disk-blank"
+                                    title="Insert Blank Disk"
+                                >
+                                    Blank
+                                </button>
+                                <button
+                                    class="disk-eject"
+                                    disabled
+                                    title="Eject Disk"
+                                >
+                                    Eject
+                                </button>
                             </div>
                         </div>
                         <div class="disk-drive" id="disk2">
@@ -123,16 +242,44 @@
                                 <div class="drive-label">Drive 2</div>
                                 <div class="drive-slot"></div>
                                 <div class="drive-info">
-                                    <span class="disk-led" title="Drive Activity"></span>
+                                    <span
+                                        class="disk-led"
+                                        title="Drive Activity"
+                                    ></span>
                                     <span class="disk-name">No Disk</span>
-                                    <span class="disk-track" title="Current Track">T--</span>
+                                    <span
+                                        class="disk-track"
+                                        title="Current Track"
+                                        >T--</span
+                                    >
                                 </div>
                             </div>
                             <div class="drive-controls">
-                                <input type="file" id="disk2-input" accept=".dsk,.do,.po,.woz,.nib" hidden />
-                                <button class="disk-insert" title="Insert Disk from File">Insert</button>
-                                <button class="disk-blank" title="Insert Blank Disk">Blank</button>
-                                <button class="disk-eject" disabled title="Eject Disk">Eject</button>
+                                <input
+                                    type="file"
+                                    id="disk2-input"
+                                    accept=".dsk,.do,.po,.woz,.nib"
+                                    hidden
+                                />
+                                <button
+                                    class="disk-insert"
+                                    title="Insert Disk from File"
+                                >
+                                    Insert
+                                </button>
+                                <button
+                                    class="disk-blank"
+                                    title="Insert Blank Disk"
+                                >
+                                    Blank
+                                </button>
+                                <button
+                                    class="disk-eject"
+                                    disabled
+                                    title="Eject Disk"
+                                >
+                                    Eject
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -141,46 +288,86 @@
                 <aside id="debugger-panel" class="hidden">
                     <div class="debugger-header">
                         <h2>Debugger</h2>
-                        <button id="debugger-close" class="close-btn" title="Close Debugger">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <line x1="18" y1="6" x2="6" y2="18"/>
-                                <line x1="6" y1="6" x2="18" y2="18"/>
+                        <button
+                            id="debugger-close"
+                            class="close-btn"
+                            title="Close Debugger"
+                        >
+                            <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <line x1="18" y1="6" x2="6" y2="18" />
+                                <line x1="6" y1="6" x2="18" y2="18" />
                             </svg>
                         </button>
                     </div>
                     <div id="debugger-toolbar">
                         <button id="dbg-run" class="dbg-btn" title="Run (F5)">
                             <svg viewBox="0 0 24 24" fill="currentColor">
-                                <polygon points="5 3 19 12 5 21 5 3"/>
+                                <polygon points="5 3 19 12 5 21 5 3" />
                             </svg>
                             Run
                         </button>
-                        <button id="dbg-pause" class="dbg-btn" title="Pause (F6)">
+                        <button
+                            id="dbg-pause"
+                            class="dbg-btn"
+                            title="Pause (F6)"
+                        >
                             <svg viewBox="0 0 24 24" fill="currentColor">
-                                <rect x="6" y="4" width="4" height="16"/>
-                                <rect x="14" y="4" width="4" height="16"/>
+                                <rect x="6" y="4" width="4" height="16" />
+                                <rect x="14" y="4" width="4" height="16" />
                             </svg>
                             Pause
                         </button>
-                        <button id="dbg-step" class="dbg-btn" title="Step (F10)">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M5 12h14M12 5l7 7-7 7"/>
+                        <button
+                            id="dbg-step"
+                            class="dbg-btn"
+                            title="Step (F10)"
+                        >
+                            <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <path d="M5 12h14M12 5l7 7-7 7" />
                             </svg>
                             Step
                         </button>
-                        <button id="dbg-step-over" class="dbg-btn" title="Step Over (F11)">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M18 8A6 6 0 0 0 6 8"/>
-                                <path d="M6 8l-4 4"/>
-                                <path d="M6 8l4 4"/>
-                                <path d="M6 16h12"/>
+                        <button
+                            id="dbg-step-over"
+                            class="dbg-btn"
+                            title="Step Over (F11)"
+                        >
+                            <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <path d="M18 8A6 6 0 0 0 6 8" />
+                                <path d="M6 8l-4 4" />
+                                <path d="M6 8l4 4" />
+                                <path d="M6 16h12" />
                             </svg>
                             Over
                         </button>
-                        <button id="dbg-step-out" class="dbg-btn" title="Step Out (Shift+F11)">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M12 19V5"/>
-                                <path d="M5 12l7-7 7 7"/>
+                        <button
+                            id="dbg-step-out"
+                            class="dbg-btn"
+                            title="Step Out (Shift+F11)"
+                        >
+                            <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <path d="M12 19V5" />
+                                <path d="M5 12l7-7 7 7" />
                             </svg>
                             Out
                         </button>
@@ -212,14 +399,31 @@
                                 </div>
                             </div>
                             <div id="flags">
-                                <span class="flag" id="flag-n" title="Negative">N</span>
-                                <span class="flag" id="flag-v" title="Overflow">V</span>
+                                <span class="flag" id="flag-n" title="Negative"
+                                    >N</span
+                                >
+                                <span class="flag" id="flag-v" title="Overflow"
+                                    >V</span
+                                >
                                 <span class="flag separator">-</span>
-                                <span class="flag" id="flag-b" title="Break">B</span>
-                                <span class="flag" id="flag-d" title="Decimal">D</span>
-                                <span class="flag" id="flag-i" title="Interrupt Disable">I</span>
-                                <span class="flag" id="flag-z" title="Zero">Z</span>
-                                <span class="flag" id="flag-c" title="Carry">C</span>
+                                <span class="flag" id="flag-b" title="Break"
+                                    >B</span
+                                >
+                                <span class="flag" id="flag-d" title="Decimal"
+                                    >D</span
+                                >
+                                <span
+                                    class="flag"
+                                    id="flag-i"
+                                    title="Interrupt Disable"
+                                    >I</span
+                                >
+                                <span class="flag" id="flag-z" title="Zero"
+                                    >Z</span
+                                >
+                                <span class="flag" id="flag-c" title="Carry"
+                                    >C</span
+                                >
                             </div>
                             <div id="cycles">
                                 <span class="label">Cycles:</span>
@@ -230,8 +434,13 @@
                         <section id="disk-monitor" class="debug-section">
                             <h3>Disk Activity</h3>
                             <div id="selected-drive-info">
-                                <span class="info-badge">Drive <span id="sel-drive">1</span></span>
-                                <span class="info-item">Last Byte: <code id="last-disk-byte">$00</code></span>
+                                <span class="info-badge"
+                                    >Drive <span id="sel-drive">1</span></span
+                                >
+                                <span class="info-item"
+                                    >Last Byte:
+                                    <code id="last-disk-byte">$00</code></span
+                                >
                             </div>
                             <div class="drive-status" id="drive1-status">
                                 <div class="status-header">
@@ -239,10 +448,24 @@
                                     <span class="disk-inserted">No Disk</span>
                                 </div>
                                 <div class="status-details">
-                                    <span>QT: <code class="quarter-track">0</code></span>
-                                    <span>Track: <code class="track">0</code></span>
-                                    <span>Phase: <code class="phase">0</code></span>
-                                    <span>Nibble: <code class="nibble-pos">0</code></span>
+                                    <span
+                                        >QT:
+                                        <code class="quarter-track"
+                                            >0</code
+                                        ></span
+                                    >
+                                    <span
+                                        >Track:
+                                        <code class="track">0</code></span
+                                    >
+                                    <span
+                                        >Phase:
+                                        <code class="phase">0</code></span
+                                    >
+                                    <span
+                                        >Nibble:
+                                        <code class="nibble-pos">0</code></span
+                                    >
                                 </div>
                                 <div class="status-mode">
                                     <span class="motor">Motor OFF</span>
@@ -255,10 +478,24 @@
                                     <span class="disk-inserted">No Disk</span>
                                 </div>
                                 <div class="status-details">
-                                    <span>QT: <code class="quarter-track">0</code></span>
-                                    <span>Track: <code class="track">0</code></span>
-                                    <span>Phase: <code class="phase">0</code></span>
-                                    <span>Nibble: <code class="nibble-pos">0</code></span>
+                                    <span
+                                        >QT:
+                                        <code class="quarter-track"
+                                            >0</code
+                                        ></span
+                                    >
+                                    <span
+                                        >Track:
+                                        <code class="track">0</code></span
+                                    >
+                                    <span
+                                        >Phase:
+                                        <code class="phase">0</code></span
+                                    >
+                                    <span
+                                        >Nibble:
+                                        <code class="nibble-pos">0</code></span
+                                    >
                                 </div>
                                 <div class="status-mode">
                                     <span class="motor">Motor OFF</span>
@@ -276,7 +513,11 @@
                             <h3>Breakpoints</h3>
                             <div id="breakpoint-list"></div>
                             <div id="breakpoint-add">
-                                <input type="text" id="bp-address" placeholder="Address (e.g. $C600)" />
+                                <input
+                                    type="text"
+                                    id="bp-address"
+                                    placeholder="Address (e.g. $C600)"
+                                />
                                 <button id="bp-add-btn">Add</button>
                             </div>
                         </section>
@@ -284,7 +525,11 @@
                         <section id="memory-viewer" class="debug-section">
                             <h3>Memory</h3>
                             <div id="memory-controls">
-                                <input type="text" id="mem-address" placeholder="$0000" />
+                                <input
+                                    type="text"
+                                    id="mem-address"
+                                    placeholder="$0000"
+                                />
                                 <button id="mem-goto">Go</button>
                                 <select id="mem-bank">
                                     <option value="main">Main RAM</option>
@@ -303,12 +548,18 @@
                                 <span class="switch" id="sw-page2">PAGE2</span>
                                 <span class="switch" id="sw-hires">HIRES</span>
                                 <span class="switch" id="sw-80col">80COL</span>
-                                <span class="switch" id="sw-80store">80STORE</span>
+                                <span class="switch" id="sw-80store"
+                                    >80STORE</span
+                                >
                                 <span class="switch" id="sw-ramrd">RAMRD</span>
-                                <span class="switch" id="sw-ramwrt">RAMWRT</span>
+                                <span class="switch" id="sw-ramwrt"
+                                    >RAMWRT</span
+                                >
                                 <span class="switch" id="sw-altzp">ALTZP</span>
                                 <span class="switch" id="sw-lcram">LCRAM</span>
-                                <span class="switch" id="sw-lcbnk2">LCBNK2</span>
+                                <span class="switch" id="sw-lcbnk2"
+                                    >LCBNK2</span
+                                >
                             </div>
                         </section>
                     </div>
@@ -334,10 +585,19 @@
             <div id="display-panel" class="settings-panel hidden">
                 <div class="settings-panel-header">
                     <h3>Display Settings</h3>
-                    <button id="display-panel-close" class="close-btn" title="Close">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <line x1="18" y1="6" x2="6" y2="18"/>
-                            <line x1="6" y1="6" x2="18" y2="18"/>
+                    <button
+                        id="display-panel-close"
+                        class="close-btn"
+                        title="Close"
+                    >
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                        >
+                            <line x1="18" y1="6" x2="6" y2="18" />
+                            <line x1="6" y1="6" x2="18" y2="18" />
                         </svg>
                     </button>
                 </div>
@@ -345,88 +605,306 @@
                     <div class="settings-section">
                         <h4>CRT Effects</h4>
                         <div class="setting-row">
-                            <label for="setting-curvature">Screen Curvature</label>
+                            <label for="setting-curvature"
+                                >Screen Curvature</label
+                            >
                             <div class="slider-group">
-                                <input type="range" id="setting-curvature" min="0" max="100" value="0" />
-                                <span class="slider-value" id="value-curvature">0%</span>
+                                <input
+                                    type="range"
+                                    id="setting-curvature"
+                                    min="0"
+                                    max="100"
+                                    value="0"
+                                />
+                                <span class="slider-value" id="value-curvature"
+                                    >0%</span
+                                >
+                            </div>
+                        </div>
+                        <div class="setting-row">
+                            <label for="setting-overscan"
+                                >Screen Border</label
+                            >
+                            <div class="slider-group">
+                                <input
+                                    type="range"
+                                    id="setting-overscan"
+                                    min="0"
+                                    max="100"
+                                    value="0"
+                                />
+                                <span class="slider-value" id="value-overscan"
+                                    >0%</span
+                                >
                             </div>
                         </div>
                         <div class="setting-row">
                             <label for="setting-scanlines">Scanlines</label>
                             <div class="slider-group">
-                                <input type="range" id="setting-scanlines" min="0" max="100" value="0" />
-                                <span class="slider-value" id="value-scanlines">0%</span>
+                                <input
+                                    type="range"
+                                    id="setting-scanlines"
+                                    min="0"
+                                    max="100"
+                                    value="0"
+                                />
+                                <span class="slider-value" id="value-scanlines"
+                                    >0%</span
+                                >
                             </div>
                         </div>
                         <div class="setting-row">
                             <label for="setting-shadowMask">Shadow Mask</label>
                             <div class="slider-group">
-                                <input type="range" id="setting-shadowMask" min="0" max="100" value="0" />
-                                <span class="slider-value" id="value-shadowMask">0%</span>
+                                <input
+                                    type="range"
+                                    id="setting-shadowMask"
+                                    min="0"
+                                    max="100"
+                                    value="0"
+                                />
+                                <span class="slider-value" id="value-shadowMask"
+                                    >0%</span
+                                >
                             </div>
                         </div>
                         <div class="setting-row">
-                            <label for="setting-phosphorGlow">Phosphor Glow</label>
+                            <label for="setting-phosphorGlow"
+                                >Phosphor Glow</label
+                            >
                             <div class="slider-group">
-                                <input type="range" id="setting-phosphorGlow" min="0" max="100" value="0" />
-                                <span class="slider-value" id="value-phosphorGlow">0%</span>
+                                <input
+                                    type="range"
+                                    id="setting-phosphorGlow"
+                                    min="0"
+                                    max="100"
+                                    value="0"
+                                />
+                                <span
+                                    class="slider-value"
+                                    id="value-phosphorGlow"
+                                    >0%</span
+                                >
                             </div>
                         </div>
                         <div class="setting-row">
                             <label for="setting-vignette">Vignette</label>
                             <div class="slider-group">
-                                <input type="range" id="setting-vignette" min="0" max="100" value="0" />
-                                <span class="slider-value" id="value-vignette">0%</span>
+                                <input
+                                    type="range"
+                                    id="setting-vignette"
+                                    min="0"
+                                    max="100"
+                                    value="0"
+                                />
+                                <span class="slider-value" id="value-vignette"
+                                    >0%</span
+                                >
                             </div>
                         </div>
                         <div class="setting-row">
                             <label for="setting-rgbOffset">RGB Offset</label>
                             <div class="slider-group">
-                                <input type="range" id="setting-rgbOffset" min="0" max="100" value="0" />
-                                <span class="slider-value" id="value-rgbOffset">0%</span>
+                                <input
+                                    type="range"
+                                    id="setting-rgbOffset"
+                                    min="0"
+                                    max="100"
+                                    value="0"
+                                />
+                                <span class="slider-value" id="value-rgbOffset"
+                                    >0%</span
+                                >
                             </div>
                         </div>
                         <div class="setting-row">
                             <label for="setting-flicker">Flicker</label>
                             <div class="slider-group">
-                                <input type="range" id="setting-flicker" min="0" max="100" value="0" />
-                                <span class="slider-value" id="value-flicker">0%</span>
+                                <input
+                                    type="range"
+                                    id="setting-flicker"
+                                    min="0"
+                                    max="100"
+                                    value="0"
+                                />
+                                <span class="slider-value" id="value-flicker"
+                                    >0%</span
+                                >
+                            </div>
+                        </div>
+                    </div>
+                    <div class="settings-section">
+                        <h4>Analog Effects</h4>
+                        <div class="setting-row">
+                            <label for="setting-staticNoise"
+                                >Static Noise</label
+                            >
+                            <div class="slider-group">
+                                <input
+                                    type="range"
+                                    id="setting-staticNoise"
+                                    min="0"
+                                    max="100"
+                                    value="0"
+                                />
+                                <span
+                                    class="slider-value"
+                                    id="value-staticNoise"
+                                    >0%</span
+                                >
+                            </div>
+                        </div>
+                        <div class="setting-row">
+                            <label for="setting-jitter">Jitter</label>
+                            <div class="slider-group">
+                                <input
+                                    type="range"
+                                    id="setting-jitter"
+                                    min="0"
+                                    max="100"
+                                    value="0"
+                                />
+                                <span class="slider-value" id="value-jitter"
+                                    >0%</span
+                                >
+                            </div>
+                        </div>
+                        <div class="setting-row">
+                            <label for="setting-horizontalSync"
+                                >Horizontal Sync</label
+                            >
+                            <div class="slider-group">
+                                <input
+                                    type="range"
+                                    id="setting-horizontalSync"
+                                    min="0"
+                                    max="100"
+                                    value="0"
+                                />
+                                <span
+                                    class="slider-value"
+                                    id="value-horizontalSync"
+                                    >0%</span
+                                >
+                            </div>
+                        </div>
+                        <div class="setting-row">
+                            <label for="setting-glowingLine">Scan Beam</label>
+                            <div class="slider-group">
+                                <input
+                                    type="range"
+                                    id="setting-glowingLine"
+                                    min="0"
+                                    max="100"
+                                    value="0"
+                                />
+                                <span
+                                    class="slider-value"
+                                    id="value-glowingLine"
+                                    >0%</span
+                                >
+                            </div>
+                        </div>
+                        <div class="setting-row">
+                            <label for="setting-ambientLight"
+                                >Ambient Light</label
+                            >
+                            <div class="slider-group">
+                                <input
+                                    type="range"
+                                    id="setting-ambientLight"
+                                    min="0"
+                                    max="100"
+                                    value="0"
+                                />
+                                <span
+                                    class="slider-value"
+                                    id="value-ambientLight"
+                                    >0%</span
+                                >
+                            </div>
+                        </div>
+                        <div class="setting-row">
+                            <label for="setting-burnIn">Burn-in</label>
+                            <div class="slider-group">
+                                <input
+                                    type="range"
+                                    id="setting-burnIn"
+                                    min="0"
+                                    max="100"
+                                    value="0"
+                                />
+                                <span class="slider-value" id="value-burnIn"
+                                    >0%</span
+                                >
                             </div>
                         </div>
                     </div>
                     <div class="settings-section">
                         <h4>Image Adjustments</h4>
                         <div class="setting-row toggle-row">
-                            <label for="setting-sharpPixels">Sharp Pixels</label>
+                            <label for="setting-sharpPixels"
+                                >Sharp Pixels</label
+                            >
                             <label class="toggle-label">
-                                <input type="checkbox" id="setting-sharpPixels" checked />
+                                <input
+                                    type="checkbox"
+                                    id="setting-sharpPixels"
+                                    checked
+                                />
                                 <span class="toggle-switch"></span>
                             </label>
                         </div>
                         <div class="setting-row">
                             <label for="setting-brightness">Brightness</label>
                             <div class="slider-group">
-                                <input type="range" id="setting-brightness" min="50" max="150" value="100" />
-                                <span class="slider-value" id="value-brightness">100%</span>
+                                <input
+                                    type="range"
+                                    id="setting-brightness"
+                                    min="50"
+                                    max="150"
+                                    value="100"
+                                />
+                                <span class="slider-value" id="value-brightness"
+                                    >100%</span
+                                >
                             </div>
                         </div>
                         <div class="setting-row">
                             <label for="setting-contrast">Contrast</label>
                             <div class="slider-group">
-                                <input type="range" id="setting-contrast" min="50" max="150" value="100" />
-                                <span class="slider-value" id="value-contrast">100%</span>
+                                <input
+                                    type="range"
+                                    id="setting-contrast"
+                                    min="50"
+                                    max="150"
+                                    value="100"
+                                />
+                                <span class="slider-value" id="value-contrast"
+                                    >100%</span
+                                >
                             </div>
                         </div>
                         <div class="setting-row">
                             <label for="setting-saturation">Saturation</label>
                             <div class="slider-group">
-                                <input type="range" id="setting-saturation" min="0" max="200" value="100" />
-                                <span class="slider-value" id="value-saturation">100%</span>
+                                <input
+                                    type="range"
+                                    id="setting-saturation"
+                                    min="0"
+                                    max="200"
+                                    value="100"
+                                />
+                                <span class="slider-value" id="value-saturation"
+                                    >100%</span
+                                >
                             </div>
                         </div>
                     </div>
                     <div class="settings-actions">
-                        <button id="display-reset" class="settings-btn">Reset to Defaults</button>
+                        <button id="display-reset" class="settings-btn">
+                            Reset to Defaults
+                        </button>
                     </div>
                 </div>
             </div>
@@ -439,15 +917,32 @@
                         <h3>Save Disk Image?</h3>
                     </div>
                     <div class="modal-body">
-                        <p>This disk has been modified. Would you like to save it before ejecting?</p>
+                        <p>
+                            This disk has been modified. Would you like to save
+                            it before ejecting?
+                        </p>
                         <div class="modal-input-group">
                             <label for="save-disk-filename">Filename:</label>
-                            <input type="text" id="save-disk-filename" placeholder="disk.dsk" />
+                            <input
+                                type="text"
+                                id="save-disk-filename"
+                                placeholder="disk.dsk"
+                            />
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button id="save-disk-cancel" class="modal-btn modal-btn-secondary">Don't Save</button>
-                        <button id="save-disk-confirm" class="modal-btn modal-btn-primary">Save</button>
+                        <button
+                            id="save-disk-cancel"
+                            class="modal-btn modal-btn-secondary"
+                        >
+                            Don't Save
+                        </button>
+                        <button
+                            id="save-disk-confirm"
+                            class="modal-btn modal-btn-primary"
+                        >
+                            Save
+                        </button>
                     </div>
                 </div>
             </div>
