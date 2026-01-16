@@ -4,8 +4,13 @@ import { WebGLRenderer } from "./webgl-renderer.js";
 import { AudioDriver } from "./audio-driver.js";
 import { InputHandler } from "./input-handler.js";
 import { DiskManager } from "./disk-manager.js";
-import { Debugger } from "./debugger.js";
 import { DisplaySettings } from "./display-settings.js";
+import {
+  WindowManager,
+  CPUDebuggerWindow,
+  DriveDetailWindow,
+  SoftSwitchWindow
+} from "./debug/index.js";
 
 class AppleIIeEmulator {
   constructor() {
@@ -14,7 +19,7 @@ class AppleIIeEmulator {
     this.audioDriver = null;
     this.inputHandler = null;
     this.diskManager = null;
-    this.debugger = null;
+    this.windowManager = null;
     this.displaySettings = null;
 
     this.running = false;
@@ -58,9 +63,23 @@ class AppleIIeEmulator {
       this.diskManager = new DiskManager(this.wasmModule);
       this.diskManager.init();
 
-      // Set up debugger
-      this.debugger = new Debugger(this.wasmModule);
-      this.debugger.init();
+      // Set up debug windows
+      this.windowManager = new WindowManager();
+
+      const cpuWindow = new CPUDebuggerWindow(this.wasmModule);
+      cpuWindow.create();
+      this.windowManager.register(cpuWindow);
+
+      const driveWindow = new DriveDetailWindow(this.wasmModule);
+      driveWindow.create();
+      this.windowManager.register(driveWindow);
+
+      const switchWindow = new SoftSwitchWindow(this.wasmModule);
+      switchWindow.create();
+      this.windowManager.register(switchWindow);
+
+      // Load saved window states
+      this.windowManager.loadState();
 
       // Set up display settings (pass renderer for shader control)
       this.displaySettings = new DisplaySettings(this.renderer);
@@ -130,33 +149,18 @@ class AppleIIeEmulator {
       this.updateMuteButton();
     });
 
-    // Debugger toggle
-    document.getElementById("btn-debugger").addEventListener("click", () => {
-      this.toggleDebugger();
+    // Debug window toggles
+    document.getElementById("btn-cpu-debug").addEventListener("click", () => {
+      this.windowManager.toggleWindow("cpu-debugger");
     });
 
-    // Debugger close button
-    const debuggerClose = document.getElementById("debugger-close");
-    if (debuggerClose) {
-      debuggerClose.addEventListener("click", () => {
-        this.toggleDebugger(false);
-      });
-    }
-  }
+    document.getElementById("btn-drive-debug").addEventListener("click", () => {
+      this.windowManager.toggleWindow("drive-detail");
+    });
 
-  toggleDebugger(forceState) {
-    const panel = document.getElementById("debugger-panel");
-    if (forceState === false) {
-      panel.classList.add("hidden");
-    } else if (forceState === true) {
-      panel.classList.remove("hidden");
-    } else {
-      panel.classList.toggle("hidden");
-    }
-
-    if (!panel.classList.contains("hidden")) {
-      this.debugger.refresh();
-    }
+    document.getElementById("btn-switch-debug").addEventListener("click", () => {
+      this.windowManager.toggleWindow("soft-switches");
+    });
   }
 
   setupResizeHandling() {
@@ -227,6 +231,11 @@ class AppleIIeEmulator {
     // Update WebGL viewport
     if (this.renderer) {
       this.renderer.resize(canvasWidth, canvasHeight);
+    }
+
+    // Constrain debug windows to visible viewport
+    if (this.windowManager) {
+      this.windowManager.constrainAllToViewport();
     }
   }
 
@@ -301,12 +310,8 @@ class AppleIIeEmulator {
 
   startRenderLoop() {
     const render = () => {
-      // Update debugger if visible
-      if (
-        !document.getElementById("debugger-panel").classList.contains("hidden")
-      ) {
-        this.debugger.refresh();
-      }
+      // Update visible debug windows
+      this.windowManager.updateAll(this.wasmModule);
 
       // Update disk LEDs
       this.diskManager.updateLEDs();

@@ -1,0 +1,387 @@
+/**
+ * DebugWindow - Base class for draggable/resizable debug windows
+ */
+export class DebugWindow {
+  constructor(config) {
+    this.id = config.id;
+    this.title = config.title;
+    this.minWidth = config.minWidth || 280;
+    this.minHeight = config.minHeight || 200;
+    this.defaultWidth = config.defaultWidth || 400;
+    this.defaultHeight = config.defaultHeight || 300;
+    this.defaultPosition = config.defaultPosition || { x: 100, y: 100 };
+
+    this.element = null;
+    this.headerElement = null;
+    this.contentElement = null;
+    this.isVisible = false;
+    this.isDragging = false;
+    this.isResizing = false;
+    this.dragOffset = { x: 0, y: 0 };
+    this.resizeStart = { x: 0, y: 0, width: 0, height: 0, left: 0, top: 0 };
+    this.resizeDirection = null;
+
+    // Bind event handlers
+    this.handleMouseDown = this.handleMouseDown.bind(this);
+    this.handleMouseMove = this.handleMouseMove.bind(this);
+    this.handleMouseUp = this.handleMouseUp.bind(this);
+  }
+
+  /**
+   * Create the window DOM structure
+   */
+  create() {
+    // Create main window element
+    this.element = document.createElement('div');
+    this.element.id = this.id;
+    this.element.className = 'debug-window hidden';
+    this.element.style.width = `${this.defaultWidth}px`;
+    this.element.style.height = `${this.defaultHeight}px`;
+    this.element.style.left = `${this.defaultPosition.x}px`;
+    this.element.style.top = `${this.defaultPosition.y}px`;
+
+    // Header (draggable area)
+    this.headerElement = document.createElement('div');
+    this.headerElement.className = 'debug-window-header';
+    this.headerElement.innerHTML = `
+      <span class="debug-window-title">${this.title}</span>
+      <button class="debug-window-close" title="Close">&times;</button>
+    `;
+
+    // Content area
+    this.contentElement = document.createElement('div');
+    this.contentElement.className = 'debug-window-content';
+    this.contentElement.innerHTML = this.renderContent();
+
+    // Resize handles
+    const resizeHandles = ['n', 'e', 's', 'w', 'ne', 'nw', 'se', 'sw'];
+    resizeHandles.forEach(dir => {
+      const handle = document.createElement('div');
+      handle.className = `debug-resize-handle ${dir}`;
+      handle.dataset.direction = dir;
+      this.element.appendChild(handle);
+    });
+
+    // Assemble
+    this.element.appendChild(this.headerElement);
+    this.element.appendChild(this.contentElement);
+    document.body.appendChild(this.element);
+
+    // Set up event listeners
+    this.setupEventListeners();
+  }
+
+  /**
+   * Set up drag, resize, and close event listeners
+   */
+  setupEventListeners() {
+    // Close button
+    const closeBtn = this.headerElement.querySelector('.debug-window-close');
+    closeBtn.addEventListener('click', () => this.hide());
+
+    // Drag start on header
+    this.headerElement.addEventListener('mousedown', (e) => {
+      if (e.target.classList.contains('debug-window-close')) return;
+      this.startDrag(e);
+    });
+
+    // Resize start on handles
+    this.element.querySelectorAll('.debug-resize-handle').forEach(handle => {
+      handle.addEventListener('mousedown', (e) => {
+        this.startResize(e, handle.dataset.direction);
+      });
+    });
+
+    // Bring to front on click
+    this.element.addEventListener('mousedown', () => {
+      if (this.onFocus) this.onFocus(this.id);
+    });
+
+    // Global mouse events for drag/resize
+    document.addEventListener('mousemove', this.handleMouseMove);
+    document.addEventListener('mouseup', this.handleMouseUp);
+  }
+
+  /**
+   * Handle mouse down for drag/resize detection
+   */
+  handleMouseDown(e) {
+    // Handled by specific listeners
+  }
+
+  /**
+   * Handle mouse move for dragging and resizing
+   */
+  handleMouseMove(e) {
+    if (this.isDragging) {
+      this.drag(e);
+    } else if (this.isResizing) {
+      this.resize(e);
+    }
+  }
+
+  /**
+   * Handle mouse up to end drag/resize
+   */
+  handleMouseUp(e) {
+    if (this.isDragging || this.isResizing) {
+      this.isDragging = false;
+      this.isResizing = false;
+      this.element.classList.remove('dragging', 'resizing');
+      if (this.onStateChange) this.onStateChange();
+    }
+  }
+
+  /**
+   * Start dragging the window
+   */
+  startDrag(e) {
+    this.isDragging = true;
+    this.element.classList.add('dragging');
+    const rect = this.element.getBoundingClientRect();
+    this.dragOffset = {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top
+    };
+    e.preventDefault();
+  }
+
+  /**
+   * Handle drag movement
+   */
+  drag(e) {
+    let x = e.clientX - this.dragOffset.x;
+    let y = e.clientY - this.dragOffset.y;
+
+    // Keep window on screen
+    const maxX = window.innerWidth - this.element.offsetWidth;
+    const maxY = window.innerHeight - this.element.offsetHeight;
+    x = Math.max(0, Math.min(x, maxX));
+    y = Math.max(0, Math.min(y, maxY));
+
+    this.element.style.left = `${x}px`;
+    this.element.style.top = `${y}px`;
+  }
+
+  /**
+   * Start resizing the window
+   */
+  startResize(e, direction) {
+    this.isResizing = true;
+    this.resizeDirection = direction;
+    this.element.classList.add('resizing');
+    const rect = this.element.getBoundingClientRect();
+    this.resizeStart = {
+      x: e.clientX,
+      y: e.clientY,
+      width: rect.width,
+      height: rect.height,
+      left: rect.left,
+      top: rect.top
+    };
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
+  /**
+   * Handle resize movement
+   */
+  resize(e) {
+    const dx = e.clientX - this.resizeStart.x;
+    const dy = e.clientY - this.resizeStart.y;
+    const dir = this.resizeDirection;
+
+    let newWidth = this.resizeStart.width;
+    let newHeight = this.resizeStart.height;
+    let newLeft = this.resizeStart.left;
+    let newTop = this.resizeStart.top;
+
+    // Calculate new dimensions based on direction
+    if (dir.includes('e')) {
+      newWidth = Math.max(this.minWidth, this.resizeStart.width + dx);
+    }
+    if (dir.includes('w')) {
+      const proposedWidth = this.resizeStart.width - dx;
+      if (proposedWidth >= this.minWidth) {
+        newWidth = proposedWidth;
+        newLeft = this.resizeStart.left + dx;
+      }
+    }
+    if (dir.includes('s')) {
+      newHeight = Math.max(this.minHeight, this.resizeStart.height + dy);
+    }
+    if (dir.includes('n')) {
+      const proposedHeight = this.resizeStart.height - dy;
+      if (proposedHeight >= this.minHeight) {
+        newHeight = proposedHeight;
+        newTop = this.resizeStart.top + dy;
+      }
+    }
+
+    // Keep on screen
+    newLeft = Math.max(0, newLeft);
+    newTop = Math.max(0, newTop);
+    if (newLeft + newWidth > window.innerWidth) {
+      newWidth = window.innerWidth - newLeft;
+    }
+    if (newTop + newHeight > window.innerHeight) {
+      newHeight = window.innerHeight - newTop;
+    }
+
+    this.element.style.width = `${newWidth}px`;
+    this.element.style.height = `${newHeight}px`;
+    this.element.style.left = `${newLeft}px`;
+    this.element.style.top = `${newTop}px`;
+  }
+
+  /**
+   * Show the window
+   */
+  show() {
+    this.element.classList.remove('hidden');
+    this.isVisible = true;
+    // Ensure window is within viewport when shown
+    this.constrainToViewport();
+    if (this.onFocus) this.onFocus(this.id);
+  }
+
+  /**
+   * Hide the window
+   */
+  hide() {
+    this.element.classList.add('hidden');
+    this.isVisible = false;
+    if (this.onStateChange) this.onStateChange();
+  }
+
+  /**
+   * Toggle window visibility
+   */
+  toggle() {
+    if (this.isVisible) {
+      this.hide();
+    } else {
+      this.show();
+    }
+  }
+
+  /**
+   * Set window z-index
+   */
+  setZIndex(z) {
+    this.element.style.zIndex = z;
+  }
+
+  /**
+   * Get window state for persistence
+   */
+  getState() {
+    const rect = this.element.getBoundingClientRect();
+    return {
+      x: rect.left,
+      y: rect.top,
+      width: rect.width,
+      height: rect.height,
+      visible: this.isVisible
+    };
+  }
+
+  /**
+   * Restore window state from persistence
+   */
+  restoreState(state) {
+    if (state.x !== undefined) this.element.style.left = `${state.x}px`;
+    if (state.y !== undefined) this.element.style.top = `${state.y}px`;
+    if (state.width !== undefined) this.element.style.width = `${state.width}px`;
+    if (state.height !== undefined) this.element.style.height = `${state.height}px`;
+    if (state.visible) {
+      this.show();
+    } else {
+      // Constrain position even for hidden windows so they appear correctly when shown
+      this.constrainToViewport();
+    }
+  }
+
+  /**
+   * Constrain window position to keep it within the visible viewport
+   */
+  constrainToViewport() {
+    if (!this.element) return;
+
+    const rect = this.element.getBoundingClientRect();
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+
+    let newLeft = rect.left;
+    let newTop = rect.top;
+    let changed = false;
+
+    // If window is wider than viewport, align to left edge
+    if (rect.width >= viewportWidth) {
+      newLeft = 0;
+      changed = true;
+    } else if (rect.right > viewportWidth) {
+      // Window extends past right edge
+      newLeft = viewportWidth - rect.width;
+      changed = true;
+    } else if (rect.left < 0) {
+      // Window extends past left edge
+      newLeft = 0;
+      changed = true;
+    }
+
+    // If window is taller than viewport, align to top edge
+    if (rect.height >= viewportHeight) {
+      newTop = 0;
+      changed = true;
+    } else if (rect.bottom > viewportHeight) {
+      // Window extends past bottom edge
+      newTop = viewportHeight - rect.height;
+      changed = true;
+    } else if (rect.top < 0) {
+      // Window extends past top edge
+      newTop = 0;
+      changed = true;
+    }
+
+    if (changed) {
+      this.element.style.left = `${newLeft}px`;
+      this.element.style.top = `${newTop}px`;
+    }
+  }
+
+  /**
+   * Override in subclasses to provide window content HTML
+   */
+  renderContent() {
+    return '<p>Override renderContent() in subclass</p>';
+  }
+
+  /**
+   * Override in subclasses to update window content
+   */
+  update(wasmModule) {
+    // Override in subclasses
+  }
+
+  /**
+   * Override in subclasses to set up additional event listeners
+   */
+  setupContentEventListeners() {
+    // Override in subclasses
+  }
+
+  /**
+   * Helper to format a hex byte
+   */
+  formatHex(value, digits = 2) {
+    return value.toString(16).toUpperCase().padStart(digits, '0');
+  }
+
+  /**
+   * Helper to format a hex address
+   */
+  formatAddr(value) {
+    return '$' + this.formatHex(value, 4);
+  }
+}
