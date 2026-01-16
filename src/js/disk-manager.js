@@ -5,12 +5,17 @@ export class DiskManager {
     constructor(wasmModule) {
         this.wasmModule = wasmModule;
         this.drives = [
-            { input: null, insertBtn: null, blankBtn: null, ejectBtn: null, led: null, trackLabel: null, filename: null },
-            { input: null, insertBtn: null, blankBtn: null, ejectBtn: null, led: null, trackLabel: null, filename: null }
+            { input: null, insertBtn: null, blankBtn: null, ejectBtn: null, led: null, trackLabel: null, filename: null, lastQuarterTrack: -1 },
+            { input: null, insertBtn: null, blankBtn: null, ejectBtn: null, led: null, trackLabel: null, filename: null, lastQuarterTrack: -1 }
         ];
         this.pendingEjectDrive = null;
         this.saveModal = null;
         this.saveFilenameInput = null;
+
+        // Seek sound synthesis
+        this.audioContext = null;
+        this.seekSoundEnabled = true;
+        this.seekVolume = 0.3;
     }
 
     init() {
@@ -506,11 +511,24 @@ export class DiskManager {
                 }
             }
 
-            // Update track display
+            // Update track display and check for seek
             if (drive.trackLabel) {
                 if (drive.filename && this.wasmModule._getDiskTrack) {
                     const track = this.wasmModule._getDiskTrack(driveNum);
                     drive.trackLabel.textContent = `T${track.toString().padStart(2, '0')}`;
+
+                    // Check for quarter-track change and play seek sound
+                    if (this.wasmModule._getDiskHeadPosition) {
+                        const quarterTrack = this.wasmModule._getDiskHeadPosition(driveNum);
+                        const motorOn = this.wasmModule._getDiskMotorOn(driveNum);
+
+                        if (motorOn && driveNum === selectedDrive &&
+                            drive.lastQuarterTrack >= 0 &&
+                            quarterTrack !== drive.lastQuarterTrack) {
+                            this.playSeekSound();
+                        }
+                        drive.lastQuarterTrack = quarterTrack;
+                    }
 
                     // Highlight when motor is on and this drive is selected
                     const motorOn = this.wasmModule._getDiskMotorOn(driveNum);
@@ -522,9 +540,76 @@ export class DiskManager {
                 } else {
                     drive.trackLabel.textContent = 'T--';
                     drive.trackLabel.classList.remove('active');
+                    drive.lastQuarterTrack = -1;
                 }
             }
         }
+    }
+
+    /**
+     * Initialize audio context for seek sounds (lazily created)
+     */
+    initAudioContext() {
+        if (!this.audioContext) {
+            try {
+                this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            } catch (e) {
+                console.warn('Could not create audio context for seek sounds:', e);
+                this.seekSoundEnabled = false;
+            }
+        }
+        return this.audioContext;
+    }
+
+    /**
+     * Play a synthesized disk drive seek/step sound
+     * Simple sharp click like a stepper motor
+     */
+    playSeekSound() {
+        if (!this.seekSoundEnabled) return;
+
+        const ctx = this.initAudioContext();
+        if (!ctx || ctx.state === 'suspended') return;
+
+        const now = ctx.currentTime;
+        const duration = 0.003; // 3ms click
+
+        // Create a short impulse/click
+        const bufferSize = Math.ceil(ctx.sampleRate * duration);
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+
+        // Sharp click - starts loud, decays very fast
+        for (let i = 0; i < bufferSize; i++) {
+            const t = i / bufferSize;
+            data[i] = (1 - t * t) * (Math.random() * 0.5 + 0.5);
+        }
+
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+
+        const gain = ctx.createGain();
+        gain.gain.value = this.seekVolume;
+
+        source.connect(gain);
+        gain.connect(ctx.destination);
+
+        source.start(now);
+        source.stop(now + duration);
+    }
+
+    /**
+     * Enable or disable seek sounds
+     */
+    setSeekSoundEnabled(enabled) {
+        this.seekSoundEnabled = enabled;
+    }
+
+    /**
+     * Set seek sound volume (0.0 - 1.0)
+     */
+    setSeekVolume(volume) {
+        this.seekVolume = Math.max(0, Math.min(1, volume));
     }
 
     saveDisk(driveNum) {
