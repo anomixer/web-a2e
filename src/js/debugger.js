@@ -223,140 +223,96 @@ export class Debugger {
         line.classList.add("breakpoint");
       }
 
-      // Address
-      const addrSpan = document.createElement("span");
-      addrSpan.className = "disasm-addr";
-      addrSpan.textContent =
-        "$" + addr.toString(16).toUpperCase().padStart(4, "0");
-
-      // Get instruction bytes
-      const opcode = this.wasmModule._readMemory(addr);
-      const bytesSpan = document.createElement("span");
-      bytesSpan.className = "disasm-bytes";
-      bytesSpan.textContent = opcode
-        .toString(16)
-        .toUpperCase()
-        .padStart(2, "0");
-
-      // Disassembly
-      const instrSpan = document.createElement("span");
-      instrSpan.className = "disasm-instruction";
+      // Get the full disassembly from the CPU
+      // Format: "AAAA: BB BB BB  MMM OPERAND"
       const disasm = this.wasmModule.UTF8ToString(
         this.wasmModule._disassembleAt(addr),
       );
-      instrSpan.textContent = disasm.substring(6); // Skip address prefix
+
+      // Parse the disassembly string
+      // "AAAA: BB BB BB  MMM OPERAND" -> parts
+      const addrPart = disasm.substring(0, 4); // "AAAA"
+      const bytesPart = disasm.substring(6, 14); // "BB BB BB"
+      const instrPart = disasm.substring(16); // "MMM OPERAND"
+
+      // Address
+      const addrSpan = document.createElement("span");
+      addrSpan.className = "disasm-addr";
+      addrSpan.textContent = "$" + addrPart;
+
+      // Instruction bytes
+      const bytesSpan = document.createElement("span");
+      bytesSpan.className = "disasm-bytes";
+      bytesSpan.textContent = bytesPart;
+
+      // Disassembly (mnemonic + operand)
+      const instrSpan = document.createElement("span");
+      instrSpan.className = "disasm-instruction";
+      instrSpan.textContent = instrPart;
 
       line.appendChild(addrSpan);
       line.appendChild(bytesSpan);
       line.appendChild(instrSpan);
 
       // Click to toggle breakpoint
+      const clickAddr = addr;
       line.addEventListener("click", () => {
-        if (this.breakpoints.has(addr)) {
-          this.removeBreakpoint(addr);
+        if (this.breakpoints.has(clickAddr)) {
+          this.removeBreakpoint(clickAddr);
         } else {
-          this.addBreakpoint(addr);
+          this.addBreakpoint(clickAddr);
         }
         this.updateDisassembly();
       });
 
       view.appendChild(line);
 
-      // Advance to next instruction (simplified - assume all are 1-3 bytes)
+      // Advance to next instruction
+      const opcode = this.wasmModule._readMemory(addr);
       addr += this.getInstructionLength(opcode);
       if (addr > 0xffff) break;
     }
   }
 
   getInstructionLength(opcode) {
-    // Simplified instruction length table
-    // Actual length depends on addressing mode
-    const lengths = {
-      // Implied/Accumulator: 1 byte
-      0x00: 2,
-      0x08: 1,
-      0x18: 1,
-      0x28: 1,
-      0x38: 1,
-      0x40: 1,
-      0x48: 1,
-      0x58: 1,
-      0x60: 1,
-      0x68: 1,
-      0x78: 1,
-      0x88: 1,
-      0x8a: 1,
-      0x98: 1,
-      0x9a: 1,
-      0xa8: 1,
-      0xaa: 1,
-      0xb8: 1,
-      0xba: 1,
-      0xc8: 1,
-      0xca: 1,
-      0xd8: 1,
-      0xe8: 1,
-      0xea: 1,
-      0xf8: 1,
+    // Complete instruction length table for 65C02
+    // 1 = implied/accumulator, 2 = immediate/zp/relative, 3 = absolute/indirect
+    const lengths = [
+      // 0x00-0x0F
+      1, 2, 1, 1, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3,
+      // 0x10-0x1F
+      2, 2, 2, 1, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 3,
+      // 0x20-0x2F
+      3, 2, 1, 1, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3,
+      // 0x30-0x3F
+      2, 2, 2, 1, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 3,
+      // 0x40-0x4F
+      1, 2, 1, 1, 1, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3,
+      // 0x50-0x5F
+      2, 2, 2, 1, 1, 2, 2, 2, 1, 3, 1, 1, 1, 3, 3, 3,
+      // 0x60-0x6F
+      1, 2, 1, 1, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3,
+      // 0x70-0x7F
+      2, 2, 2, 1, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 3,
+      // 0x80-0x8F
+      2, 2, 1, 1, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3,
+      // 0x90-0x9F
+      2, 2, 2, 1, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 3,
+      // 0xA0-0xAF
+      2, 2, 2, 1, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3,
+      // 0xB0-0xBF
+      2, 2, 2, 1, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 3,
+      // 0xC0-0xCF
+      2, 2, 1, 1, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3,
+      // 0xD0-0xDF
+      2, 2, 2, 1, 1, 2, 2, 2, 1, 3, 1, 1, 1, 3, 3, 3,
+      // 0xE0-0xEF
+      2, 2, 1, 1, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3,
+      // 0xF0-0xFF
+      2, 2, 2, 1, 1, 2, 2, 2, 1, 3, 1, 1, 1, 3, 3, 3,
+    ];
 
-      // Absolute: 3 bytes
-      0x0c: 3,
-      0x0d: 3,
-      0x0e: 3,
-      0x19: 3,
-      0x1c: 3,
-      0x1d: 3,
-      0x1e: 3,
-      0x20: 3,
-      0x2c: 3,
-      0x2d: 3,
-      0x2e: 3,
-      0x39: 3,
-      0x3c: 3,
-      0x3d: 3,
-      0x3e: 3,
-      0x4c: 3,
-      0x4d: 3,
-      0x4e: 3,
-      0x59: 3,
-      0x5d: 3,
-      0x5e: 3,
-      0x6c: 3,
-      0x6d: 3,
-      0x6e: 3,
-      0x79: 3,
-      0x7c: 3,
-      0x7d: 3,
-      0x7e: 3,
-      0x8c: 3,
-      0x8d: 3,
-      0x8e: 3,
-      0x99: 3,
-      0x9c: 3,
-      0x9d: 3,
-      0x9e: 3,
-      0xac: 3,
-      0xad: 3,
-      0xae: 3,
-      0xb9: 3,
-      0xbc: 3,
-      0xbd: 3,
-      0xbe: 3,
-      0xcc: 3,
-      0xcd: 3,
-      0xce: 3,
-      0xd9: 3,
-      0xdd: 3,
-      0xde: 3,
-      0xec: 3,
-      0xed: 3,
-      0xee: 3,
-      0xf9: 3,
-      0xfd: 3,
-      0xfe: 3,
-    };
-
-    return lengths[opcode] || 2; // Default to 2 bytes
+    return lengths[opcode] || 1;
   }
 
   updateMemoryView() {

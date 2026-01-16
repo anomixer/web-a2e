@@ -720,11 +720,11 @@ float staticNoise(vec2 uv, float time) {
 
 vec3 noSignalStatic(vec2 uv, float time) {
     // Blocky TV static - sized for authentic CRT look
-    vec2 blockSize = vec2(2.0, 2.0);
+    vec2 blockSize = vec2(3.0, 3.0);
     vec2 pixelCoord = floor(uv * u_textureSize / blockSize);
 
-    // Animate at ~30fps for that classic TV static feel
-    float frameTime = floor(time * 30.0);
+    // Animate for that classic TV static feel
+    float frameTime = floor(time * 20.0);
     vec2 noiseCoord = pixelCoord + vec2(frameTime * 17.0, frameTime * 31.0);
 
     // Base noise
@@ -732,7 +732,7 @@ vec3 noSignalStatic(vec2 uv, float time) {
 
     // Horizontal banding - occasional brighter/darker scanlines
     float bandNoise = hash12(vec2(pixelCoord.y * 0.1, frameTime * 0.5));
-    float band = smoothstep(0.4, 0.6, bandNoise);
+    float band = smoothstep(0.4, 0.7, bandNoise);
     noise = mix(noise * 0.7, noise * 1.2, band);
 
     // Occasional horizontal interference lines
@@ -752,11 +752,11 @@ vec3 noSignalStatic(vec2 uv, float time) {
     // Vignette
     vec2 cc = uv - 0.5;
     float dist = length(cc);
-    float vignette = 1.0 - dist * 0.4;
+    float vignette = 1.0 - dist * 0.0;
     noise *= vignette;
 
     // Clamp and return grayscale - reduced brightness for less dazzling effect
-    noise = clamp(noise, 0.0, 1.0) * 0.15;
+    noise = clamp(noise, 0.0, 1.0) * 0.25;
     return vec3(noise);
 }
 
