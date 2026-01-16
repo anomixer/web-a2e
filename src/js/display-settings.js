@@ -215,6 +215,11 @@ export class DisplaySettings {
     if (this.panel) {
       this.panel.classList.add("hidden");
     }
+    // Refocus canvas for keyboard input
+    const canvas = document.getElementById("screen");
+    if (canvas) {
+      setTimeout(() => canvas.focus(), 0);
+    }
   }
 
   isVisible() {

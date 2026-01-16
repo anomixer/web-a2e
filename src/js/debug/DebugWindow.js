@@ -252,6 +252,11 @@ export class DebugWindow {
     this.element.classList.add('hidden');
     this.isVisible = false;
     if (this.onStateChange) this.onStateChange();
+    // Refocus canvas for keyboard input
+    const canvas = document.getElementById('screen');
+    if (canvas) {
+      setTimeout(() => canvas.focus(), 0);
+    }
   }
 
   /**

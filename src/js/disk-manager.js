@@ -14,6 +14,9 @@ export class DiskManager {
     }
 
     init() {
+        // Get canvas for focus management
+        this.canvas = document.getElementById('screen');
+
         // Set up drive 1
         this.setupDrive(0, 'disk1');
 
@@ -25,6 +28,12 @@ export class DiskManager {
 
         // Set up save modal
         this.setupSaveModal();
+    }
+
+    refocusCanvas() {
+        if (this.canvas) {
+            setTimeout(() => this.canvas.focus(), 0);
+        }
     }
 
     setupDrive(driveNum, elementId) {
@@ -51,6 +60,7 @@ export class DiskManager {
         if (drive.blankBtn) {
             drive.blankBtn.addEventListener('click', () => {
                 this.insertBlankDisk(driveNum);
+                this.refocusCanvas();
             });
         }
 
@@ -60,6 +70,7 @@ export class DiskManager {
                 if (e.target.files.length > 0) {
                     this.loadDisk(driveNum, e.target.files[0]);
                 }
+                this.refocusCanvas();
             });
         }
 
@@ -67,6 +78,7 @@ export class DiskManager {
         if (drive.ejectBtn) {
             drive.ejectBtn.addEventListener('click', () => {
                 this.ejectDisk(driveNum);
+                this.refocusCanvas();
             });
         }
     }

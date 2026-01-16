@@ -113,6 +113,12 @@ class AppleIIeEmulator {
   setupControls() {
     const powerBtn = document.getElementById("btn-power");
     const muteBtn = document.getElementById("btn-mute");
+    const canvas = document.getElementById("screen");
+
+    // Helper to refocus canvas after button clicks
+    const refocusCanvas = () => {
+      setTimeout(() => canvas.focus(), 0);
+    };
 
     // Power button
     powerBtn.addEventListener("click", () => {
@@ -121,16 +127,19 @@ class AppleIIeEmulator {
       } else {
         this.start();
       }
+      refocusCanvas();
     });
 
     // Warm reset button (preserves memory)
     document.getElementById("btn-warm-reset").addEventListener("click", () => {
       this.wasmModule._warmReset();
+      refocusCanvas();
     });
 
     // Cold reset button (full restart)
     document.getElementById("btn-cold-reset").addEventListener("click", () => {
       this.wasmModule._reset();
+      refocusCanvas();
     });
 
     // Fullscreen button
@@ -141,26 +150,39 @@ class AppleIIeEmulator {
       } else {
         container.requestFullscreen();
       }
+      refocusCanvas();
     });
 
     // Mute button
     muteBtn.addEventListener("click", () => {
       this.audioDriver.toggleMute();
       this.updateMuteButton();
+      refocusCanvas();
     });
 
     // Debug window toggles
     document.getElementById("btn-cpu-debug").addEventListener("click", () => {
       this.windowManager.toggleWindow("cpu-debugger");
+      refocusCanvas();
     });
 
     document.getElementById("btn-drive-debug").addEventListener("click", () => {
       this.windowManager.toggleWindow("drive-detail");
+      refocusCanvas();
     });
 
     document.getElementById("btn-switch-debug").addEventListener("click", () => {
       this.windowManager.toggleWindow("soft-switches");
+      refocusCanvas();
     });
+
+    // Display settings button
+    const displayBtn = document.getElementById("btn-display");
+    if (displayBtn) {
+      displayBtn.addEventListener("click", () => {
+        refocusCanvas();
+      });
+    }
   }
 
   setupResizeHandling() {
