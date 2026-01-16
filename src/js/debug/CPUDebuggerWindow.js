@@ -359,7 +359,7 @@ export class CPUDebuggerWindow extends DebugWindow {
       view.appendChild(line);
 
       // Advance to next instruction
-      const opcode = this.wasmModule._readMemory(addr);
+      const opcode = this.wasmModule._peekMemory(addr);
       addr += this.getInstructionLength(opcode);
       if (addr > 0xFFFF) break;
     }
@@ -406,7 +406,7 @@ export class CPUDebuggerWindow extends DebugWindow {
       let ascii = '';
       for (let col = 0; col < this.bytesPerRow; col++) {
         const byteAddr = (addr + col) & 0xFFFF;
-        const byte = this.wasmModule._readMemory(byteAddr);
+        const byte = this.wasmModule._peekMemory(byteAddr);
         const isNonZero = byte !== 0;
         html += `<span class="cpu-mem-byte${isNonZero ? ' non-zero' : ''}">${this.formatHex(byte)}</span>`;
         ascii += (byte >= 0x20 && byte < 0x7F) ? String.fromCharCode(byte) : '.';

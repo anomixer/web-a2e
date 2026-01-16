@@ -34,7 +34,7 @@ export class Debugger {
     document.getElementById("dbg-step-over").addEventListener("click", () => {
       // Get current instruction
       const pc = this.wasmModule._getPC();
-      const opcode = this.wasmModule._readMemory(pc);
+      const opcode = this.wasmModule._peekMemory(pc);
 
       // If it's a JSR, set breakpoint after it and run
       if (opcode === 0x20) {
@@ -268,7 +268,7 @@ export class Debugger {
       view.appendChild(line);
 
       // Advance to next instruction
-      const opcode = this.wasmModule._readMemory(addr);
+      const opcode = this.wasmModule._peekMemory(addr);
       addr += this.getInstructionLength(opcode);
       if (addr > 0xffff) break;
     }
@@ -330,7 +330,7 @@ export class Debugger {
       let ascii = "";
       for (let col = 0; col < 16; col++) {
         const byteAddr = (addr + col) & 0xffff;
-        const byte = this.wasmModule._readMemory(byteAddr);
+        const byte = this.wasmModule._peekMemory(byteAddr);
         html += `<span class="mem-byte">${byte.toString(16).toUpperCase().padStart(2, "0")}</span> `;
 
         // ASCII representation

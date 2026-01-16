@@ -252,6 +252,14 @@ uint8_t readMemory(uint16_t address) {
 }
 
 EMSCRIPTEN_KEEPALIVE
+uint8_t peekMemory(uint16_t address) {
+  if (g_emulator) {
+    return g_emulator->peekMemory(address);
+  }
+  return 0;
+}
+
+EMSCRIPTEN_KEEPALIVE
 void writeMemory(uint16_t address, uint8_t value) {
   if (g_emulator) {
     g_emulator->writeMemory(address, value);
