@@ -19,24 +19,24 @@ export class DisplaySettingsWindow extends DebugWindow {
 
     // Default values (percentages 0-100 for UI, converted to shader values)
     this.defaults = {
-      curvature: 0,
-      scanlines: 0,
+      curvature: 21,
+      scanlines: 45,
       shadowMask: 0,
       phosphorGlow: 0,
       vignette: 0,
       brightness: 100,
-      contrast: 100,
+      contrast: 102,
       saturation: 100,
       rgbOffset: 0,
       flicker: 0,
       staticNoise: 0,
-      jitter: 0,
+      jitter: 32,
       horizontalSync: 0,
       glowingLine: 0,
       ambientLight: 0,
       burnIn: 0,
       overscan: 0,
-      sharpPixels: true,
+      sharpPixels: false,
     };
 
     // Current values
@@ -80,11 +80,9 @@ export class DisplaySettingsWindow extends DebugWindow {
       for (const slider of section.sliders) {
         html += `
           <div class="setting-row">
-            <label>${slider.label}</label>
-            <div class="setting-control">
-              <input type="range" id="ds-${slider.id}" min="0" max="100" value="${this.settings[slider.id]}">
-              <span class="setting-value" id="ds-val-${slider.id}">${this.settings[slider.id]}%</span>
-            </div>
+            <label title="${slider.label}">${slider.label}</label>
+            <input type="range" id="ds-${slider.id}" min="0" max="100" value="${this.settings[slider.id]}">
+            <span class="setting-value" id="ds-val-${slider.id}">${this.settings[slider.id]}%</span>
           </div>`;
       }
 

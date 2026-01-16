@@ -2351,15 +2351,16 @@ footer kbd {
 .display-settings-content {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 8px;
     font-family: var(--font-sans);
     font-size: 11px;
+    overflow: hidden;
 }
 
 .display-settings-content .settings-section {
     background: rgba(0, 0, 0, 0.15);
     border-radius: var(--radius-sm);
-    padding: 8px;
+    padding: 6px 8px;
 }
 
 .display-settings-content .settings-section-title {
@@ -2369,36 +2370,31 @@ footer kbd {
     color: var(--accent-blue);
     text-transform: uppercase;
     letter-spacing: 0.08em;
-    margin-bottom: 8px;
-    padding-bottom: 4px;
+    margin-bottom: 6px;
+    padding-bottom: 3px;
     border-bottom: 1px solid rgba(88, 166, 255, 0.2);
 }
 
 .display-settings-content .setting-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: 90px 1fr 28px;
     align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 4px 0;
+    gap: 6px;
+    padding: 2px 0;
 }
 
 .display-settings-content .setting-row label {
     font-family: var(--font-sans);
     font-size: 10px;
     color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
-    min-width: 80px;
-}
-
-.display-settings-content .setting-control {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    flex: 1;
 }
 
 .display-settings-content input[type="range"] {
-    flex: 1;
+    width: 100%;
+    min-width: 0;
     height: 4px;
     background: rgba(0, 0, 0, 0.3);
     border-radius: 2px;
@@ -2432,24 +2428,39 @@ footer kbd {
     cursor: pointer;
 }
 
+.display-settings-content input[type="range"]::-moz-range-track {
+    height: 4px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 2px;
+}
+
 .display-settings-content .setting-value {
     font-family: var(--font-mono);
     font-size: 9px;
     color: var(--text-muted);
-    min-width: 32px;
     text-align: right;
 }
 
-/* Toggle switch */
+/* Toggle switch row - uses flex instead of grid */
 .display-settings-content .toggle-row {
-    padding: 6px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 0;
+}
+
+.display-settings-content .toggle-row > label:first-child {
+    font-family: var(--font-sans);
+    font-size: 10px;
+    color: var(--text-secondary);
 }
 
 .display-settings-content .toggle {
     position: relative;
     display: inline-block;
-    width: 36px;
-    height: 20px;
+    width: 32px;
+    height: 18px;
+    flex-shrink: 0;
 }
 
 .display-settings-content .toggle input {
@@ -2466,15 +2477,15 @@ footer kbd {
     right: 0;
     bottom: 0;
     background: rgba(0, 0, 0, 0.3);
-    border-radius: 20px;
+    border-radius: 18px;
     transition: all 0.2s;
 }
 
 .display-settings-content .toggle-slider::before {
     position: absolute;
     content: "";
-    height: 14px;
-    width: 14px;
+    height: 12px;
+    width: 12px;
     left: 3px;
     bottom: 3px;
     background: var(--text-muted);
@@ -2487,7 +2498,7 @@ footer kbd {
 }
 
 .display-settings-content .toggle input:checked + .toggle-slider::before {
-    transform: translateX(16px);
+    transform: translateX(14px);
     background: var(--accent-green);
 }
 
