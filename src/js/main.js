@@ -4,12 +4,12 @@ import { WebGLRenderer } from "./webgl-renderer.js";
 import { AudioDriver } from "./audio-driver.js";
 import { InputHandler } from "./input-handler.js";
 import { DiskManager } from "./disk-manager.js";
-import { DisplaySettings } from "./display-settings.js";
 import {
   WindowManager,
   CPUDebuggerWindow,
   DriveDetailWindow,
-  SoftSwitchWindow
+  SoftSwitchWindow,
+  DisplaySettingsWindow
 } from "./debug/index.js";
 
 class AppleIIeEmulator {
@@ -78,12 +78,13 @@ class AppleIIeEmulator {
       switchWindow.create();
       this.windowManager.register(switchWindow);
 
+      // Set up display settings window (pass renderer for shader control)
+      this.displaySettings = new DisplaySettingsWindow(this.renderer);
+      this.displaySettings.create();
+      this.windowManager.register(this.displaySettings);
+
       // Load saved window states
       this.windowManager.loadState();
-
-      // Set up display settings (pass renderer for shader control)
-      this.displaySettings = new DisplaySettings(this.renderer);
-      this.displaySettings.init();
 
       // Start with TV static "no signal" since emulator is off
       this.renderer.setNoSignal(true);
@@ -180,6 +181,7 @@ class AppleIIeEmulator {
     const displayBtn = document.getElementById("btn-display");
     if (displayBtn) {
       displayBtn.addEventListener("click", () => {
+        this.windowManager.toggleWindow("display-settings");
         refocusCanvas();
       });
     }
