@@ -472,7 +472,7 @@ main {
     display: flex;
     gap: var(--space-md);
     width: 100%;
-    max-width: 728px;
+    max-width: 576px;
     flex-shrink: 0;
 }
 
@@ -483,52 +483,28 @@ main {
     gap: var(--space-sm);
 }
 
-.drive-housing {
-    background: linear-gradient(180deg, var(--monitor-beige-light) 0%, var(--monitor-beige) 50%, var(--monitor-beige-dark) 100%);
-    border-radius: var(--radius-md);
-    padding: var(--space-md);
-    box-shadow:
-        var(--shadow-md),
-        inset 0 1px 0 rgba(255, 255, 255, 0.3),
-        inset 0 -1px 0 rgba(0, 0, 0, 0.1);
+.drive-image-container {
+    width: 100%;
+    max-width: 280px;
 }
 
-.drive-label {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: #4a4539;
-    margin-bottom: var(--space-sm);
-}
-
-.drive-slot {
-    height: 8px;
-    background: #000;
-    border-radius: 2px;
-    margin-bottom: var(--space-sm);
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.6);
+.drive-image {
+    width: 100%;
+    height: auto;
+    display: block;
 }
 
 .drive-info {
     display: flex;
     align-items: center;
     gap: var(--space-sm);
+    padding: var(--space-xs) 0;
 }
 
-.disk-led {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #5a3030;
-    border: 1px solid #4a2525;
-    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5);
-    transition: all 0.1s;
-}
-
-.disk-led.active {
-    background: radial-gradient(circle at 30% 30%, #ff6b60 0%, #ff3b30 50%, #cc2a22 100%);
-    box-shadow:
-        0 0 6px #ff3b30,
-        0 0 12px rgba(255, 59, 48, 0.5);
+.drive-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--text-secondary);
 }
 
 .disk-name {
@@ -554,8 +530,9 @@ main {
 }
 
 .disk-track.active {
-    color: #3a2a1a;
-    background: rgba(255, 100, 50, 0.2);
+    color: #ff6a33;
+    background: rgba(255, 100, 50, 0.25);
+    box-shadow: 0 0 4px rgba(255, 100, 50, 0.4);
 }
 
 .drive-controls {
@@ -1734,9 +1711,9 @@ footer kbd {
         gap: var(--space-sm);
     }
 
-    .drive-housing {
+    .drive-image-container {
         width: 100%;
-        max-width: 320px;
+        max-width: 240px;
     }
 }
 

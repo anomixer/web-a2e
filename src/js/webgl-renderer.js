@@ -724,7 +724,7 @@ vec3 noSignalStatic(vec2 uv, float time) {
     vec2 pixelCoord = floor(uv * u_textureSize / blockSize);
 
     // Animate for that classic TV static feel
-    float frameTime = floor(time * 20.0);
+    float frameTime = floor(time * 50.0);
     vec2 noiseCoord = pixelCoord + vec2(frameTime * 17.0, frameTime * 31.0);
 
     // Base noise

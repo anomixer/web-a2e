@@ -9,7 +9,8 @@ import {
   CPUDebuggerWindow,
   DriveDetailWindow,
   SoftSwitchWindow,
-  DisplaySettingsWindow
+  DisplaySettingsWindow,
+  SoundSettingsWindow
 } from "./debug/index.js";
 
 class AppleIIeEmulator {
@@ -82,6 +83,11 @@ class AppleIIeEmulator {
       this.displaySettings = new DisplaySettingsWindow(this.renderer);
       this.displaySettings.create();
       this.windowManager.register(this.displaySettings);
+
+      // Set up sound settings window (pass disk manager for sound control)
+      this.soundSettings = new SoundSettingsWindow(this.diskManager);
+      this.soundSettings.create();
+      this.windowManager.register(this.soundSettings);
 
       // Load saved window states
       this.windowManager.loadState();
@@ -194,6 +200,15 @@ class AppleIIeEmulator {
     if (displayBtn) {
       displayBtn.addEventListener("click", () => {
         this.windowManager.toggleWindow("display-settings");
+        refocusCanvas();
+      });
+    }
+
+    // Sound settings button
+    const soundBtn = document.getElementById("btn-sound");
+    if (soundBtn) {
+      soundBtn.addEventListener("click", () => {
+        this.windowManager.toggleWindow("sound-settings");
         refocusCanvas();
       });
     }
