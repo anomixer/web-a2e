@@ -297,8 +297,15 @@ export class DebugWindow {
   restoreState(state) {
     if (state.x !== undefined) this.element.style.left = `${state.x}px`;
     if (state.y !== undefined) this.element.style.top = `${state.y}px`;
-    if (state.width !== undefined) this.element.style.width = `${state.width}px`;
-    if (state.height !== undefined) this.element.style.height = `${state.height}px`;
+    // Enforce minimum dimensions when restoring
+    if (state.width !== undefined) {
+      const width = Math.max(state.width, this.minWidth);
+      this.element.style.width = `${width}px`;
+    }
+    if (state.height !== undefined) {
+      const height = Math.max(state.height, this.minHeight);
+      this.element.style.height = `${height}px`;
+    }
     if (state.visible) {
       this.show();
     } else {

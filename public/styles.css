@@ -2352,6 +2352,8 @@ footer kbd {
     display: flex;
     flex-direction: column;
     gap: 12px;
+    font-family: var(--font-sans);
+    font-size: 11px;
 }
 
 .display-settings-content .settings-section {

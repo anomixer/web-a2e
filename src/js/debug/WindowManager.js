@@ -128,6 +128,18 @@ export class WindowManager {
   }
 
   /**
+   * Clear all saved window state (useful for debugging)
+   */
+  clearState() {
+    try {
+      localStorage.removeItem(this.storageKey);
+      console.log('Debug window state cleared');
+    } catch (e) {
+      console.warn('Could not clear debug window state:', e);
+    }
+  }
+
+  /**
    * Update all visible windows
    */
   updateAll(wasmModule) {
