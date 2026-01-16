@@ -161,6 +161,18 @@ class AppleIIeEmulator {
       refocusCanvas();
     });
 
+    // Volume slider
+    const volumeSlider = document.getElementById("volume-slider");
+    if (volumeSlider) {
+      // Set initial value from saved volume
+      volumeSlider.value = Math.round(this.audioDriver.getVolume() * 100);
+
+      volumeSlider.addEventListener("input", (e) => {
+        const volume = parseInt(e.target.value, 10) / 100;
+        this.audioDriver.setVolume(volume);
+      });
+    }
+
     // Debug window toggles
     document.getElementById("btn-cpu-debug").addEventListener("click", () => {
       this.windowManager.toggleWindow("cpu-debugger");

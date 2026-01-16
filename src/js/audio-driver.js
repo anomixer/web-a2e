@@ -11,6 +11,7 @@ export class AudioDriver {
     this.bufferSize = 128; // AudioWorklet processes 128 samples at a time
     this.running = false;
     this.muted = false;
+    this.volume = this.loadVolume(); // Load saved volume or default to 0.5
     this.speed = 1;
 
     // Fallback to ScriptProcessorNode if AudioWorklet not available
@@ -53,7 +54,7 @@ export class AudioDriver {
     // Create gain node for volume control
     this.gainNode = this.audioContext.createGain();
     this.gainNode.connect(this.audioContext.destination);
-    this.gainNode.gain.value = this.muted ? 0 : 0.5;
+    this.gainNode.gain.value = this.muted ? 0 : this.volume;
 
     if (this.useWorklet) {
       await this.startWithWorklet();
@@ -247,7 +248,7 @@ export class AudioDriver {
   toggleMute() {
     this.muted = !this.muted;
     if (this.gainNode) {
-      this.gainNode.gain.value = this.muted ? 0 : 0.5;
+      this.gainNode.gain.value = this.muted ? 0 : this.volume;
     }
   }
 
@@ -255,9 +256,38 @@ export class AudioDriver {
     return this.muted;
   }
 
+  getVolume() {
+    return this.volume;
+  }
+
   setVolume(volume) {
+    this.volume = Math.max(0, Math.min(1, volume));
     if (this.gainNode) {
-      this.gainNode.gain.value = this.muted ? 0 : volume;
+      this.gainNode.gain.value = this.muted ? 0 : this.volume;
+    }
+    this.saveVolume();
+  }
+
+  loadVolume() {
+    try {
+      const saved = localStorage.getItem('a2e-volume');
+      if (saved !== null) {
+        const vol = parseFloat(saved);
+        if (!isNaN(vol) && vol >= 0 && vol <= 1) {
+          return vol;
+        }
+      }
+    } catch (e) {
+      // Ignore localStorage errors
+    }
+    return 0.5; // Default volume
+  }
+
+  saveVolume() {
+    try {
+      localStorage.setItem('a2e-volume', this.volume.toString());
+    } catch (e) {
+      // Ignore localStorage errors
     }
   }
 }
