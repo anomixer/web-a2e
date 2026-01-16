@@ -145,9 +145,9 @@
                     </div>
                     <div class="control-group">
                         <button
-                            id="btn-debugger"
+                            id="btn-cpu-debug"
                             class="control-btn debugger-btn"
-                            title="Toggle Debugger"
+                            title="CPU Debugger"
                         >
                             <svg
                                 viewBox="0 0 24 24"
@@ -155,12 +155,46 @@
                                 stroke="currentColor"
                                 stroke-width="2"
                             >
-                                <path
-                                    d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"
-                                />
-                                <path d="M12 6v6l4 2" />
+                                <rect x="4" y="4" width="16" height="16" rx="2" />
+                                <rect x="9" y="9" width="6" height="6" />
+                                <path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3" />
                             </svg>
-                            <span>Debug</span>
+                            <span>CPU</span>
+                        </button>
+                        <button
+                            id="btn-drive-debug"
+                            class="control-btn debugger-btn"
+                            title="Drive Monitor"
+                        >
+                            <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <rect x="2" y="4" width="20" height="16" rx="2" />
+                                <circle cx="12" cy="12" r="4" />
+                                <circle cx="12" cy="12" r="1" />
+                            </svg>
+                            <span>Drives</span>
+                        </button>
+                        <button
+                            id="btn-switch-debug"
+                            class="control-btn debugger-btn"
+                            title="Soft Switches"
+                        >
+                            <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
+                                <rect x="3" y="3" width="7" height="7" />
+                                <rect x="14" y="3" width="7" height="7" />
+                                <rect x="3" y="14" width="7" height="7" />
+                                <rect x="14" y="14" width="7" height="7" />
+                            </svg>
+                            <span>Switches</span>
                         </button>
                     </div>
                 </nav>
