@@ -10,7 +10,6 @@ import {
   DriveDetailWindow,
   SoftSwitchWindow,
   DisplaySettingsWindow,
-  SoundSettingsWindow,
 } from "./debug/index.js";
 
 class AppleIIeEmulator {
@@ -84,11 +83,6 @@ class AppleIIeEmulator {
       this.displaySettings.create();
       this.windowManager.register(this.displaySettings);
 
-      // Set up sound settings window (pass disk manager for sound control)
-      this.soundSettings = new SoundSettingsWindow(this.diskManager);
-      this.soundSettings.create();
-      this.windowManager.register(this.soundSettings);
-
       // Load saved window states
       this.windowManager.loadState();
 
@@ -119,7 +113,6 @@ class AppleIIeEmulator {
 
   setupControls() {
     const powerBtn = document.getElementById("btn-power");
-    const muteBtn = document.getElementById("btn-mute");
     const canvas = document.getElementById("screen");
 
     // Helper to refocus canvas after button clicks
@@ -160,24 +153,70 @@ class AppleIIeEmulator {
       refocusCanvas();
     });
 
-    // Mute button
-    muteBtn.addEventListener("click", () => {
-      this.audioDriver.toggleMute();
-      this.updateMuteButton();
-      refocusCanvas();
+    // Sound popup
+    const soundBtn = document.getElementById("btn-sound");
+    const soundPopup = document.getElementById("sound-popup");
+    const volumeSlider = document.getElementById("volume-slider");
+    const volumeValue = document.getElementById("volume-value");
+    const muteToggle = document.getElementById("mute-toggle");
+    const driveSoundsToggle = document.getElementById("drive-sounds-toggle");
+
+    // Load saved drive sounds setting
+    const savedDriveSounds = localStorage.getItem("a2e-drive-sounds");
+    const driveSoundsEnabled = savedDriveSounds !== "false";
+    driveSoundsToggle.checked = driveSoundsEnabled;
+    this.diskManager.setSeekSoundEnabled(driveSoundsEnabled);
+    this.diskManager.setMotorSoundEnabled(driveSoundsEnabled);
+
+    // Toggle popup on button click
+    soundBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      soundPopup.classList.toggle("hidden");
+    });
+
+    // Close popup when clicking outside
+    document.addEventListener("click", (e) => {
+      if (!soundPopup.contains(e.target) && e.target !== soundBtn) {
+        soundPopup.classList.add("hidden");
+      }
+    });
+
+    // Prevent popup from closing when clicking inside
+    soundPopup.addEventListener("click", (e) => {
+      e.stopPropagation();
     });
 
     // Volume slider
-    const volumeSlider = document.getElementById("volume-slider");
     if (volumeSlider) {
-      // Set initial value from saved volume
-      volumeSlider.value = Math.round(this.audioDriver.getVolume() * 100);
+      const initialVolume = Math.round(this.audioDriver.getVolume() * 100);
+      volumeSlider.value = initialVolume;
+      volumeValue.textContent = `${initialVolume}%`;
 
       volumeSlider.addEventListener("input", (e) => {
-        const volume = parseInt(e.target.value, 10) / 100;
-        this.audioDriver.setVolume(volume);
+        const volume = parseInt(e.target.value, 10);
+        volumeValue.textContent = `${volume}%`;
+        this.audioDriver.setVolume(volume / 100);
       });
     }
+
+    // Mute toggle
+    muteToggle.checked = this.audioDriver.isMuted();
+    muteToggle.addEventListener("change", (e) => {
+      if (e.target.checked) {
+        this.audioDriver.mute();
+      } else {
+        this.audioDriver.unmute();
+      }
+      this.updateSoundButton();
+    });
+
+    // Drive sounds toggle
+    driveSoundsToggle.addEventListener("change", (e) => {
+      const enabled = e.target.checked;
+      this.diskManager.setSeekSoundEnabled(enabled);
+      this.diskManager.setMotorSoundEnabled(enabled);
+      localStorage.setItem("a2e-drive-sounds", enabled);
+    });
 
     // Debug window toggles
     document.getElementById("btn-cpu-debug").addEventListener("click", () => {
@@ -284,10 +323,10 @@ class AppleIIeEmulator {
     }
   }
 
-  updateMuteButton() {
-    const muteBtn = document.getElementById("btn-mute");
-    const iconUnmuted = muteBtn.querySelector(".icon-unmuted");
-    const iconMuted = muteBtn.querySelector(".icon-muted");
+  updateSoundButton() {
+    const soundBtn = document.getElementById("btn-sound");
+    const iconUnmuted = soundBtn.querySelector(".icon-unmuted");
+    const iconMuted = soundBtn.querySelector(".icon-muted");
 
     if (this.audioDriver.isMuted()) {
       iconUnmuted.classList.add("hidden");

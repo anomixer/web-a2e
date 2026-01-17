@@ -34,7 +34,7 @@ export class DiskManager {
     this.audioContext = null;
     this.seekSoundEnabled = true;
     this.seekVolume = 0.3;
-    // Seek sound parameters (adjustable via SoundSettingsWindow)
+    // Seek sound parameters
     this.seekPrimaryFreq = 2200;
     this.seekSecondaryFreq = 3800;
     this.seekBodyFreq = 1200;
