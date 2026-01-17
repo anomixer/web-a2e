@@ -70,6 +70,53 @@ export class DiskManager {
     this.swishFilter = null;
   }
 
+  /**
+   * Set the disk name label with scrolling animation if the name is too long
+   */
+  setDiskName(driveNum, name) {
+    const drive = this.drives[driveNum];
+    if (!drive.nameLabel) return;
+
+    // Create inner span for the text if it doesn't exist
+    let textSpan = drive.nameLabel.querySelector(".disk-name-text");
+    if (!textSpan) {
+      textSpan = document.createElement("span");
+      textSpan.className = "disk-name-text";
+      drive.nameLabel.innerHTML = "";
+      drive.nameLabel.appendChild(textSpan);
+    }
+
+    // Set the text
+    textSpan.textContent = name;
+
+    // Remove scrolling class initially
+    drive.nameLabel.classList.remove("scrolling");
+
+    // Check if text overflows after a brief delay to allow rendering
+    requestAnimationFrame(() => {
+      const containerWidth = drive.nameLabel.offsetWidth;
+      const textWidth = textSpan.offsetWidth;
+
+      if (textWidth > containerWidth) {
+        // Calculate scroll distance (negative to scroll left)
+        const scrollDistance = containerWidth - textWidth;
+
+        // Calculate duration based on text length (roughly 40px per second)
+        const duration = Math.max(3, Math.abs(scrollDistance) / 40);
+
+        // Set CSS custom properties for the animation
+        drive.nameLabel.style.setProperty(
+          "--scroll-distance",
+          `${scrollDistance}px`,
+        );
+        drive.nameLabel.style.setProperty("--scroll-duration", `${duration}s`);
+
+        // Enable scrolling
+        drive.nameLabel.classList.add("scrolling");
+      }
+    });
+  }
+
   init() {
     // Get canvas for focus management
     this.canvas = document.getElementById("screen");
@@ -283,7 +330,7 @@ export class DiskManager {
     drive.filename = null;
     if (drive.ejectBtn) drive.ejectBtn.disabled = true;
     if (drive.input) drive.input.value = "";
-    if (drive.nameLabel) drive.nameLabel.textContent = "No Disk";
+    this.setDiskName(driveNum, "No Disk");
 
     console.log(`Ejected disk from drive ${driveNum + 1}`);
   }
@@ -322,7 +369,7 @@ export class DiskManager {
       if (success) {
         drive.filename = file.name;
         if (drive.ejectBtn) drive.ejectBtn.disabled = false;
-        if (drive.nameLabel) drive.nameLabel.textContent = file.name;
+        this.setDiskName(driveNum, file.name);
         console.log(`Inserted disk in drive ${driveNum + 1}: ${file.name}`);
       } else {
         alert(`Failed to load disk image: ${file.name}`);
@@ -363,7 +410,7 @@ export class DiskManager {
     if (success) {
       drive.filename = filename;
       if (drive.ejectBtn) drive.ejectBtn.disabled = false;
-      if (drive.nameLabel) drive.nameLabel.textContent = filename;
+      this.setDiskName(driveNum, filename);
     } else {
       alert("Failed to insert blank disk");
     }
@@ -876,8 +923,10 @@ export class DiskManager {
     }
     // Update volumes
     if (this.motorGain) this.motorGain.gain.value = this.motorVolume * 0.5;
-    if (this.motorNoiseGain) this.motorNoiseGain.gain.value = this.motorVolume * 0.25;
-    if (this.swishVolumeGain) this.swishVolumeGain.gain.value = this.motorVolume * 0.4;
+    if (this.motorNoiseGain)
+      this.motorNoiseGain.gain.value = this.motorVolume * 0.25;
+    if (this.swishVolumeGain)
+      this.swishVolumeGain.gain.value = this.motorVolume * 0.4;
   }
 
   /**
@@ -982,13 +1031,6 @@ export class DiskManager {
     }
   }
 
-  saveDisk(driveNum) {
-    this.saveDiskAs(
-      driveNum,
-      this.drives[driveNum].filename || `disk${driveNum + 1}.dsk`,
-    );
-  }
-
   async saveDiskWithPicker(driveNum, suggestedName) {
     const sizePtr = this.wasmModule._malloc(4);
     if (!sizePtr) {
@@ -1074,36 +1116,5 @@ export class DiskManager {
     a.download = filename;
     a.click();
     URL.revokeObjectURL(url);
-  }
-
-  saveDiskAs(driveNum, filename) {
-    const sizePtr = this.wasmModule._malloc(4);
-    const dataPtr = this.wasmModule._getDiskData(driveNum, sizePtr);
-
-    if (!dataPtr) {
-      this.wasmModule._free(sizePtr);
-      return;
-    }
-
-    // Read size from WASM memory (little-endian 32-bit value)
-    const heap = this.wasmModule.HEAPU8;
-    const size =
-      heap[sizePtr] |
-      (heap[sizePtr + 1] << 8) |
-      (heap[sizePtr + 2] << 16) |
-      (heap[sizePtr + 3] << 24);
-
-    if (size <= 0 || size > 10000000) {
-      console.error(`saveDiskAs: invalid size ${size}`);
-      this.wasmModule._free(sizePtr);
-      return;
-    }
-
-    const data = new Uint8Array(this.wasmModule.HEAPU8.buffer, dataPtr, size);
-
-    this.downloadFile(new Uint8Array(data), filename);
-
-    this.wasmModule._free(sizePtr);
-    console.log(`Saved disk from drive ${driveNum + 1} as: ${filename}`);
   }
 }

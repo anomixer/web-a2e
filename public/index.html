@@ -164,9 +164,17 @@
                                 stroke="currentColor"
                                 stroke-width="2"
                             >
-                                <rect x="4" y="4" width="16" height="16" rx="2" />
+                                <rect
+                                    x="4"
+                                    y="4"
+                                    width="16"
+                                    height="16"
+                                    rx="2"
+                                />
                                 <rect x="9" y="9" width="6" height="6" />
-                                <path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3" />
+                                <path
+                                    d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"
+                                />
                             </svg>
                             <span>CPU</span>
                         </button>
@@ -181,7 +189,13 @@
                                 stroke="currentColor"
                                 stroke-width="2"
                             >
-                                <rect x="2" y="4" width="20" height="16" rx="2" />
+                                <rect
+                                    x="2"
+                                    y="4"
+                                    width="20"
+                                    height="16"
+                                    rx="2"
+                                />
                                 <circle cx="12" cy="12" r="4" />
                                 <circle cx="12" cy="12" r="1" />
                             </svg>
@@ -237,14 +251,16 @@
                     <div id="disk-drives">
                         <div class="disk-drive" id="disk1">
                             <div class="drive-image-container">
-                                <img class="drive-image" src="assets/drive-open.svg" alt="Disk Drive 1">
+                                <img
+                                    class="drive-image"
+                                    src="assets/drive-open.svg"
+                                    alt="Disk Drive 1"
+                                />
                             </div>
                             <div class="drive-info">
                                 <span class="drive-label">Drive 1</span>
                                 <span class="disk-name">No Disk</span>
-                                <span
-                                    class="disk-track"
-                                    title="Current Track"
+                                <span class="disk-track" title="Current Track"
                                     >T--</span
                                 >
                             </div>
@@ -278,14 +294,16 @@
                         </div>
                         <div class="disk-drive" id="disk2">
                             <div class="drive-image-container">
-                                <img class="drive-image" src="assets/drive-open.svg" alt="Disk Drive 2">
+                                <img
+                                    class="drive-image"
+                                    src="assets/drive-open.svg"
+                                    alt="Disk Drive 2"
+                                />
                             </div>
                             <div class="drive-info">
                                 <span class="drive-label">Drive 2</span>
                                 <span class="disk-name">No Disk</span>
-                                <span
-                                    class="disk-track"
-                                    title="Current Track"
+                                <span class="disk-track" title="Current Track"
                                     >T--</span
                                 >
                             </div>
@@ -319,286 +337,6 @@
                         </div>
                     </div>
                 </div>
-
-                <aside id="debugger-panel" class="hidden">
-                    <div class="debugger-header">
-                        <h2>Debugger</h2>
-                        <button
-                            id="debugger-close"
-                            class="close-btn"
-                            title="Close Debugger"
-                        >
-                            <svg
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                            >
-                                <line x1="18" y1="6" x2="6" y2="18" />
-                                <line x1="6" y1="6" x2="18" y2="18" />
-                            </svg>
-                        </button>
-                    </div>
-                    <div id="debugger-toolbar">
-                        <button id="dbg-run" class="dbg-btn" title="Run (F5)">
-                            <svg viewBox="0 0 24 24" fill="currentColor">
-                                <polygon points="5 3 19 12 5 21 5 3" />
-                            </svg>
-                            Run
-                        </button>
-                        <button
-                            id="dbg-pause"
-                            class="dbg-btn"
-                            title="Pause (F6)"
-                        >
-                            <svg viewBox="0 0 24 24" fill="currentColor">
-                                <rect x="6" y="4" width="4" height="16" />
-                                <rect x="14" y="4" width="4" height="16" />
-                            </svg>
-                            Pause
-                        </button>
-                        <button
-                            id="dbg-step"
-                            class="dbg-btn"
-                            title="Step (F10)"
-                        >
-                            <svg
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                            >
-                                <path d="M5 12h14M12 5l7 7-7 7" />
-                            </svg>
-                            Step
-                        </button>
-                        <button
-                            id="dbg-step-over"
-                            class="dbg-btn"
-                            title="Step Over (F11)"
-                        >
-                            <svg
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                            >
-                                <path d="M18 8A6 6 0 0 0 6 8" />
-                                <path d="M6 8l-4 4" />
-                                <path d="M6 8l4 4" />
-                                <path d="M6 16h12" />
-                            </svg>
-                            Over
-                        </button>
-                        <button
-                            id="dbg-step-out"
-                            class="dbg-btn"
-                            title="Step Out (Shift+F11)"
-                        >
-                            <svg
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                            >
-                                <path d="M12 19V5" />
-                                <path d="M5 12l7-7 7 7" />
-                            </svg>
-                            Out
-                        </button>
-                    </div>
-
-                    <div id="debugger-content">
-                        <section id="cpu-state" class="debug-section">
-                            <h3>CPU Registers</h3>
-                            <div class="register-grid">
-                                <div class="register">
-                                    <label>A</label>
-                                    <span id="reg-a">00</span>
-                                </div>
-                                <div class="register">
-                                    <label>X</label>
-                                    <span id="reg-x">00</span>
-                                </div>
-                                <div class="register">
-                                    <label>Y</label>
-                                    <span id="reg-y">00</span>
-                                </div>
-                                <div class="register">
-                                    <label>SP</label>
-                                    <span id="reg-sp">FF</span>
-                                </div>
-                                <div class="register wide">
-                                    <label>PC</label>
-                                    <span id="reg-pc">0000</span>
-                                </div>
-                            </div>
-                            <div id="flags">
-                                <span class="flag" id="flag-n" title="Negative"
-                                    >N</span
-                                >
-                                <span class="flag" id="flag-v" title="Overflow"
-                                    >V</span
-                                >
-                                <span class="flag separator">-</span>
-                                <span class="flag" id="flag-b" title="Break"
-                                    >B</span
-                                >
-                                <span class="flag" id="flag-d" title="Decimal"
-                                    >D</span
-                                >
-                                <span
-                                    class="flag"
-                                    id="flag-i"
-                                    title="Interrupt Disable"
-                                    >I</span
-                                >
-                                <span class="flag" id="flag-z" title="Zero"
-                                    >Z</span
-                                >
-                                <span class="flag" id="flag-c" title="Carry"
-                                    >C</span
-                                >
-                            </div>
-                            <div id="cycles">
-                                <span class="label">Cycles:</span>
-                                <span id="cycle-count">0</span>
-                            </div>
-                        </section>
-
-                        <section id="disk-monitor" class="debug-section">
-                            <h3>Disk Activity</h3>
-                            <div id="selected-drive-info">
-                                <span class="info-badge"
-                                    >Drive <span id="sel-drive">1</span></span
-                                >
-                                <span class="info-item"
-                                    >Last Byte:
-                                    <code id="last-disk-byte">$00</code></span
-                                >
-                            </div>
-                            <div class="drive-status" id="drive1-status">
-                                <div class="status-header">
-                                    <span class="drive-label">Drive 1</span>
-                                    <span class="disk-inserted">No Disk</span>
-                                </div>
-                                <div class="status-details">
-                                    <span
-                                        >QT:
-                                        <code class="quarter-track"
-                                            >0</code
-                                        ></span
-                                    >
-                                    <span
-                                        >Track:
-                                        <code class="track">0</code></span
-                                    >
-                                    <span
-                                        >Phase:
-                                        <code class="phase">0</code></span
-                                    >
-                                    <span
-                                        >Nibble:
-                                        <code class="nibble-pos">0</code></span
-                                    >
-                                </div>
-                                <div class="status-mode">
-                                    <span class="motor">Motor OFF</span>
-                                    <span class="mode">Read Mode</span>
-                                </div>
-                            </div>
-                            <div class="drive-status" id="drive2-status">
-                                <div class="status-header">
-                                    <span class="drive-label">Drive 2</span>
-                                    <span class="disk-inserted">No Disk</span>
-                                </div>
-                                <div class="status-details">
-                                    <span
-                                        >QT:
-                                        <code class="quarter-track"
-                                            >0</code
-                                        ></span
-                                    >
-                                    <span
-                                        >Track:
-                                        <code class="track">0</code></span
-                                    >
-                                    <span
-                                        >Phase:
-                                        <code class="phase">0</code></span
-                                    >
-                                    <span
-                                        >Nibble:
-                                        <code class="nibble-pos">0</code></span
-                                    >
-                                </div>
-                                <div class="status-mode">
-                                    <span class="motor">Motor OFF</span>
-                                    <span class="mode">Read Mode</span>
-                                </div>
-                            </div>
-                        </section>
-
-                        <section id="disassembly" class="debug-section">
-                            <h3>Disassembly</h3>
-                            <div id="disasm-view"></div>
-                        </section>
-
-                        <section id="breakpoints" class="debug-section">
-                            <h3>Breakpoints</h3>
-                            <div id="breakpoint-list"></div>
-                            <div id="breakpoint-add">
-                                <input
-                                    type="text"
-                                    id="bp-address"
-                                    placeholder="Address (e.g. $C600)"
-                                />
-                                <button id="bp-add-btn">Add</button>
-                            </div>
-                        </section>
-
-                        <section id="memory-viewer" class="debug-section">
-                            <h3>Memory</h3>
-                            <div id="memory-controls">
-                                <input
-                                    type="text"
-                                    id="mem-address"
-                                    placeholder="$0000"
-                                />
-                                <button id="mem-goto">Go</button>
-                                <select id="mem-bank">
-                                    <option value="main">Main RAM</option>
-                                    <option value="aux">Aux RAM</option>
-                                    <option value="rom">ROM</option>
-                                </select>
-                            </div>
-                            <div id="memory-dump"></div>
-                        </section>
-
-                        <section id="soft-switches" class="debug-section">
-                            <h3>Soft Switches</h3>
-                            <div id="switch-display">
-                                <span class="switch" id="sw-text">TEXT</span>
-                                <span class="switch" id="sw-mixed">MIXED</span>
-                                <span class="switch" id="sw-page2">PAGE2</span>
-                                <span class="switch" id="sw-hires">HIRES</span>
-                                <span class="switch" id="sw-80col">80COL</span>
-                                <span class="switch" id="sw-80store"
-                                    >80STORE</span
-                                >
-                                <span class="switch" id="sw-ramrd">RAMRD</span>
-                                <span class="switch" id="sw-ramwrt"
-                                    >RAMWRT</span
-                                >
-                                <span class="switch" id="sw-altzp">ALTZP</span>
-                                <span class="switch" id="sw-lcram">LCRAM</span>
-                                <span class="switch" id="sw-lcbnk2"
-                                    >LCBNK2</span
-                                >
-                            </div>
-                        </section>
-                    </div>
-                </aside>
             </main>
 
             <footer>

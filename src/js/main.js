@@ -10,7 +10,7 @@ import {
   DriveDetailWindow,
   SoftSwitchWindow,
   DisplaySettingsWindow,
-  SoundSettingsWindow
+  SoundSettingsWindow,
 } from "./debug/index.js";
 
 class AppleIIeEmulator {
@@ -190,25 +190,18 @@ class AppleIIeEmulator {
       refocusCanvas();
     });
 
-    document.getElementById("btn-switch-debug").addEventListener("click", () => {
-      this.windowManager.toggleWindow("soft-switches");
-      refocusCanvas();
-    });
+    document
+      .getElementById("btn-switch-debug")
+      .addEventListener("click", () => {
+        this.windowManager.toggleWindow("soft-switches");
+        refocusCanvas();
+      });
 
     // Display settings button
     const displayBtn = document.getElementById("btn-display");
     if (displayBtn) {
       displayBtn.addEventListener("click", () => {
         this.windowManager.toggleWindow("display-settings");
-        refocusCanvas();
-      });
-    }
-
-    // Sound settings button
-    const soundBtn = document.getElementById("btn-sound");
-    if (soundBtn) {
-      soundBtn.addEventListener("click", () => {
-        this.windowManager.toggleWindow("sound-settings");
         refocusCanvas();
       });
     }
@@ -248,7 +241,8 @@ class AppleIIeEmulator {
     // Available space for the monitor (accounting for padding)
     const padding = 32; // 16px on each side
     const availableWidth = windowWidth - padding;
-    const availableHeight = windowHeight - headerHeight - footerHeight - diskDrivesHeight - padding;
+    const availableHeight =
+      windowHeight - headerHeight - footerHeight - diskDrivesHeight - padding;
 
     // Calculate the optimal canvas size maintaining aspect ratio
     // The bezel adds approximately 72px width (28*2 + 16*2) and 88px height (24+32+16*2)

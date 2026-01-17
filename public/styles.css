@@ -37,8 +37,9 @@
     --border-muted: #21262d;
 
     /* Fonts */
-    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    --font-mono: 'JetBrains Mono', 'SF Mono', 'Menlo', monospace;
+    --font-sans:
+        "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --font-mono: "JetBrains Mono", "SF Mono", "Menlo", monospace;
 
     /* Spacing */
     --space-xs: 0.25rem;
@@ -110,7 +111,11 @@ header {
     font-size: 1.5rem;
     font-weight: 700;
     letter-spacing: -0.02em;
-    background: linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%);
+    background: linear-gradient(
+        135deg,
+        var(--text-primary) 0%,
+        var(--text-secondary) 100%
+    );
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -309,7 +314,7 @@ select:focus {
 }
 
 .toggle-switch::after {
-    content: '';
+    content: "";
     position: absolute;
     top: 2px;
     left: 2px;
@@ -370,9 +375,15 @@ main {
 }
 
 .monitor-bezel {
-    background: linear-gradient(180deg, var(--monitor-beige-light) 0%, var(--monitor-beige) 20%, var(--monitor-beige-dark) 100%);
+    background: linear-gradient(
+        180deg,
+        var(--monitor-beige-light) 0%,
+        var(--monitor-beige) 20%,
+        var(--monitor-beige-dark) 100%
+    );
     padding: 24px 28px 32px;
-    border-radius: var(--radius-xl) var(--radius-xl) var(--radius-md) var(--radius-md);
+    border-radius: var(--radius-xl) var(--radius-xl) var(--radius-md)
+        var(--radius-md);
     box-shadow:
         var(--shadow-lg),
         inset 0 2px 0 rgba(255, 255, 255, 0.3),
@@ -383,17 +394,19 @@ main {
 }
 
 .monitor-bezel::before {
-    content: '';
+    content: "";
     position: absolute;
     top: 8px;
     left: 12px;
     right: 12px;
     height: 4px;
-    background: linear-gradient(90deg,
+    background: linear-gradient(
+        90deg,
         transparent 0%,
         rgba(255, 255, 255, 0.4) 20%,
         rgba(255, 255, 255, 0.4) 80%,
-        transparent 100%);
+        transparent 100%
+    );
     border-radius: 2px;
 }
 
@@ -402,7 +415,11 @@ main {
     bottom: 8px;
     left: 50%;
     transform: translateX(-50%);
-    background: linear-gradient(180deg, var(--monitor-beige-dark) 0%, #8a8274 100%);
+    background: linear-gradient(
+        180deg,
+        var(--monitor-beige-dark) 0%,
+        #8a8274 100%
+    );
     padding: 2px 16px;
     border-radius: 3px;
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
@@ -436,7 +453,12 @@ main {
 }
 
 .power-led.on {
-    background: radial-gradient(circle at 30% 30%, #7fff7f 0%, #3fb950 50%, #238636 100%);
+    background: radial-gradient(
+        circle at 30% 30%,
+        #7fff7f 0%,
+        #3fb950 50%,
+        #238636 100%
+    );
     box-shadow:
         0 0 4px #3fb950,
         0 0 8px rgba(63, 185, 80, 0.5),
@@ -454,7 +476,11 @@ main {
 .monitor-base {
     width: 200px;
     height: 12px;
-    background: linear-gradient(180deg, var(--monitor-beige-dark) 0%, #7a7366 100%);
+    background: linear-gradient(
+        180deg,
+        var(--monitor-beige-dark) 0%,
+        #7a7366 100%
+    );
     border-radius: 0 0 var(--radius-md) var(--radius-md);
     box-shadow: var(--shadow-md);
 }
@@ -481,6 +507,8 @@ main {
     display: flex;
     flex-direction: column;
     gap: var(--space-sm);
+    max-width: 280px;
+    min-width: 0;
 }
 
 .drive-image-container {
@@ -499,12 +527,14 @@ main {
     align-items: center;
     gap: var(--space-sm);
     padding: var(--space-xs) 0;
+    min-width: 0; /* Allow flex children to shrink below content size */
 }
 
 .drive-label {
     font-size: 0.6875rem;
     font-weight: 600;
     color: var(--text-secondary);
+    flex-shrink: 0;
 }
 
 .disk-name {
@@ -513,8 +543,29 @@ main {
     font-family: var(--font-mono);
     white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis;
     flex: 1;
+    min-width: 0; /* Critical: allows text to be clipped */
+}
+
+.disk-name .disk-name-text {
+    display: inline-block;
+    white-space: nowrap;
+}
+
+.disk-name.scrolling .disk-name-text {
+    animation: disk-name-scroll var(--scroll-duration, 4s) ease-in-out infinite
+        alternate;
+}
+
+@keyframes disk-name-scroll {
+    0%,
+    15% {
+        transform: translateX(0);
+    }
+    85%,
+    100% {
+        transform: translateX(var(--scroll-distance, 0px));
+    }
 }
 
 .disk-track {
@@ -527,6 +578,7 @@ main {
     border-radius: 3px;
     min-width: 28px;
     text-align: center;
+    flex-shrink: 0;
 }
 
 .disk-track.active {
@@ -1235,7 +1287,8 @@ footer kbd {
 }
 
 @keyframes pulse {
-    0%, 100% {
+    0%,
+    100% {
         opacity: 0.6;
     }
     50% {
@@ -1824,20 +1877,78 @@ footer kbd {
     background: transparent;
 }
 
-.debug-resize-handle.n { top: -3px; left: 10px; right: 10px; height: 6px; cursor: n-resize; }
-.debug-resize-handle.s { bottom: -3px; left: 10px; right: 10px; height: 6px; cursor: s-resize; }
-.debug-resize-handle.e { top: 10px; right: -3px; bottom: 10px; width: 6px; cursor: e-resize; }
-.debug-resize-handle.w { top: 10px; left: -3px; bottom: 10px; width: 6px; cursor: w-resize; }
-.debug-resize-handle.ne { top: -3px; right: -3px; width: 12px; height: 12px; cursor: ne-resize; }
-.debug-resize-handle.nw { top: -3px; left: -3px; width: 12px; height: 12px; cursor: nw-resize; }
-.debug-resize-handle.se { bottom: -3px; right: -3px; width: 12px; height: 12px; cursor: se-resize; }
-.debug-resize-handle.sw { bottom: -3px; left: -3px; width: 12px; height: 12px; cursor: sw-resize; }
+.debug-resize-handle.n {
+    top: -3px;
+    left: 10px;
+    right: 10px;
+    height: 6px;
+    cursor: n-resize;
+}
+.debug-resize-handle.s {
+    bottom: -3px;
+    left: 10px;
+    right: 10px;
+    height: 6px;
+    cursor: s-resize;
+}
+.debug-resize-handle.e {
+    top: 10px;
+    right: -3px;
+    bottom: 10px;
+    width: 6px;
+    cursor: e-resize;
+}
+.debug-resize-handle.w {
+    top: 10px;
+    left: -3px;
+    bottom: 10px;
+    width: 6px;
+    cursor: w-resize;
+}
+.debug-resize-handle.ne {
+    top: -3px;
+    right: -3px;
+    width: 12px;
+    height: 12px;
+    cursor: ne-resize;
+}
+.debug-resize-handle.nw {
+    top: -3px;
+    left: -3px;
+    width: 12px;
+    height: 12px;
+    cursor: nw-resize;
+}
+.debug-resize-handle.se {
+    bottom: -3px;
+    right: -3px;
+    width: 12px;
+    height: 12px;
+    cursor: se-resize;
+}
+.debug-resize-handle.sw {
+    bottom: -3px;
+    left: -3px;
+    width: 12px;
+    height: 12px;
+    cursor: sw-resize;
+}
 
 /* Scrollbar */
-.debug-window-content::-webkit-scrollbar { width: 5px; height: 5px; }
-.debug-window-content::-webkit-scrollbar-track { background: transparent; }
-.debug-window-content::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 3px; }
-.debug-window-content::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
+.debug-window-content::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+}
+.debug-window-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+.debug-window-content::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+}
+.debug-window-content::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
+}
 
 /* ============================================
    CPU DEBUGGER WINDOW
@@ -2001,7 +2112,11 @@ footer kbd {
 }
 
 .cpu-disasm-line.current.breakpoint {
-    background: linear-gradient(90deg, rgba(88, 166, 255, 0.15) 0%, rgba(248, 81, 73, 0.15) 100%);
+    background: linear-gradient(
+        90deg,
+        rgba(88, 166, 255, 0.15) 0%,
+        rgba(248, 81, 73, 0.15) 100%
+    );
 }
 
 .cpu-disasm-addr {
