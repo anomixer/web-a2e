@@ -1,7 +1,7 @@
 import { DebugWindow } from './DebugWindow.js';
 
 /**
- * CPUDebuggerWindow - CPU registers, disassembly, breakpoints, memory viewer
+ * CPUDebuggerWindow - CPU registers, disassembly, and breakpoints
  */
 export class CPUDebuggerWindow extends DebugWindow {
   constructor(wasmModule) {
@@ -9,28 +9,14 @@ export class CPUDebuggerWindow extends DebugWindow {
       id: 'cpu-debugger',
       title: 'CPU Debugger',
       minWidth: 280,
-      minHeight: 350,
+      minHeight: 300,
       defaultWidth: 320,
-      defaultHeight: 480,
+      defaultHeight: 400,
       defaultPosition: { x: window.innerWidth - 340, y: 60 }
     });
 
     this.wasmModule = wasmModule;
     this.breakpoints = new Map();
-    this.memoryViewAddress = 0;
-    this.bytesPerRow = 8;
-
-    // Memory quick navigation areas
-    this.memoryAreas = [
-      { name: 'ZP', addr: 0x0000, desc: 'Zero Page' },
-      { name: 'Stack', addr: 0x0100, desc: 'Stack' },
-      { name: 'Text1', addr: 0x0400, desc: 'Text Page 1' },
-      { name: 'Text2', addr: 0x0800, desc: 'Text Page 2' },
-      { name: 'HiRes1', addr: 0x2000, desc: 'HiRes Page 1' },
-      { name: 'HiRes2', addr: 0x4000, desc: 'HiRes Page 2' },
-      { name: 'I/O', addr: 0xC000, desc: 'I/O Space' },
-      { name: 'ROM', addr: 0xD000, desc: 'ROM' }
-    ];
   }
 
   renderContent() {
@@ -86,17 +72,6 @@ export class CPUDebuggerWindow extends DebugWindow {
             <button id="breakpoint-add-btn">Add</button>
           </div>
         </div>
-
-        <!-- Memory Viewer -->
-        <div class="cpu-memory">
-          <h4>Memory</h4>
-          <div class="cpu-mem-quicknav" id="memory-nav"></div>
-          <div class="cpu-mem-controls">
-            <input type="text" id="memory-addr" placeholder="$0000" value="0000">
-            <button id="memory-go">Go</button>
-          </div>
-          <div class="cpu-mem-dump" id="memory-dump"></div>
-        </div>
       </div>
     `;
   }
@@ -151,34 +126,6 @@ export class CPUDebuggerWindow extends DebugWindow {
         if (e.key === 'Enter') this.addBreakpointFromInput();
       });
     }
-
-    // Memory navigation quick buttons
-    const navContainer = this.contentElement.querySelector('#memory-nav');
-    if (navContainer) {
-      this.memoryAreas.forEach(area => {
-        const btn = document.createElement('button');
-        btn.className = 'memory-nav-btn';
-        btn.textContent = area.name;
-        btn.title = area.desc;
-        btn.addEventListener('click', () => {
-          this.memoryViewAddress = area.addr;
-          const addrInput = this.contentElement.querySelector('#memory-addr');
-          if (addrInput) addrInput.value = this.formatHex(area.addr, 4);
-          this.updateMemoryView();
-        });
-        navContainer.appendChild(btn);
-      });
-    }
-
-    // Memory address go button
-    const memAddrInput = this.contentElement.querySelector('#memory-addr');
-    const memGoBtn = this.contentElement.querySelector('#memory-go');
-    if (memGoBtn && memAddrInput) {
-      memGoBtn.addEventListener('click', () => this.goToMemoryAddress());
-      memAddrInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') this.goToMemoryAddress();
-      });
-    }
   }
 
   /**
@@ -228,20 +175,6 @@ export class CPUDebuggerWindow extends DebugWindow {
   }
 
   /**
-   * Go to memory address from input
-   */
-  goToMemoryAddress() {
-    const input = this.contentElement.querySelector('#memory-addr');
-    if (!input) return;
-
-    const addr = parseInt(input.value, 16);
-    if (!isNaN(addr) && addr >= 0 && addr <= 0xFFFF) {
-      this.memoryViewAddress = addr;
-      this.updateMemoryView();
-    }
-  }
-
-  /**
    * Update all window content
    */
   update(wasmModule) {
@@ -249,7 +182,6 @@ export class CPUDebuggerWindow extends DebugWindow {
     this.updateRegisters();
     this.updateFlags();
     this.updateDisassembly();
-    this.updateMemoryView();
   }
 
   /**
@@ -387,34 +319,6 @@ export class CPUDebuggerWindow extends DebugWindow {
 
       list.appendChild(item);
     }
-  }
-
-  /**
-   * Update memory view
-   */
-  updateMemoryView() {
-    const dump = this.contentElement.querySelector('#memory-dump');
-    if (!dump) return;
-
-    let html = '';
-    const rowCount = 12;
-
-    for (let row = 0; row < rowCount; row++) {
-      const addr = (this.memoryViewAddress + row * this.bytesPerRow) & 0xFFFF;
-      html += `<div class="cpu-mem-row"><span class="cpu-mem-addr">${this.formatHex(addr, 4)}:</span><span class="cpu-mem-bytes">`;
-
-      let ascii = '';
-      for (let col = 0; col < this.bytesPerRow; col++) {
-        const byteAddr = (addr + col) & 0xFFFF;
-        const byte = this.wasmModule._peekMemory(byteAddr);
-        const isNonZero = byte !== 0;
-        html += `<span class="cpu-mem-byte${isNonZero ? ' non-zero' : ''}">${this.formatHex(byte)}</span>`;
-        ascii += (byte >= 0x20 && byte < 0x7F) ? String.fromCharCode(byte) : '.';
-      }
-      html += `</span><span class="cpu-mem-ascii">${ascii}</span></div>`;
-    }
-
-    dump.innerHTML = html;
   }
 
   /**

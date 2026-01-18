@@ -10,6 +10,10 @@ import {
   DriveDetailWindow,
   SoftSwitchWindow,
   DisplaySettingsWindow,
+  MemoryBrowserWindow,
+  MemoryHeatMapWindow,
+  StackViewerWindow,
+  ZeroPageWatchWindow,
 } from "./debug/index.js";
 
 class AppleIIeEmulator {
@@ -24,6 +28,7 @@ class AppleIIeEmulator {
 
     this.running = false;
     this.speed = 1; // 1x, 2x, or 0 for unlimited
+    this.isFullPageMode = false;
 
     // Display aspect ratio (4:3 for authentic CRT monitor)
     this.aspectRatio = 4 / 3;
@@ -82,6 +87,29 @@ class AppleIIeEmulator {
       this.displaySettings = new DisplaySettingsWindow(this.renderer);
       this.displaySettings.create();
       this.windowManager.register(this.displaySettings);
+
+      // Set up new debug windows
+      const memBrowserWindow = new MemoryBrowserWindow(this.wasmModule);
+      memBrowserWindow.create();
+      this.windowManager.register(memBrowserWindow);
+
+      const memHeatMapWindow = new MemoryHeatMapWindow(this.wasmModule);
+      memHeatMapWindow.create();
+      this.windowManager.register(memHeatMapWindow);
+
+      // Connect heat map to memory browser for click-to-jump
+      memHeatMapWindow.setJumpCallback((addr) => {
+        memBrowserWindow.jumpToAddress(addr);
+        this.windowManager.showWindow("memory-browser");
+      });
+
+      const stackWindow = new StackViewerWindow(this.wasmModule);
+      stackWindow.create();
+      this.windowManager.register(stackWindow);
+
+      const zpWatchWindow = new ZeroPageWatchWindow(this.wasmModule);
+      zpWatchWindow.create();
+      this.windowManager.register(zpWatchWindow);
 
       // Load saved window states
       this.windowManager.loadState();
@@ -144,15 +172,43 @@ class AppleIIeEmulator {
       refocusCanvas();
     });
 
-    // Fullscreen button
-    document.getElementById("btn-fullscreen").addEventListener("click", () => {
-      const container = document.getElementById("monitor-frame");
-      if (document.fullscreenElement) {
-        document.exitFullscreen();
-      } else {
-        container.requestFullscreen();
-      }
+    // Full page mode button
+    const fullscreenBtn = document.getElementById("btn-fullscreen");
+    const exitFullPageMode = () => {
+      document.body.classList.remove("full-page-mode");
+      this.isFullPageMode = false;
       refocusCanvas();
+    };
+
+    const enterFullPageMode = () => {
+      // Hide all debug windows
+      this.windowManager.hideAll();
+      document.body.classList.add("full-page-mode");
+      this.isFullPageMode = true;
+      refocusCanvas();
+    };
+
+    fullscreenBtn.addEventListener("click", () => {
+      if (this.isFullPageMode) {
+        exitFullPageMode();
+      } else {
+        enterFullPageMode();
+      }
+    });
+
+    // Exit full page mode on Escape key
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && this.isFullPageMode) {
+        e.preventDefault();
+        exitFullPageMode();
+      }
+    });
+
+    // Exit full page mode on click (on the black background area)
+    document.querySelector("main").addEventListener("click", (e) => {
+      if (this.isFullPageMode && e.target.tagName !== "CANVAS") {
+        exitFullPageMode();
+      }
     });
 
     // Sound popup
@@ -220,23 +276,53 @@ class AppleIIeEmulator {
       localStorage.setItem("a2e-drive-sounds", enabled);
     });
 
-    // Debug window toggles
-    document.getElementById("btn-cpu-debug").addEventListener("click", () => {
-      this.windowManager.toggleWindow("cpu-debugger");
-      refocusCanvas();
-    });
+    // Debug dropdown menu
+    const debugMenuContainer = document.querySelector(".debug-menu-container");
+    const debugMenuBtn = document.getElementById("btn-debug-menu");
+    const debugMenu = document.getElementById("debug-menu");
 
-    document.getElementById("btn-drive-debug").addEventListener("click", () => {
-      this.windowManager.toggleWindow("drive-detail");
-      refocusCanvas();
-    });
-
-    document
-      .getElementById("btn-switch-debug")
-      .addEventListener("click", () => {
-        this.windowManager.toggleWindow("soft-switches");
-        refocusCanvas();
+    if (debugMenuBtn && debugMenu) {
+      // Toggle menu on button click
+      debugMenuBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        debugMenuContainer.classList.toggle("open");
       });
+
+      // Handle menu item clicks
+      debugMenu.querySelectorAll(".debug-menu-item").forEach((item) => {
+        item.addEventListener("click", () => {
+          const windowType = item.dataset.window;
+          const windowMap = {
+            cpu: "cpu-debugger",
+            drives: "drive-detail",
+            switches: "soft-switches",
+            memory: "memory-browser",
+            heatmap: "memory-heatmap",
+            stack: "stack-viewer",
+            zeropage: "zeropage-watch",
+          };
+          if (windowMap[windowType]) {
+            this.windowManager.toggleWindow(windowMap[windowType]);
+          }
+          debugMenuContainer.classList.remove("open");
+          refocusCanvas();
+        });
+      });
+
+      // Close menu when clicking outside
+      document.addEventListener("click", (e) => {
+        if (!debugMenuContainer.contains(e.target)) {
+          debugMenuContainer.classList.remove("open");
+        }
+      });
+
+      // Close menu on Escape key
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") {
+          debugMenuContainer.classList.remove("open");
+        }
+      });
+    }
 
     // Display settings button
     const displayBtn = document.getElementById("btn-display");

@@ -163,6 +163,46 @@ export class SoftSwitchWindow extends DebugWindow {
       `;
     }
 
+    // Memory Bank Map visualization
+    html += `
+      <div class="switch-group">
+        <div class="switch-group-title">Memory Bank Map</div>
+        <div class="bank-map">
+          <div class="bank-row" id="bank-zp">
+            <span class="bank-addr">$0000-$01FF</span>
+            <span class="bank-region bank-main" id="bank-zp-main">Main ZP/Stack</span>
+            <span class="bank-region bank-aux hidden" id="bank-zp-aux">Aux ZP/Stack</span>
+          </div>
+          <div class="bank-row" id="bank-text1">
+            <span class="bank-addr">$0400-$07FF</span>
+            <span class="bank-region bank-main" id="bank-text1-main">Main Text 1</span>
+            <span class="bank-region bank-aux hidden" id="bank-text1-aux">Aux Text 1</span>
+          </div>
+          <div class="bank-row" id="bank-hires1">
+            <span class="bank-addr">$2000-$3FFF</span>
+            <span class="bank-region bank-main" id="bank-hires1-main">Main HiRes 1</span>
+            <span class="bank-region bank-aux hidden" id="bank-hires1-aux">Aux HiRes 1</span>
+          </div>
+          <div class="bank-row" id="bank-slot">
+            <span class="bank-addr">$C100-$CFFF</span>
+            <span class="bank-region bank-rom" id="bank-slot-int">Internal ROM</span>
+            <span class="bank-region bank-slot hidden" id="bank-slot-card">Slot ROMs</span>
+          </div>
+          <div class="bank-row" id="bank-lc">
+            <span class="bank-addr">$D000-$FFFF</span>
+            <span class="bank-region bank-rom" id="bank-lc-rom">System ROM</span>
+            <span class="bank-region bank-ram hidden" id="bank-lc-ram">LC RAM</span>
+          </div>
+          <div class="bank-legend">
+            <span class="legend-item"><span class="legend-box bank-main"></span>Main</span>
+            <span class="legend-item"><span class="legend-box bank-aux"></span>Aux</span>
+            <span class="legend-item"><span class="legend-box bank-rom"></span>ROM</span>
+            <span class="legend-item"><span class="legend-box bank-ram"></span>LC RAM</span>
+          </div>
+        </div>
+      </div>
+    `;
+
     // Add collapsible reference section
     html += `
       <div class="switch-group reference-section">
@@ -259,6 +299,63 @@ export class SoftSwitchWindow extends DebugWindow {
           badge.classList.toggle('active', isOn);
         }
       }
+    }
+
+    // Update Memory Bank Map
+    this.updateBankMap(stateLow, stateHigh);
+  }
+
+  /**
+   * Update the memory bank map visualization
+   */
+  updateBankMap(stateLow, stateHigh) {
+    // Bit positions for relevant switches
+    const ALTZP = 10;
+    const STORE80 = 6;
+    const PAGE2 = 2;
+    const HIRES = 3;
+    const RAMRD = 7;
+    const INTCXROM = 9;
+    const LCRAM = 13;
+
+    const altzp = (stateLow & (1 << ALTZP)) !== 0;
+    const store80 = (stateLow & (1 << STORE80)) !== 0;
+    const page2 = (stateLow & (1 << PAGE2)) !== 0;
+    const hires = (stateLow & (1 << HIRES)) !== 0;
+    const ramrd = (stateLow & (1 << RAMRD)) !== 0;
+    const intcxrom = (stateLow & (1 << INTCXROM)) !== 0;
+    const lcram = (stateLow & (1 << LCRAM)) !== 0;
+
+    // Zero Page / Stack: ALTZP controls
+    this.toggleBankRegion('bank-zp-main', !altzp);
+    this.toggleBankRegion('bank-zp-aux', altzp);
+
+    // Text Page 1: 80STORE + PAGE2 or RAMRD controls
+    const text1Aux = store80 ? page2 : ramrd;
+    this.toggleBankRegion('bank-text1-main', !text1Aux);
+    this.toggleBankRegion('bank-text1-aux', text1Aux);
+
+    // HiRes Page 1: 80STORE + HIRES + PAGE2 or RAMRD controls
+    const hires1Aux = (store80 && hires) ? page2 : ramrd;
+    this.toggleBankRegion('bank-hires1-main', !hires1Aux);
+    this.toggleBankRegion('bank-hires1-aux', hires1Aux);
+
+    // Slot ROM: INTCXROM controls
+    this.toggleBankRegion('bank-slot-int', intcxrom);
+    this.toggleBankRegion('bank-slot-card', !intcxrom);
+
+    // Language Card: LCRAM controls
+    this.toggleBankRegion('bank-lc-rom', !lcram);
+    this.toggleBankRegion('bank-lc-ram', lcram);
+  }
+
+  /**
+   * Toggle visibility of a bank region element
+   */
+  toggleBankRegion(id, show) {
+    const el = this.contentElement.querySelector(`#${id}`);
+    if (el) {
+      el.classList.toggle('hidden', !show);
     }
   }
 }

@@ -77,7 +77,7 @@
                         <button
                             id="btn-fullscreen"
                             class="control-btn"
-                            title="Fullscreen"
+                            title="Full Page Mode (Escape to exit)"
                         >
                             <svg
                                 viewBox="0 0 24 24"
@@ -183,72 +183,59 @@
                         </button>
                     </div>
                     <div class="control-group">
-                        <button
-                            id="btn-cpu-debug"
-                            class="control-btn debugger-btn"
-                            title="CPU Debugger"
-                        >
-                            <svg
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
+                        <div class="debug-menu-container">
+                            <button
+                                id="btn-debug-menu"
+                                class="control-btn debugger-btn"
+                                title="Debug Windows"
                             >
-                                <rect
-                                    x="4"
-                                    y="4"
-                                    width="16"
-                                    height="16"
-                                    rx="2"
-                                />
-                                <rect x="9" y="9" width="6" height="6" />
-                                <path
-                                    d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"
-                                />
-                            </svg>
-                            <span>CPU</span>
-                        </button>
-                        <button
-                            id="btn-drive-debug"
-                            class="control-btn debugger-btn"
-                            title="Drive Monitor"
-                        >
-                            <svg
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                            >
-                                <rect
-                                    x="2"
-                                    y="4"
-                                    width="20"
-                                    height="16"
-                                    rx="2"
-                                />
-                                <circle cx="12" cy="12" r="4" />
-                                <circle cx="12" cy="12" r="1" />
-                            </svg>
-                            <span>Drives</span>
-                        </button>
-                        <button
-                            id="btn-switch-debug"
-                            class="control-btn debugger-btn"
-                            title="Soft Switches"
-                        >
-                            <svg
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                            >
-                                <rect x="3" y="3" width="7" height="7" />
-                                <rect x="14" y="3" width="7" height="7" />
-                                <rect x="3" y="14" width="7" height="7" />
-                                <rect x="14" y="14" width="7" height="7" />
-                            </svg>
-                            <span>Switches</span>
-                        </button>
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"/>
+                                    <path d="M12 6v2M12 16v2M6 12h2M16 12h2"/>
+                                    <circle cx="12" cy="12" r="3"/>
+                                </svg>
+                                <span>Debug</span>
+                                <svg class="dropdown-arrow" viewBox="0 0 12 12" width="10" height="10">
+                                    <path d="M3 5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                                </svg>
+                            </button>
+                            <div class="debug-menu" id="debug-menu">
+                                <button class="debug-menu-item" data-window="cpu">
+                                    <span class="menu-icon">⚡</span>
+                                    <span>CPU Debugger</span>
+                                </button>
+                                <button class="debug-menu-item" data-window="drives">
+                                    <span class="menu-icon">💾</span>
+                                    <span>Drive Monitor</span>
+                                </button>
+                                <button class="debug-menu-item" data-window="switches">
+                                    <span class="menu-icon">🔲</span>
+                                    <span>Soft Switches</span>
+                                </button>
+                                <div class="debug-menu-separator"></div>
+                                <button class="debug-menu-item" data-window="memory">
+                                    <span class="menu-icon">📊</span>
+                                    <span>Memory Browser</span>
+                                </button>
+                                <button class="debug-menu-item" data-window="heatmap">
+                                    <span class="menu-icon">🔥</span>
+                                    <span>Memory Heat Map</span>
+                                </button>
+                                <button class="debug-menu-item" data-window="stack">
+                                    <span class="menu-icon">📚</span>
+                                    <span>Stack Viewer</span>
+                                </button>
+                                <button class="debug-menu-item" data-window="zeropage">
+                                    <span class="menu-icon">🔢</span>
+                                    <span>Zero Page Watch</span>
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </nav>
             </header>
@@ -368,6 +355,9 @@
                     </div>
                 </div>
             </main>
+
+            <!-- Full page mode exit hint -->
+            <div class="full-page-exit-hint">Press Escape or click to exit full page</div>
 
             <footer>
                 <span>Apple //e Emulator</span>

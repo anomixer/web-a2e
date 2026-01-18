@@ -456,4 +456,42 @@ bool isDiskModified(int drive) {
   return false;
 }
 
+// Memory tracking for debugger heat map
+EMSCRIPTEN_KEEPALIVE
+void enableMemoryTracking(bool enable) {
+  if (g_emulator) {
+    g_emulator->getMMU().enableTracking(enable);
+  }
+}
+
+EMSCRIPTEN_KEEPALIVE
+void clearMemoryTracking() {
+  if (g_emulator) {
+    g_emulator->getMMU().clearTracking();
+  }
+}
+
+EMSCRIPTEN_KEEPALIVE
+void decayMemoryTracking(uint8_t amount) {
+  if (g_emulator) {
+    g_emulator->getMMU().decayTracking(amount);
+  }
+}
+
+EMSCRIPTEN_KEEPALIVE
+const uint8_t* getMemoryReadCounts() {
+  if (g_emulator) {
+    return g_emulator->getMMU().getReadCounts();
+  }
+  return nullptr;
+}
+
+EMSCRIPTEN_KEEPALIVE
+const uint8_t* getMemoryWriteCounts() {
+  if (g_emulator) {
+    return g_emulator->getMMU().getWriteCounts();
+  }
+  return nullptr;
+}
+
 } // extern "C"
