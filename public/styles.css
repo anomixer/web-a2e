@@ -672,6 +672,20 @@ main {
 .drive-image-container {
     width: 100%;
     max-width: 280px;
+    position: relative;
+}
+
+.drive-number {
+    position: absolute;
+    top: 8.1%;
+    left: 15%;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 1.1em;
+    font-weight: 400;
+    color: #ffffff;
+    pointer-events: none;
+    user-select: none;
+    letter-spacing: 0.1em;
 }
 
 .drive-image {
@@ -1459,7 +1473,9 @@ footer kbd {
     position: fixed;
     z-index: 999;
     pointer-events: none;
-    animation: reminderFloat 3s ease-in-out infinite, fadeIn 0.5s ease-out;
+    animation:
+        reminderFloat 3s ease-in-out infinite,
+        fadeIn 0.5s ease-out;
 }
 
 .power-reminder.hidden {
@@ -1518,7 +1534,7 @@ footer kbd {
 }
 
 .reminder-arrow::after {
-    content: '';
+    content: "";
     position: absolute;
     top: 2px;
     left: -9px;
@@ -1530,7 +1546,8 @@ footer kbd {
 }
 
 @keyframes reminderFloat {
-    0%, 100% {
+    0%,
+    100% {
         transform: translateY(0) rotate(-0.5deg);
     }
     25% {
@@ -1545,7 +1562,8 @@ footer kbd {
 }
 
 @keyframes iconPulse {
-    0%, 100% {
+    0%,
+    100% {
         transform: scale(1);
         filter: brightness(1);
     }

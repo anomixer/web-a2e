@@ -640,12 +640,12 @@ export class DiskManager {
         let imageSrc;
         if (hasDisk) {
           imageSrc = isActive
-            ? "assets/drive-closed-light-on.svg"
-            : "assets/drive-closed.svg";
+            ? "assets/drive-closed-light-on.jpg"
+            : "assets/drive-closed.jpg";
         } else {
           imageSrc = isActive
-            ? "assets/drive-open-light-on.svg"
-            : "assets/drive-open.svg";
+            ? "assets/drive-open-light-on.jpg"
+            : "assets/drive-open.jpg";
         }
         if (
           drive.image.src !== imageSrc &&
