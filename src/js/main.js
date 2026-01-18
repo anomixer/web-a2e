@@ -282,20 +282,25 @@ class AppleIIeEmulator {
       localStorage.setItem("a2e-drive-sounds", enabled);
     });
 
-    // Character set toggle (US/UK)
+    // Character set toggle (UK/US) - unchecked = UK (left), checked = US (right)
     const charsetToggle = document.getElementById("charset-toggle");
     if (charsetToggle) {
-      // Load saved preference
-      const savedCharset = localStorage.getItem("a2e-charset-uk");
-      if (savedCharset === "true") {
-        charsetToggle.checked = true;
+      // Load saved preference (stored as "uk" or "us")
+      const savedCharset = localStorage.getItem("a2e-charset");
+      if (savedCharset === "uk") {
+        charsetToggle.checked = false;
         this.wasmModule._setUKCharacterSet(true);
+      } else {
+        // Default to US
+        charsetToggle.checked = true;
+        this.wasmModule._setUKCharacterSet(false);
       }
 
       charsetToggle.addEventListener("change", (e) => {
-        const isUK = e.target.checked;
+        // Checked = US (right), Unchecked = UK (left)
+        const isUK = !e.target.checked;
         this.wasmModule._setUKCharacterSet(isUK);
-        localStorage.setItem("a2e-charset-uk", isUK);
+        localStorage.setItem("a2e-charset", isUK ? "uk" : "us");
         refocusCanvas();
       });
     }
