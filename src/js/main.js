@@ -29,6 +29,7 @@ class AppleIIeEmulator {
     this.running = false;
     this.speed = 1; // 1x, 2x, or 0 for unlimited
     this.isFullPageMode = false;
+    this.isPowerReminderVisible = false;
 
     // Display aspect ratio (4:3 for authentic CRT monitor)
     this.aspectRatio = 4 / 3;
@@ -409,6 +410,11 @@ class AppleIIeEmulator {
     if (this.windowManager) {
       this.windowManager.constrainAllToViewport();
     }
+
+    // Reposition power reminder if visible (after layout settles)
+    if (this.isPowerReminderVisible) {
+      requestAnimationFrame(() => this.repositionPowerReminder());
+    }
   }
 
   updateSoundButton() {
@@ -513,20 +519,47 @@ class AppleIIeEmulator {
     }
   }
 
+  repositionPowerReminder() {
+    const reminder = document.getElementById("power-reminder");
+    const powerBtn = document.getElementById("btn-power");
+    if (!reminder || !powerBtn) return;
+
+    const btnRect = powerBtn.getBoundingClientRect();
+    const btnCenterX = btnRect.left + btnRect.width / 2;
+
+    // Get reminder dimensions (use a minimum if not yet rendered)
+    const reminderRect = reminder.getBoundingClientRect();
+    const reminderWidth = reminderRect.width || 200;
+
+    // Position reminder so it stays within viewport
+    let reminderLeft = btnCenterX - reminderWidth / 2;
+
+    // Clamp to viewport edges with padding
+    const padding = 16;
+    const maxLeft = window.innerWidth - reminderWidth - padding;
+    reminderLeft = Math.max(padding, Math.min(reminderLeft, maxLeft));
+
+    // Calculate where the arrow should point (relative to reminder position)
+    const arrowLeft = btnCenterX - reminderLeft;
+
+    reminder.style.left = `${reminderLeft}px`;
+    reminder.style.top = `${btnRect.bottom + 15}px`;
+    reminder.style.setProperty('--arrow-left', `${arrowLeft}px`);
+  }
+
   showPowerReminder(show) {
     const reminder = document.getElementById("power-reminder");
     if (!reminder) return;
 
     if (show) {
-      // Position the reminder below the power button
-      const powerBtn = document.getElementById("btn-power");
-      if (powerBtn) {
-        const rect = powerBtn.getBoundingClientRect();
-        reminder.style.left = `${rect.left + rect.width / 2 - 100}px`; // Center under button
-        reminder.style.top = `${rect.bottom + 15}px`;
-      }
+      this.isPowerReminderVisible = true;
       reminder.classList.remove("hidden");
+      // Use requestAnimationFrame to ensure the element is visible before positioning
+      requestAnimationFrame(() => {
+        this.repositionPowerReminder();
+      });
     } else {
+      this.isPowerReminderVisible = false;
       reminder.classList.add("hidden");
     }
   }
