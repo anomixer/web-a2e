@@ -113,6 +113,14 @@ bool insertDisk(int drive, uint8_t *data, int size, const char *filename) {
 }
 
 EMSCRIPTEN_KEEPALIVE
+bool insertBlankDisk(int drive) {
+  if (g_emulator) {
+    return g_emulator->insertBlankDisk(drive);
+  }
+  return false;
+}
+
+EMSCRIPTEN_KEEPALIVE
 void ejectDisk(int drive) {
   if (g_emulator) {
     g_emulator->ejectDisk(drive);

@@ -3,7 +3,7 @@
 import { WebGLRenderer } from "./webgl-renderer.js";
 import { AudioDriver } from "./audio-driver.js";
 import { InputHandler } from "./input-handler.js";
-import { DiskManager } from "./disk-manager.js";
+import { DiskManager } from "./disk-manager/index.js";
 import {
   WindowManager,
   CPUDebuggerWindow,
