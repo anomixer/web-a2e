@@ -1,18 +1,9 @@
 // Keyboard Input Handler for Apple //e Emulator
+// Key translation is handled in C++ core, this just passes raw browser events
 
 export class InputHandler {
   constructor(wasmModule) {
     this.wasmModule = wasmModule;
-
-    // Key mapping from browser keycodes to Apple II
-    this.keyMap = new Map();
-    this.setupKeyMap();
-
-    // Track modifier keys
-    this.ctrlPressed = false;
-    this.shiftPressed = false;
-    this.altPressed = false; // Open Apple
-    this.metaPressed = false; // Closed Apple
 
     // Canvas element for focus management
     this.canvas = null;
@@ -71,84 +62,23 @@ export class InputHandler {
     });
   }
 
-  setupKeyMap() {
-    // Letters A-Z - store as lowercase, will apply caps lock/shift later
-    for (let i = 65; i <= 90; i++) {
-      this.keyMap.set(i, i + 32); // Lowercase (a=97, b=98, etc.)
-    }
-
-    // Numbers 0-9
-    for (let i = 48; i <= 57; i++) {
-      this.keyMap.set(i, i);
-    }
-
-    // Special keys
-    this.keyMap.set(13, 0x0d); // Enter -> CR
-    this.keyMap.set(8, 0x08); // Backspace -> Left arrow (delete)
-    this.keyMap.set(27, 0x1b); // Escape
-    this.keyMap.set(32, 0x20); // Space
-    this.keyMap.set(9, 0x09); // Tab
-
-    // Arrow keys
-    this.keyMap.set(37, 0x08); // Left arrow
-    this.keyMap.set(38, 0x0b); // Up arrow
-    this.keyMap.set(39, 0x15); // Right arrow
-    this.keyMap.set(40, 0x0a); // Down arrow
-
-    // Punctuation (US keyboard layout)
-    this.keyMap.set(188, 0x2c); // Comma
-    this.keyMap.set(190, 0x2e); // Period
-    this.keyMap.set(191, 0x2f); // Slash
-    this.keyMap.set(186, 0x3b); // Semicolon
-    this.keyMap.set(222, 0x27); // Quote
-    this.keyMap.set(219, 0x5b); // Left bracket
-    this.keyMap.set(221, 0x5d); // Right bracket
-    this.keyMap.set(220, 0x5c); // Backslash
-    this.keyMap.set(189, 0x2d); // Minus
-    this.keyMap.set(187, 0x3d); // Equals
-    this.keyMap.set(192, 0x60); // Backtick
-  }
-
   handleKeyDown(event) {
     const keyCode = event.keyCode || event.which;
 
-    // Track modifiers
-    if (keyCode === 16) {
-      this.shiftPressed = true;
-      return;
-    }
-    if (keyCode === 17) {
-      this.ctrlPressed = true;
-      return;
-    }
-    if (keyCode === 18) {
-      // Alt = Open Apple (Button 0)
-      this.altPressed = true;
-      this.wasmModule._setButton(0, true);
-      return;
-    }
-    if (keyCode === 91 || keyCode === 93) {
-      // Meta/Command = Closed Apple (Button 1)
-      this.metaPressed = true;
-      this.wasmModule._setButton(1, true);
+    // Get modifier states
+    const shift = event.shiftKey;
+    const ctrl = event.ctrlKey;
+    const alt = event.altKey;
+    const meta = event.metaKey;
+    const capsLock = event.getModifierState && event.getModifierState('CapsLock');
+
+    // Don't interfere with browser shortcuts
+    if (ctrl && keyCode === 82) {
+      // Ctrl+R for refresh
       return;
     }
 
-    // Handle Ctrl+Reset
-    if (this.ctrlPressed && keyCode === 82) {
-      // Ctrl+R
-      // Don't reset - let browser handle refresh
-      // For reset, use the button or a different combo
-      return;
-    }
-
-    // Get base key
-    let appleKey = this.keyMap.get(keyCode);
-    if (appleKey === undefined) {
-      return;
-    }
-
-    // Prevent default to stop buttons from being activated and browser shortcuts
+    // Prevent default for these keys when not using modifiers
     if (this.shouldPreventDefault(event)) {
       event.preventDefault();
     }
@@ -159,97 +89,21 @@ export class InputHandler {
       event.preventDefault();
     }
 
-    // Apply Caps Lock and Shift modifiers for letters
-    const capsLock = event.getModifierState && event.getModifierState('CapsLock');
-    if (appleKey >= 0x61 && appleKey <= 0x7a) {
-      // It's a lowercase letter
-      if (capsLock && !this.shiftPressed) {
-        // Caps lock on, no shift -> uppercase
-        appleKey = appleKey - 32;
-      } else if (!capsLock && this.shiftPressed) {
-        // Caps lock off, shift pressed -> uppercase
-        appleKey = appleKey - 32;
-      }
-      // Otherwise stays lowercase
-    } else if (this.shiftPressed) {
-      // Apply shift to non-letter keys
-      appleKey = this.applyShift(appleKey, keyCode);
-    }
-
-    // Apply Ctrl modifier (produces control characters)
-    if (this.ctrlPressed) {
-      if (appleKey >= 0x61 && appleKey <= 0x7a) {
-        // a-z -> Ctrl+A-Z (0x01-0x1A)
-        appleKey = appleKey - 0x60;
-      } else if (appleKey >= 0x41 && appleKey <= 0x5a) {
-        // A-Z -> Ctrl+A-Z
-        appleKey = appleKey - 0x40;
-      }
-    }
-
-    // Send to emulator
-    this.wasmModule._keyDown(appleKey);
+    // Send raw keycode to WASM - C++ handles the translation
+    this.wasmModule._handleRawKeyDown(keyCode, shift, ctrl, alt, meta, capsLock);
   }
 
   handleKeyUp(event) {
     const keyCode = event.keyCode || event.which;
 
-    // Track modifiers
-    if (keyCode === 16) {
-      this.shiftPressed = false;
-      return;
-    }
-    if (keyCode === 17) {
-      this.ctrlPressed = false;
-      return;
-    }
-    if (keyCode === 18) {
-      // Alt = Open Apple (Button 0)
-      this.altPressed = false;
-      this.wasmModule._setButton(0, false);
-      return;
-    }
-    if (keyCode === 91 || keyCode === 93) {
-      // Meta/Command = Closed Apple (Button 1)
-      this.metaPressed = false;
-      this.wasmModule._setButton(1, false);
-      return;
-    }
+    // Get modifier states
+    const shift = event.shiftKey;
+    const ctrl = event.ctrlKey;
+    const alt = event.altKey;
+    const meta = event.metaKey;
 
-    const appleKey = this.keyMap.get(keyCode);
-    if (appleKey !== undefined) {
-      this.wasmModule._keyUp(appleKey);
-    }
-  }
-
-  applyShift(key, keyCode) {
-    // Number row shifted symbols (letters handled separately)
-    const shiftMap = {
-      48: 0x29, // 0 -> )
-      49: 0x21, // 1 -> !
-      50: 0x40, // 2 -> @
-      51: 0x23, // 3 -> #
-      52: 0x24, // 4 -> $
-      53: 0x25, // 5 -> %
-      54: 0x5e, // 6 -> ^
-      55: 0x26, // 7 -> &
-      56: 0x2a, // 8 -> *
-      57: 0x28, // 9 -> (
-
-      188: 0x3c, // , -> <
-      190: 0x3e, // . -> >
-      191: 0x3f, // / -> ?
-      186: 0x3a, // ; -> :
-      222: 0x22, // ' -> "
-      219: 0x7b, // [ -> {
-      221: 0x7d, // ] -> }
-      220: 0x7c, // \ -> |
-      189: 0x5f, // - -> _
-      187: 0x2b, // = -> +
-      192: 0x7e, // ` -> ~
-    };
-
-    return shiftMap[keyCode] || key;
+    // Send raw keycode to WASM
+    this.wasmModule._handleRawKeyUp(keyCode, shift, ctrl, alt, meta);
   }
 
   shouldPreventDefault(event) {
@@ -261,10 +115,7 @@ export class InputHandler {
       9, // Tab
       27, // Escape
       32, // Space (prevent page scroll)
-      37,
-      38,
-      39,
-      40, // Arrow keys
+      37, 38, 39, 40, // Arrow keys
     ];
 
     if (preventKeys.includes(keyCode) && !event.ctrlKey && !event.metaKey) {
@@ -274,7 +125,7 @@ export class InputHandler {
     return false;
   }
 
-  // Handle paste event
+  // Handle paste event - still uses direct keyDown for ASCII characters
   handlePaste(event) {
     event.preventDefault();
 
@@ -295,7 +146,7 @@ export class InputHandler {
     }
   }
 
-  // Convert character to Apple II key code
+  // Convert character to Apple II key code (for paste only)
   charToAppleKey(char) {
     const code = char.charCodeAt(0);
 

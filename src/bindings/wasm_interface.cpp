@@ -90,6 +90,24 @@ void keyUp(int keycode) {
 }
 
 EMSCRIPTEN_KEEPALIVE
+int handleRawKeyDown(int browserKeycode, bool shift, bool ctrl, bool alt,
+                     bool meta, bool capsLock) {
+  if (g_emulator) {
+    return g_emulator->handleRawKeyDown(browserKeycode, shift, ctrl, alt, meta,
+                                        capsLock);
+  }
+  return -1;
+}
+
+EMSCRIPTEN_KEEPALIVE
+void handleRawKeyUp(int browserKeycode, bool shift, bool ctrl, bool alt,
+                    bool meta) {
+  if (g_emulator) {
+    g_emulator->handleRawKeyUp(browserKeycode, shift, ctrl, alt, meta);
+  }
+}
+
+EMSCRIPTEN_KEEPALIVE
 void setButton(int button, bool pressed) {
   if (g_emulator) {
     g_emulator->setButton(button, pressed);
