@@ -102,6 +102,7 @@ class AppleIIeEmulator {
       this.startRenderLoop();
 
       this.showLoading(false);
+      this.showPowerReminder(true);
 
       console.log("Apple //e Emulator initialized");
     } catch (error) {
@@ -122,6 +123,7 @@ class AppleIIeEmulator {
 
     // Power button
     powerBtn.addEventListener("click", () => {
+      this.showPowerReminder(false); // Hide reminder on first click
       if (this.running) {
         this.stop();
       } else {
@@ -422,6 +424,24 @@ class AppleIIeEmulator {
       loading.classList.remove("hidden");
     } else {
       loading.classList.add("hidden");
+    }
+  }
+
+  showPowerReminder(show) {
+    const reminder = document.getElementById("power-reminder");
+    if (!reminder) return;
+
+    if (show) {
+      // Position the reminder below the power button
+      const powerBtn = document.getElementById("btn-power");
+      if (powerBtn) {
+        const rect = powerBtn.getBoundingClientRect();
+        reminder.style.left = `${rect.left + rect.width / 2 - 100}px`; // Center under button
+        reminder.style.top = `${rect.bottom + 15}px`;
+      }
+      reminder.classList.remove("hidden");
+    } else {
+      reminder.classList.add("hidden");
     }
   }
 }

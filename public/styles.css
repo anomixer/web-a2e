@@ -186,7 +186,15 @@ header {
 }
 
 .control-btn.power-btn {
+    width: auto;
+    padding: 0 var(--space-md);
+    font-size: 0.8125rem;
+    font-weight: 500;
     color: var(--accent-green);
+}
+
+.control-btn.power-btn span {
+    margin-left: var(--space-xs);
 }
 
 .control-btn.power-btn:hover {
@@ -205,6 +213,18 @@ header {
     color: var(--accent-red);
     border-color: var(--accent-red);
     box-shadow: 0 0 20px rgba(248, 81, 73, 0.3);
+}
+
+/* Reset buttons with labels */
+.control-btn.reset-btn {
+    width: auto;
+    padding: 0 var(--space-md);
+    font-size: 0.8125rem;
+    font-weight: 500;
+}
+
+.control-btn.reset-btn span {
+    margin-left: var(--space-xs);
 }
 
 .debugger-btn {
@@ -1431,6 +1451,118 @@ footer kbd {
     }
     50% {
         opacity: 1;
+    }
+}
+
+/* ==================== POWER REMINDER ==================== */
+.power-reminder {
+    position: fixed;
+    z-index: 999;
+    pointer-events: none;
+    animation: reminderFloat 3s ease-in-out infinite, fadeIn 0.5s ease-out;
+}
+
+.power-reminder.hidden {
+    display: none;
+}
+
+.reminder-content {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    background: linear-gradient(135deg, #1e3a5f 0%, #0d2137 100%);
+    border: 1px solid var(--accent-blue);
+    border-radius: var(--radius-lg);
+    padding: var(--space-md) var(--space-lg);
+    box-shadow:
+        0 4px 24px rgba(88, 166, 255, 0.3),
+        0 0 40px rgba(88, 166, 255, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+.reminder-icon {
+    font-size: 1.75rem;
+    animation: iconPulse 2s ease-in-out infinite;
+}
+
+.reminder-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.reminder-title {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: var(--accent-blue);
+}
+
+.reminder-hint {
+    font-size: 0.8125rem;
+    color: var(--text-secondary);
+}
+
+.reminder-hint strong {
+    color: var(--accent-green);
+}
+
+.reminder-arrow {
+    position: absolute;
+    top: -10px;
+    left: 100px;
+    width: 0;
+    height: 0;
+    border-left: 10px solid transparent;
+    border-right: 10px solid transparent;
+    border-bottom: 10px solid var(--accent-blue);
+}
+
+.reminder-arrow::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: -9px;
+    width: 0;
+    height: 0;
+    border-left: 9px solid transparent;
+    border-right: 9px solid transparent;
+    border-bottom: 9px solid #1e3a5f;
+}
+
+@keyframes reminderFloat {
+    0%, 100% {
+        transform: translateY(0) rotate(-0.5deg);
+    }
+    25% {
+        transform: translateY(-5px) rotate(0.3deg);
+    }
+    50% {
+        transform: translateY(-2px) rotate(0.5deg);
+    }
+    75% {
+        transform: translateY(-7px) rotate(-0.3deg);
+    }
+}
+
+@keyframes iconPulse {
+    0%, 100% {
+        transform: scale(1);
+        filter: brightness(1);
+    }
+    50% {
+        transform: scale(1.1);
+        filter: brightness(1.3);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
     }
 }
 

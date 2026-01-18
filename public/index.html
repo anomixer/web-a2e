@@ -36,11 +36,12 @@
                             >
                                 <path d="M12 2v10M18.4 6.6a9 9 0 1 1-12.8 0" />
                             </svg>
+                            <span>Power</span>
                         </button>
                         <button
                             id="btn-warm-reset"
-                            class="control-btn"
-                            title="Warm Reset (preserves memory)"
+                            class="control-btn reset-btn"
+                            title="Ctrl+Reset (warm reset, preserves memory)"
                         >
                             <svg
                                 viewBox="0 0 24 24"
@@ -53,10 +54,11 @@
                                 />
                                 <path d="M3 3v5h5" />
                             </svg>
+                            <span>Ctrl+Reset</span>
                         </button>
                         <button
                             id="btn-cold-reset"
-                            class="control-btn"
+                            class="control-btn reset-btn"
                             title="Cold Reset (full restart)"
                         >
                             <svg
@@ -68,6 +70,7 @@
                                 <path d="M21 12a9 9 0 1 1-9-9" />
                                 <path d="M21 3v6h-6" />
                             </svg>
+                            <span>Reboot</span>
                         </button>
                     </div>
                     <div class="control-group">
@@ -379,6 +382,18 @@
                     <div class="loader-ring"></div>
                 </div>
                 <p>Initializing Apple //e...</p>
+            </div>
+
+            <!-- Power On Reminder -->
+            <div id="power-reminder" class="power-reminder hidden">
+                <div class="reminder-content">
+                    <div class="reminder-icon">⚡</div>
+                    <div class="reminder-text">
+                        <span class="reminder-title">Ready to go!</span>
+                        <span class="reminder-hint">Click <strong>Power</strong> to start the Apple //e</span>
+                    </div>
+                </div>
+                <div class="reminder-arrow"></div>
             </div>
 
             <!-- Save Disk Modal -->
