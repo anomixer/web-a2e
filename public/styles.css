@@ -154,6 +154,82 @@ header {
     padding-right: 0;
 }
 
+/* Character Set Switch (US/UK) - positioned on monitor bezel */
+.charset-switch {
+    position: absolute;
+    bottom: 8px;
+    left: 12px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 6px;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 4px;
+    z-index: 10;
+}
+
+.charset-label {
+    font-size: 8px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.4);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: color 0.2s;
+}
+
+.charset-switch:has(#charset-toggle:not(:checked)) .charset-label:first-of-type,
+.charset-switch:has(#charset-toggle:checked) .charset-label:last-of-type {
+    color: var(--accent-green);
+}
+
+.charset-toggle {
+    position: relative;
+    display: inline-block;
+    width: 24px;
+    height: 14px;
+    cursor: pointer;
+}
+
+.charset-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.charset-slider {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 7px;
+    transition: all 0.2s;
+}
+
+.charset-slider::before {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 8px;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 50%;
+    transition: all 0.2s;
+}
+
+.charset-toggle input:checked + .charset-slider {
+    border-color: var(--accent-green-dim);
+}
+
+.charset-toggle input:checked + .charset-slider::before {
+    transform: translateX(10px);
+    background: var(--accent-green);
+}
+
+.charset-toggle:hover .charset-slider {
+    border-color: rgba(255, 255, 255, 0.4);
+}
+
 .control-btn {
     display: flex;
     align-items: center;
@@ -2079,7 +2155,8 @@ body.full-page-mode {
 body.full-page-mode header,
 body.full-page-mode footer,
 body.full-page-mode #disk-drives,
-body.full-page-mode .debug-window {
+body.full-page-mode .debug-window,
+body.full-page-mode .charset-switch {
     display: none !important;
 }
 
@@ -3921,4 +3998,61 @@ body.full-page-mode .full-page-exit-hint {
     width: 12px;
     height: 12px;
     border-radius: 2px;
+}
+
+/* ==========================================================================
+   Text Selection Context Menu
+   ========================================================================== */
+
+.text-select-context-menu {
+    background: var(--bg-medium);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    min-width: 160px;
+    padding: 4px 0;
+    animation: contextMenuFadeIn 0.15s ease-out;
+}
+
+@keyframes contextMenuFadeIn {
+    from {
+        opacity: 0;
+        transform: scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.context-menu-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 8px 12px;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
+    cursor: pointer;
+    transition: background-color 0.15s ease;
+}
+
+.context-menu-item:hover {
+    background: rgba(88, 166, 255, 0.15);
+}
+
+.context-menu-item .shortcut {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+}
+
+/* Selection overlay styling */
+.text-selection-overlay {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    border-radius: var(--radius-lg);
 }

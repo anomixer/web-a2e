@@ -494,4 +494,29 @@ const uint8_t* getMemoryWriteCounts() {
   return nullptr;
 }
 
+// Read auxiliary memory directly (for 80-column text selection)
+EMSCRIPTEN_KEEPALIVE
+uint8_t peekAuxMemory(uint16_t address) {
+  if (g_emulator) {
+    return g_emulator->getMMU().peekAux(address);
+  }
+  return 0;
+}
+
+// UK/US character set switch (like the physical switch on UK Apple IIe)
+EMSCRIPTEN_KEEPALIVE
+void setUKCharacterSet(bool uk) {
+  if (g_emulator) {
+    g_emulator->getVideo().setUKCharacterSet(uk);
+  }
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool isUKCharacterSet() {
+  if (g_emulator) {
+    return g_emulator->getVideo().isUKCharacterSet();
+  }
+  return false;
+}
+
 } // extern "C"

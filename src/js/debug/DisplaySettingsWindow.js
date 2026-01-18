@@ -188,6 +188,7 @@ export class DisplaySettingsWindow extends DebugWindow {
     if (this.renderer) {
       this.renderer.setNearestFilter(this.settings.sharpPixels);
     }
+
   }
 
   resetToDefaults() {

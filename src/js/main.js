@@ -4,6 +4,7 @@ import { WebGLRenderer } from "./webgl-renderer.js";
 import { AudioDriver } from "./audio-driver.js";
 import { InputHandler } from "./input-handler.js";
 import { DiskManager } from "./disk-manager/index.js";
+import { TextSelection } from "./TextSelection.js";
 import {
   WindowManager,
   CPUDebuggerWindow,
@@ -25,6 +26,7 @@ class AppleIIeEmulator {
     this.diskManager = null;
     this.windowManager = null;
     this.displaySettings = null;
+    this.textSelection = null;
 
     this.running = false;
     this.speed = 1; // 1x, 2x, or 0 for unlimited
@@ -117,6 +119,9 @@ class AppleIIeEmulator {
 
       // Start with TV static "no signal" since emulator is off
       this.renderer.setNoSignal(true);
+
+      // Set up text selection for copying screen contents
+      this.textSelection = new TextSelection(canvas, this.wasmModule);
 
       // Set up UI controls
       this.setupControls();
@@ -277,6 +282,24 @@ class AppleIIeEmulator {
       localStorage.setItem("a2e-drive-sounds", enabled);
     });
 
+    // Character set toggle (US/UK)
+    const charsetToggle = document.getElementById("charset-toggle");
+    if (charsetToggle) {
+      // Load saved preference
+      const savedCharset = localStorage.getItem("a2e-charset-uk");
+      if (savedCharset === "true") {
+        charsetToggle.checked = true;
+        this.wasmModule._setUKCharacterSet(true);
+      }
+
+      charsetToggle.addEventListener("change", (e) => {
+        const isUK = e.target.checked;
+        this.wasmModule._setUKCharacterSet(isUK);
+        localStorage.setItem("a2e-charset-uk", isUK);
+        refocusCanvas();
+      });
+    }
+
     // Debug dropdown menu
     const debugMenuContainer = document.querySelector(".debug-menu-container");
     const debugMenuBtn = document.getElementById("btn-debug-menu");
@@ -404,6 +427,11 @@ class AppleIIeEmulator {
     // Update WebGL viewport
     if (this.renderer) {
       this.renderer.resize(canvasWidth, canvasHeight);
+    }
+
+    // Update text selection overlay size
+    if (this.textSelection) {
+      this.textSelection.resize();
     }
 
     // Constrain debug windows to visible viewport
