@@ -69,6 +69,11 @@ export class DebugWindow {
 
     // Set up event listeners
     this.setupEventListeners();
+
+    // Call hook for subclasses to set up after content is rendered
+    if (typeof this.onContentRendered === 'function') {
+      this.onContentRendered();
+    }
   }
 
   /**

@@ -370,6 +370,11 @@ class AppleIIeEmulator {
     this.running = false;
     this.audioDriver.stop();
 
+    // Stop disk motor (won't timeout naturally since cycles aren't advancing)
+    if (this.wasmModule._stopDiskMotor) {
+      this.wasmModule._stopDiskMotor();
+    }
+
     // Show TV static "no signal" effect
     this.renderer.setNoSignal(true);
 

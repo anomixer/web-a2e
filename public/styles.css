@@ -61,6 +61,11 @@
     --shadow-glow: 0 0 20px rgba(63, 185, 80, 0.3);
 }
 
+/* Utility classes */
+.hidden {
+    display: none !important;
+}
+
 html {
     font-size: 16px;
 }
@@ -2501,6 +2506,91 @@ footer kbd {
 
 .switch-desc {
     font-size: 10px;
+    color: var(--text-muted);
+    flex: 1;
+}
+
+.switch-addr {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--accent-orange);
+    min-width: 65px;
+    opacity: 0.8;
+}
+
+.switch-item.read-only {
+    opacity: 0.7;
+}
+
+.switch-item.read-only .switch-badge {
+    background: rgba(88, 166, 255, 0.15);
+    border-color: rgba(88, 166, 255, 0.25);
+}
+
+.switch-item.read-only .switch-badge.active {
+    background: rgba(88, 166, 255, 0.3);
+    border-color: rgba(88, 166, 255, 0.5);
+    color: var(--accent-blue);
+    box-shadow: 0 0 8px rgba(88, 166, 255, 0.2);
+}
+
+/* Collapsible reference section */
+.switch-group-title.collapsible {
+    cursor: pointer;
+    user-select: none;
+}
+
+.switch-group-title.collapsible:hover {
+    color: var(--text-primary);
+}
+
+.reference-section {
+    margin-top: 6px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    padding-top: 6px;
+}
+
+.reference-list {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.ref-subtitle {
+    font-size: 8px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin: 8px 0 4px 0;
+    opacity: 0.7;
+}
+
+.ref-subtitle:first-child {
+    margin-top: 0;
+}
+
+.ref-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 4px;
+    font-size: 9px;
+}
+
+.ref-addr {
+    font-family: var(--font-mono);
+    color: var(--accent-orange);
+    min-width: 65px;
+    opacity: 0.7;
+}
+
+.ref-name {
+    font-weight: 600;
+    min-width: 70px;
+    color: var(--text-secondary);
+}
+
+.ref-desc {
     color: var(--text-muted);
     flex: 1;
 }

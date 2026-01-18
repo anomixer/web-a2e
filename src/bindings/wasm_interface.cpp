@@ -277,7 +277,15 @@ const char *disassembleAt(uint16_t address) {
 EMSCRIPTEN_KEEPALIVE
 uint32_t getSoftSwitchState() {
   if (g_emulator) {
-    return g_emulator->getSoftSwitchState();
+    return static_cast<uint32_t>(g_emulator->getSoftSwitchState() & 0xFFFFFFFF);
+  }
+  return 0;
+}
+
+EMSCRIPTEN_KEEPALIVE
+uint32_t getSoftSwitchStateHigh() {
+  if (g_emulator) {
+    return static_cast<uint32_t>(g_emulator->getSoftSwitchState() >> 32);
   }
   return 0;
 }
@@ -316,6 +324,13 @@ bool getDiskMotorOn(int drive) {
     return g_emulator->getDisk().isMotorOn();
   }
   return false;
+}
+
+EMSCRIPTEN_KEEPALIVE
+void stopDiskMotor() {
+  if (g_emulator) {
+    g_emulator->getDisk().stopMotor();
+  }
 }
 
 EMSCRIPTEN_KEEPALIVE
