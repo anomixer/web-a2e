@@ -1,0 +1,565 @@
+/* Apple //e Emulator - Responsive Styles
+   All media queries for different screen sizes and devices
+*/
+
+/* Tablet and smaller desktop */
+@media (max-width: 1200px) {
+    main {
+        flex-direction: column;
+        align-items: center;
+    }
+}
+
+/* Small screens / large tablets */
+@media (max-width: 800px) {
+    header {
+        flex-direction: column;
+        gap: var(--space-sm);
+        padding: var(--space-sm);
+    }
+
+    .header-left {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .tagline {
+        display: none;
+    }
+
+    .header-controls {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    .control-group {
+        border: none;
+        padding: var(--space-xs);
+    }
+
+    #screen {
+        width: 100%;
+        max-width: 560px;
+        height: auto;
+        aspect-ratio: 560 / 384;
+    }
+
+    .monitor-bezel {
+        padding: 16px;
+    }
+
+    #disk-drives {
+        flex-direction: column;
+        gap: var(--space-sm);
+    }
+
+    .drive-image-container {
+        width: 100%;
+        max-width: 240px;
+    }
+}
+
+/* Mobile portrait (phones) */
+@media (max-width: 600px) {
+    header {
+        padding: var(--space-xs) var(--space-sm);
+        gap: var(--space-xs);
+    }
+
+    .header-left {
+        margin-bottom: var(--space-xs);
+    }
+
+    .logo-text {
+        font-size: 1.25rem;
+    }
+
+    .header-controls {
+        width: 100%;
+        gap: var(--space-xs);
+    }
+
+    .control-group {
+        padding: var(--space-xs);
+        gap: 2px;
+    }
+
+    /* Hide button labels on mobile, show only icons */
+    .control-btn span {
+        display: none;
+    }
+
+    .control-btn {
+        width: 36px;
+        height: 36px;
+        padding: 0;
+    }
+
+    .control-btn.power-btn,
+    .control-btn.reset-btn,
+    .control-btn.display-btn,
+    .control-btn.debugger-btn {
+        width: 36px;
+        padding: 0;
+    }
+
+    .control-btn svg {
+        width: 20px;
+        height: 20px;
+    }
+
+    /* Hide dropdown arrow on mobile */
+    .dropdown-arrow {
+        display: none;
+    }
+
+    /* Hide debug menu on mobile - not usable on small screens */
+    .debug-menu-container,
+    .debug-window {
+        display: none !important;
+    }
+
+    /* Monitor adjustments for mobile */
+    .monitor-bezel {
+        padding: 12px 14px 24px;
+        border-radius: var(--radius-md) var(--radius-md) var(--radius-sm) var(--radius-sm);
+    }
+
+    .monitor-bezel::before {
+        height: 3px;
+        top: 5px;
+        left: 8px;
+        right: 8px;
+    }
+
+    .monitor-badge {
+        bottom: 5px;
+        padding: 1px 10px;
+    }
+
+    .monitor-badge span {
+        font-size: 0.5rem;
+    }
+
+    .monitor-power {
+        bottom: 5px;
+        right: 12px;
+        gap: 4px;
+    }
+
+    .power-led {
+        width: 6px;
+        height: 6px;
+    }
+
+    .power-label {
+        font-size: 0.4375rem;
+    }
+
+    .charset-switch {
+        bottom: 5px;
+        left: 8px;
+        padding: 2px 4px;
+        gap: 3px;
+    }
+
+    .charset-label {
+        font-size: 6px;
+    }
+
+    .charset-toggle {
+        width: 20px;
+        height: 12px;
+    }
+
+    .charset-slider::before {
+        width: 6px;
+        height: 6px;
+    }
+
+    .charset-toggle input:checked + .charset-slider::before {
+        transform: translateX(8px);
+    }
+
+    /* Make monitor base smaller on mobile */
+    .monitor-base {
+        height: 12px;
+    }
+
+    .monitor-stand {
+        height: 8px;
+    }
+
+    /* Disk drives - more compact layout */
+    #disk-drives {
+        gap: var(--space-sm);
+        max-width: 100%;
+        padding: 0 var(--space-sm);
+    }
+
+    .disk-drive {
+        gap: var(--space-xs);
+        max-width: 100%;
+    }
+
+    .drive-image-container {
+        max-width: 180px;
+        margin: 0 auto;
+    }
+
+    .drive-number {
+        font-size: 0.9em;
+    }
+
+    .drive-info {
+        padding: 2px 0;
+    }
+
+    .disk-name,
+    .disk-track {
+        font-size: 0.625rem;
+    }
+
+    .disk-track {
+        min-width: 24px;
+        padding: 1px 3px;
+    }
+
+    .drive-controls {
+        gap: 3px;
+    }
+
+    .disk-insert,
+    .disk-blank,
+    .disk-eject {
+        padding: 4px 6px;
+        font-size: 0.625rem;
+    }
+
+    /* Footer adjustments */
+    footer {
+        font-size: 0.6875rem;
+        padding: var(--space-xs) var(--space-sm);
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+
+    footer kbd {
+        padding: 0 3px;
+        font-size: 0.625rem;
+    }
+
+    /* Hide resize reminder on mobile - touch devices use pinch */
+    #resize-reminder {
+        display: none !important;
+    }
+
+    /* Hide monitor resize handles on mobile */
+    .monitor-resize-handle {
+        display: none;
+    }
+
+    /* Floating reminders positioning for mobile */
+    .power-reminder {
+        top: auto;
+        bottom: 120px;
+        left: 50% !important;
+        transform: translateX(-50%);
+    }
+
+    .power-reminder .reminder-arrow {
+        display: none;
+    }
+
+    #drives-reminder {
+        display: none !important;
+    }
+}
+
+/* Extra small mobile (very small phones) */
+@media (max-width: 400px) {
+    .logo-text {
+        font-size: 1.1rem;
+    }
+
+    .control-btn {
+        width: 32px;
+        height: 32px;
+    }
+
+    .control-btn svg {
+        width: 18px;
+        height: 18px;
+    }
+
+    .monitor-bezel {
+        padding: 10px 12px 20px;
+    }
+
+    .drive-image-container {
+        max-width: 150px;
+    }
+
+    .disk-insert,
+    .disk-blank,
+    .disk-eject {
+        padding: 3px 4px;
+        font-size: 0.5625rem;
+    }
+}
+
+/* Mobile landscape */
+@media (max-height: 500px) and (orientation: landscape) {
+    header {
+        flex-direction: row;
+        padding: var(--space-xs) var(--space-sm);
+        gap: var(--space-sm);
+    }
+
+    .header-left {
+        width: auto;
+        margin-bottom: 0;
+    }
+
+    .logo-text {
+        font-size: 1rem;
+    }
+
+    .tagline {
+        display: none;
+    }
+
+    .control-btn span {
+        display: none;
+    }
+
+    .control-btn {
+        width: 32px;
+        height: 32px;
+    }
+
+    .control-btn.power-btn,
+    .control-btn.reset-btn,
+    .control-btn.display-btn,
+    .control-btn.debugger-btn {
+        width: 32px;
+        padding: 0;
+    }
+
+    .control-btn svg {
+        width: 16px;
+        height: 16px;
+    }
+
+    .control-group {
+        padding: 2px var(--space-xs);
+        gap: 2px;
+        border: none;
+    }
+
+    .dropdown-arrow {
+        display: none;
+    }
+
+    /* Hide debug menu in landscape mobile */
+    .debug-menu-container,
+    .debug-window {
+        display: none !important;
+    }
+
+    main {
+        flex-direction: row;
+        padding: var(--space-xs);
+        gap: var(--space-sm);
+    }
+
+    .emulator-section {
+        flex-direction: row;
+        gap: var(--space-sm);
+    }
+
+    #monitor-frame {
+        flex: none;
+    }
+
+    .monitor-bezel {
+        padding: 8px 10px 16px;
+    }
+
+    .monitor-bezel::before {
+        height: 2px;
+        top: 4px;
+    }
+
+    .monitor-badge,
+    .monitor-power,
+    .charset-switch {
+        bottom: 3px;
+    }
+
+    .monitor-badge span {
+        font-size: 0.4375rem;
+    }
+
+    .power-led {
+        width: 5px;
+        height: 5px;
+    }
+
+    .power-label {
+        font-size: 0.375rem;
+    }
+
+    .monitor-base {
+        height: 8px;
+    }
+
+    .monitor-stand {
+        height: 5px;
+    }
+
+    /* Disk drives in landscape - side by side, compact */
+    #disk-drives {
+        flex-direction: column;
+        gap: var(--space-xs);
+        max-width: 180px;
+        align-self: center;
+    }
+
+    .disk-drive {
+        flex-direction: row;
+        align-items: center;
+        gap: var(--space-xs);
+        max-width: 100%;
+    }
+
+    .drive-image-container {
+        max-width: 80px;
+        flex-shrink: 0;
+    }
+
+    .drive-number {
+        font-size: 0.7em;
+    }
+
+    .drive-info {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 2px;
+        min-width: 60px;
+    }
+
+    .disk-name,
+    .disk-track {
+        font-size: 0.5625rem;
+    }
+
+    .drive-controls {
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    .disk-insert,
+    .disk-blank,
+    .disk-eject {
+        padding: 2px 4px;
+        font-size: 0.5rem;
+        min-width: 40px;
+    }
+
+    footer {
+        padding: 2px var(--space-sm);
+        font-size: 0.625rem;
+    }
+
+    footer kbd {
+        padding: 0 2px;
+        font-size: 0.5625rem;
+    }
+
+    /* Hide reminders in landscape */
+    .power-reminder,
+    #resize-reminder,
+    #drives-reminder {
+        display: none !important;
+    }
+
+    .monitor-resize-handle {
+        display: none;
+    }
+}
+
+/* Touch device improvements */
+@media (hover: none) and (pointer: coarse) {
+    /* Increase touch target sizes */
+    .control-btn {
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    .disk-insert,
+    .disk-blank,
+    .disk-eject {
+        min-height: 36px;
+    }
+
+    /* Disable hover states that don't work well on touch */
+    .control-btn:hover {
+        background: var(--bg-light);
+        border-color: var(--border-default);
+    }
+
+    .control-btn.power-btn:hover {
+        background: var(--bg-light);
+        box-shadow: none;
+    }
+
+    /* Show active states instead for touch feedback */
+    .control-btn:active {
+        background: var(--bg-panel);
+        transform: scale(0.95);
+    }
+
+    .control-btn.power-btn:active {
+        background: var(--accent-green-dim);
+        color: white;
+    }
+
+    /* Hide resize handles - not usable on touch */
+    .monitor-resize-handle {
+        display: none;
+    }
+
+    /* Visual feedback when keyboard is active */
+    #screen.keyboard-active {
+        outline: 2px solid var(--accent-green);
+        outline-offset: 2px;
+    }
+
+    /* Tap hint for mobile users */
+    .monitor-screen-wrapper::after {
+        content: "Tap to type";
+        position: absolute;
+        bottom: 8px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0, 0, 0, 0.7);
+        color: var(--text-secondary);
+        padding: 4px 12px;
+        border-radius: var(--radius-sm);
+        font-size: 0.6875rem;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.3s;
+    }
+
+    /* Show hint when screen doesn't have keyboard focus */
+    .monitor-screen-wrapper:not(:has(#screen.keyboard-active))::after {
+        opacity: 1;
+    }
+
+    /* Hide hint when keyboard is active */
+    .monitor-screen-wrapper:has(#screen.keyboard-active)::after {
+        opacity: 0;
+    }
+}

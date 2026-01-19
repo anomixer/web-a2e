@@ -1,0 +1,120 @@
+/* Apple //e Emulator - Layout Styles
+   Header, main content area, and footer
+*/
+
+/* Header */
+header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-sm) var(--space-lg);
+    background: var(--bg-medium);
+    border-bottom: 1px solid var(--border-default);
+    backdrop-filter: blur(10px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+}
+
+.logo-text {
+    font-size: 1.5rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    background: linear-gradient(
+        135deg,
+        var(--text-primary) 0%,
+        var(--text-secondary) 100%
+    );
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.tagline {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding-left: var(--space-md);
+    border-left: 1px solid var(--border-default);
+}
+
+.header-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+}
+
+.control-group {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: 0 var(--space-sm);
+    border-right: 1px solid var(--border-muted);
+}
+
+.control-group:last-child {
+    border-right: none;
+    padding-right: 0;
+}
+
+/* Main content */
+main {
+    display: flex;
+    flex: 1;
+    padding: var(--space-md);
+    gap: var(--space-md);
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    min-height: 0;
+}
+
+.emulator-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-md);
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    max-height: 100%;
+}
+
+/* Footer */
+footer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-lg);
+    background: var(--bg-medium);
+    border-top: 1px solid var(--border-default);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+
+footer .separator {
+    color: var(--border-default);
+}
+
+footer kbd {
+    background: var(--bg-light);
+    border: 1px solid var(--border-default);
+    border-radius: 3px;
+    padding: 1px 6px;
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+}

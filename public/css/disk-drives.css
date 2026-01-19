@@ -1,0 +1,154 @@
+/* Apple //e Emulator - Disk Drive Styles
+   Disk drive UI components
+*/
+
+#disk-drives {
+    display: flex;
+    gap: var(--space-md);
+    width: 100%;
+    max-width: 576px;
+    flex-shrink: 0;
+}
+
+.disk-drive {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-sm);
+    max-width: 280px;
+    min-width: 0;
+}
+
+.drive-image-container {
+    width: 100%;
+    max-width: 280px;
+    position: relative;
+}
+
+.drive-number {
+    position: absolute;
+    top: 8.1%;
+    left: 15%;
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    font-size: 1.1em;
+    font-weight: 400;
+    color: #ffffff;
+    pointer-events: none;
+    user-select: none;
+    letter-spacing: 0.1em;
+}
+
+.drive-image {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.drive-info {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-xs) 0;
+    min-width: 0;
+}
+
+.drive-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.disk-name {
+    font-size: 0.6875rem;
+    color: #5a5347;
+    font-family: var(--font-mono);
+    white-space: nowrap;
+    overflow: hidden;
+    flex: 1;
+    min-width: 0;
+}
+
+.disk-name .disk-name-text {
+    display: inline-block;
+    white-space: nowrap;
+}
+
+.disk-name.scrolling .disk-name-text {
+    animation: disk-name-scroll var(--scroll-duration, 4s) ease-in-out infinite
+        alternate;
+}
+
+@keyframes disk-name-scroll {
+    0%,
+    15% {
+        transform: translateX(0);
+    }
+    85%,
+    100% {
+        transform: translateX(var(--scroll-distance, 0px));
+    }
+}
+
+.disk-track {
+    font-size: 0.6875rem;
+    color: #5a5347;
+    font-family: var(--font-mono);
+    font-weight: 600;
+    background: rgba(0, 0, 0, 0.15);
+    padding: 1px 4px;
+    border-radius: 3px;
+    min-width: 28px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.disk-track.active {
+    color: #ff6a33;
+    background: rgba(255, 100, 50, 0.25);
+    box-shadow: 0 0 4px rgba(255, 100, 50, 0.4);
+}
+
+.drive-controls {
+    display: flex;
+    gap: var(--space-xs);
+}
+
+.disk-insert,
+.disk-blank,
+.disk-eject {
+    flex: 1;
+    padding: var(--space-xs) var(--space-sm);
+    background: var(--bg-light);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: 0.6875rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.disk-insert:hover,
+.disk-blank:hover,
+.disk-eject:hover:not(:disabled) {
+    background: var(--bg-panel);
+    border-color: var(--text-muted);
+    color: var(--text-primary);
+}
+
+.disk-blank:hover {
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+}
+
+.disk-eject:hover:not(:disabled) {
+    border-color: var(--accent-orange);
+    color: var(--accent-orange);
+}
+
+.disk-eject:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
