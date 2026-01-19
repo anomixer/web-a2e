@@ -83,6 +83,19 @@ export class CPUDebuggerWindow extends DebugWindow {
    * Set up event listeners after content is rendered
    */
   setupContentEventListeners() {
+    // Disassembly click handler using event delegation
+    const disasmView = this.contentElement.querySelector('#disasm-view');
+    if (disasmView) {
+      disasmView.addEventListener('click', (e) => {
+        const line = e.target.closest('.cpu-disasm-line');
+        if (line && line.dataset.addr) {
+          const addr = parseInt(line.dataset.addr, 16);
+          console.log('Disasm click via delegation, addr:', addr.toString(16));
+          this.toggleBreakpoint(addr);
+        }
+      });
+    }
+
     // Debug control buttons
     const runBtn = this.contentElement.querySelector('#dbg-run');
     const pauseBtn = this.contentElement.querySelector('#dbg-pause');
@@ -315,6 +328,7 @@ export class CPUDebuggerWindow extends DebugWindow {
     for (let i = 0; i < totalLines && addr <= 0xFFFF; i++) {
       const line = document.createElement('div');
       line.className = 'cpu-disasm-line';
+      line.dataset.addr = addr.toString(16);
 
       const isCurrent = addr === pc;
       if (isCurrent) {
@@ -360,17 +374,6 @@ export class CPUDebuggerWindow extends DebugWindow {
       line.appendChild(addrSpan);
       line.appendChild(bytesSpan);
       line.appendChild(instrSpan);
-
-      // Click to toggle breakpoint
-      const clickAddr = addr;
-      const self = this;
-      line.style.cursor = 'pointer';
-      line.onclick = function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        console.log('Click on line:', clickAddr.toString(16));
-        self.toggleBreakpoint(clickAddr);
-      };
 
       view.appendChild(line);
 
