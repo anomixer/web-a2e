@@ -34,23 +34,24 @@ export class TextSelection {
     this.charHeight = 16;    // 16 pixels per char (8 * 2)
     this.rows = 24;
 
+    // Bind event handlers for proper cleanup
+    this.boundOnMouseDown = this.onMouseDown.bind(this);
+    this.boundOnMouseMove = this.onMouseMove.bind(this);
+    this.boundOnMouseUp = this.onMouseUp.bind(this);
+    this.boundOnMouseLeave = this.onMouseLeave.bind(this);
+    this.boundOnKeyDown = this.onKeyDown.bind(this);
+    this.boundOnContextMenu = this.onContextMenu.bind(this);
+
     this.setupOverlay();
     this.setupEventListeners();
   }
 
   setupOverlay() {
-    // Create overlay canvas positioned over the main canvas
     this.overlay = document.createElement('canvas');
     this.overlay.className = 'text-selection-overlay';
     this.overlay.width = 560;
     this.overlay.height = 384;
-    this.overlay.style.cssText = `
-      position: absolute;
-      pointer-events: none;
-      z-index: 5;
-    `;
 
-    // Insert overlay into the screen wrapper
     const wrapper = this.canvas.parentElement;
     if (wrapper) {
       wrapper.style.position = 'relative';
@@ -58,59 +59,47 @@ export class TextSelection {
     }
 
     this.overlayCtx = this.overlay.getContext('2d');
-
-    // Initial positioning
     this.resize();
   }
 
   setupEventListeners() {
-    // Mouse events on the main canvas
-    this.canvas.addEventListener('mousedown', this.onMouseDown.bind(this));
-    this.canvas.addEventListener('mousemove', this.onMouseMove.bind(this));
-    this.canvas.addEventListener('mouseup', this.onMouseUp.bind(this));
-    this.canvas.addEventListener('mouseleave', this.onMouseLeave.bind(this));
+    this.canvas.addEventListener('mousedown', this.boundOnMouseDown);
+    this.canvas.addEventListener('mousemove', this.boundOnMouseMove);
+    this.canvas.addEventListener('mouseup', this.boundOnMouseUp);
+    this.canvas.addEventListener('mouseleave', this.boundOnMouseLeave);
+    document.addEventListener('keydown', this.boundOnKeyDown);
+    this.canvas.addEventListener('contextmenu', this.boundOnContextMenu);
+  }
 
-    // Keyboard for copy
-    document.addEventListener('keydown', this.onKeyDown.bind(this));
+  /**
+   * Get soft switch state once and extract all mode flags
+   * @returns {{textMode: boolean, col80: boolean, page2: boolean}}
+   */
+  getDisplayMode() {
+    if (!this.wasmModule._getSoftSwitchState) {
+      return { textMode: false, col80: false, page2: false };
+    }
 
-    // Context menu for copy option
-    this.canvas.addEventListener('contextmenu', this.onContextMenu.bind(this));
+    const state = this.wasmModule._getSoftSwitchState();
+    return {
+      textMode: (state & 0x01) !== 0,  // Bit 0: TEXT mode
+      col80: (state & 0x10) !== 0,     // Bit 4: 80COL mode
+      page2: (state & 0x08) !== 0      // Bit 3: PAGE2
+    };
   }
 
   /**
    * Check if the emulator is in text mode
    */
   isTextMode() {
-    if (!this.wasmModule._getSoftSwitchState) return false;
-
-    const state = this.wasmModule._getSoftSwitchState();
-    // Bit 0: TEXT mode (1 = text, 0 = graphics)
-    const textMode = (state & 0x01) !== 0;
-    return textMode;
+    return this.getDisplayMode().textMode;
   }
 
   /**
    * Check if 80-column mode is active
    */
   is80ColumnMode() {
-    if (!this.wasmModule._getSoftSwitchState) return false;
-
-    const state = this.wasmModule._getSoftSwitchState();
-    // Bit 4: 80COL mode
-    const col80 = (state & 0x10) !== 0;
-    return col80;
-  }
-
-  /**
-   * Check if page 2 is active
-   */
-  isPage2() {
-    if (!this.wasmModule._getSoftSwitchState) return false;
-
-    const state = this.wasmModule._getSoftSwitchState();
-    // Bit 3: PAGE2
-    const page2 = (state & 0x08) !== 0;
-    return page2;
+    return this.getDisplayMode().col80;
   }
 
   /**
@@ -124,8 +113,9 @@ export class TextSelection {
     const canvasX = (x - rect.left) * scaleX;
     const canvasY = (y - rect.top) * scaleY;
 
-    const cols = this.is80ColumnMode() ? 80 : 40;
-    const charWidth = this.is80ColumnMode() ? this.charWidth80 : this.charWidth40;
+    const mode = this.getDisplayMode();
+    const cols = mode.col80 ? 80 : 40;
+    const charWidth = mode.col80 ? this.charWidth80 : this.charWidth40;
 
     const col = Math.floor(canvasX / charWidth);
     const row = Math.floor(canvasY / this.charHeight);
@@ -137,78 +127,14 @@ export class TextSelection {
   }
 
   /**
-   * Get the screen memory address for a character position
+   * Normalize selection so start is always before end
+   * @returns {{startRow, startCol, endRow, endCol}} Normalized coordinates
    */
-  getScreenAddress(row, col, isAux = false) {
-    const baseAddr = TEXT_ROW_BASES[row];
-    const page2Offset = this.isPage2() ? PAGE2_OFFSET : 0;
-    return baseAddr + page2Offset + col;
-  }
-
-  /**
-   * Read a character from screen memory
-   */
-  readScreenChar(row, col) {
-    if (this.is80ColumnMode()) {
-      // 80-column mode: even columns in aux, odd in main
-      const memCol = Math.floor(col / 2);
-      const isAux = (col % 2) === 0;
-      const addr = this.getScreenAddress(row, memCol);
-
-      // Use peekAuxMemory for auxiliary memory, peekMemory for main
-      if (isAux) {
-        return this.wasmModule._peekAuxMemory(addr);
-      } else {
-        return this.wasmModule._peekMemory(addr);
-      }
-    } else {
-      const addr = this.getScreenAddress(row, col);
-      return this.wasmModule._peekMemory(addr);
+  normalizeSelection() {
+    if (!this.selectionStart || !this.selectionEnd) {
+      return null;
     }
-  }
 
-  /**
-   * Convert Apple II character code to ASCII/Unicode
-   */
-  charToAscii(code) {
-    // Apple II character code mapping
-    if (code < 0x20) {
-      // $00-$1F: Inverse uppercase @ A-Z [ \ ] ^ _
-      return code + 0x40;
-    } else if (code < 0x40) {
-      // $20-$3F: Inverse symbols/digits (space, !"#$%&'()*+,-./0-9:;<=>?)
-      return code;
-    } else if (code < 0x60) {
-      // $40-$5F: Flash uppercase (same as inverse)
-      return code;
-    } else if (code < 0x80) {
-      // $60-$7F: Flash symbols
-      return code - 0x40;
-    } else if (code < 0xA0) {
-      // $80-$9F: Normal uppercase
-      return code - 0x40;
-    } else if (code < 0xC0) {
-      // $A0-$BF: Normal symbols
-      return code - 0x80;
-    } else if (code < 0xE0) {
-      // $C0-$DF: Normal uppercase (alternate)
-      return code - 0x80;
-    } else {
-      // $E0-$FF: Normal lowercase
-      return code - 0x80;
-    }
-  }
-
-  /**
-   * Get selected text as a string
-   */
-  getSelectedText() {
-    if (!this.selectionStart || !this.selectionEnd) return '';
-    if (!this.isTextMode()) return '';
-
-    const cols = this.is80ColumnMode() ? 80 : 40;
-
-    // Normalize selection (ensure start is before end)
     let startRow = this.selectionStart.row;
     let startCol = this.selectionStart.col;
     let endRow = this.selectionEnd.row;
@@ -219,24 +145,88 @@ export class TextSelection {
       [startCol, endCol] = [endCol, startCol];
     }
 
+    return { startRow, startCol, endRow, endCol };
+  }
+
+  /**
+   * Get the screen memory address for a character position
+   */
+  getScreenAddress(row, col, page2) {
+    const baseAddr = TEXT_ROW_BASES[row];
+    const page2Offset = page2 ? PAGE2_OFFSET : 0;
+    return baseAddr + page2Offset + col;
+  }
+
+  /**
+   * Read a character from screen memory
+   */
+  readScreenChar(row, col, mode) {
+    if (mode.col80) {
+      // 80-column mode: even columns in aux, odd in main
+      const memCol = Math.floor(col / 2);
+      const isAux = (col % 2) === 0;
+      const addr = this.getScreenAddress(row, memCol, mode.page2);
+
+      if (isAux) {
+        return this.wasmModule._peekAuxMemory(addr);
+      } else {
+        return this.wasmModule._peekMemory(addr);
+      }
+    } else {
+      const addr = this.getScreenAddress(row, col, mode.page2);
+      return this.wasmModule._peekMemory(addr);
+    }
+  }
+
+  /**
+   * Convert Apple II character code to ASCII/Unicode
+   */
+  charToAscii(code) {
+    if (code < 0x20) {
+      return code + 0x40;  // Inverse uppercase
+    } else if (code < 0x40) {
+      return code;         // Inverse symbols/digits
+    } else if (code < 0x60) {
+      return code;         // Flash uppercase
+    } else if (code < 0x80) {
+      return code - 0x40;  // Flash symbols
+    } else if (code < 0xA0) {
+      return code - 0x40;  // Normal uppercase
+    } else if (code < 0xC0) {
+      return code - 0x80;  // Normal symbols
+    } else if (code < 0xE0) {
+      return code - 0x80;  // Normal uppercase (alternate)
+    } else {
+      return code - 0x80;  // Normal lowercase
+    }
+  }
+
+  /**
+   * Get selected text as a string
+   */
+  getSelectedText() {
+    const mode = this.getDisplayMode();
+    if (!mode.textMode) return '';
+
+    const sel = this.normalizeSelection();
+    if (!sel) return '';
+
+    const cols = mode.col80 ? 80 : 40;
     let text = '';
 
-    for (let row = startRow; row <= endRow; row++) {
-      const colStart = (row === startRow) ? startCol : 0;
-      const colEnd = (row === endRow) ? endCol : cols - 1;
+    for (let row = sel.startRow; row <= sel.endRow; row++) {
+      const colStart = (row === sel.startRow) ? sel.startCol : 0;
+      const colEnd = (row === sel.endRow) ? sel.endCol : cols - 1;
 
       let line = '';
       for (let col = colStart; col <= colEnd; col++) {
-        const charCode = this.readScreenChar(row, col);
+        const charCode = this.readScreenChar(row, col, mode);
         const ascii = this.charToAscii(charCode);
         line += String.fromCharCode(ascii);
       }
 
-      // Trim trailing spaces from each line
-      line = line.trimEnd();
-
-      text += line;
-      if (row < endRow) {
+      text += line.trimEnd();
+      if (row < sel.endRow) {
         text += '\n';
       }
     }
@@ -265,7 +255,6 @@ export class TextSelection {
    * Show visual feedback when text is copied
    */
   showCopyFeedback() {
-    // Flash the selection briefly with copy feedback color
     const ctx = this.overlayCtx;
     const copyFlashColor = getComputedStyle(document.documentElement)
       .getPropertyValue('--selection-copy-flash').trim() || 'rgba(63, 185, 80, 0.5)';
@@ -284,30 +273,22 @@ export class TextSelection {
     const ctx = this.overlayCtx;
     ctx.clearRect(0, 0, this.overlay.width, this.overlay.height);
 
-    if (!this.selectionStart || !this.selectionEnd) return;
-    if (!this.isTextMode()) return;
+    const mode = this.getDisplayMode();
+    if (!mode.textMode) return;
 
-    const cols = this.is80ColumnMode() ? 80 : 40;
-    const charWidth = this.is80ColumnMode() ? this.charWidth80 : this.charWidth40;
+    const sel = this.normalizeSelection();
+    if (!sel) return;
 
-    // Normalize selection
-    let startRow = this.selectionStart.row;
-    let startCol = this.selectionStart.col;
-    let endRow = this.selectionEnd.row;
-    let endCol = this.selectionEnd.col;
-
-    if (startRow > endRow || (startRow === endRow && startCol > endCol)) {
-      [startRow, endRow] = [endRow, startRow];
-      [startCol, endCol] = [endCol, startCol];
-    }
+    const cols = mode.col80 ? 80 : 40;
+    const charWidth = mode.col80 ? this.charWidth80 : this.charWidth40;
 
     const highlightColor = getComputedStyle(document.documentElement)
       .getPropertyValue('--selection-highlight').trim() || 'rgba(88, 166, 255, 0.35)';
     ctx.fillStyle = highlightColor;
 
-    for (let row = startRow; row <= endRow; row++) {
-      const colStart = (row === startRow) ? startCol : 0;
-      const colEnd = (row === endRow) ? endCol : cols - 1;
+    for (let row = sel.startRow; row <= sel.endRow; row++) {
+      const colStart = (row === sel.startRow) ? sel.startCol : 0;
+      const colEnd = (row === sel.endRow) ? sel.endCol : cols - 1;
 
       const x = colStart * charWidth;
       const y = row * this.charHeight;
@@ -335,7 +316,7 @@ export class TextSelection {
 
   onMouseDown(e) {
     if (!this.isTextMode()) return;
-    if (e.button !== 0) return; // Left click only
+    if (e.button !== 0) return;
 
     const pos = this.pixelToChar(e.clientX, e.clientY);
     this.selectionStart = pos;
@@ -343,8 +324,6 @@ export class TextSelection {
     this.isSelecting = true;
 
     this.drawSelectionHighlight();
-
-    // Prevent text selection on the page
     e.preventDefault();
   }
 
@@ -366,22 +345,19 @@ export class TextSelection {
 
     this.isSelecting = false;
 
-    // Check if it's just a click (no drag)
+    // Single click (no drag) - clear selection
     if (this.selectionStart && this.selectionEnd &&
         this.selectionStart.row === this.selectionEnd.row &&
         this.selectionStart.col === this.selectionEnd.col) {
-      // Single click - clear selection
       this.clearSelection();
     }
   }
 
   onMouseLeave(e) {
-    // Don't clear selection, but stop extending it
     this.isSelecting = false;
   }
 
   onKeyDown(e) {
-    // Ctrl+C or Cmd+C to copy
     if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
       if (this.selectionStart && this.selectionEnd) {
         this.copyToClipboard();
@@ -389,7 +365,6 @@ export class TextSelection {
       }
     }
 
-    // Escape to clear selection
     if (e.key === 'Escape' && this.selectionStart) {
       this.clearSelection();
     }
@@ -398,7 +373,6 @@ export class TextSelection {
   onContextMenu(e) {
     if (!this.isTextMode()) return;
 
-    // If there's a selection, show copy option
     if (this.selectionStart && this.selectionEnd) {
       e.preventDefault();
       this.showContextMenu(e.clientX, e.clientY);
@@ -409,7 +383,6 @@ export class TextSelection {
    * Show a simple context menu with copy option
    */
   showContextMenu(x, y) {
-    // Remove any existing context menu
     const existing = document.querySelector('.text-select-context-menu');
     if (existing) existing.remove();
 
@@ -425,17 +398,18 @@ export class TextSelection {
       </button>
     `;
 
-    menu.style.cssText = `
-      position: fixed;
-      left: ${x}px;
-      top: ${y}px;
-      z-index: 10000;
-    `;
+    // Position menu, ensuring it stays within viewport
+    const menuWidth = 150;
+    const menuHeight = 70;
+    const left = Math.min(x, window.innerWidth - menuWidth - 10);
+    const top = Math.min(y, window.innerHeight - menuHeight - 10);
+
+    menu.style.left = left + 'px';
+    menu.style.top = top + 'px';
 
     document.body.appendChild(menu);
 
-    // Handle menu clicks
-    menu.addEventListener('click', (e) => {
+    const handleClick = (e) => {
       const item = e.target.closest('.context-menu-item');
       if (!item) return;
 
@@ -447,9 +421,10 @@ export class TextSelection {
       }
 
       menu.remove();
-    });
+    };
 
-    // Close menu on click outside
+    menu.addEventListener('click', handleClick);
+
     const closeMenu = (e) => {
       if (!menu.contains(e.target)) {
         menu.remove();
@@ -482,18 +457,15 @@ export class TextSelection {
   resize() {
     if (!this.overlay) return;
 
-    // Get canvas position relative to its parent (the wrapper)
     const wrapper = this.canvas.parentElement;
     if (!wrapper) return;
 
     const wrapperRect = wrapper.getBoundingClientRect();
     const canvasRect = this.canvas.getBoundingClientRect();
 
-    // Calculate offset of canvas within wrapper
     const offsetLeft = canvasRect.left - wrapperRect.left;
     const offsetTop = canvasRect.top - wrapperRect.top;
 
-    // Position and size the overlay to exactly match the canvas
     this.overlay.style.left = offsetLeft + 'px';
     this.overlay.style.top = offsetTop + 'px';
     this.overlay.style.width = canvasRect.width + 'px';
@@ -501,11 +473,24 @@ export class TextSelection {
   }
 
   /**
-   * Clean up resources
+   * Clean up resources and remove event listeners
    */
   destroy() {
+    // Remove event listeners
+    this.canvas.removeEventListener('mousedown', this.boundOnMouseDown);
+    this.canvas.removeEventListener('mousemove', this.boundOnMouseMove);
+    this.canvas.removeEventListener('mouseup', this.boundOnMouseUp);
+    this.canvas.removeEventListener('mouseleave', this.boundOnMouseLeave);
+    document.removeEventListener('keydown', this.boundOnKeyDown);
+    this.canvas.removeEventListener('contextmenu', this.boundOnContextMenu);
+
+    // Remove overlay
     if (this.overlay && this.overlay.parentElement) {
       this.overlay.parentElement.removeChild(this.overlay);
     }
+
+    // Remove any open context menu
+    const menu = document.querySelector('.text-select-context-menu');
+    if (menu) menu.remove();
   }
 }
