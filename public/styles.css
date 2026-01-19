@@ -291,6 +291,15 @@ header {
     box-shadow: 0 0 20px rgba(248, 81, 73, 0.3);
 }
 
+/* Drives toggle button */
+#btn-drives.off {
+    opacity: 0.5;
+}
+
+#btn-drives.off:hover {
+    opacity: 0.8;
+}
+
 /* Reset buttons with labels */
 .control-btn.reset-btn {
     width: auto;

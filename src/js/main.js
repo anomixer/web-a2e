@@ -217,6 +217,27 @@ class AppleIIeEmulator {
       }
     });
 
+    // Disk drives visibility toggle
+    const drivesBtn = document.getElementById("btn-drives");
+    const diskDrives = document.getElementById("disk-drives");
+
+    // Load saved drives visibility setting (default to visible)
+    const savedDrivesVisible = localStorage.getItem("a2e-show-drives");
+    if (savedDrivesVisible === "false") {
+      diskDrives.classList.add("hidden");
+      drivesBtn.classList.add("off");
+      // Defer resize to after initial layout
+      requestAnimationFrame(() => this.handleResize());
+    }
+
+    drivesBtn.addEventListener("click", () => {
+      const isHidden = diskDrives.classList.toggle("hidden");
+      drivesBtn.classList.toggle("off", isHidden);
+      localStorage.setItem("a2e-show-drives", !isHidden);
+      this.handleResize();
+      refocusCanvas();
+    });
+
     // Sound popup
     const soundBtn = document.getElementById("btn-sound");
     const soundPopup = document.getElementById("sound-popup");
