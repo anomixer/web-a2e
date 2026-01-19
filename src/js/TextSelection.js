@@ -361,7 +361,9 @@ export class TextSelection {
 
   onKeyDown(e) {
     // Ctrl+C / Cmd+C to copy selection
-    if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+    // Use e.code for reliable detection across platforms
+    const isCopyKey = e.code === 'KeyC' || e.key === 'c' || e.key === 'C';
+    if ((e.ctrlKey || e.metaKey) && isCopyKey) {
       if (this.selectionStart && this.selectionEnd) {
         this.copyToClipboard();
         e.preventDefault();
@@ -395,10 +397,12 @@ export class TextSelection {
 
     const menu = document.createElement('div');
     menu.className = 'text-select-context-menu';
+    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+    const copyShortcut = isMac ? '⌘C' : 'Ctrl+C';
     menu.innerHTML = `
       <button class="context-menu-item" data-action="copy">
         <span>Copy</span>
-        <span class="shortcut">Ctrl+C</span>
+        <span class="shortcut">${copyShortcut}</span>
       </button>
       <button class="context-menu-item" data-action="select-all">
         <span>Select All</span>

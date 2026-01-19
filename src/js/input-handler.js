@@ -15,7 +15,8 @@ export class InputHandler {
     // Paste queue for typing pasted text
     this.pasteQueue = [];
     this.pasteTimer = null;
-    this.pasteDelay = 60; // ms between characters
+    this.pasteDelay = 0; // as fast as possible - keyboard ready check throttles to emulator speed
+    this.pasteBoostCycles = 50000; // extra cycles to run per character for fast paste
   }
 
   init() {
@@ -206,17 +207,25 @@ export class InputHandler {
 
     // Check if keyboard is ready (strobe cleared from previous character)
     if (this.wasmModule._isKeyboardReady && !this.wasmModule._isKeyboardReady()) {
-      // Not ready yet, poll again soon
+      // Not ready yet, run extra cycles to speed up processing
+      if (this.wasmModule._runCycles) {
+        this.wasmModule._runCycles(this.pasteBoostCycles);
+      }
       this.pasteTimer = setTimeout(() => {
         this.processPasteQueue();
-      }, 5);
+      }, 0);
       return;
     }
 
     const appleKey = this.pasteQueue.shift();
     this.wasmModule._keyDown(appleKey);
 
-    // Schedule next character check
+    // Run extra cycles to let the emulator process the keystroke faster
+    if (this.wasmModule._runCycles) {
+      this.wasmModule._runCycles(this.pasteBoostCycles);
+    }
+
+    // Schedule next character immediately
     this.pasteTimer = setTimeout(() => {
       this.processPasteQueue();
     }, this.pasteDelay);

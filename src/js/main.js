@@ -7,6 +7,7 @@ import { DiskManager } from "./disk-manager/index.js";
 import { TextSelection } from "./TextSelection.js";
 import { MonitorResizer } from "./ui/MonitorResizer.js";
 import { ReminderController } from "./ui/ReminderController.js";
+import { DocumentationDialog } from "./ui/DocumentationDialog.js";
 import {
   WindowManager,
   CPUDebuggerWindow,
@@ -31,6 +32,7 @@ class AppleIIeEmulator {
     this.textSelection = null;
     this.monitorResizer = null;
     this.reminderController = null;
+    this.documentationDialog = null;
 
     this.running = false;
     this.isFullPageMode = false;
@@ -128,6 +130,10 @@ class AppleIIeEmulator {
 
       // Set up reminder controller
       this.reminderController = new ReminderController();
+
+      // Set up documentation dialog
+      this.documentationDialog = new DocumentationDialog();
+      this.documentationDialog.init();
 
       // Set up monitor resizer
       this.monitorResizer = new MonitorResizer({
