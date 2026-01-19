@@ -8,6 +8,10 @@ export class InputHandler {
     // Canvas element for focus management
     this.canvas = null;
 
+    // Hidden input for mobile keyboard
+    this.mobileInput = null;
+    this.isMobile = false;
+
     // Paste queue for typing pasted text
     this.pasteQueue = [];
     this.pasteTimer = null;
@@ -15,17 +19,41 @@ export class InputHandler {
   }
 
   init() {
+    // Detect mobile/touch devices
+    this.isMobile = this.detectMobile();
+
     // Get canvas and make it focusable
     this.canvas = document.getElementById("screen");
     this.canvas.tabIndex = 1; // Make canvas focusable
 
-    // Focus canvas on click
+    // Create hidden input for mobile keyboard
+    if (this.isMobile) {
+      this.createMobileInput();
+    }
+
+    // Focus canvas on click (or mobile input on mobile)
     this.canvas.addEventListener("click", () => {
-      this.canvas.focus();
+      if (this.isMobile && this.mobileInput) {
+        this.mobileInput.focus();
+      } else {
+        this.canvas.focus();
+      }
     });
 
-    // Focus canvas initially
-    setTimeout(() => this.canvas.focus(), 100);
+    // Also handle touch events for mobile
+    this.canvas.addEventListener("touchend", (e) => {
+      if (this.isMobile && this.mobileInput) {
+        // Small delay to ensure touch event completes
+        setTimeout(() => {
+          this.mobileInput.focus();
+        }, 50);
+      }
+    });
+
+    // Focus canvas initially (not on mobile - wait for user tap)
+    if (!this.isMobile) {
+      setTimeout(() => this.canvas.focus(), 100);
+    }
 
     // Keyboard event listeners - attach to canvas for better focus control
     this.canvas.addEventListener("keydown", (e) => this.handleKeyDown(e));
@@ -201,5 +229,116 @@ export class InputHandler {
       this.pasteTimer = null;
     }
     this.pasteQueue = [];
+  }
+
+  // Detect if we're on a mobile/touch device
+  detectMobile() {
+    // Check for touch capability and mobile user agent
+    const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    // Also check for small screen width as a fallback
+    const isSmallScreen = window.innerWidth <= 800;
+
+    return hasTouch && (isMobileUA || isSmallScreen);
+  }
+
+  // Create hidden input element for mobile keyboard
+  createMobileInput() {
+    this.mobileInput = document.createElement('input');
+    this.mobileInput.type = 'text';
+    this.mobileInput.id = 'mobile-keyboard-input';
+    this.mobileInput.autocomplete = 'off';
+    this.mobileInput.autocapitalize = 'none';
+    this.mobileInput.autocorrect = 'off';
+    this.mobileInput.spellcheck = false;
+
+    // Style to be invisible but still functional
+    Object.assign(this.mobileInput.style, {
+      position: 'absolute',
+      left: '-9999px',
+      top: '0',
+      width: '1px',
+      height: '1px',
+      opacity: '0',
+      pointerEvents: 'none',
+      zIndex: '-1'
+    });
+
+    document.body.appendChild(this.mobileInput);
+
+    // Handle input events from mobile keyboard
+    this.mobileInput.addEventListener('input', (e) => {
+      const data = e.data;
+      if (data) {
+        // Process each character typed
+        for (const char of data) {
+          this.sendCharToEmulator(char);
+        }
+      }
+      // Clear the input to be ready for next character
+      this.mobileInput.value = '';
+    });
+
+    // Handle special keys via keydown
+    this.mobileInput.addEventListener('keydown', (e) => {
+      const keyCode = e.keyCode || e.which;
+
+      // Handle special keys that don't generate input events
+      switch (keyCode) {
+        case 8:  // Backspace
+        case 13: // Enter
+        case 27: // Escape
+        case 9:  // Tab
+          e.preventDefault();
+          this.handleKeyDown(e);
+          break;
+      }
+    });
+
+    this.mobileInput.addEventListener('keyup', (e) => {
+      const keyCode = e.keyCode || e.which;
+
+      // Handle special key releases
+      switch (keyCode) {
+        case 8:  // Backspace
+        case 13: // Enter
+        case 27: // Escape
+        case 9:  // Tab
+          this.handleKeyUp(e);
+          break;
+      }
+    });
+
+    // Handle blur - show visual feedback that keyboard is hidden
+    this.mobileInput.addEventListener('blur', () => {
+      this.canvas.classList.remove('keyboard-active');
+    });
+
+    // Handle focus - show visual feedback that keyboard is active
+    this.mobileInput.addEventListener('focus', () => {
+      this.canvas.classList.add('keyboard-active');
+    });
+  }
+
+  // Send a character to the emulator (for mobile input)
+  sendCharToEmulator(char) {
+    const appleKey = this.charToAppleKey(char);
+    if (appleKey !== null) {
+      this.wasmModule._keyDown(appleKey);
+    }
+  }
+
+  // Show mobile keyboard programmatically
+  showMobileKeyboard() {
+    if (this.isMobile && this.mobileInput) {
+      this.mobileInput.focus();
+    }
+  }
+
+  // Hide mobile keyboard
+  hideMobileKeyboard() {
+    if (this.isMobile && this.mobileInput) {
+      this.mobileInput.blur();
+    }
   }
 }

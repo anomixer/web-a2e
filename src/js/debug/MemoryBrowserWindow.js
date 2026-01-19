@@ -107,12 +107,12 @@ export class MemoryBrowserWindow extends DebugWindow {
   }
 
   setupScrolling() {
-    // Mouse wheel scrolling
+    // Mouse wheel scrolling - explicitly non-passive since we need preventDefault()
     this.scrollContainer.addEventListener("wheel", (e) => {
       e.preventDefault();
       const delta = Math.sign(e.deltaY) * this.bytesPerRow * 4;
       this.scrollToAddress(this.baseAddress + delta);
-    });
+    }, { passive: false });
 
     // Scrollbar dragging
     let isDragging = false;
