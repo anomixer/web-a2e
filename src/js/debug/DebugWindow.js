@@ -21,6 +21,12 @@ export class DebugWindow {
     this.resizeStart = { x: 0, y: 0, width: 0, height: 0, left: 0, top: 0 };
     this.resizeDirection = null;
 
+    // Track current position/size (needed because getBoundingClientRect returns zeros for hidden elements)
+    this.currentX = config.defaultPosition?.x || 100;
+    this.currentY = config.defaultPosition?.y || 100;
+    this.currentWidth = config.defaultWidth || 400;
+    this.currentHeight = config.defaultHeight || 300;
+
     // Bind event handlers
     this.handleMouseDown = this.handleMouseDown.bind(this);
     this.handleMouseMove = this.handleMouseMove.bind(this);
@@ -166,6 +172,8 @@ export class DebugWindow {
 
     this.element.style.left = `${x}px`;
     this.element.style.top = `${y}px`;
+    this.currentX = x;
+    this.currentY = y;
   }
 
   /**
@@ -237,6 +245,10 @@ export class DebugWindow {
     this.element.style.height = `${newHeight}px`;
     this.element.style.left = `${newLeft}px`;
     this.element.style.top = `${newTop}px`;
+    this.currentWidth = newWidth;
+    this.currentHeight = newHeight;
+    this.currentX = newLeft;
+    this.currentY = newTop;
   }
 
   /**
@@ -254,9 +266,11 @@ export class DebugWindow {
    * Hide the window
    */
   hide() {
-    this.element.classList.add('hidden');
+    // Set visibility flag first so getState() returns correct value
     this.isVisible = false;
+    // Save state BEFORE adding hidden class, since getBoundingClientRect returns zeros for display:none
     if (this.onStateChange) this.onStateChange();
+    this.element.classList.add('hidden');
     // Refocus canvas for keyboard input
     const canvas = document.getElementById('screen');
     if (canvas) {
@@ -286,12 +300,12 @@ export class DebugWindow {
    * Get window state for persistence
    */
   getState() {
-    const rect = this.element.getBoundingClientRect();
+    // Use tracked values instead of getBoundingClientRect which returns zeros for hidden elements
     return {
-      x: rect.left,
-      y: rect.top,
-      width: rect.width,
-      height: rect.height,
+      x: this.currentX,
+      y: this.currentY,
+      width: this.currentWidth,
+      height: this.currentHeight,
       visible: this.isVisible
     };
   }
@@ -300,22 +314,27 @@ export class DebugWindow {
    * Restore window state from persistence
    */
   restoreState(state) {
-    if (state.x !== undefined) this.element.style.left = `${state.x}px`;
-    if (state.y !== undefined) this.element.style.top = `${state.y}px`;
+    if (state.x !== undefined) {
+      this.element.style.left = `${state.x}px`;
+      this.currentX = state.x;
+    }
+    if (state.y !== undefined) {
+      this.element.style.top = `${state.y}px`;
+      this.currentY = state.y;
+    }
     // Enforce minimum dimensions when restoring
     if (state.width !== undefined) {
       const width = Math.max(state.width, this.minWidth);
       this.element.style.width = `${width}px`;
+      this.currentWidth = width;
     }
     if (state.height !== undefined) {
       const height = Math.max(state.height, this.minHeight);
       this.element.style.height = `${height}px`;
+      this.currentHeight = height;
     }
     if (state.visible) {
       this.show();
-    } else {
-      // Constrain position even for hidden windows so they appear correctly when shown
-      this.constrainToViewport();
     }
   }
 
@@ -325,37 +344,39 @@ export class DebugWindow {
   constrainToViewport() {
     if (!this.element) return;
 
-    const rect = this.element.getBoundingClientRect();
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
 
-    let newLeft = rect.left;
-    let newTop = rect.top;
+    // Use tracked values (getBoundingClientRect returns zeros for hidden elements)
+    let newLeft = this.currentX;
+    let newTop = this.currentY;
+    const width = this.currentWidth;
+    const height = this.currentHeight;
     let changed = false;
 
     // If window is wider than viewport, align to left edge
-    if (rect.width >= viewportWidth) {
+    if (width >= viewportWidth) {
       newLeft = 0;
       changed = true;
-    } else if (rect.right > viewportWidth) {
+    } else if (newLeft + width > viewportWidth) {
       // Window extends past right edge
-      newLeft = viewportWidth - rect.width;
+      newLeft = viewportWidth - width;
       changed = true;
-    } else if (rect.left < 0) {
+    } else if (newLeft < 0) {
       // Window extends past left edge
       newLeft = 0;
       changed = true;
     }
 
     // If window is taller than viewport, align to top edge
-    if (rect.height >= viewportHeight) {
+    if (height >= viewportHeight) {
       newTop = 0;
       changed = true;
-    } else if (rect.bottom > viewportHeight) {
+    } else if (newTop + height > viewportHeight) {
       // Window extends past bottom edge
-      newTop = viewportHeight - rect.height;
+      newTop = viewportHeight - height;
       changed = true;
-    } else if (rect.top < 0) {
+    } else if (newTop < 0) {
       // Window extends past top edge
       newTop = 0;
       changed = true;
@@ -364,6 +385,8 @@ export class DebugWindow {
     if (changed) {
       this.element.style.left = `${newLeft}px`;
       this.element.style.top = `${newTop}px`;
+      this.currentX = newLeft;
+      this.currentY = newTop;
     }
   }
 

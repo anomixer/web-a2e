@@ -113,6 +113,13 @@ class AppleIIeEmulator {
       // Load saved window states
       this.windowManager.loadState();
 
+      // Save window states when page is closed
+      window.addEventListener('beforeunload', () => {
+        if (this.windowManager) {
+          this.windowManager.saveState();
+        }
+      });
+
       // Start with TV static "no signal" since emulator is off
       this.renderer.setNoSignal(true);
 
