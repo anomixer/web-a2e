@@ -96,6 +96,23 @@
     margin-left: var(--space-xs);
 }
 
+/* Help button */
+.help-btn {
+    width: auto;
+    padding: 0 var(--space-md);
+    font-size: 0.8125rem;
+    font-weight: 500;
+}
+
+.help-btn span {
+    margin-left: var(--space-xs);
+}
+
+.help-btn:hover {
+    color: var(--accent-blue);
+    border-color: var(--accent-blue);
+}
+
 /* Display button styling */
 .display-btn {
     width: auto;

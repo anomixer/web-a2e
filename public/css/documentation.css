@@ -15,6 +15,8 @@ dialog.documentation-modal {
     height: 85vh;
     max-height: 85vh;
     min-width: 0;
+    background: var(--bg-medium);
+    color: var(--text-secondary);
 }
 
 /* Header */
@@ -127,6 +129,7 @@ dialog.documentation-modal {
     padding: var(--space-lg);
     overflow-y: auto;
     min-width: 0;
+    background: var(--bg-medium);
 }
 
 .documentation-section {
@@ -174,6 +177,12 @@ dialog.documentation-modal {
 
 .documentation-section li {
     margin-bottom: var(--space-xs);
+    color: var(--text-secondary);
+}
+
+.documentation-section strong {
+    color: var(--text-primary);
+    font-weight: 600;
 }
 
 /* Keyboard reference table */
@@ -311,6 +320,7 @@ kbd {
     position: relative;
     padding-left: 32px;
     margin-bottom: var(--space-md);
+    color: var(--text-secondary);
 }
 
 .quick-start-list li::before {

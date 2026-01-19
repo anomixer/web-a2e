@@ -83,14 +83,23 @@ export class CPUDebuggerWindow extends DebugWindow {
    * Set up event listeners after content is rendered
    */
   setupContentEventListeners() {
-    // Disassembly click handler using event delegation
+    // Test: log ALL mousedowns on content
+    this.contentElement.addEventListener('mousedown', (e) => {
+      console.log('Content mousedown:', e.target.tagName, e.target.className);
+    });
+
+    // Disassembly click handler using event delegation with mousedown
     const disasmView = this.contentElement.querySelector('#disasm-view');
+    console.log('Setting up disasm click handler, view found:', !!disasmView);
     if (disasmView) {
-      disasmView.addEventListener('click', (e) => {
+      disasmView.addEventListener('mousedown', (e) => {
+        console.log('Disasm view mousedown, target:', e.target.tagName, e.target.className);
         const line = e.target.closest('.cpu-disasm-line');
         if (line && line.dataset.addr) {
           const addr = parseInt(line.dataset.addr, 16);
-          console.log('Disasm click via delegation, addr:', addr.toString(16));
+          console.log('Disasm mousedown on addr:', addr.toString(16));
+          e.preventDefault();
+          e.stopPropagation();
           this.toggleBreakpoint(addr);
         }
       });
