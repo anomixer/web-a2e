@@ -38,7 +38,6 @@ export class TextSelection {
     this.boundOnMouseDown = this.onMouseDown.bind(this);
     this.boundOnMouseMove = this.onMouseMove.bind(this);
     this.boundOnMouseUp = this.onMouseUp.bind(this);
-    this.boundOnMouseLeave = this.onMouseLeave.bind(this);
     this.boundOnKeyDown = this.onKeyDown.bind(this);
     this.boundOnContextMenu = this.onContextMenu.bind(this);
 
@@ -63,10 +62,9 @@ export class TextSelection {
   }
 
   setupEventListeners() {
+    // mousedown on canvas starts selection
     this.canvas.addEventListener('mousedown', this.boundOnMouseDown);
-    this.canvas.addEventListener('mousemove', this.boundOnMouseMove);
-    this.canvas.addEventListener('mouseup', this.boundOnMouseUp);
-    this.canvas.addEventListener('mouseleave', this.boundOnMouseLeave);
+    // mousemove/mouseup on document to track selection even outside canvas
     document.addEventListener('keydown', this.boundOnKeyDown);
     this.canvas.addEventListener('contextmenu', this.boundOnContextMenu);
   }
@@ -323,6 +321,10 @@ export class TextSelection {
     this.selectionEnd = pos;
     this.isSelecting = true;
 
+    // Add document-level listeners to track selection even outside canvas
+    document.addEventListener('mousemove', this.boundOnMouseMove);
+    document.addEventListener('mouseup', this.boundOnMouseUp);
+
     this.drawSelectionHighlight();
     e.preventDefault();
   }
@@ -345,16 +347,16 @@ export class TextSelection {
 
     this.isSelecting = false;
 
+    // Remove document-level listeners
+    document.removeEventListener('mousemove', this.boundOnMouseMove);
+    document.removeEventListener('mouseup', this.boundOnMouseUp);
+
     // Single click (no drag) - clear selection
     if (this.selectionStart && this.selectionEnd &&
         this.selectionStart.row === this.selectionEnd.row &&
         this.selectionStart.col === this.selectionEnd.col) {
       this.clearSelection();
     }
-  }
-
-  onMouseLeave(e) {
-    this.isSelecting = false;
   }
 
   onKeyDown(e) {
@@ -478,9 +480,8 @@ export class TextSelection {
   destroy() {
     // Remove event listeners
     this.canvas.removeEventListener('mousedown', this.boundOnMouseDown);
-    this.canvas.removeEventListener('mousemove', this.boundOnMouseMove);
-    this.canvas.removeEventListener('mouseup', this.boundOnMouseUp);
-    this.canvas.removeEventListener('mouseleave', this.boundOnMouseLeave);
+    document.removeEventListener('mousemove', this.boundOnMouseMove);
+    document.removeEventListener('mouseup', this.boundOnMouseUp);
     document.removeEventListener('keydown', this.boundOnKeyDown);
     this.canvas.removeEventListener('contextmenu', this.boundOnContextMenu);
 
