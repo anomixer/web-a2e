@@ -519,4 +519,20 @@ bool isUKCharacterSet() {
   return false;
 }
 
+// Color fringing control for HGR graphics
+EMSCRIPTEN_KEEPALIVE
+void setColorFringing(bool enabled) {
+  if (g_emulator) {
+    g_emulator->getVideo().setColorFringing(enabled);
+  }
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool isColorFringing() {
+  if (g_emulator) {
+    return g_emulator->getVideo().isColorFringing();
+  }
+  return false;
+}
+
 } // extern "C"

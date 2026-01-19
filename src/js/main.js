@@ -82,8 +82,8 @@ class AppleIIeEmulator {
       switchWindow.create();
       this.windowManager.register(switchWindow);
 
-      // Set up display settings window (pass renderer for shader control)
-      this.displaySettings = new DisplaySettingsWindow(this.renderer);
+      // Set up display settings window (pass renderer for shader control, wasmModule for video settings)
+      this.displaySettings = new DisplaySettingsWindow(this.renderer, this.wasmModule);
       this.displaySettings.create();
       this.windowManager.register(this.displaySettings);
 

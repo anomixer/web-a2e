@@ -4,7 +4,7 @@ import { DebugWindow } from './DebugWindow.js';
  * DisplaySettingsWindow - CRT display effects and settings
  */
 export class DisplaySettingsWindow extends DebugWindow {
-  constructor(renderer) {
+  constructor(renderer, wasmModule) {
     super({
       id: 'display-settings',
       title: 'Display Settings',
@@ -16,6 +16,7 @@ export class DisplaySettingsWindow extends DebugWindow {
     });
 
     this.renderer = renderer;
+    this.wasmModule = wasmModule;
 
     // Default values (percentages 0-100 for UI, converted to shader values)
     this.defaults = {
@@ -37,6 +38,7 @@ export class DisplaySettingsWindow extends DebugWindow {
       burnIn: 0,
       overscan: 0,
       sharpPixels: false,
+      colorFringing: false,
     };
 
     // Current values
@@ -89,7 +91,7 @@ export class DisplaySettingsWindow extends DebugWindow {
       html += '</div>';
     }
 
-    // Toggle for sharp pixels
+    // Toggle for sharp pixels and color fringing
     html += `
       <div class="settings-section">
         <div class="settings-section-title">Rendering</div>
@@ -97,6 +99,13 @@ export class DisplaySettingsWindow extends DebugWindow {
           <label>Sharp Pixels</label>
           <label class="toggle">
             <input type="checkbox" id="ds-sharpPixels" ${this.settings.sharpPixels ? 'checked' : ''}>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row toggle-row">
+          <label>Color Fringing</label>
+          <label class="toggle">
+            <input type="checkbox" id="ds-colorFringing" ${this.settings.colorFringing ? 'checked' : ''}>
             <span class="toggle-slider"></span>
           </label>
         </div>
@@ -138,6 +147,18 @@ export class DisplaySettingsWindow extends DebugWindow {
         this.settings.sharpPixels = e.target.checked;
         if (this.renderer) {
           this.renderer.setNearestFilter(this.settings.sharpPixels);
+        }
+        this.saveSettings();
+      });
+    }
+
+    // Color fringing toggle
+    const fringeToggle = this.contentElement.querySelector('#ds-colorFringing');
+    if (fringeToggle) {
+      fringeToggle.addEventListener('change', (e) => {
+        this.settings.colorFringing = e.target.checked;
+        if (this.wasmModule?._setColorFringing) {
+          this.wasmModule._setColorFringing(this.settings.colorFringing);
         }
         this.saveSettings();
       });
@@ -189,6 +210,14 @@ export class DisplaySettingsWindow extends DebugWindow {
       this.renderer.setNearestFilter(this.settings.sharpPixels);
     }
 
+    // Apply color fringing
+    const fringeToggle = this.contentElement.querySelector('#ds-colorFringing');
+    if (fringeToggle) {
+      fringeToggle.checked = this.settings.colorFringing;
+    }
+    if (this.wasmModule?._setColorFringing) {
+      this.wasmModule._setColorFringing(this.settings.colorFringing);
+    }
   }
 
   resetToDefaults() {
