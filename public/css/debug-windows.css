@@ -160,6 +160,8 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
+    height: 100%;
+    min-height: 0;
 }
 
 /* Toolbar */
@@ -277,6 +279,14 @@
 }
 
 /* Disassembly */
+.cpu-disassembly {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
 .cpu-disassembly h4 {
     font-size: 9px;
     font-weight: 600;
@@ -284,21 +294,26 @@
     text-transform: uppercase;
     letter-spacing: 0.08em;
     margin-bottom: 4px;
+    flex-shrink: 0;
 }
 
 .cpu-disasm-view {
-    background: rgba(0, 0, 0, 0.2);
+    background: rgba(0, 0, 0, 0.25);
     border-radius: var(--radius-sm);
-    padding: 4px;
-    max-height: 140px;
+    padding: 4px 0;
+    flex: 1;
     overflow-y: auto;
+    min-height: 180px;
 }
 
 .cpu-disasm-line {
     display: flex;
-    padding: 2px 4px;
-    border-radius: 2px;
+    align-items: center;
+    padding: 3px 6px;
+    border-radius: 0;
     cursor: pointer;
+    border-left: 2px solid transparent;
+    transition: background 0.1s;
 }
 
 .cpu-disasm-line:hover {
@@ -306,33 +321,72 @@
 }
 
 .cpu-disasm-line.current {
-    background: rgba(88, 166, 255, 0.15);
+    background: rgba(88, 166, 255, 0.2);
+    border-left-color: var(--accent-blue);
 }
 
 .cpu-disasm-line.breakpoint {
-    background: rgba(248, 81, 73, 0.15);
+    background: rgba(248, 81, 73, 0.12);
 }
 
 .cpu-disasm-line.current.breakpoint {
     background: linear-gradient(
         90deg,
-        rgba(88, 166, 255, 0.15) 0%,
+        rgba(88, 166, 255, 0.2) 0%,
         rgba(248, 81, 73, 0.15) 100%
     );
+    border-left-color: var(--accent-blue);
+}
+
+/* Gutter for breakpoint dots and PC arrow */
+.cpu-disasm-gutter {
+    min-width: 16px;
+    width: 16px;
+    text-align: center;
+    font-size: 9px;
+}
+
+.cpu-disasm-gutter .bp-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    background: var(--accent-red);
+    border-radius: 50%;
+    box-shadow: 0 0 4px var(--accent-red);
+}
+
+.cpu-disasm-gutter .pc-arrow {
+    color: var(--accent-blue);
+    font-size: 10px;
+    text-shadow: 0 0 4px var(--accent-blue);
 }
 
 .cpu-disasm-addr {
     color: var(--accent-blue);
-    min-width: 36px;
+    min-width: 38px;
+    opacity: 0.9;
+}
+
+.cpu-disasm-line.current .cpu-disasm-addr {
+    color: var(--text-primary);
+    opacity: 1;
+    font-weight: 600;
 }
 
 .cpu-disasm-bytes {
     color: var(--text-muted);
-    min-width: 65px;
+    min-width: 70px;
+    font-size: 10px;
 }
 
 .cpu-disasm-instr {
     color: var(--accent-orange);
+    flex: 1;
+}
+
+.cpu-disasm-line.current .cpu-disasm-instr {
+    color: var(--accent-green);
+    font-weight: 500;
 }
 
 /* Breakpoints */

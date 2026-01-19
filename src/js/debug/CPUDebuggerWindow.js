@@ -8,15 +8,18 @@ export class CPUDebuggerWindow extends DebugWindow {
     super({
       id: 'cpu-debugger',
       title: 'CPU Debugger',
-      minWidth: 280,
-      minHeight: 300,
-      defaultWidth: 320,
-      defaultHeight: 400,
-      defaultPosition: { x: window.innerWidth - 340, y: 60 }
+      minWidth: 320,
+      minHeight: 400,
+      defaultWidth: 380,
+      defaultHeight: 550,
+      defaultPosition: { x: window.innerWidth - 400, y: 60 }
     });
 
     this.wasmModule = wasmModule;
     this.breakpoints = new Map();
+    this.lastPC = null;
+    this.disasmCache = [];  // Cache of {addr, disasm, len} for current view
+    this.disasmStartAddr = 0;
   }
 
   renderContent() {
@@ -230,26 +233,80 @@ export class CPUDebuggerWindow extends DebugWindow {
   }
 
   /**
+   * Find a good starting address for disassembly that aligns with instruction boundaries.
+   * Scans forward from a safe distance back to find valid instruction starts.
+   */
+  findDisasmStartAddress(pc, instructionsBefore) {
+    // Start from further back and scan forward to find instruction boundaries
+    const maxLookback = instructionsBefore * 3 + 10;  // Max bytes to look back
+    let startAddr = Math.max(0, pc - maxLookback);
+
+    // Build a list of instruction addresses by scanning forward
+    const addresses = [];
+    let addr = startAddr;
+    while (addr <= pc + 100 && addr <= 0xFFFF) {
+      addresses.push(addr);
+      const opcode = this.wasmModule._peekMemory(addr);
+      addr += this.getInstructionLength(opcode);
+    }
+
+    // Find where PC falls in our list
+    const pcIndex = addresses.indexOf(pc);
+    if (pcIndex === -1) {
+      // PC not aligned - find closest address before PC
+      for (let i = addresses.length - 1; i >= 0; i--) {
+        if (addresses[i] <= pc) {
+          const startIndex = Math.max(0, i - instructionsBefore);
+          return addresses[startIndex];
+        }
+      }
+      return Math.max(0, pc - 20);
+    }
+
+    // Return address that gives us instructionsBefore lines before PC
+    const startIndex = Math.max(0, pcIndex - instructionsBefore);
+    return addresses[startIndex];
+  }
+
+  /**
    * Update disassembly view
    */
   updateDisassembly() {
     const view = this.contentElement.querySelector('#disasm-view');
     if (!view) return;
 
-    view.innerHTML = '';
     const pc = this.wasmModule._getPC();
-    let addr = Math.max(0, pc - 12);
+    const totalLines = 20;  // Total instructions to show
+    const linesBefore = 6;  // Instructions to show before PC
 
-    // Show ~12 instructions
-    for (let i = 0; i < 12; i++) {
+    // Find aligned start address
+    const startAddr = this.findDisasmStartAddress(pc, linesBefore);
+
+    view.innerHTML = '';
+    let addr = startAddr;
+    let pcLineElement = null;
+
+    // Disassemble instructions
+    for (let i = 0; i < totalLines && addr <= 0xFFFF; i++) {
       const line = document.createElement('div');
       line.className = 'cpu-disasm-line';
 
-      if (addr === pc) {
+      const isCurrent = addr === pc;
+      if (isCurrent) {
         line.classList.add('current');
+        pcLineElement = line;
       }
       if (this.breakpoints.has(addr)) {
         line.classList.add('breakpoint');
+      }
+
+      // Breakpoint gutter
+      const gutterSpan = document.createElement('span');
+      gutterSpan.className = 'cpu-disasm-gutter';
+      if (this.breakpoints.has(addr)) {
+        gutterSpan.innerHTML = '<span class="bp-dot"></span>';
+      } else if (isCurrent) {
+        gutterSpan.innerHTML = '<span class="pc-arrow">▶</span>';
       }
 
       // Get disassembly from WASM
@@ -259,7 +316,7 @@ export class CPUDebuggerWindow extends DebugWindow {
 
       // Parse: "AAAA: BB BB BB  MMM OPERAND"
       const addrPart = disasm.substring(0, 4);
-      const bytesPart = disasm.substring(6, 14);
+      const bytesPart = disasm.substring(6, 14).trim();
       const instrPart = disasm.substring(16);
 
       const addrSpan = document.createElement('span');
@@ -274,6 +331,7 @@ export class CPUDebuggerWindow extends DebugWindow {
       instrSpan.className = 'cpu-disasm-instr';
       instrSpan.textContent = instrPart;
 
+      line.appendChild(gutterSpan);
       line.appendChild(addrSpan);
       line.appendChild(bytesSpan);
       line.appendChild(instrSpan);
@@ -293,8 +351,20 @@ export class CPUDebuggerWindow extends DebugWindow {
       // Advance to next instruction
       const opcode = this.wasmModule._peekMemory(addr);
       addr += this.getInstructionLength(opcode);
-      if (addr > 0xFFFF) break;
     }
+
+    // Scroll to keep PC visible
+    if (pcLineElement) {
+      const viewRect = view.getBoundingClientRect();
+      const lineRect = pcLineElement.getBoundingClientRect();
+
+      // Check if line is outside visible area
+      if (lineRect.top < viewRect.top || lineRect.bottom > viewRect.bottom) {
+        pcLineElement.scrollIntoView({ block: 'center', behavior: 'auto' });
+      }
+    }
+
+    this.lastPC = pc;
   }
 
   /**
