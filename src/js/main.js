@@ -5,6 +5,8 @@ import { AudioDriver } from "./audio-driver.js";
 import { InputHandler } from "./input-handler.js";
 import { DiskManager } from "./disk-manager/index.js";
 import { TextSelection } from "./TextSelection.js";
+import { MonitorResizer } from "./ui/MonitorResizer.js";
+import { ReminderController } from "./ui/ReminderController.js";
 import {
   WindowManager,
   CPUDebuggerWindow,
@@ -27,26 +29,11 @@ class AppleIIeEmulator {
     this.windowManager = null;
     this.displaySettings = null;
     this.textSelection = null;
+    this.monitorResizer = null;
+    this.reminderController = null;
 
     this.running = false;
     this.isFullPageMode = false;
-    this.isPowerReminderVisible = false;
-    this.isResizeReminderVisible = false;
-    this.isDrivesReminderVisible = false;
-
-    // Display aspect ratio (4:3 for authentic CRT monitor)
-    this.aspectRatio = 4 / 3;
-
-    // Custom screen size (user-defined via mouse resize)
-    this.customCanvasWidth = null;
-    this.isResizingMonitor = false;
-    this.resizeDirection = null;
-    this.resizeStart = null;
-
-    // Bind resize handler
-    this.handleResize = this.handleResize.bind(this);
-    this.handleMonitorMouseMove = this.handleMonitorMouseMove.bind(this);
-    this.handleMonitorMouseUp = this.handleMonitorMouseUp.bind(this);
   }
 
   async init() {
@@ -132,34 +119,40 @@ class AppleIIeEmulator {
       // Set up text selection for copying screen contents
       this.textSelection = new TextSelection(canvas, this.wasmModule);
 
+      // Set up reminder controller
+      this.reminderController = new ReminderController();
+
+      // Set up monitor resizer
+      this.monitorResizer = new MonitorResizer({
+        aspectRatio: 4 / 3,
+        onResize: (width, height) => {
+          if (this.renderer) {
+            this.renderer.resize(width, height);
+          }
+          if (this.textSelection) {
+            this.textSelection.resize();
+          }
+          if (this.windowManager) {
+            this.windowManager.constrainAllToViewport();
+          }
+          this.reminderController.repositionAll();
+        },
+        onResizeComplete: () => {
+          this.reminderController.dismissResizeReminder();
+        },
+      });
+      this.monitorResizer.init();
+
       // Set up UI controls
       this.setupControls();
-
-      // Set up resize handling
-      this.setupResizeHandling();
-
-      // Set up monitor mouse resize
-      this.setupMonitorResize();
-
-      // Load saved custom screen size
-      const savedWidth = localStorage.getItem("a2e-screen-width");
-      if (savedWidth) {
-        this.customCanvasWidth = parseInt(savedWidth, 10);
-      }
-
-      // Initial resize to fit window
-      this.handleResize();
-
-      // Show size lock indicator if custom size is active
-      this.updateSizeLockIndicator();
 
       // Start render loop
       this.startRenderLoop();
 
       this.showLoading(false);
-      this.showPowerReminder(true);
-      this.showResizeReminder(true);
-      this.showDrivesReminder(true);
+      this.reminderController.showPowerReminder(true);
+      this.reminderController.showResizeReminder(true);
+      this.reminderController.showDrivesReminder(true);
 
       console.log("Apple //e Emulator initialized");
     } catch (error) {
@@ -185,7 +178,7 @@ class AppleIIeEmulator {
 
     // Power button
     powerBtn.addEventListener("click", () => {
-      this.showPowerReminder(false); // Hide reminder on first click
+      this.reminderController.showPowerReminder(false);
       if (this.running) {
         this.stop();
       } else {
@@ -215,7 +208,6 @@ class AppleIIeEmulator {
     };
 
     const enterFullPageMode = () => {
-      // Hide all debug windows
       this.windowManager.hideAll();
       document.body.classList.add("full-page-mode");
       this.isFullPageMode = true;
@@ -258,8 +250,7 @@ class AppleIIeEmulator {
     if (savedDrivesVisible === "false" && diskDrives && drivesBtn) {
       diskDrives.classList.add("hidden");
       drivesBtn.classList.add("off");
-      // Defer resize to after initial layout
-      requestAnimationFrame(() => this.handleResize());
+      requestAnimationFrame(() => this.monitorResizer.handleResize());
     }
 
     if (drivesBtn && diskDrives) {
@@ -267,8 +258,8 @@ class AppleIIeEmulator {
         const isHidden = diskDrives.classList.toggle("hidden");
         drivesBtn.classList.toggle("off", isHidden);
         localStorage.setItem("a2e-show-drives", !isHidden);
-        this.handleResize();
-        this.dismissDrivesReminder();
+        this.monitorResizer.handleResize();
+        this.reminderController.dismissDrivesReminder();
         refocusCanvas();
       });
     }
@@ -338,22 +329,19 @@ class AppleIIeEmulator {
       localStorage.setItem("a2e-drive-sounds", enabled);
     });
 
-    // Character set toggle (UK/US) - unchecked = UK (left), checked = US (right)
+    // Character set toggle (UK/US)
     const charsetToggle = document.getElementById("charset-toggle");
     if (charsetToggle) {
-      // Load saved preference (stored as "uk" or "us")
       const savedCharset = localStorage.getItem("a2e-charset");
       if (savedCharset === "uk") {
         charsetToggle.checked = false;
         this.wasmModule._setUKCharacterSet(true);
       } else {
-        // Default to US
         charsetToggle.checked = true;
         this.wasmModule._setUKCharacterSet(false);
       }
 
       charsetToggle.addEventListener("change", (e) => {
-        // Checked = US (right), Unchecked = UK (left)
         const isUK = !e.target.checked;
         this.wasmModule._setUKCharacterSet(isUK);
         localStorage.setItem("a2e-charset", isUK ? "uk" : "us");
@@ -367,13 +355,11 @@ class AppleIIeEmulator {
     const debugMenu = document.getElementById("debug-menu");
 
     if (debugMenuBtn && debugMenu) {
-      // Toggle menu on button click
       debugMenuBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         debugMenuContainer.classList.toggle("open");
       });
 
-      // Handle menu item clicks
       debugMenu.querySelectorAll(".debug-menu-item").forEach((item) => {
         item.addEventListener("click", () => {
           const windowType = item.dataset.window;
@@ -394,14 +380,12 @@ class AppleIIeEmulator {
         });
       });
 
-      // Close menu when clicking outside
       document.addEventListener("click", (e) => {
         if (!debugMenuContainer.contains(e.target)) {
           debugMenuContainer.classList.remove("open");
         }
       });
 
-      // Close menu on Escape key
       document.addEventListener("keydown", (e) => {
         if (e.key === "Escape") {
           debugMenuContainer.classList.remove("open");
@@ -416,262 +400,6 @@ class AppleIIeEmulator {
         this.windowManager.toggleWindow("display-settings");
         refocusCanvas();
       });
-    }
-  }
-
-  setupResizeHandling() {
-    // Listen for window resize
-    window.addEventListener("resize", this.handleResize);
-
-    // Use ResizeObserver for more accurate container size tracking
-    if (typeof ResizeObserver !== "undefined") {
-      const main = document.querySelector("main");
-      this.resizeObserver = new ResizeObserver(() => {
-        this.handleResize();
-      });
-      this.resizeObserver.observe(main);
-    }
-  }
-
-  setupMonitorResize() {
-    const monitorBezel = document.querySelector(".monitor-bezel");
-    const handles = monitorBezel.querySelectorAll(".monitor-resize-handle");
-
-    handles.forEach((handle) => {
-      handle.addEventListener("mousedown", (e) => {
-        e.preventDefault();
-        this.startMonitorResize(e, handle.dataset.direction);
-      });
-    });
-
-    // Global mouse events for resize
-    document.addEventListener("mousemove", this.handleMonitorMouseMove);
-    document.addEventListener("mouseup", this.handleMonitorMouseUp);
-
-    // Size lock indicator click to reset
-    const sizeLockIndicator = document.getElementById("size-lock-indicator");
-    sizeLockIndicator.addEventListener("click", () => {
-      this.resetToAutoSize();
-    });
-  }
-
-  resetToAutoSize() {
-    this.customCanvasWidth = null;
-    localStorage.removeItem("a2e-screen-width");
-    this.updateSizeLockIndicator();
-    this.handleResize();
-  }
-
-  updateSizeLockIndicator() {
-    const indicator = document.getElementById("size-lock-indicator");
-    if (this.customCanvasWidth) {
-      indicator.classList.remove("hidden");
-    } else {
-      indicator.classList.add("hidden");
-    }
-  }
-
-  startMonitorResize(e, direction) {
-    const canvas = document.getElementById("screen");
-    const monitorBezel = document.querySelector(".monitor-bezel");
-
-    this.isResizingMonitor = true;
-    this.resizeDirection = direction;
-    monitorBezel.classList.add("resizing");
-
-    const rect = canvas.getBoundingClientRect();
-    this.resizeStart = {
-      x: e.clientX,
-      y: e.clientY,
-      width: rect.width,
-      height: rect.height,
-    };
-  }
-
-  handleMonitorMouseMove(e) {
-    if (!this.isResizingMonitor) return;
-
-    const dx = e.clientX - this.resizeStart.x;
-    const dy = e.clientY - this.resizeStart.y;
-    const dir = this.resizeDirection;
-
-    // Calculate delta based on direction
-    // For aspect-ratio constrained resize, use the larger movement
-    let delta = 0;
-    if (dir === "se") {
-      delta = Math.max(dx, dy * this.aspectRatio);
-    } else if (dir === "sw") {
-      delta = Math.max(-dx, dy * this.aspectRatio);
-    } else if (dir === "ne") {
-      delta = Math.max(dx, -dy * this.aspectRatio);
-    } else if (dir === "nw") {
-      delta = Math.max(-dx, -dy * this.aspectRatio);
-    }
-
-    // Calculate new width maintaining aspect ratio
-    let newWidth = this.resizeStart.width + delta;
-
-    // Apply constraints
-    const minWidth = 280;
-    const maxWidth = this.getMaxCanvasWidth();
-    newWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
-
-    // Store and apply
-    this.customCanvasWidth = Math.floor(newWidth);
-    this.applyCanvasSize(this.customCanvasWidth);
-  }
-
-  handleMonitorMouseUp() {
-    if (!this.isResizingMonitor) return;
-
-    const monitorBezel = document.querySelector(".monitor-bezel");
-    monitorBezel.classList.remove("resizing");
-    this.isResizingMonitor = false;
-    this.resizeDirection = null;
-    this.resizeStart = null;
-
-    // Save to localStorage and show indicator
-    if (this.customCanvasWidth) {
-      localStorage.setItem("a2e-screen-width", this.customCanvasWidth);
-      this.updateSizeLockIndicator();
-    }
-
-    // Dismiss resize reminder on first resize
-    this.dismissResizeReminder();
-  }
-
-  getMaxCanvasWidth() {
-    const diskDrives = document.getElementById("disk-drives");
-    const header = document.querySelector("header");
-    const footer = document.querySelector("footer");
-
-    const headerHeight = header ? header.offsetHeight : 0;
-    const footerHeight = footer ? footer.offsetHeight : 0;
-    const diskDrivesHeight = diskDrives ? diskDrives.offsetHeight + 16 : 100;
-
-    const padding = 32;
-    const bezelPaddingX = 88;
-    const bezelPaddingY = 104;
-
-    const availableWidth = window.innerWidth - padding - bezelPaddingX;
-    const availableHeight =
-      window.innerHeight -
-      headerHeight -
-      footerHeight -
-      diskDrivesHeight -
-      padding -
-      bezelPaddingY;
-
-    // Return the smaller of width-based or height-based max
-    const maxFromWidth = availableWidth;
-    const maxFromHeight = availableHeight * this.aspectRatio;
-
-    return Math.min(maxFromWidth, maxFromHeight);
-  }
-
-  applyCanvasSize(canvasWidth) {
-    const canvas = document.getElementById("screen");
-    const canvasHeight = Math.floor(canvasWidth / this.aspectRatio);
-
-    canvas.style.width = canvasWidth + "px";
-    canvas.style.height = canvasHeight + "px";
-
-    if (this.renderer) {
-      this.renderer.resize(canvasWidth, canvasHeight);
-    }
-
-    if (this.textSelection) {
-      this.textSelection.resize();
-    }
-  }
-
-  handleResize() {
-    const canvas = document.getElementById("screen");
-    const diskDrives = document.getElementById("disk-drives");
-    const header = document.querySelector("header");
-    const footer = document.querySelector("footer");
-
-    // Calculate available space
-    const headerHeight = header ? header.offsetHeight : 0;
-    const footerHeight = footer ? footer.offsetHeight : 0;
-
-    // Get disk drives height (approximate)
-    const diskDrivesHeight = diskDrives ? diskDrives.offsetHeight + 16 : 100;
-
-    // Calculate available dimensions
-    const windowWidth = window.innerWidth;
-    const windowHeight = window.innerHeight;
-
-    // Available space for the monitor (accounting for padding)
-    const padding = 32; // 16px on each side
-    const availableWidth = windowWidth - padding;
-    const availableHeight =
-      windowHeight - headerHeight - footerHeight - diskDrivesHeight - padding;
-
-    // Calculate the optimal canvas size maintaining aspect ratio
-    // The bezel adds approximately 72px width (28*2 + 16*2) and 88px height (24+32+16*2)
-    const bezelPaddingX = 88;
-    const bezelPaddingY = 104;
-
-    const maxCanvasWidth = availableWidth - bezelPaddingX;
-    const maxCanvasHeight = availableHeight - bezelPaddingY;
-
-    let canvasWidth, canvasHeight;
-
-    if (this.customCanvasWidth) {
-      // Use custom size but constrain to available space
-      const maxWidth = Math.min(
-        maxCanvasWidth,
-        maxCanvasHeight * this.aspectRatio
-      );
-      canvasWidth = Math.min(this.customCanvasWidth, maxWidth);
-      canvasWidth = Math.max(280, canvasWidth);
-      canvasHeight = canvasWidth / this.aspectRatio;
-    } else {
-      // Calculate size based on aspect ratio (auto-fit)
-      if (maxCanvasWidth / maxCanvasHeight > this.aspectRatio) {
-        // Height is the limiting factor
-        canvasHeight = Math.max(200, maxCanvasHeight);
-        canvasWidth = canvasHeight * this.aspectRatio;
-      } else {
-        // Width is the limiting factor
-        canvasWidth = Math.max(280, maxCanvasWidth);
-        canvasHeight = canvasWidth / this.aspectRatio;
-      }
-    }
-
-    // Round to integers
-    canvasWidth = Math.floor(canvasWidth);
-    canvasHeight = Math.floor(canvasHeight);
-
-    // Apply size to canvas element (CSS size for display)
-    canvas.style.width = canvasWidth + "px";
-    canvas.style.height = canvasHeight + "px";
-
-    // Update WebGL viewport
-    if (this.renderer) {
-      this.renderer.resize(canvasWidth, canvasHeight);
-    }
-
-    // Update text selection overlay size
-    if (this.textSelection) {
-      this.textSelection.resize();
-    }
-
-    // Constrain debug windows to visible viewport
-    if (this.windowManager) {
-      this.windowManager.constrainAllToViewport();
-    }
-
-    // Reposition reminders if visible (after layout settles)
-    if (this.isPowerReminderVisible) {
-      requestAnimationFrame(() => this.repositionPowerReminder());
-    }
-    if (this.isResizeReminderVisible) {
-      requestAnimationFrame(() => this.repositionResizeReminder());
-    }
-    if (this.isDrivesReminderVisible) {
-      requestAnimationFrame(() => this.repositionDrivesReminder());
     }
   }
 
@@ -706,9 +434,7 @@ class AppleIIeEmulator {
   start() {
     if (this.running) return;
 
-    // Cold boot - full reset
     this.wasmModule._reset();
-
     this.running = true;
     this.renderer.setNoSignal(false);
     this.audioDriver.start();
@@ -722,20 +448,16 @@ class AppleIIeEmulator {
     this.running = false;
     this.audioDriver.stop();
 
-    // Stop disk motor (won't timeout naturally since cycles aren't advancing)
     if (this.wasmModule._stopDiskMotor) {
       this.wasmModule._stopDiskMotor();
     }
 
-    // Show TV static "no signal" effect
     this.renderer.setNoSignal(true);
-
     this.updatePowerButton();
     console.log("Emulator powered off");
   }
 
   renderFrame() {
-    // Get framebuffer from WASM
     const fbPtr = this.wasmModule._getFramebuffer();
     const fbSize = this.wasmModule._getFramebufferSize();
     const framebuffer = new Uint8Array(
@@ -744,20 +466,15 @@ class AppleIIeEmulator {
       fbSize,
     );
 
-    // Update texture and render
     this.renderer.updateTexture(framebuffer);
     this.renderer.draw();
   }
 
   startRenderLoop() {
     const render = () => {
-      // Update visible debug windows
       this.windowManager.updateAll(this.wasmModule);
-
-      // Update disk LEDs
       this.diskManager.updateLEDs();
 
-      // Keep drawing when off to show animated TV static
       if (!this.running) {
         this.renderer.draw();
       }
@@ -778,187 +495,37 @@ class AppleIIeEmulator {
   }
 
   /**
-   * Position a reminder tooltip below a target element with an arrow pointing to it.
-   * Centers the reminder on the element, clamps to viewport, and sets arrow position.
-   * @param {string} reminderId - The reminder element's ID
-   * @param {string|Element} target - The target element ID or element to position below
-   * @param {number} defaultWidth - Fallback width if reminder not yet rendered
-   */
-  positionReminderBelowElement(reminderId, target, defaultWidth = 200) {
-    const reminder = document.getElementById(reminderId);
-    const targetEl = typeof target === 'string' ? document.getElementById(target) : target;
-    if (!reminder || !targetEl) return;
-
-    const targetRect = targetEl.getBoundingClientRect();
-    const targetCenterX = targetRect.left + targetRect.width / 2;
-
-    const reminderRect = reminder.getBoundingClientRect();
-    const reminderWidth = reminderRect.width || defaultWidth;
-
-    // Position reminder centered below target, clamped to viewport
-    let reminderLeft = targetCenterX - reminderWidth / 2;
-    const padding = 16;
-    const maxLeft = window.innerWidth - reminderWidth - padding;
-    reminderLeft = Math.max(padding, Math.min(reminderLeft, maxLeft));
-
-    // Calculate arrow position relative to reminder
-    const arrowLeft = targetCenterX - reminderLeft;
-
-    reminder.style.left = `${reminderLeft}px`;
-    reminder.style.top = `${targetRect.bottom + 15}px`;
-    reminder.style.setProperty('--arrow-left', `${arrowLeft}px`);
-  }
-
-  repositionPowerReminder() {
-    this.positionReminderBelowElement("power-reminder", "btn-power", 200);
-  }
-
-  showPowerReminder(show) {
-    const reminder = document.getElementById("power-reminder");
-    if (!reminder) return;
-
-    if (show) {
-      this.isPowerReminderVisible = true;
-      reminder.classList.remove("hidden");
-      // Use requestAnimationFrame to ensure the element is visible before positioning
-      requestAnimationFrame(() => {
-        this.repositionPowerReminder();
-      });
-    } else {
-      this.isPowerReminderVisible = false;
-      reminder.classList.add("hidden");
-    }
-  }
-
-  // Resize reminder methods
-  showResizeReminder(show) {
-    const reminder = document.getElementById("resize-reminder");
-    if (!reminder) return;
-
-    // Check if already dismissed
-    if (show && localStorage.getItem("a2e-resize-reminder-dismissed")) {
-      return;
-    }
-
-    if (show) {
-      this.isResizeReminderVisible = true;
-      reminder.classList.remove("hidden");
-      requestAnimationFrame(() => {
-        this.repositionResizeReminder();
-      });
-    } else {
-      this.isResizeReminderVisible = false;
-      reminder.classList.add("hidden");
-    }
-  }
-
-  repositionResizeReminder() {
-    const reminder = document.getElementById("resize-reminder");
-    const monitorBezel = document.querySelector(".monitor-bezel");
-    if (!reminder || !monitorBezel) return;
-
-    const bezelRect = monitorBezel.getBoundingClientRect();
-    const reminderRect = reminder.getBoundingClientRect();
-
-    // Position above and to the left of bottom-right corner
-    const reminderLeft = bezelRect.right - reminderRect.width - 10;
-    const reminderTop = bezelRect.bottom - reminderRect.height - 40;
-
-    reminder.style.left = `${reminderLeft}px`;
-    reminder.style.top = `${reminderTop}px`;
-  }
-
-  dismissResizeReminder() {
-    this.showResizeReminder(false);
-    localStorage.setItem("a2e-resize-reminder-dismissed", "true");
-  }
-
-  // Drives toggle reminder methods
-  showDrivesReminder(show) {
-    const reminder = document.getElementById("drives-reminder");
-    if (!reminder) return;
-
-    // Check if already dismissed
-    if (show && localStorage.getItem("a2e-drives-reminder-dismissed")) {
-      return;
-    }
-
-    if (show) {
-      this.isDrivesReminderVisible = true;
-      reminder.classList.remove("hidden");
-      requestAnimationFrame(() => {
-        this.repositionDrivesReminder();
-      });
-    } else {
-      this.isDrivesReminderVisible = false;
-      reminder.classList.add("hidden");
-    }
-  }
-
-  repositionDrivesReminder() {
-    this.positionReminderBelowElement("drives-reminder", "btn-drives", 180);
-  }
-
-  dismissDrivesReminder() {
-    this.showDrivesReminder(false);
-    localStorage.setItem("a2e-drives-reminder-dismissed", "true");
-  }
-
-  /**
    * Clean up resources and remove event listeners.
-   * Call this method when destroying the emulator instance.
    */
   destroy() {
-    // Stop the emulator if running
     if (this.running) {
       this.stop();
     }
 
-    // Remove window resize listener
-    window.removeEventListener("resize", this.handleResize);
-
-    // Remove document-level mouse event listeners for monitor resize
-    document.removeEventListener("mousemove", this.handleMonitorMouseMove);
-    document.removeEventListener("mouseup", this.handleMonitorMouseUp);
-
-    // Disconnect ResizeObserver
-    if (this.resizeObserver) {
-      this.resizeObserver.disconnect();
-      this.resizeObserver = null;
+    if (this.monitorResizer) {
+      this.monitorResizer.destroy();
+      this.monitorResizer = null;
     }
 
-    // Clean up text selection
     if (this.textSelection) {
       this.textSelection.destroy();
       this.textSelection = null;
     }
 
-    // Clean up window manager
     if (this.windowManager) {
       this.windowManager.saveState();
       this.windowManager = null;
     }
 
-    // Clean up renderer
-    if (this.renderer) {
-      this.renderer = null;
-    }
-
-    // Clean up audio driver
     if (this.audioDriver) {
       this.audioDriver.stop();
       this.audioDriver = null;
     }
 
-    // Clean up disk manager
-    if (this.diskManager) {
-      this.diskManager = null;
-    }
-
-    // Clean up input handler
-    if (this.inputHandler) {
-      this.inputHandler = null;
-    }
+    this.renderer = null;
+    this.diskManager = null;
+    this.inputHandler = null;
+    this.reminderController = null;
 
     console.log("Apple //e Emulator destroyed");
   }
