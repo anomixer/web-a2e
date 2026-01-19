@@ -64,8 +64,8 @@ export class TextSelection {
   setupEventListeners() {
     // mousedown on canvas starts selection
     this.canvas.addEventListener('mousedown', this.boundOnMouseDown);
-    // mousemove/mouseup on document to track selection even outside canvas
-    document.addEventListener('keydown', this.boundOnKeyDown);
+    // keydown in capture phase so we can intercept before input handler
+    document.addEventListener('keydown', this.boundOnKeyDown, true);
     this.canvas.addEventListener('contextmenu', this.boundOnContextMenu);
   }
 
@@ -360,15 +360,20 @@ export class TextSelection {
   }
 
   onKeyDown(e) {
+    // Ctrl+C / Cmd+C to copy selection
     if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
       if (this.selectionStart && this.selectionEnd) {
         this.copyToClipboard();
         e.preventDefault();
+        e.stopPropagation();  // Prevent key from reaching emulator
+        return;
       }
     }
 
+    // Escape to clear selection
     if (e.key === 'Escape' && this.selectionStart) {
       this.clearSelection();
+      e.stopPropagation();  // Prevent key from reaching emulator
     }
   }
 
@@ -482,7 +487,7 @@ export class TextSelection {
     this.canvas.removeEventListener('mousedown', this.boundOnMouseDown);
     document.removeEventListener('mousemove', this.boundOnMouseMove);
     document.removeEventListener('mouseup', this.boundOnMouseUp);
-    document.removeEventListener('keydown', this.boundOnKeyDown);
+    document.removeEventListener('keydown', this.boundOnKeyDown, true);  // capture phase
     this.canvas.removeEventListener('contextmenu', this.boundOnContextMenu);
 
     // Remove overlay
