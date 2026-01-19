@@ -159,7 +159,13 @@ export class CPUDebuggerWindow extends DebugWindow {
   addBreakpoint(addr) {
     if (!this.breakpoints.has(addr)) {
       this.breakpoints.set(addr, { enabled: true });
-      this.wasmModule._addBreakpoint(addr);
+      if (this.wasmModule._addBreakpoint) {
+        try {
+          this.wasmModule._addBreakpoint(addr);
+        } catch (e) {
+          console.warn('Failed to add breakpoint in WASM:', e);
+        }
+      }
       this.updateBreakpointList();
       this.updateDisassembly();
     }
@@ -171,9 +177,26 @@ export class CPUDebuggerWindow extends DebugWindow {
   removeBreakpoint(addr) {
     if (this.breakpoints.has(addr)) {
       this.breakpoints.delete(addr);
-      this.wasmModule._removeBreakpoint(addr);
+      if (this.wasmModule._removeBreakpoint) {
+        try {
+          this.wasmModule._removeBreakpoint(addr);
+        } catch (e) {
+          console.warn('Failed to remove breakpoint in WASM:', e);
+        }
+      }
       this.updateBreakpointList();
       this.updateDisassembly();
+    }
+  }
+
+  /**
+   * Toggle a breakpoint at the given address
+   */
+  toggleBreakpoint(addr) {
+    if (this.breakpoints.has(addr)) {
+      this.removeBreakpoint(addr);
+    } else {
+      this.addBreakpoint(addr);
     }
   }
 
@@ -338,12 +361,10 @@ export class CPUDebuggerWindow extends DebugWindow {
 
       // Click to toggle breakpoint
       const clickAddr = addr;
-      line.addEventListener('click', () => {
-        if (this.breakpoints.has(clickAddr)) {
-          this.removeBreakpoint(clickAddr);
-        } else {
-          this.addBreakpoint(clickAddr);
-        }
+      line.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this.toggleBreakpoint(clickAddr);
       });
 
       view.appendChild(line);

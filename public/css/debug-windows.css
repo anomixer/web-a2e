@@ -326,16 +326,17 @@
 }
 
 .cpu-disasm-line.breakpoint {
-    background: rgba(248, 81, 73, 0.12);
+    background: rgba(248, 81, 73, 0.2);
+    border-left-color: var(--accent-red);
 }
 
 .cpu-disasm-line.current.breakpoint {
     background: linear-gradient(
         90deg,
         rgba(88, 166, 255, 0.2) 0%,
-        rgba(248, 81, 73, 0.15) 100%
+        rgba(248, 81, 73, 0.2) 100%
     );
-    border-left-color: var(--accent-blue);
+    border-left-color: var(--accent-red);
 }
 
 /* Gutter for breakpoint dots and PC arrow */
@@ -348,11 +349,11 @@
 
 .cpu-disasm-gutter .bp-dot {
     display: inline-block;
-    width: 8px;
-    height: 8px;
+    width: 10px;
+    height: 10px;
     background: var(--accent-red);
     border-radius: 50%;
-    box-shadow: 0 0 4px var(--accent-red);
+    box-shadow: 0 0 6px var(--accent-red);
 }
 
 .cpu-disasm-gutter .pc-arrow {
