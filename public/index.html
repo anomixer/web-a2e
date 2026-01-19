@@ -321,6 +321,17 @@
                             <div class="monitor-resize-handle ne" data-direction="ne"></div>
                             <div class="monitor-resize-handle sw" data-direction="sw"></div>
                             <div class="monitor-resize-handle se" data-direction="se"></div>
+                            <!-- Manual size indicator -->
+                            <button
+                                id="size-lock-indicator"
+                                class="size-lock-indicator hidden"
+                                title="Custom size active - Click to reset to auto-fit"
+                            >
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                                </svg>
+                            </button>
                         </div>
                         <div class="monitor-base">
                             <div class="monitor-stand"></div>
@@ -447,6 +458,30 @@
                         <span class="reminder-hint"
                             >Click <strong>Power</strong> to start the Apple
                             //e</span
+                        >
+                    </div>
+                </div>
+                <div class="reminder-arrow"></div>
+            </div>
+
+            <div id="resize-reminder" class="floating-reminder hidden">
+                <div class="reminder-content">
+                    <div class="reminder-text">
+                        <span class="reminder-hint"
+                            >Drag corners to <strong>resize</strong> the
+                            display</span
+                        >
+                    </div>
+                </div>
+                <div class="reminder-arrow arrow-bottom-right"></div>
+            </div>
+
+            <div id="drives-reminder" class="floating-reminder hidden">
+                <div class="reminder-content">
+                    <div class="reminder-text">
+                        <span class="reminder-hint"
+                            >Click to <strong>show/hide</strong> disk
+                            drives</span
                         >
                     </div>
                 </div>

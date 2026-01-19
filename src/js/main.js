@@ -32,6 +32,8 @@ class AppleIIeEmulator {
     this.speed = 1; // 1x, 2x, or 0 for unlimited
     this.isFullPageMode = false;
     this.isPowerReminderVisible = false;
+    this.isResizeReminderVisible = false;
+    this.isDrivesReminderVisible = false;
 
     // Display aspect ratio (4:3 for authentic CRT monitor)
     this.aspectRatio = 4 / 3;
@@ -149,11 +151,16 @@ class AppleIIeEmulator {
       // Initial resize to fit window
       this.handleResize();
 
+      // Show size lock indicator if custom size is active
+      this.updateSizeLockIndicator();
+
       // Start render loop
       this.startRenderLoop();
 
       this.showLoading(false);
       this.showPowerReminder(true);
+      this.showResizeReminder(true);
+      this.showDrivesReminder(true);
 
       console.log("Apple //e Emulator initialized");
     } catch (error) {
@@ -252,6 +259,7 @@ class AppleIIeEmulator {
       drivesBtn.classList.toggle("off", isHidden);
       localStorage.setItem("a2e-show-drives", !isHidden);
       this.handleResize();
+      this.dismissDrivesReminder();
       refocusCanvas();
     });
 
@@ -429,6 +437,28 @@ class AppleIIeEmulator {
     // Global mouse events for resize
     document.addEventListener("mousemove", this.handleMonitorMouseMove);
     document.addEventListener("mouseup", this.handleMonitorMouseUp);
+
+    // Size lock indicator click to reset
+    const sizeLockIndicator = document.getElementById("size-lock-indicator");
+    sizeLockIndicator.addEventListener("click", () => {
+      this.resetToAutoSize();
+    });
+  }
+
+  resetToAutoSize() {
+    this.customCanvasWidth = null;
+    localStorage.removeItem("a2e-screen-width");
+    this.updateSizeLockIndicator();
+    this.handleResize();
+  }
+
+  updateSizeLockIndicator() {
+    const indicator = document.getElementById("size-lock-indicator");
+    if (this.customCanvasWidth) {
+      indicator.classList.remove("hidden");
+    } else {
+      indicator.classList.add("hidden");
+    }
   }
 
   startMonitorResize(e, direction) {
@@ -490,10 +520,14 @@ class AppleIIeEmulator {
     this.resizeDirection = null;
     this.resizeStart = null;
 
-    // Save to localStorage
+    // Save to localStorage and show indicator
     if (this.customCanvasWidth) {
       localStorage.setItem("a2e-screen-width", this.customCanvasWidth);
+      this.updateSizeLockIndicator();
     }
+
+    // Dismiss resize reminder on first resize
+    this.dismissResizeReminder();
   }
 
   getMaxCanvasWidth() {
@@ -619,9 +653,15 @@ class AppleIIeEmulator {
       this.windowManager.constrainAllToViewport();
     }
 
-    // Reposition power reminder if visible (after layout settles)
+    // Reposition reminders if visible (after layout settles)
     if (this.isPowerReminderVisible) {
       requestAnimationFrame(() => this.repositionPowerReminder());
+    }
+    if (this.isResizeReminderVisible) {
+      requestAnimationFrame(() => this.repositionResizeReminder());
+    }
+    if (this.isDrivesReminderVisible) {
+      requestAnimationFrame(() => this.repositionDrivesReminder());
     }
   }
 
@@ -770,6 +810,103 @@ class AppleIIeEmulator {
       this.isPowerReminderVisible = false;
       reminder.classList.add("hidden");
     }
+  }
+
+  // Resize reminder methods
+  showResizeReminder(show) {
+    const reminder = document.getElementById("resize-reminder");
+    if (!reminder) return;
+
+    // Check if already dismissed
+    if (show && localStorage.getItem("a2e-resize-reminder-dismissed")) {
+      return;
+    }
+
+    if (show) {
+      this.isResizeReminderVisible = true;
+      reminder.classList.remove("hidden");
+      requestAnimationFrame(() => {
+        this.repositionResizeReminder();
+      });
+    } else {
+      this.isResizeReminderVisible = false;
+      reminder.classList.add("hidden");
+    }
+  }
+
+  repositionResizeReminder() {
+    const reminder = document.getElementById("resize-reminder");
+    const monitorBezel = document.querySelector(".monitor-bezel");
+    if (!reminder || !monitorBezel) return;
+
+    const bezelRect = monitorBezel.getBoundingClientRect();
+    const reminderRect = reminder.getBoundingClientRect();
+
+    // Position above and to the left of bottom-right corner
+    const reminderLeft = bezelRect.right - reminderRect.width - 10;
+    const reminderTop = bezelRect.bottom - reminderRect.height - 40;
+
+    reminder.style.left = `${reminderLeft}px`;
+    reminder.style.top = `${reminderTop}px`;
+  }
+
+  dismissResizeReminder() {
+    this.showResizeReminder(false);
+    localStorage.setItem("a2e-resize-reminder-dismissed", "true");
+  }
+
+  // Drives toggle reminder methods
+  showDrivesReminder(show) {
+    const reminder = document.getElementById("drives-reminder");
+    if (!reminder) return;
+
+    // Check if already dismissed
+    if (show && localStorage.getItem("a2e-drives-reminder-dismissed")) {
+      return;
+    }
+
+    if (show) {
+      this.isDrivesReminderVisible = true;
+      reminder.classList.remove("hidden");
+      requestAnimationFrame(() => {
+        this.repositionDrivesReminder();
+      });
+    } else {
+      this.isDrivesReminderVisible = false;
+      reminder.classList.add("hidden");
+    }
+  }
+
+  repositionDrivesReminder() {
+    const reminder = document.getElementById("drives-reminder");
+    const drivesBtn = document.getElementById("btn-drives");
+    if (!reminder || !drivesBtn) return;
+
+    const btnRect = drivesBtn.getBoundingClientRect();
+    const btnCenterX = btnRect.left + btnRect.width / 2;
+
+    const reminderRect = reminder.getBoundingClientRect();
+    const reminderWidth = reminderRect.width || 180;
+
+    // Position below the button
+    let reminderLeft = btnCenterX - reminderWidth / 2;
+
+    // Clamp to viewport edges
+    const padding = 16;
+    const maxLeft = window.innerWidth - reminderWidth - padding;
+    reminderLeft = Math.max(padding, Math.min(reminderLeft, maxLeft));
+
+    // Calculate arrow position
+    const arrowLeft = btnCenterX - reminderLeft;
+
+    reminder.style.left = `${reminderLeft}px`;
+    reminder.style.top = `${btnRect.bottom + 15}px`;
+    reminder.style.setProperty("--arrow-left", `${arrowLeft}px`);
+  }
+
+  dismissDrivesReminder() {
+    this.showDrivesReminder(false);
+    localStorage.setItem("a2e-drives-reminder-dismissed", "true");
   }
 }
 
