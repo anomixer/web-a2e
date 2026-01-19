@@ -158,7 +158,6 @@ export class DiskManager {
     this.saveFilenameInput = document.getElementById("save-disk-filename");
     const confirmBtn = document.getElementById("save-disk-confirm");
     const cancelBtn = document.getElementById("save-disk-cancel");
-    const backdrop = this.saveModal?.querySelector(".modal-backdrop");
 
     if (confirmBtn) {
       confirmBtn.addEventListener("click", () => {
@@ -172,8 +171,18 @@ export class DiskManager {
       });
     }
 
-    if (backdrop) {
-      backdrop.addEventListener("click", () => {
+    // Handle click on backdrop (::backdrop) to close
+    if (this.saveModal) {
+      this.saveModal.addEventListener("click", (e) => {
+        // Close if clicking on the dialog itself (backdrop area)
+        if (e.target === this.saveModal) {
+          this.handleSaveCancel();
+        }
+      });
+
+      // Handle native cancel event (Escape key)
+      this.saveModal.addEventListener("cancel", (e) => {
+        e.preventDefault(); // Prevent default close to handle our own logic
         this.handleSaveCancel();
       });
     }
@@ -183,9 +192,8 @@ export class DiskManager {
       this.saveFilenameInput.addEventListener("keydown", (e) => {
         if (e.key === "Enter") {
           this.handleSaveConfirm();
-        } else if (e.key === "Escape") {
-          this.handleSaveCancel();
         }
+        // Escape is now handled by native dialog cancel event
       });
     }
   }
@@ -206,7 +214,7 @@ export class DiskManager {
     }
 
     if (this.saveModal) {
-      this.saveModal.classList.remove("hidden");
+      this.saveModal.showModal();
       // Focus the input and select the filename (without extension)
       if (this.saveFilenameInput) {
         this.saveFilenameInput.focus();
@@ -221,8 +229,8 @@ export class DiskManager {
   }
 
   hideSaveModal() {
-    if (this.saveModal) {
-      this.saveModal.classList.add("hidden");
+    if (this.saveModal && this.saveModal.open) {
+      this.saveModal.close();
     }
     this.pendingEjectDrive = null;
   }

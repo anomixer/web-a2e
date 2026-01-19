@@ -292,8 +292,22 @@
     border-top: 9px solid #1e3a5f;
 }
 
-/* Modal styles */
-.modal {
+/* Modal styles - using native <dialog> element */
+dialog.modal {
+    border: none;
+    padding: 0;
+    background: transparent;
+    max-width: 90vw;
+    max-height: 90vh;
+}
+
+dialog.modal::backdrop {
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+}
+
+/* Legacy div modal support (for backward compatibility) */
+div.modal {
     position: fixed;
     top: 0;
     left: 0;
@@ -305,7 +319,7 @@
     z-index: 1001;
 }
 
-.modal.hidden {
+div.modal.hidden {
     display: none;
 }
 

@@ -331,34 +331,47 @@ export class DriveSounds {
       // Stop oscillators after fade
       setTimeout(
         () => {
+          // Stop audio nodes - catch blocks intentionally empty because stop() throws
+          // InvalidStateError if the node has already been stopped, which is expected
+          // during cleanup when multiple stop calls may occur
           if (this.motorOscillator) {
             try {
               this.motorOscillator.stop();
-            } catch (e) {}
+            } catch (e) {
+              // Expected: InvalidStateError if already stopped
+            }
             this.motorOscillator = null;
           }
           if (this.motorNoiseSource) {
             try {
               this.motorNoiseSource.stop();
-            } catch (e) {}
+            } catch (e) {
+              // Expected: InvalidStateError if already stopped
+            }
             this.motorNoiseSource = null;
           }
           if (this.swishNoiseSource) {
             try {
               this.swishNoiseSource.stop();
-            } catch (e) {}
+            } catch (e) {
+              // Expected: InvalidStateError if already stopped
+            }
             this.swishNoiseSource = null;
           }
           if (this.swishLFO) {
             try {
               this.swishLFO.stop();
-            } catch (e) {}
+            } catch (e) {
+              // Expected: InvalidStateError if already stopped
+            }
             this.swishLFO = null;
           }
           if (this.swishLFOOffset) {
             try {
               this.swishLFOOffset.stop();
-            } catch (e) {}
+            } catch (e) {
+              // Expected: InvalidStateError if already stopped
+            }
             this.swishLFOOffset = null;
           }
           this.motorGain = null;

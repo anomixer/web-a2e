@@ -173,6 +173,11 @@ class AppleIIeEmulator {
     const powerBtn = document.getElementById("btn-power");
     const canvas = document.getElementById("screen");
 
+    if (!powerBtn || !canvas) {
+      console.error("Required DOM elements not found: btn-power or screen");
+      return;
+    }
+
     // Helper to refocus canvas after button clicks
     const refocusCanvas = () => {
       setTimeout(() => canvas.focus(), 0);
@@ -244,23 +249,29 @@ class AppleIIeEmulator {
     const drivesBtn = document.getElementById("btn-drives");
     const diskDrives = document.getElementById("disk-drives");
 
+    if (!drivesBtn || !diskDrives) {
+      console.warn("Disk drive UI elements not found");
+    }
+
     // Load saved drives visibility setting (default to visible)
     const savedDrivesVisible = localStorage.getItem("a2e-show-drives");
-    if (savedDrivesVisible === "false") {
+    if (savedDrivesVisible === "false" && diskDrives && drivesBtn) {
       diskDrives.classList.add("hidden");
       drivesBtn.classList.add("off");
       // Defer resize to after initial layout
       requestAnimationFrame(() => this.handleResize());
     }
 
-    drivesBtn.addEventListener("click", () => {
-      const isHidden = diskDrives.classList.toggle("hidden");
-      drivesBtn.classList.toggle("off", isHidden);
-      localStorage.setItem("a2e-show-drives", !isHidden);
-      this.handleResize();
-      this.dismissDrivesReminder();
-      refocusCanvas();
-    });
+    if (drivesBtn && diskDrives) {
+      drivesBtn.addEventListener("click", () => {
+        const isHidden = diskDrives.classList.toggle("hidden");
+        drivesBtn.classList.toggle("off", isHidden);
+        localStorage.setItem("a2e-show-drives", !isHidden);
+        this.handleResize();
+        this.dismissDrivesReminder();
+        refocusCanvas();
+      });
+    }
 
     // Sound popup
     const soundBtn = document.getElementById("btn-sound");
@@ -766,32 +777,40 @@ class AppleIIeEmulator {
     }
   }
 
-  repositionPowerReminder() {
-    const reminder = document.getElementById("power-reminder");
-    const powerBtn = document.getElementById("btn-power");
-    if (!reminder || !powerBtn) return;
+  /**
+   * Position a reminder tooltip below a target element with an arrow pointing to it.
+   * Centers the reminder on the element, clamps to viewport, and sets arrow position.
+   * @param {string} reminderId - The reminder element's ID
+   * @param {string|Element} target - The target element ID or element to position below
+   * @param {number} defaultWidth - Fallback width if reminder not yet rendered
+   */
+  positionReminderBelowElement(reminderId, target, defaultWidth = 200) {
+    const reminder = document.getElementById(reminderId);
+    const targetEl = typeof target === 'string' ? document.getElementById(target) : target;
+    if (!reminder || !targetEl) return;
 
-    const btnRect = powerBtn.getBoundingClientRect();
-    const btnCenterX = btnRect.left + btnRect.width / 2;
+    const targetRect = targetEl.getBoundingClientRect();
+    const targetCenterX = targetRect.left + targetRect.width / 2;
 
-    // Get reminder dimensions (use a minimum if not yet rendered)
     const reminderRect = reminder.getBoundingClientRect();
-    const reminderWidth = reminderRect.width || 200;
+    const reminderWidth = reminderRect.width || defaultWidth;
 
-    // Position reminder so it stays within viewport
-    let reminderLeft = btnCenterX - reminderWidth / 2;
-
-    // Clamp to viewport edges with padding
+    // Position reminder centered below target, clamped to viewport
+    let reminderLeft = targetCenterX - reminderWidth / 2;
     const padding = 16;
     const maxLeft = window.innerWidth - reminderWidth - padding;
     reminderLeft = Math.max(padding, Math.min(reminderLeft, maxLeft));
 
-    // Calculate where the arrow should point (relative to reminder position)
-    const arrowLeft = btnCenterX - reminderLeft;
+    // Calculate arrow position relative to reminder
+    const arrowLeft = targetCenterX - reminderLeft;
 
     reminder.style.left = `${reminderLeft}px`;
-    reminder.style.top = `${btnRect.bottom + 15}px`;
+    reminder.style.top = `${targetRect.bottom + 15}px`;
     reminder.style.setProperty('--arrow-left', `${arrowLeft}px`);
+  }
+
+  repositionPowerReminder() {
+    this.positionReminderBelowElement("power-reminder", "btn-power", 200);
   }
 
   showPowerReminder(show) {
@@ -877,35 +896,71 @@ class AppleIIeEmulator {
   }
 
   repositionDrivesReminder() {
-    const reminder = document.getElementById("drives-reminder");
-    const drivesBtn = document.getElementById("btn-drives");
-    if (!reminder || !drivesBtn) return;
-
-    const btnRect = drivesBtn.getBoundingClientRect();
-    const btnCenterX = btnRect.left + btnRect.width / 2;
-
-    const reminderRect = reminder.getBoundingClientRect();
-    const reminderWidth = reminderRect.width || 180;
-
-    // Position below the button
-    let reminderLeft = btnCenterX - reminderWidth / 2;
-
-    // Clamp to viewport edges
-    const padding = 16;
-    const maxLeft = window.innerWidth - reminderWidth - padding;
-    reminderLeft = Math.max(padding, Math.min(reminderLeft, maxLeft));
-
-    // Calculate arrow position
-    const arrowLeft = btnCenterX - reminderLeft;
-
-    reminder.style.left = `${reminderLeft}px`;
-    reminder.style.top = `${btnRect.bottom + 15}px`;
-    reminder.style.setProperty("--arrow-left", `${arrowLeft}px`);
+    this.positionReminderBelowElement("drives-reminder", "btn-drives", 180);
   }
 
   dismissDrivesReminder() {
     this.showDrivesReminder(false);
     localStorage.setItem("a2e-drives-reminder-dismissed", "true");
+  }
+
+  /**
+   * Clean up resources and remove event listeners.
+   * Call this method when destroying the emulator instance.
+   */
+  destroy() {
+    // Stop the emulator if running
+    if (this.running) {
+      this.stop();
+    }
+
+    // Remove window resize listener
+    window.removeEventListener("resize", this.handleResize);
+
+    // Remove document-level mouse event listeners for monitor resize
+    document.removeEventListener("mousemove", this.handleMonitorMouseMove);
+    document.removeEventListener("mouseup", this.handleMonitorMouseUp);
+
+    // Disconnect ResizeObserver
+    if (this.resizeObserver) {
+      this.resizeObserver.disconnect();
+      this.resizeObserver = null;
+    }
+
+    // Clean up text selection
+    if (this.textSelection) {
+      this.textSelection.destroy();
+      this.textSelection = null;
+    }
+
+    // Clean up window manager
+    if (this.windowManager) {
+      this.windowManager.saveState();
+      this.windowManager = null;
+    }
+
+    // Clean up renderer
+    if (this.renderer) {
+      this.renderer = null;
+    }
+
+    // Clean up audio driver
+    if (this.audioDriver) {
+      this.audioDriver.stop();
+      this.audioDriver = null;
+    }
+
+    // Clean up disk manager
+    if (this.diskManager) {
+      this.diskManager = null;
+    }
+
+    // Clean up input handler
+    if (this.inputHandler) {
+      this.inputHandler = null;
+    }
+
+    console.log("Apple //e Emulator destroyed");
   }
 }
 
