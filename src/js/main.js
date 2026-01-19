@@ -36,8 +36,16 @@ class AppleIIeEmulator {
     // Display aspect ratio (4:3 for authentic CRT monitor)
     this.aspectRatio = 4 / 3;
 
+    // Custom screen size (user-defined via mouse resize)
+    this.customCanvasWidth = null;
+    this.isResizingMonitor = false;
+    this.resizeDirection = null;
+    this.resizeStart = null;
+
     // Bind resize handler
     this.handleResize = this.handleResize.bind(this);
+    this.handleMonitorMouseMove = this.handleMonitorMouseMove.bind(this);
+    this.handleMonitorMouseUp = this.handleMonitorMouseUp.bind(this);
   }
 
   async init() {
@@ -128,6 +136,15 @@ class AppleIIeEmulator {
 
       // Set up resize handling
       this.setupResizeHandling();
+
+      // Set up monitor mouse resize
+      this.setupMonitorResize();
+
+      // Load saved custom screen size
+      const savedWidth = localStorage.getItem("a2e-screen-width");
+      if (savedWidth) {
+        this.customCanvasWidth = parseInt(savedWidth, 10);
+      }
 
       // Initial resize to fit window
       this.handleResize();
@@ -398,6 +415,132 @@ class AppleIIeEmulator {
     }
   }
 
+  setupMonitorResize() {
+    const monitorBezel = document.querySelector(".monitor-bezel");
+    const handles = monitorBezel.querySelectorAll(".monitor-resize-handle");
+
+    handles.forEach((handle) => {
+      handle.addEventListener("mousedown", (e) => {
+        e.preventDefault();
+        this.startMonitorResize(e, handle.dataset.direction);
+      });
+    });
+
+    // Global mouse events for resize
+    document.addEventListener("mousemove", this.handleMonitorMouseMove);
+    document.addEventListener("mouseup", this.handleMonitorMouseUp);
+  }
+
+  startMonitorResize(e, direction) {
+    const canvas = document.getElementById("screen");
+    const monitorBezel = document.querySelector(".monitor-bezel");
+
+    this.isResizingMonitor = true;
+    this.resizeDirection = direction;
+    monitorBezel.classList.add("resizing");
+
+    const rect = canvas.getBoundingClientRect();
+    this.resizeStart = {
+      x: e.clientX,
+      y: e.clientY,
+      width: rect.width,
+      height: rect.height,
+    };
+  }
+
+  handleMonitorMouseMove(e) {
+    if (!this.isResizingMonitor) return;
+
+    const dx = e.clientX - this.resizeStart.x;
+    const dy = e.clientY - this.resizeStart.y;
+    const dir = this.resizeDirection;
+
+    // Calculate delta based on direction
+    // For aspect-ratio constrained resize, use the larger movement
+    let delta = 0;
+    if (dir === "se") {
+      delta = Math.max(dx, dy * this.aspectRatio);
+    } else if (dir === "sw") {
+      delta = Math.max(-dx, dy * this.aspectRatio);
+    } else if (dir === "ne") {
+      delta = Math.max(dx, -dy * this.aspectRatio);
+    } else if (dir === "nw") {
+      delta = Math.max(-dx, -dy * this.aspectRatio);
+    }
+
+    // Calculate new width maintaining aspect ratio
+    let newWidth = this.resizeStart.width + delta;
+
+    // Apply constraints
+    const minWidth = 280;
+    const maxWidth = this.getMaxCanvasWidth();
+    newWidth = Math.max(minWidth, Math.min(maxWidth, newWidth));
+
+    // Store and apply
+    this.customCanvasWidth = Math.floor(newWidth);
+    this.applyCanvasSize(this.customCanvasWidth);
+  }
+
+  handleMonitorMouseUp() {
+    if (!this.isResizingMonitor) return;
+
+    const monitorBezel = document.querySelector(".monitor-bezel");
+    monitorBezel.classList.remove("resizing");
+    this.isResizingMonitor = false;
+    this.resizeDirection = null;
+    this.resizeStart = null;
+
+    // Save to localStorage
+    if (this.customCanvasWidth) {
+      localStorage.setItem("a2e-screen-width", this.customCanvasWidth);
+    }
+  }
+
+  getMaxCanvasWidth() {
+    const diskDrives = document.getElementById("disk-drives");
+    const header = document.querySelector("header");
+    const footer = document.querySelector("footer");
+
+    const headerHeight = header ? header.offsetHeight : 0;
+    const footerHeight = footer ? footer.offsetHeight : 0;
+    const diskDrivesHeight = diskDrives ? diskDrives.offsetHeight + 16 : 100;
+
+    const padding = 32;
+    const bezelPaddingX = 88;
+    const bezelPaddingY = 104;
+
+    const availableWidth = window.innerWidth - padding - bezelPaddingX;
+    const availableHeight =
+      window.innerHeight -
+      headerHeight -
+      footerHeight -
+      diskDrivesHeight -
+      padding -
+      bezelPaddingY;
+
+    // Return the smaller of width-based or height-based max
+    const maxFromWidth = availableWidth;
+    const maxFromHeight = availableHeight * this.aspectRatio;
+
+    return Math.min(maxFromWidth, maxFromHeight);
+  }
+
+  applyCanvasSize(canvasWidth) {
+    const canvas = document.getElementById("screen");
+    const canvasHeight = Math.floor(canvasWidth / this.aspectRatio);
+
+    canvas.style.width = canvasWidth + "px";
+    canvas.style.height = canvasHeight + "px";
+
+    if (this.renderer) {
+      this.renderer.resize(canvasWidth, canvasHeight);
+    }
+
+    if (this.textSelection) {
+      this.textSelection.resize();
+    }
+  }
+
   handleResize() {
     const canvas = document.getElementById("screen");
     const diskDrives = document.getElementById("disk-drives");
@@ -431,15 +574,26 @@ class AppleIIeEmulator {
 
     let canvasWidth, canvasHeight;
 
-    // Calculate size based on aspect ratio
-    if (maxCanvasWidth / maxCanvasHeight > this.aspectRatio) {
-      // Height is the limiting factor
-      canvasHeight = Math.max(200, maxCanvasHeight);
-      canvasWidth = canvasHeight * this.aspectRatio;
-    } else {
-      // Width is the limiting factor
-      canvasWidth = Math.max(280, maxCanvasWidth);
+    if (this.customCanvasWidth) {
+      // Use custom size but constrain to available space
+      const maxWidth = Math.min(
+        maxCanvasWidth,
+        maxCanvasHeight * this.aspectRatio
+      );
+      canvasWidth = Math.min(this.customCanvasWidth, maxWidth);
+      canvasWidth = Math.max(280, canvasWidth);
       canvasHeight = canvasWidth / this.aspectRatio;
+    } else {
+      // Calculate size based on aspect ratio (auto-fit)
+      if (maxCanvasWidth / maxCanvasHeight > this.aspectRatio) {
+        // Height is the limiting factor
+        canvasHeight = Math.max(200, maxCanvasHeight);
+        canvasWidth = canvasHeight * this.aspectRatio;
+      } else {
+        // Width is the limiting factor
+        canvasWidth = Math.max(280, maxCanvasWidth);
+        canvasHeight = canvasWidth / this.aspectRatio;
+      }
     }
 
     // Round to integers

@@ -804,6 +804,43 @@ main {
     border-radius: 0 0 var(--radius-sm) var(--radius-sm);
 }
 
+/* Monitor resize handles */
+.monitor-resize-handle {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    background: transparent;
+    z-index: 10;
+}
+
+.monitor-resize-handle.nw {
+    top: -4px;
+    left: -4px;
+    cursor: nw-resize;
+}
+
+.monitor-resize-handle.ne {
+    top: -4px;
+    right: -4px;
+    cursor: ne-resize;
+}
+
+.monitor-resize-handle.sw {
+    bottom: -4px;
+    left: -4px;
+    cursor: sw-resize;
+}
+
+.monitor-resize-handle.se {
+    bottom: -4px;
+    right: -4px;
+    cursor: se-resize;
+}
+
+.monitor-bezel.resizing {
+    user-select: none;
+}
+
 /* ==================== DISK DRIVES ==================== */
 #disk-drives {
     display: flex;
