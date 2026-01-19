@@ -193,11 +193,13 @@ export class CPUDebuggerWindow extends DebugWindow {
    * Toggle a breakpoint at the given address
    */
   toggleBreakpoint(addr) {
+    console.log('Toggle breakpoint at:', addr.toString(16), 'exists:', this.breakpoints.has(addr));
     if (this.breakpoints.has(addr)) {
       this.removeBreakpoint(addr);
     } else {
       this.addBreakpoint(addr);
     }
+    console.log('Breakpoints now:', Array.from(this.breakpoints.keys()).map(a => a.toString(16)));
   }
 
   /**
@@ -361,11 +363,14 @@ export class CPUDebuggerWindow extends DebugWindow {
 
       // Click to toggle breakpoint
       const clickAddr = addr;
-      line.addEventListener('click', (e) => {
+      const self = this;
+      line.style.cursor = 'pointer';
+      line.onclick = function(e) {
         e.preventDefault();
         e.stopPropagation();
-        this.toggleBreakpoint(clickAddr);
-      });
+        console.log('Click on line:', clickAddr.toString(16));
+        self.toggleBreakpoint(clickAddr);
+      };
 
       view.appendChild(line);
 
