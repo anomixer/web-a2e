@@ -61,6 +61,10 @@
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
     --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
     --shadow-glow: 0 0 20px rgba(63, 185, 80, 0.3);
+
+    /* Text selection colors (for screen text copy feature) */
+    --selection-highlight: rgba(88, 166, 255, 0.35);
+    --selection-copy-flash: rgba(63, 185, 80, 0.5);
 }
 
 /* Utility classes */

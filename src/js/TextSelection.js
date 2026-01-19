@@ -265,9 +265,11 @@ export class TextSelection {
    * Show visual feedback when text is copied
    */
   showCopyFeedback() {
-    // Flash the selection briefly
+    // Flash the selection briefly with copy feedback color
     const ctx = this.overlayCtx;
-    ctx.fillStyle = 'rgba(63, 185, 80, 0.5)';
+    const copyFlashColor = getComputedStyle(document.documentElement)
+      .getPropertyValue('--selection-copy-flash').trim() || 'rgba(63, 185, 80, 0.5)';
+    ctx.fillStyle = copyFlashColor;
     this.drawSelectionHighlight();
 
     setTimeout(() => {
@@ -299,7 +301,9 @@ export class TextSelection {
       [startCol, endCol] = [endCol, startCol];
     }
 
-    ctx.fillStyle = 'rgba(88, 166, 255, 0.35)';
+    const highlightColor = getComputedStyle(document.documentElement)
+      .getPropertyValue('--selection-highlight').trim() || 'rgba(88, 166, 255, 0.35)';
+    ctx.fillStyle = highlightColor;
 
     for (let row = startRow; row <= endRow; row++) {
       const colStart = (row === startRow) ? startCol : 0;

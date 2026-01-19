@@ -241,6 +241,11 @@ export class AudioDriver {
     console.log("Audio driver stopped");
   }
 
+  /**
+   * Set emulation speed multiplier.
+   * Reserved for future speed control feature (e.g., fast-forward, slow-motion).
+   * @param {number} speed - Speed multiplier (1 = normal, 0 = unlimited)
+   */
   setSpeed(speed) {
     this.speed = speed;
   }
@@ -254,6 +259,20 @@ export class AudioDriver {
 
   isMuted() {
     return this.muted;
+  }
+
+  mute() {
+    this.muted = true;
+    if (this.gainNode) {
+      this.gainNode.gain.value = 0;
+    }
+  }
+
+  unmute() {
+    this.muted = false;
+    if (this.gainNode) {
+      this.gainNode.gain.value = this.volume;
+    }
   }
 
   getVolume() {

@@ -4,7 +4,6 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Apple //e Emulator</title>
-        <!-- CSS split into modules for maintainability -->
         <link rel="stylesheet" href="/css/base.css" />
         <link rel="stylesheet" href="/css/layout.css" />
         <link rel="stylesheet" href="/css/monitor.css" />
@@ -86,6 +85,7 @@
                             id="btn-fullscreen"
                             class="control-btn"
                             title="Full Page Mode (Escape to exit)"
+                            aria-label="Full Page Mode"
                         >
                             <svg
                                 viewBox="0 0 24 24"
@@ -102,6 +102,7 @@
                             id="btn-drives"
                             class="control-btn"
                             title="Show/Hide Disk Drives"
+                            aria-label="Show/Hide Disk Drives"
                         >
                             <svg
                                 viewBox="0 0 24 24"
@@ -109,9 +110,21 @@
                                 stroke="currentColor"
                                 stroke-width="2"
                             >
-                                <rect x="4" y="2" width="16" height="20" rx="2" />
+                                <rect
+                                    x="4"
+                                    y="2"
+                                    width="16"
+                                    height="20"
+                                    rx="2"
+                                />
                                 <rect x="8" y="2" width="8" height="6" rx="1" />
-                                <rect x="7" y="12" width="10" height="7" rx="1" />
+                                <rect
+                                    x="7"
+                                    y="12"
+                                    width="10"
+                                    height="7"
+                                    rx="1"
+                                />
                                 <line x1="10" y1="15" x2="14" y2="15" />
                             </svg>
                         </button>
@@ -120,6 +133,7 @@
                                 id="btn-sound"
                                 class="control-btn"
                                 title="Sound Settings"
+                                aria-label="Sound Settings"
                             >
                                 <svg
                                     class="icon-unmuted"
@@ -155,7 +169,7 @@
                                         max="100"
                                         value="50"
                                     />
-                                    <span id="volume-value">50%</span>
+                                    <span id="volume-value" aria-live="polite">50%</span>
                                 </div>
                                 <div class="sound-popup-row">
                                     <label>Mute</label>
@@ -297,8 +311,8 @@
                         <div class="monitor-bezel">
                             <div class="monitor-screen-wrapper">
                                 <canvas id="screen"></canvas>
-                                <div class="scanlines"></div>
-                                <div class="screen-glare"></div>
+                                <div class="scanlines" aria-hidden="true"></div>
+                                <div class="screen-glare" aria-hidden="true"></div>
                             </div>
                             <div class="monitor-badge">
                                 <span>Apple //e</span>
@@ -325,18 +339,42 @@
                                 <span class="charset-label">UK</span>
                             </div>
                             <!-- Resize handles for manual screen resizing -->
-                            <div class="monitor-resize-handle nw" data-direction="nw"></div>
-                            <div class="monitor-resize-handle ne" data-direction="ne"></div>
-                            <div class="monitor-resize-handle sw" data-direction="sw"></div>
-                            <div class="monitor-resize-handle se" data-direction="se"></div>
+                            <div
+                                class="monitor-resize-handle nw"
+                                data-direction="nw"
+                            ></div>
+                            <div
+                                class="monitor-resize-handle ne"
+                                data-direction="ne"
+                            ></div>
+                            <div
+                                class="monitor-resize-handle sw"
+                                data-direction="sw"
+                            ></div>
+                            <div
+                                class="monitor-resize-handle se"
+                                data-direction="se"
+                            ></div>
                             <!-- Manual size indicator -->
                             <button
                                 id="size-lock-indicator"
                                 class="size-lock-indicator hidden"
                                 title="Custom size active - Click to reset to auto-fit"
                             >
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <rect
+                                        x="3"
+                                        y="11"
+                                        width="18"
+                                        height="11"
+                                        rx="2"
+                                        ry="2"
+                                    ></rect>
                                     <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                                 </svg>
                             </button>

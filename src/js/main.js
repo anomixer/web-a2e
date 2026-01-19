@@ -29,7 +29,6 @@ class AppleIIeEmulator {
     this.textSelection = null;
 
     this.running = false;
-    this.speed = 1; // 1x, 2x, or 0 for unlimited
     this.isFullPageMode = false;
     this.isPowerReminderVisible = false;
     this.isResizeReminderVisible = false;
