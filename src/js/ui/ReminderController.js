@@ -7,6 +7,7 @@ export class ReminderController {
   constructor() {
     this.isPowerReminderVisible = false;
     this.isDrivesReminderVisible = false;
+    this.isBasicReminderVisible = false;
   }
 
   /**
@@ -96,6 +97,38 @@ export class ReminderController {
     localStorage.setItem("a2e-drives-reminder-dismissed", "true");
   }
 
+  // BASIC reminder methods (shows when powered on without a disk)
+
+  showBasicReminder(show) {
+    const reminder = document.getElementById("basic-reminder");
+    if (!reminder) return;
+
+    // Check if already dismissed
+    if (show && localStorage.getItem("a2e-basic-reminder-dismissed")) {
+      return;
+    }
+
+    if (show) {
+      this.isBasicReminderVisible = true;
+      reminder.classList.remove("hidden");
+      requestAnimationFrame(() => {
+        this.repositionBasicReminder();
+      });
+    } else {
+      this.isBasicReminderVisible = false;
+      reminder.classList.add("hidden");
+    }
+  }
+
+  repositionBasicReminder() {
+    this.positionReminderBelowElement("basic-reminder", "btn-warm-reset", 220);
+  }
+
+  dismissBasicReminder() {
+    this.showBasicReminder(false);
+    localStorage.setItem("a2e-basic-reminder-dismissed", "true");
+  }
+
   /**
    * Reposition all visible reminders (call after resize)
    */
@@ -105,6 +138,9 @@ export class ReminderController {
     }
     if (this.isDrivesReminderVisible) {
       requestAnimationFrame(() => this.repositionDrivesReminder());
+    }
+    if (this.isBasicReminderVisible) {
+      requestAnimationFrame(() => this.repositionBasicReminder());
     }
   }
 }

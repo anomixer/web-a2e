@@ -68,6 +68,9 @@ class AppleIIeEmulator {
       // Set up disk manager
       this.diskManager = new DiskManager(this.wasmModule);
       this.diskManager.init();
+      this.diskManager.onDiskLoaded = () => {
+        this.reminderController.dismissBasicReminder();
+      };
 
       // Set up debug windows
       this.windowManager = new WindowManager();
@@ -194,8 +197,10 @@ class AppleIIeEmulator {
       this.reminderController.showPowerReminder(false);
       if (this.running) {
         this.stop();
+        this.reminderController.showBasicReminder(false);
       } else {
         this.start();
+        this.reminderController.showBasicReminder(true);
       }
       refocusCanvas();
     });
@@ -203,6 +208,10 @@ class AppleIIeEmulator {
     // Warm reset button (preserves memory)
     document.getElementById("btn-warm-reset").addEventListener("click", () => {
       this.wasmModule._warmReset();
+      // Dismiss BASIC reminder after a short delay
+      setTimeout(() => {
+        this.reminderController.dismissBasicReminder();
+      }, 2000);
       refocusCanvas();
     });
 

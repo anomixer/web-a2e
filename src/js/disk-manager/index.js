@@ -48,6 +48,9 @@ export class DiskManager {
 
     // Drive sounds
     this.sounds = new DriveSounds();
+
+    // Callback for when a disk is loaded
+    this.onDiskLoaded = null;
   }
 
   init() {
@@ -323,7 +326,10 @@ export class DiskManager {
       drive,
       driveNum,
       file,
-      (filename) => this.setDiskName(driveNum, filename),
+      (filename) => {
+        this.setDiskName(driveNum, filename);
+        if (this.onDiskLoaded) this.onDiskLoaded(driveNum, filename);
+      },
       (error) => alert(error),
     );
   }
