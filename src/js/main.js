@@ -261,9 +261,16 @@ class AppleIIeEmulator {
     // Load saved drives visibility setting (default to visible)
     const savedDrivesVisible = localStorage.getItem("a2e-show-drives");
     if (savedDrivesVisible === "false" && drivesBtn && drivesContainer) {
+      // Skip animation on initial load
+      drivesContainer.classList.add("no-transition");
       drivesContainer.classList.add("collapsed");
       drivesBtn.classList.add("off");
-      requestAnimationFrame(() => this.monitorResizer.handleResize());
+      // Force reflow then remove no-transition class
+      drivesContainer.offsetHeight;
+      requestAnimationFrame(() => {
+        drivesContainer.classList.remove("no-transition");
+        this.monitorResizer.handleResize();
+      });
     }
 
     if (drivesBtn && drivesContainer) {

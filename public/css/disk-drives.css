@@ -17,6 +17,12 @@
     transition: grid-template-rows 0.2s ease-out;
 }
 
+/* Skip animation on initial page load */
+.disk-drives-container.no-transition,
+.disk-drives-container.no-transition #disk-drives {
+    transition: none !important;
+}
+
 .disk-drives-inner {
     overflow: hidden;
 }

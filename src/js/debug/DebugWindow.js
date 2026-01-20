@@ -27,6 +27,12 @@ export class DebugWindow {
     this.currentWidth = config.defaultWidth || 400;
     this.currentHeight = config.defaultHeight || 300;
 
+    // Track distance from right/bottom edges for maintaining position on resize
+    this.distanceFromRight = null;
+    this.distanceFromBottom = null;
+    this.lastViewportWidth = window.innerWidth;
+    this.lastViewportHeight = window.innerHeight;
+
     // Bind event handlers
     this.handleMouseDown = this.handleMouseDown.bind(this);
     this.handleMouseMove = this.handleMouseMove.bind(this);
@@ -38,31 +44,31 @@ export class DebugWindow {
    */
   create() {
     // Create main window element
-    this.element = document.createElement('div');
+    this.element = document.createElement("div");
     this.element.id = this.id;
-    this.element.className = 'debug-window hidden';
+    this.element.className = "debug-window hidden";
     this.element.style.width = `${this.defaultWidth}px`;
     this.element.style.height = `${this.defaultHeight}px`;
     this.element.style.left = `${this.defaultPosition.x}px`;
     this.element.style.top = `${this.defaultPosition.y}px`;
 
     // Header (draggable area)
-    this.headerElement = document.createElement('div');
-    this.headerElement.className = 'debug-window-header';
+    this.headerElement = document.createElement("div");
+    this.headerElement.className = "debug-window-header";
     this.headerElement.innerHTML = `
       <span class="debug-window-title">${this.title}</span>
       <button class="debug-window-close" title="Close">&times;</button>
     `;
 
     // Content area
-    this.contentElement = document.createElement('div');
-    this.contentElement.className = 'debug-window-content';
+    this.contentElement = document.createElement("div");
+    this.contentElement.className = "debug-window-content";
     this.contentElement.innerHTML = this.renderContent();
 
     // Resize handles
-    const resizeHandles = ['n', 'e', 's', 'w', 'ne', 'nw', 'se', 'sw'];
-    resizeHandles.forEach(dir => {
-      const handle = document.createElement('div');
+    const resizeHandles = ["n", "e", "s", "w", "ne", "nw", "se", "sw"];
+    resizeHandles.forEach((dir) => {
+      const handle = document.createElement("div");
       handle.className = `debug-resize-handle ${dir}`;
       handle.dataset.direction = dir;
       this.element.appendChild(handle);
@@ -77,7 +83,7 @@ export class DebugWindow {
     this.setupEventListeners();
 
     // Call hook for subclasses to set up after content is rendered
-    if (typeof this.onContentRendered === 'function') {
+    if (typeof this.onContentRendered === "function") {
       this.onContentRendered();
     }
   }
@@ -87,30 +93,30 @@ export class DebugWindow {
    */
   setupEventListeners() {
     // Close button
-    const closeBtn = this.headerElement.querySelector('.debug-window-close');
-    closeBtn.addEventListener('click', () => this.hide());
+    const closeBtn = this.headerElement.querySelector(".debug-window-close");
+    closeBtn.addEventListener("click", () => this.hide());
 
     // Drag start on header
-    this.headerElement.addEventListener('mousedown', (e) => {
-      if (e.target.classList.contains('debug-window-close')) return;
+    this.headerElement.addEventListener("mousedown", (e) => {
+      if (e.target.classList.contains("debug-window-close")) return;
       this.startDrag(e);
     });
 
     // Resize start on handles
-    this.element.querySelectorAll('.debug-resize-handle').forEach(handle => {
-      handle.addEventListener('mousedown', (e) => {
+    this.element.querySelectorAll(".debug-resize-handle").forEach((handle) => {
+      handle.addEventListener("mousedown", (e) => {
         this.startResize(e, handle.dataset.direction);
       });
     });
 
     // Bring to front on click
-    this.element.addEventListener('mousedown', () => {
+    this.element.addEventListener("mousedown", () => {
       if (this.onFocus) this.onFocus(this.id);
     });
 
     // Global mouse events for drag/resize
-    document.addEventListener('mousemove', this.handleMouseMove);
-    document.addEventListener('mouseup', this.handleMouseUp);
+    document.addEventListener("mousemove", this.handleMouseMove);
+    document.addEventListener("mouseup", this.handleMouseUp);
   }
 
   /**
@@ -138,7 +144,7 @@ export class DebugWindow {
     if (this.isDragging || this.isResizing) {
       this.isDragging = false;
       this.isResizing = false;
-      this.element.classList.remove('dragging', 'resizing');
+      this.element.classList.remove("dragging", "resizing");
       if (this.onStateChange) this.onStateChange();
     }
   }
@@ -148,11 +154,11 @@ export class DebugWindow {
    */
   startDrag(e) {
     this.isDragging = true;
-    this.element.classList.add('dragging');
+    this.element.classList.add("dragging");
     const rect = this.element.getBoundingClientRect();
     this.dragOffset = {
       x: e.clientX - rect.left,
-      y: e.clientY - rect.top
+      y: e.clientY - rect.top,
     };
     e.preventDefault();
   }
@@ -174,6 +180,38 @@ export class DebugWindow {
     this.element.style.top = `${y}px`;
     this.currentX = x;
     this.currentY = y;
+
+    // Update edge distances after drag
+    this.updateEdgeDistances();
+  }
+
+  /**
+   * Update tracked distances from right and bottom edges
+   */
+  updateEdgeDistances() {
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const centerX = this.currentX + this.currentWidth / 2;
+    const centerY = this.currentY + this.currentHeight / 2;
+
+    // Track distance from right edge if window is on the right half
+    if (centerX > viewportWidth / 2) {
+      this.distanceFromRight =
+        viewportWidth - (this.currentX + this.currentWidth);
+    } else {
+      this.distanceFromRight = null;
+    }
+
+    // Track distance from bottom edge if window is on the bottom half
+    if (centerY > viewportHeight / 2) {
+      this.distanceFromBottom =
+        viewportHeight - (this.currentY + this.currentHeight);
+    } else {
+      this.distanceFromBottom = null;
+    }
+
+    this.lastViewportWidth = viewportWidth;
+    this.lastViewportHeight = viewportHeight;
   }
 
   /**
@@ -182,7 +220,7 @@ export class DebugWindow {
   startResize(e, direction) {
     this.isResizing = true;
     this.resizeDirection = direction;
-    this.element.classList.add('resizing');
+    this.element.classList.add("resizing");
     const rect = this.element.getBoundingClientRect();
     this.resizeStart = {
       x: e.clientX,
@@ -190,7 +228,7 @@ export class DebugWindow {
       width: rect.width,
       height: rect.height,
       left: rect.left,
-      top: rect.top
+      top: rect.top,
     };
     e.preventDefault();
     e.stopPropagation();
@@ -210,20 +248,20 @@ export class DebugWindow {
     let newTop = this.resizeStart.top;
 
     // Calculate new dimensions based on direction
-    if (dir.includes('e')) {
+    if (dir.includes("e")) {
       newWidth = Math.max(this.minWidth, this.resizeStart.width + dx);
     }
-    if (dir.includes('w')) {
+    if (dir.includes("w")) {
       const proposedWidth = this.resizeStart.width - dx;
       if (proposedWidth >= this.minWidth) {
         newWidth = proposedWidth;
         newLeft = this.resizeStart.left + dx;
       }
     }
-    if (dir.includes('s')) {
+    if (dir.includes("s")) {
       newHeight = Math.max(this.minHeight, this.resizeStart.height + dy);
     }
-    if (dir.includes('n')) {
+    if (dir.includes("n")) {
       const proposedHeight = this.resizeStart.height - dy;
       if (proposedHeight >= this.minHeight) {
         newHeight = proposedHeight;
@@ -255,7 +293,7 @@ export class DebugWindow {
    * Show the window
    */
   show() {
-    this.element.classList.remove('hidden');
+    this.element.classList.remove("hidden");
     this.isVisible = true;
     // Ensure window is within viewport when shown
     this.constrainToViewport();
@@ -270,9 +308,9 @@ export class DebugWindow {
     this.isVisible = false;
     // Save state BEFORE adding hidden class, since getBoundingClientRect returns zeros for display:none
     if (this.onStateChange) this.onStateChange();
-    this.element.classList.add('hidden');
+    this.element.classList.add("hidden");
     // Refocus canvas for keyboard input
-    const canvas = document.getElementById('screen');
+    const canvas = document.getElementById("screen");
     if (canvas) {
       setTimeout(() => canvas.focus(), 0);
     }
@@ -306,7 +344,7 @@ export class DebugWindow {
       y: this.currentY,
       width: this.currentWidth,
       height: this.currentHeight,
-      visible: this.isVisible
+      visible: this.isVisible,
     };
   }
 
@@ -333,6 +371,10 @@ export class DebugWindow {
       this.element.style.height = `${height}px`;
       this.currentHeight = height;
     }
+
+    // Calculate edge distances based on restored position
+    this.updateEdgeDistances();
+
     if (state.visible) {
       this.show();
     }
@@ -340,44 +382,57 @@ export class DebugWindow {
 
   /**
    * Constrain window position to keep it within the visible viewport
+   * Maintains distance from right/bottom edges for windows on those sides
    */
   constrainToViewport() {
     if (!this.element) return;
 
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-
-    // Use tracked values (getBoundingClientRect returns zeros for hidden elements)
-    let newLeft = this.currentX;
-    let newTop = this.currentY;
     const width = this.currentWidth;
     const height = this.currentHeight;
+
+    let newLeft = this.currentX;
+    let newTop = this.currentY;
     let changed = false;
 
-    // If window is wider than viewport, align to left edge
+    // If window was on the right side, maintain distance from right edge
+    if (this.distanceFromRight !== null) {
+      const targetLeft = viewportWidth - width - this.distanceFromRight;
+      if (targetLeft !== newLeft) {
+        newLeft = targetLeft;
+        changed = true;
+      }
+    }
+
+    // If window was on the bottom side, maintain distance from bottom edge
+    if (this.distanceFromBottom !== null) {
+      const targetTop = viewportHeight - height - this.distanceFromBottom;
+      if (targetTop !== newTop) {
+        newTop = targetTop;
+        changed = true;
+      }
+    }
+
+    // Ensure window stays within viewport bounds
     if (width >= viewportWidth) {
       newLeft = 0;
       changed = true;
     } else if (newLeft + width > viewportWidth) {
-      // Window extends past right edge
       newLeft = viewportWidth - width;
       changed = true;
     } else if (newLeft < 0) {
-      // Window extends past left edge
       newLeft = 0;
       changed = true;
     }
 
-    // If window is taller than viewport, align to top edge
     if (height >= viewportHeight) {
       newTop = 0;
       changed = true;
     } else if (newTop + height > viewportHeight) {
-      // Window extends past bottom edge
       newTop = viewportHeight - height;
       changed = true;
     } else if (newTop < 0) {
-      // Window extends past top edge
       newTop = 0;
       changed = true;
     }
@@ -388,13 +443,17 @@ export class DebugWindow {
       this.currentX = newLeft;
       this.currentY = newTop;
     }
+
+    // Update viewport tracking
+    this.lastViewportWidth = viewportWidth;
+    this.lastViewportHeight = viewportHeight;
   }
 
   /**
    * Override in subclasses to provide window content HTML
    */
   renderContent() {
-    return '<p>Override renderContent() in subclass</p>';
+    return "<p>Override renderContent() in subclass</p>";
   }
 
   /**
@@ -415,13 +474,13 @@ export class DebugWindow {
    * Helper to format a hex byte
    */
   formatHex(value, digits = 2) {
-    return value.toString(16).toUpperCase().padStart(digits, '0');
+    return value.toString(16).toUpperCase().padStart(digits, "0");
   }
 
   /**
    * Helper to format a hex address
    */
   formatAddr(value) {
-    return '$' + this.formatHex(value, 4);
+    return "$" + this.formatHex(value, 4);
   }
 }
