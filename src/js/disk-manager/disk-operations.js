@@ -4,6 +4,7 @@
 import {
   saveDiskToStorage,
   clearDiskFromStorage,
+  addToRecentDisks,
 } from "./disk-persistence.js";
 
 /**
@@ -49,6 +50,9 @@ export async function loadDisk(
 
       // Save to IndexedDB for persistence across sessions
       saveDiskToStorage(driveNum, file.name, data);
+
+      // Add to recent disks list
+      addToRecentDisks(file.name, data);
 
       if (onSuccess) onSuccess(file.name);
     } else {

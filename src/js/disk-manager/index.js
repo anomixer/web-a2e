@@ -10,7 +10,12 @@ import {
   performEject,
   saveDiskWithPicker,
 } from "./disk-operations.js";
-import { loadDiskFromStorage } from "./disk-persistence.js";
+import {
+  loadDiskFromStorage,
+  getRecentDisks,
+  loadRecentDisk,
+  addToRecentDisks,
+} from "./disk-persistence.js";
 
 export class DiskManager {
   constructor(wasmModule) {
@@ -21,6 +26,8 @@ export class DiskManager {
         insertBtn: null,
         blankBtn: null,
         ejectBtn: null,
+        recentBtn: null,
+        recentDropdown: null,
         image: null,
         nameLabel: null,
         trackLabel: null,
@@ -32,6 +39,8 @@ export class DiskManager {
         insertBtn: null,
         blankBtn: null,
         ejectBtn: null,
+        recentBtn: null,
+        recentDropdown: null,
         image: null,
         nameLabel: null,
         trackLabel: null,
@@ -47,6 +56,9 @@ export class DiskManager {
 
     // Canvas for focus management
     this.canvas = null;
+
+    // Active recent disks dropdown
+    this.activeDropdown = null;
 
     // Drive sounds
     this.sounds = new DriveSounds();
@@ -70,6 +82,13 @@ export class DiskManager {
 
     // Set up save modal
     this.setupSaveModal();
+
+    // Close dropdown when clicking outside
+    document.addEventListener("click", (e) => {
+      if (this.activeDropdown && !e.target.closest(".recent-container")) {
+        this.closeRecentDropdown();
+      }
+    });
 
     // Restore any persisted disks from previous session
     this.restoreDisks();
@@ -118,6 +137,8 @@ export class DiskManager {
     drive.insertBtn = container.querySelector(".disk-insert");
     drive.blankBtn = container.querySelector(".disk-blank");
     drive.ejectBtn = container.querySelector(".disk-eject");
+    drive.recentBtn = container.querySelector(".disk-recent");
+    drive.recentDropdown = container.querySelector(".recent-dropdown");
     drive.image = container.querySelector(".drive-image");
     drive.nameLabel = container.querySelector(".disk-name");
     drive.trackLabel = container.querySelector(".disk-track");
@@ -134,6 +155,14 @@ export class DiskManager {
       drive.blankBtn.addEventListener("click", () => {
         this.insertBlankDisk(driveNum);
         this.refocusCanvas();
+      });
+    }
+
+    // Recent button click
+    if (drive.recentBtn) {
+      drive.recentBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.toggleRecentDropdown(driveNum);
       });
     }
 
@@ -480,5 +509,100 @@ export class DiskManager {
 
   setMotorVolume(volume) {
     this.sounds.setMotorVolume(volume);
+  }
+
+  // Recent disks dropdown
+
+  /**
+   * Toggle the recent disks dropdown for a drive
+   */
+  async toggleRecentDropdown(driveNum) {
+    const drive = this.drives[driveNum];
+    if (!drive.recentDropdown) return;
+
+    // Close any other open dropdown
+    if (this.activeDropdown && this.activeDropdown !== drive.recentDropdown) {
+      this.closeRecentDropdown();
+    }
+
+    if (drive.recentDropdown.classList.contains("open")) {
+      this.closeRecentDropdown();
+    } else {
+      await this.populateRecentDropdown(driveNum);
+      drive.recentDropdown.classList.add("open");
+      this.activeDropdown = drive.recentDropdown;
+    }
+  }
+
+  /**
+   * Close the currently open dropdown
+   */
+  closeRecentDropdown() {
+    if (this.activeDropdown) {
+      this.activeDropdown.classList.remove("open");
+      this.activeDropdown = null;
+    }
+    this.refocusCanvas();
+  }
+
+  /**
+   * Populate the recent disks dropdown
+   */
+  async populateRecentDropdown(driveNum) {
+    const drive = this.drives[driveNum];
+    if (!drive.recentDropdown) return;
+
+    const recentDisks = await getRecentDisks();
+
+    drive.recentDropdown.innerHTML = "";
+
+    if (recentDisks.length === 0) {
+      const emptyItem = document.createElement("div");
+      emptyItem.className = "recent-item empty";
+      emptyItem.textContent = "No recent disks";
+      drive.recentDropdown.appendChild(emptyItem);
+    } else {
+      for (const disk of recentDisks) {
+        const item = document.createElement("div");
+        item.className = "recent-item";
+        item.textContent = disk.filename;
+        item.title = disk.filename;
+        item.addEventListener("click", (e) => {
+          e.stopPropagation();
+          this.loadRecentDiskInDrive(driveNum, disk.id);
+        });
+        drive.recentDropdown.appendChild(item);
+      }
+    }
+  }
+
+  /**
+   * Load a recent disk into a drive
+   */
+  async loadRecentDiskInDrive(driveNum, diskId) {
+    this.closeRecentDropdown();
+
+    const diskData = await loadRecentDisk(diskId);
+    if (!diskData) {
+      console.error("Failed to load recent disk");
+      return;
+    }
+
+    const drive = this.drives[driveNum];
+    loadDiskFromData(
+      this.wasmModule,
+      drive,
+      driveNum,
+      diskData.filename,
+      diskData.data,
+      (filename) => {
+        this.setDiskName(driveNum, filename);
+        if (this.onDiskLoaded) this.onDiskLoaded(driveNum, filename);
+      },
+      (error) => alert(error),
+    );
+
+    // Update access time by re-adding to recent list
+    addToRecentDisks(diskData.filename, diskData.data);
   }
 }
