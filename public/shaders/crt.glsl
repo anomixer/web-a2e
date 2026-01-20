@@ -33,6 +33,9 @@ uniform float u_burnIn;
 uniform float u_overscan;
 uniform float u_noSignal;
 
+// NTSC fringing effect
+uniform float u_ntscFringing;
+
 varying vec2 v_texCoord;
 
 // Constants
@@ -324,6 +327,74 @@ vec3 rgbShift(sampler2D tex, vec2 uv) {
 }
 
 // ============================================
+// NTSC Color Fringing
+// Simulates the limited chroma bandwidth of NTSC
+// causing color "ringing" at sharp edges
+// ============================================
+
+vec3 ntscFringing(sampler2D tex, vec2 uv, vec3 baseColor) {
+    if (u_ntscFringing < 0.001) return baseColor;
+
+    // Pixel size for sampling neighbors
+    vec2 pixelSize = 1.0 / u_textureSize;
+
+    // Sample neighboring pixels horizontally (NTSC fringing is horizontal)
+    vec3 left2 = texture2D(tex, uv + vec2(-2.0 * pixelSize.x, 0.0)).rgb;
+    vec3 left1 = texture2D(tex, uv + vec2(-1.0 * pixelSize.x, 0.0)).rgb;
+    vec3 right1 = texture2D(tex, uv + vec2(1.0 * pixelSize.x, 0.0)).rgb;
+    vec3 right2 = texture2D(tex, uv + vec2(2.0 * pixelSize.x, 0.0)).rgb;
+
+    // Calculate brightness (luma) for edge detection
+    float lumaCenter = rgb2grey(baseColor);
+    float lumaLeft1 = rgb2grey(left1);
+    float lumaLeft2 = rgb2grey(left2);
+    float lumaRight1 = rgb2grey(right1);
+    float lumaRight2 = rgb2grey(right2);
+
+    // Detect edges - looking for significant brightness transitions
+    float leftAvg = (lumaLeft1 + lumaLeft2) * 0.5;
+    float rightAvg = (lumaRight1 + lumaRight2) * 0.5;
+
+    // Edge strength: how much brighter is one side vs the other
+    float leftEdge = max(0.0, rightAvg - leftAvg);   // Bright on right = left edge of bright area
+    float rightEdge = max(0.0, leftAvg - rightAvg);  // Bright on left = right edge of bright area
+
+    // Only apply fringing where there's a significant edge
+    float edgeThreshold = 0.15;
+    leftEdge = smoothstep(edgeThreshold, edgeThreshold + 0.2, leftEdge);
+    rightEdge = smoothstep(edgeThreshold, edgeThreshold + 0.2, rightEdge);
+
+    // NTSC fringe colors (magenta on left edges, cyan on right edges)
+    vec3 magentaFringe = vec3(0.84, 0.26, 1.0);  // Purple/Magenta
+    vec3 cyanFringe = vec3(0.42, 0.90, 0.72);    // Aqua/Cyan
+
+    // Apply fringing with smooth blending
+    // Fringe is stronger on darker pixels near bright edges
+    float darkness = 1.0 - lumaCenter;
+    float fringeStrength = u_ntscFringing * darkness * 0.7;
+
+    vec3 result = baseColor;
+
+    // Left edge fringing (magenta)
+    if (leftEdge > 0.0) {
+        result = mix(result, magentaFringe, leftEdge * fringeStrength);
+    }
+
+    // Right edge fringing (cyan)
+    if (rightEdge > 0.0) {
+        result = mix(result, cyanFringe, rightEdge * fringeStrength);
+    }
+
+    // Add subtle horizontal color blur to simulate chroma bandwidth limiting
+    // This makes the overall color response smoother
+    vec3 blurredChroma = (left1 + baseColor + right1) / 3.0;
+    float chromaBlur = u_ntscFringing * 0.15;
+    result = mix(result, blurredChroma, chromaBlur);
+
+    return result;
+}
+
+// ============================================
 // Color adjustment
 // ============================================
 
@@ -425,6 +496,9 @@ void main() {
 
     // Get base color with RGB shift
     vec3 color = rgbShift(u_texture, contentUV);
+
+    // Apply NTSC color fringing (before other effects for best results)
+    color = ntscFringing(u_texture, contentUV, color);
 
     // Apply burn-in from accumulation buffer
     if (u_burnIn > 0.001) {

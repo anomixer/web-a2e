@@ -38,7 +38,8 @@ export class DisplaySettingsWindow extends DebugWindow {
       burnIn: 0,
       overscan: 0,
       sharpPixels: false,
-      colorFringing: false,
+      // NTSC fringing (shader-based)
+      ntscFringing: 67,
     };
 
     // Current values
@@ -91,7 +92,7 @@ export class DisplaySettingsWindow extends DebugWindow {
       html += '</div>';
     }
 
-    // Toggle for sharp pixels and color fringing
+    // Toggle for sharp pixels
     html += `
       <div class="settings-section">
         <div class="settings-section-title">Rendering</div>
@@ -102,12 +103,16 @@ export class DisplaySettingsWindow extends DebugWindow {
             <span class="toggle-slider"></span>
           </label>
         </div>
-        <div class="setting-row toggle-row">
-          <label>Color Fringing</label>
-          <label class="toggle">
-            <input type="checkbox" id="ds-colorFringing" ${this.settings.colorFringing ? 'checked' : ''}>
-            <span class="toggle-slider"></span>
-          </label>
+      </div>`;
+
+    // NTSC Fringing slider (shader-based)
+    html += `
+      <div class="settings-section">
+        <div class="settings-section-title">NTSC Effects</div>
+        <div class="setting-row">
+          <label title="NTSC color fringing at edges (magenta/cyan)">NTSC Fringing</label>
+          <input type="range" id="ds-ntscFringing" min="0" max="100" value="${this.settings.ntscFringing}">
+          <span class="setting-value" id="ds-val-ntscFringing">${this.settings.ntscFringing}%</span>
         </div>
       </div>`;
 
@@ -152,14 +157,15 @@ export class DisplaySettingsWindow extends DebugWindow {
       });
     }
 
-    // Color fringing toggle
-    const fringeToggle = this.contentElement.querySelector('#ds-colorFringing');
-    if (fringeToggle) {
-      fringeToggle.addEventListener('change', (e) => {
-        this.settings.colorFringing = e.target.checked;
-        if (this.wasmModule?._setColorFringing) {
-          this.wasmModule._setColorFringing(this.settings.colorFringing);
-        }
+    // NTSC Fringing slider (shader-based)
+    const ntscInput = this.contentElement.querySelector('#ds-ntscFringing');
+    const ntscValueSpan = this.contentElement.querySelector('#ds-val-ntscFringing');
+    if (ntscInput) {
+      ntscInput.addEventListener('input', (e) => {
+        const value = parseInt(e.target.value, 10);
+        this.settings.ntscFringing = value;
+        if (ntscValueSpan) ntscValueSpan.textContent = `${value}%`;
+        this.applyToRenderer('ntscFringing', value / 100);
         this.saveSettings();
       });
     }
@@ -182,6 +188,19 @@ export class DisplaySettingsWindow extends DebugWindow {
     if (this.renderer) {
       this.renderer.setParam(param, value);
     }
+  }
+
+  applyNTSCSettings() {
+    const input = this.contentElement.querySelector('#ds-ntscFringing');
+    const valueSpan = this.contentElement.querySelector('#ds-val-ntscFringing');
+
+    if (input) {
+      input.value = this.settings.ntscFringing;
+    }
+    if (valueSpan) {
+      valueSpan.textContent = `${this.settings.ntscFringing}%`;
+    }
+    this.applyToRenderer('ntscFringing', this.settings.ntscFringing / 100);
   }
 
   applyAllSettings() {
@@ -210,14 +229,8 @@ export class DisplaySettingsWindow extends DebugWindow {
       this.renderer.setNearestFilter(this.settings.sharpPixels);
     }
 
-    // Apply color fringing
-    const fringeToggle = this.contentElement.querySelector('#ds-colorFringing');
-    if (fringeToggle) {
-      fringeToggle.checked = this.settings.colorFringing;
-    }
-    if (this.wasmModule?._setColorFringing) {
-      this.wasmModule._setColorFringing(this.settings.colorFringing);
-    }
+    // Apply NTSC fringing settings (shader-based)
+    this.applyNTSCSettings();
   }
 
   resetToDefaults() {

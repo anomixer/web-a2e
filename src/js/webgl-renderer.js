@@ -57,6 +57,9 @@ export class WebGLRenderer {
 
       // No signal mode (TV static when off)
       noSignal: 0.0, // 1.0 = full static, 0.0 = normal display
+
+      // NTSC color fringing (simulates chroma bandwidth limiting)
+      ntscFringing: 0.67, // 0.0 to 1.0
     };
 
     // Time for animated effects
@@ -170,6 +173,7 @@ export class WebGLRenderer {
       burnIn: gl.getUniformLocation(this.program, "u_burnIn"),
       overscan: gl.getUniformLocation(this.program, "u_overscan"),
       noSignal: gl.getUniformLocation(this.program, "u_noSignal"),
+      ntscFringing: gl.getUniformLocation(this.program, "u_ntscFringing"),
     };
 
     // Get burn-in program uniform locations
@@ -416,6 +420,7 @@ export class WebGLRenderer {
     gl.uniform1f(this.uniforms.burnIn, this.crtParams.burnIn);
     gl.uniform1f(this.uniforms.overscan, this.crtParams.overscan);
     gl.uniform1f(this.uniforms.noSignal, this.crtParams.noSignal);
+    gl.uniform1f(this.uniforms.ntscFringing, this.crtParams.ntscFringing);
 
     // Draw
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
