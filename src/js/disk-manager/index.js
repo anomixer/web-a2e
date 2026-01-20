@@ -4,11 +4,13 @@
 import { DriveSounds } from "./drive-sounds.js";
 import {
   loadDisk,
+  loadDiskFromData,
   insertBlankDisk,
   ejectDisk,
   performEject,
   saveDiskWithPicker,
 } from "./disk-operations.js";
+import { loadDiskFromStorage } from "./disk-persistence.js";
 
 export class DiskManager {
   constructor(wasmModule) {
@@ -68,6 +70,37 @@ export class DiskManager {
 
     // Set up save modal
     this.setupSaveModal();
+
+    // Restore any persisted disks from previous session
+    this.restoreDisks();
+  }
+
+  /**
+   * Restore disks from IndexedDB that were inserted in a previous session
+   */
+  async restoreDisks() {
+    for (let driveNum = 0; driveNum < 2; driveNum++) {
+      try {
+        const diskData = await loadDiskFromStorage(driveNum);
+        if (diskData) {
+          const drive = this.drives[driveNum];
+          loadDiskFromData(
+            this.wasmModule,
+            drive,
+            driveNum,
+            diskData.filename,
+            diskData.data,
+            (filename) => {
+              this.setDiskName(driveNum, filename);
+              if (this.onDiskLoaded) this.onDiskLoaded(driveNum, filename);
+            },
+            (error) => console.error(`Failed to restore disk in drive ${driveNum + 1}:`, error),
+          );
+        }
+      } catch (error) {
+        console.error(`Error restoring disk for drive ${driveNum + 1}:`, error);
+      }
+    }
   }
 
   refocusCanvas() {

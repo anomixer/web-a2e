@@ -1,6 +1,11 @@
 // Disk Operations - Load, save, and eject disk images
 // Handles WASM memory allocation and file system interactions
 
+import {
+  saveDiskToStorage,
+  clearDiskFromStorage,
+} from "./disk-persistence.js";
+
 /**
  * Load a disk image from a file into a drive
  * @param {Object} wasmModule - The WASM module
@@ -41,6 +46,10 @@ export async function loadDisk(
       drive.filename = file.name;
       if (drive.ejectBtn) drive.ejectBtn.disabled = false;
       console.log(`Inserted disk in drive ${driveNum + 1}: ${file.name}`);
+
+      // Save to IndexedDB for persistence across sessions
+      saveDiskToStorage(driveNum, file.name, data);
+
       if (onSuccess) onSuccess(file.name);
     } else {
       const msg = `Failed to load disk image: ${file.name}`;
@@ -50,6 +59,57 @@ export async function loadDisk(
   } catch (error) {
     console.error("Error loading disk:", error);
     if (onError) onError("Error loading disk: " + error.message);
+  }
+}
+
+/**
+ * Load a disk image from raw data (used for restoring from persistence)
+ * @param {Object} wasmModule - The WASM module
+ * @param {Object} drive - The drive state object
+ * @param {number} driveNum - Drive number (0 or 1)
+ * @param {string} filename - The disk filename
+ * @param {Uint8Array} data - The disk image data
+ * @param {Function} onSuccess - Callback on successful load
+ * @param {Function} onError - Callback on error
+ */
+export function loadDiskFromData(
+  wasmModule,
+  drive,
+  driveNum,
+  filename,
+  data,
+  onSuccess,
+  onError,
+) {
+  try {
+    // Allocate memory in WASM
+    const ptr = wasmModule._malloc(data.length);
+    wasmModule.HEAPU8.set(data, ptr);
+
+    // Allocate string for filename
+    const filenamePtr = wasmModule._malloc(filename.length + 1);
+    wasmModule.stringToUTF8(filename, filenamePtr, filename.length + 1);
+
+    // Insert disk
+    const success = wasmModule._insertDisk(driveNum, ptr, data.length, filenamePtr);
+
+    // Free memory
+    wasmModule._free(ptr);
+    wasmModule._free(filenamePtr);
+
+    if (success) {
+      drive.filename = filename;
+      if (drive.ejectBtn) drive.ejectBtn.disabled = false;
+      console.log(`Restored disk in drive ${driveNum + 1}: ${filename}`);
+      if (onSuccess) onSuccess(filename);
+    } else {
+      const msg = `Failed to restore disk image: ${filename}`;
+      console.error(msg);
+      if (onError) onError(msg);
+    }
+  } catch (error) {
+    console.error("Error restoring disk:", error);
+    if (onError) onError("Error restoring disk: " + error.message);
   }
 }
 
@@ -92,6 +152,9 @@ export function performEject(wasmModule, drive, driveNum, onEject) {
   drive.filename = null;
   if (drive.ejectBtn) drive.ejectBtn.disabled = true;
   if (drive.input) drive.input.value = "";
+
+  // Clear from IndexedDB
+  clearDiskFromStorage(driveNum);
 
   console.log(`Ejected disk from drive ${driveNum + 1}`);
   if (onEject) onEject();
