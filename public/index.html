@@ -170,7 +170,9 @@
                                         max="100"
                                         value="50"
                                     />
-                                    <span id="volume-value" aria-live="polite">50%</span>
+                                    <span id="volume-value" aria-live="polite"
+                                        >50%</span
+                                    >
                                 </div>
                                 <div class="sound-popup-row">
                                     <label>Mute</label>
@@ -316,7 +318,9 @@
                                 stroke-width="2"
                             >
                                 <circle cx="12" cy="12" r="10" />
-                                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                                <path
+                                    d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"
+                                />
                                 <line x1="12" y1="17" x2="12.01" y2="17" />
                             </svg>
                             <span>Help</span>
@@ -332,7 +336,10 @@
                             <div class="monitor-screen-wrapper">
                                 <canvas id="screen"></canvas>
                                 <div class="scanlines" aria-hidden="true"></div>
-                                <div class="screen-glare" aria-hidden="true"></div>
+                                <div
+                                    class="screen-glare"
+                                    aria-hidden="true"
+                                ></div>
                             </div>
                             <div class="monitor-badge">
                                 <span>Apple //e</span>
@@ -530,18 +537,6 @@
                 <div class="reminder-arrow"></div>
             </div>
 
-            <div id="resize-reminder" class="floating-reminder hidden">
-                <div class="reminder-content">
-                    <div class="reminder-text">
-                        <span class="reminder-hint"
-                            >Drag corners to <strong>resize</strong> the
-                            display</span
-                        >
-                    </div>
-                </div>
-                <div class="reminder-arrow arrow-bottom-right"></div>
-            </div>
-
             <div id="drives-reminder" class="floating-reminder hidden">
                 <div class="reminder-content">
                     <div class="reminder-text">
@@ -596,15 +591,30 @@
                 <div class="modal-content documentation-content">
                     <div class="documentation-header">
                         <h2>
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
                                 <circle cx="12" cy="12" r="10" />
-                                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+                                <path
+                                    d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"
+                                />
                                 <line x1="12" y1="17" x2="12.01" y2="17" />
                             </svg>
                             Help & Documentation
                         </h2>
-                        <button class="documentation-close" title="Close (Escape)">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <button
+                            class="documentation-close"
+                            title="Close (Escape)"
+                        >
+                            <svg
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                            >
                                 <line x1="18" y1="6" x2="6" y2="18" />
                                 <line x1="6" y1="6" x2="18" y2="18" />
                             </svg>
@@ -612,16 +622,37 @@
                     </div>
                     <div class="documentation-layout">
                         <nav class="documentation-nav">
-                            <button data-section="getting-started" class="active">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+                            <button
+                                data-section="getting-started"
+                                class="active"
+                            >
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path
+                                        d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"
+                                    />
                                     <polyline points="9 22 9 12 15 12 15 22" />
                                 </svg>
                                 Getting Started
                             </button>
                             <button data-section="keyboard">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <rect x="2" y="4" width="20" height="16" rx="2" />
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <rect
+                                        x="2"
+                                        y="4"
+                                        width="20"
+                                        height="16"
+                                        rx="2"
+                                    />
                                     <line x1="6" y1="8" x2="6.01" y2="8" />
                                     <line x1="10" y1="8" x2="10.01" y2="8" />
                                     <line x1="14" y1="8" x2="14.01" y2="8" />
@@ -634,40 +665,93 @@
                                 Keyboard
                             </button>
                             <button data-section="features">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <polygon points="12 2 2 7 12 12 22 7 12 2" />
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <polygon
+                                        points="12 2 2 7 12 12 22 7 12 2"
+                                    />
                                     <polyline points="2 17 12 22 22 17" />
                                     <polyline points="2 12 12 17 22 12" />
                                 </svg>
                                 Features
                             </button>
                             <button data-section="display">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <rect x="2" y="3" width="20" height="14" rx="2" />
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <rect
+                                        x="2"
+                                        y="3"
+                                        width="20"
+                                        height="14"
+                                        rx="2"
+                                    />
                                     <line x1="8" y1="21" x2="16" y2="21" />
                                     <line x1="12" y1="17" x2="12" y2="21" />
                                 </svg>
                                 Display
                             </button>
                             <button data-section="disks">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <rect x="4" y="2" width="16" height="20" rx="2" />
-                                    <rect x="8" y="2" width="8" height="6" rx="1" />
-                                    <rect x="7" y="12" width="10" height="7" rx="1" />
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <rect
+                                        x="4"
+                                        y="2"
+                                        width="16"
+                                        height="20"
+                                        rx="2"
+                                    />
+                                    <rect
+                                        x="8"
+                                        y="2"
+                                        width="8"
+                                        height="6"
+                                        rx="1"
+                                    />
+                                    <rect
+                                        x="7"
+                                        y="12"
+                                        width="10"
+                                        height="7"
+                                        rx="1"
+                                    />
                                     <line x1="10" y1="15" x2="14" y2="15" />
                                 </svg>
                                 Disk Drives
                             </button>
                             <button data-section="debug">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" />
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path
+                                        d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z"
+                                    />
                                     <path d="M12 6v2M12 16v2M6 12h2M16 12h2" />
                                     <circle cx="12" cy="12" r="3" />
                                 </svg>
                                 Debug Tools
                             </button>
                             <button data-section="tips">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
                                     <circle cx="12" cy="12" r="10" />
                                     <line x1="12" y1="16" x2="12" y2="12" />
                                     <line x1="12" y1="8" x2="12.01" y2="8" />
@@ -677,30 +761,71 @@
                         </nav>
                         <div class="documentation-body">
                             <!-- Getting Started Section -->
-                            <section id="doc-getting-started" class="documentation-section active">
+                            <section
+                                id="doc-getting-started"
+                                class="documentation-section active"
+                            >
                                 <h3>Getting Started</h3>
-                                <p>Welcome to the Apple //e Emulator! This web-based emulator faithfully recreates the Apple //e Enhanced computer from 1983, allowing you to run classic Apple II software directly in your browser.</p>
+                                <p>
+                                    Welcome to the Apple //e Emulator! This
+                                    web-based emulator faithfully recreates the
+                                    Apple //e Enhanced computer from 1983,
+                                    allowing you to run classic Apple II
+                                    software directly in your browser.
+                                </p>
 
                                 <h4>Quick Start</h4>
                                 <ol class="quick-start-list">
-                                    <li>Click the <strong>Power</strong> button to turn on the emulator</li>
-                                    <li>Click on the screen to give it keyboard focus</li>
-                                    <li>Insert a disk image using the <strong>Insert</strong> button on either drive</li>
-                                    <li>Type <kbd>PR#6</kbd> and press <kbd>Return</kbd> to boot from drive 1</li>
+                                    <li>
+                                        Click the <strong>Power</strong> button
+                                        to turn on the emulator
+                                    </li>
+                                    <li>
+                                        Click on the screen to give it keyboard
+                                        focus
+                                    </li>
+                                    <li>
+                                        Insert a disk image using the
+                                        <strong>Insert</strong> button on either
+                                        drive
+                                    </li>
+                                    <li>
+                                        Type <kbd>PR#6</kbd> and press
+                                        <kbd>Return</kbd> to boot from drive 1
+                                    </li>
                                 </ol>
 
                                 <h4>What is the Apple //e?</h4>
-                                <p>The Apple //e (Enhanced) was Apple's most popular Apple II model, featuring 128KB of RAM, 80-column text display, and double hi-res graphics. It was the workhorse of the Apple II line and ran thousands of educational, productivity, and entertainment programs.</p>
+                                <p>
+                                    The Apple //e (Enhanced) was Apple's most
+                                    popular Apple II model, featuring 128KB of
+                                    RAM, 80-column text display, and double
+                                    hi-res graphics. It was the workhorse of the
+                                    Apple II line and ran thousands of
+                                    educational, productivity, and entertainment
+                                    programs.
+                                </p>
 
                                 <div class="info-box tip">
-                                    <p><strong>Tip:</strong> Press <kbd>F1</kbd> at any time to open this help documentation.</p>
+                                    <p>
+                                        <strong>Tip:</strong> Press
+                                        <kbd>F1</kbd> at any time to open this
+                                        help documentation.
+                                    </p>
                                 </div>
                             </section>
 
                             <!-- Keyboard Reference Section -->
-                            <section id="doc-keyboard" class="documentation-section">
+                            <section
+                                id="doc-keyboard"
+                                class="documentation-section"
+                            >
                                 <h3>Keyboard Reference</h3>
-                                <p>The Apple //e keyboard is mapped to your modern keyboard. Some keys have special mappings to match the original layout.</p>
+                                <p>
+                                    The Apple //e keyboard is mapped to your
+                                    modern keyboard. Some keys have special
+                                    mappings to match the original layout.
+                                </p>
 
                                 <h4>Basic Keys</h4>
                                 <table class="key-table">
@@ -733,9 +858,16 @@
                                             <td>Tab character</td>
                                         </tr>
                                         <tr>
-                                            <td><kbd>&#8592;</kbd> <kbd>&#8594;</kbd> <kbd>&#8593;</kbd> <kbd>&#8595;</kbd></td>
+                                            <td>
+                                                <kbd>&#8592;</kbd>
+                                                <kbd>&#8594;</kbd>
+                                                <kbd>&#8593;</kbd>
+                                                <kbd>&#8595;</kbd>
+                                            </td>
                                             <td>Arrow Keys</td>
-                                            <td>Cursor movement, game controls</td>
+                                            <td>
+                                                Cursor movement, game controls
+                                            </td>
                                         </tr>
                                     </tbody>
                                 </table>
@@ -753,12 +885,19 @@
                                         <tr>
                                             <td><kbd>Alt</kbd> (Left)</td>
                                             <td>Open Apple</td>
-                                            <td>Modifier key, joystick button 0</td>
+                                            <td>
+                                                Modifier key, joystick button 0
+                                            </td>
                                         </tr>
                                         <tr>
-                                            <td><kbd>Alt</kbd> (Right) / <kbd>Win</kbd></td>
+                                            <td>
+                                                <kbd>Alt</kbd> (Right) /
+                                                <kbd>Win</kbd>
+                                            </td>
                                             <td>Closed Apple</td>
-                                            <td>Modifier key, joystick button 1</td>
+                                            <td>
+                                                Modifier key, joystick button 1
+                                            </td>
                                         </tr>
                                         <tr>
                                             <td><kbd>Ctrl</kbd></td>
@@ -766,7 +905,9 @@
                                             <td>Control key modifier</td>
                                         </tr>
                                         <tr>
-                                            <td><kbd>Ctrl</kbd>+<kbd>Break</kbd></td>
+                                            <td>
+                                                <kbd>Ctrl</kbd>+<kbd>Break</kbd>
+                                            </td>
                                             <td>Reset</td>
                                             <td>Warm reset (Ctrl+Reset)</td>
                                         </tr>
@@ -783,139 +924,351 @@
                                     </thead>
                                     <tbody>
                                         <tr>
-                                            <td><kbd>Ctrl</kbd>+<kbd>C</kbd></td>
-                                            <td>Break (stop running program)</td>
+                                            <td>
+                                                <kbd>Ctrl</kbd>+<kbd>C</kbd>
+                                            </td>
+                                            <td>
+                                                Break (stop running program)
+                                            </td>
                                         </tr>
                                         <tr>
-                                            <td><kbd>Ctrl</kbd>+<kbd>S</kbd></td>
+                                            <td>
+                                                <kbd>Ctrl</kbd>+<kbd>S</kbd>
+                                            </td>
                                             <td>Pause output</td>
                                         </tr>
                                         <tr>
-                                            <td><kbd>Ctrl</kbd>+<kbd>G</kbd></td>
+                                            <td>
+                                                <kbd>Ctrl</kbd>+<kbd>G</kbd>
+                                            </td>
                                             <td>Bell (beep)</td>
                                         </tr>
                                         <tr>
-                                            <td><kbd>Ctrl</kbd>+<kbd>Reset</kbd></td>
+                                            <td>
+                                                <kbd>Ctrl</kbd>+<kbd>Reset</kbd>
+                                            </td>
                                             <td>Warm reset</td>
                                         </tr>
                                     </tbody>
                                 </table>
 
                                 <h4>Text Selection & Copy</h4>
-                                <p>You can select and copy text directly from the emulator screen:</p>
+                                <p>
+                                    You can select and copy text directly from
+                                    the emulator screen:
+                                </p>
                                 <ul>
-                                    <li>Click and drag on the screen to select text</li>
-                                    <li>Selected text is automatically copied when you release the mouse</li>
-                                    <li>Press <kbd>Ctrl</kbd>+<kbd>C</kbd> (or <kbd>Cmd</kbd>+<kbd>C</kbd> on Mac) while selecting to copy</li>
+                                    <li>
+                                        Click and drag on the screen to select
+                                        text
+                                    </li>
+                                    <li>
+                                        Selected text is automatically copied
+                                        when you release the mouse
+                                    </li>
+                                    <li>
+                                        Press <kbd>Ctrl</kbd>+<kbd>C</kbd> (or
+                                        <kbd>Cmd</kbd>+<kbd>C</kbd> on Mac)
+                                        while selecting to copy
+                                    </li>
                                 </ul>
                             </section>
 
                             <!-- Features Section -->
-                            <section id="doc-features" class="documentation-section">
+                            <section
+                                id="doc-features"
+                                class="documentation-section"
+                            >
                                 <h3>Emulator Features</h3>
-                                <p>This emulator provides an accurate recreation of the Apple //e Enhanced with modern enhancements.</p>
+                                <p>
+                                    This emulator provides an accurate
+                                    recreation of the Apple //e Enhanced with
+                                    modern enhancements.
+                                </p>
 
                                 <div class="feature-grid">
                                     <div class="feature-card">
                                         <h5>
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <rect x="4" y="4" width="16" height="16" rx="2" />
-                                                <rect x="9" y="9" width="6" height="6" />
-                                                <line x1="9" y1="1" x2="9" y2="4" />
-                                                <line x1="15" y1="1" x2="15" y2="4" />
-                                                <line x1="9" y1="20" x2="9" y2="23" />
-                                                <line x1="15" y1="20" x2="15" y2="23" />
-                                                <line x1="20" y1="9" x2="23" y2="9" />
-                                                <line x1="20" y1="14" x2="23" y2="14" />
-                                                <line x1="1" y1="9" x2="4" y2="9" />
-                                                <line x1="1" y1="14" x2="4" y2="14" />
+                                            <svg
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                            >
+                                                <rect
+                                                    x="4"
+                                                    y="4"
+                                                    width="16"
+                                                    height="16"
+                                                    rx="2"
+                                                />
+                                                <rect
+                                                    x="9"
+                                                    y="9"
+                                                    width="6"
+                                                    height="6"
+                                                />
+                                                <line
+                                                    x1="9"
+                                                    y1="1"
+                                                    x2="9"
+                                                    y2="4"
+                                                />
+                                                <line
+                                                    x1="15"
+                                                    y1="1"
+                                                    x2="15"
+                                                    y2="4"
+                                                />
+                                                <line
+                                                    x1="9"
+                                                    y1="20"
+                                                    x2="9"
+                                                    y2="23"
+                                                />
+                                                <line
+                                                    x1="15"
+                                                    y1="20"
+                                                    x2="15"
+                                                    y2="23"
+                                                />
+                                                <line
+                                                    x1="20"
+                                                    y1="9"
+                                                    x2="23"
+                                                    y2="9"
+                                                />
+                                                <line
+                                                    x1="20"
+                                                    y1="14"
+                                                    x2="23"
+                                                    y2="14"
+                                                />
+                                                <line
+                                                    x1="1"
+                                                    y1="9"
+                                                    x2="4"
+                                                    y2="9"
+                                                />
+                                                <line
+                                                    x1="1"
+                                                    y1="14"
+                                                    x2="4"
+                                                    y2="14"
+                                                />
                                             </svg>
                                             65C02 CPU
                                         </h5>
-                                        <p>Accurate emulation of the 65C02 processor at 1.023 MHz with all instructions and timing.</p>
+                                        <p>
+                                            Accurate emulation of the 65C02
+                                            processor at 1.023 MHz with all
+                                            instructions and timing.
+                                        </p>
                                     </div>
                                     <div class="feature-card">
                                         <h5>
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <rect x="2" y="3" width="20" height="14" rx="2" />
-                                                <line x1="8" y1="21" x2="16" y2="21" />
-                                                <line x1="12" y1="17" x2="12" y2="21" />
+                                            <svg
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                            >
+                                                <rect
+                                                    x="2"
+                                                    y="3"
+                                                    width="20"
+                                                    height="14"
+                                                    rx="2"
+                                                />
+                                                <line
+                                                    x1="8"
+                                                    y1="21"
+                                                    x2="16"
+                                                    y2="21"
+                                                />
+                                                <line
+                                                    x1="12"
+                                                    y1="17"
+                                                    x2="12"
+                                                    y2="21"
+                                                />
                                             </svg>
                                             WebGL Rendering
                                         </h5>
-                                        <p>GPU-accelerated display with authentic CRT effects, scanlines, and color fringing.</p>
+                                        <p>
+                                            GPU-accelerated display with
+                                            authentic CRT effects, scanlines,
+                                            and color fringing.
+                                        </p>
                                     </div>
                                     <div class="feature-card">
                                         <h5>
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-                                                <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-                                                <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                                            <svg
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                            >
+                                                <polygon
+                                                    points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"
+                                                />
+                                                <path
+                                                    d="M19.07 4.93a10 10 0 0 1 0 14.14"
+                                                />
+                                                <path
+                                                    d="M15.54 8.46a5 5 0 0 1 0 7.07"
+                                                />
                                             </svg>
                                             Audio Emulation
                                         </h5>
-                                        <p>Authentic speaker clicks with optional drive motor and head seek sounds.</p>
+                                        <p>
+                                            Authentic speaker clicks with
+                                            optional drive motor and head seek
+                                            sounds.
+                                        </p>
                                     </div>
                                     <div class="feature-card">
                                         <h5>
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
-                                                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+                                            <svg
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                            >
+                                                <rect
+                                                    x="9"
+                                                    y="9"
+                                                    width="13"
+                                                    height="13"
+                                                    rx="2"
+                                                    ry="2"
+                                                />
+                                                <path
+                                                    d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+                                                />
                                             </svg>
                                             Clipboard Support
                                         </h5>
-                                        <p>Paste text directly into the emulator and copy text from the screen.</p>
+                                        <p>
+                                            Paste text directly into the
+                                            emulator and copy text from the
+                                            screen.
+                                        </p>
                                     </div>
                                 </div>
 
                                 <h4>Display Modes</h4>
                                 <ul>
-                                    <li><strong>Text Mode</strong> - 40 or 80 column text display</li>
-                                    <li><strong>Lo-Res Graphics</strong> - 40x48 or 80x48 color blocks</li>
-                                    <li><strong>Hi-Res Graphics</strong> - 280x192 with 6 colors</li>
-                                    <li><strong>Double Hi-Res</strong> - 560x192 with 16 colors</li>
-                                    <li><strong>Mixed Mode</strong> - Graphics with 4 lines of text</li>
+                                    <li>
+                                        <strong>Text Mode</strong> - 40 or 80
+                                        column text display
+                                    </li>
+                                    <li>
+                                        <strong>Lo-Res Graphics</strong> - 40x48
+                                        or 80x48 color blocks
+                                    </li>
+                                    <li>
+                                        <strong>Hi-Res Graphics</strong> -
+                                        280x192 with 6 colors
+                                    </li>
+                                    <li>
+                                        <strong>Double Hi-Res</strong> - 560x192
+                                        with 16 colors
+                                    </li>
+                                    <li>
+                                        <strong>Mixed Mode</strong> - Graphics
+                                        with 4 lines of text
+                                    </li>
                                 </ul>
                             </section>
 
                             <!-- Display Settings Section -->
-                            <section id="doc-display" class="documentation-section">
+                            <section
+                                id="doc-display"
+                                class="documentation-section"
+                            >
                                 <h3>Display Settings</h3>
-                                <p>Customize the visual appearance of the emulator display through the Display Settings panel.</p>
+                                <p>
+                                    Customize the visual appearance of the
+                                    emulator display through the Display
+                                    Settings panel.
+                                </p>
 
                                 <h4>CRT Effects</h4>
                                 <ul>
-                                    <li><strong>Scanlines</strong> - Authentic horizontal scan line effect</li>
-                                    <li><strong>Screen Curvature</strong> - Simulates curved CRT glass</li>
-                                    <li><strong>Vignette</strong> - Darkening at screen edges</li>
-                                    <li><strong>Bloom/Glow</strong> - Phosphor glow simulation</li>
+                                    <li>
+                                        <strong>Scanlines</strong> - Authentic
+                                        horizontal scan line effect
+                                    </li>
+                                    <li>
+                                        <strong>Screen Curvature</strong> -
+                                        Simulates curved CRT glass
+                                    </li>
+                                    <li>
+                                        <strong>Vignette</strong> - Darkening at
+                                        screen edges
+                                    </li>
+                                    <li>
+                                        <strong>Bloom/Glow</strong> - Phosphor
+                                        glow simulation
+                                    </li>
                                 </ul>
 
                                 <h4>Analog Effects</h4>
                                 <ul>
-                                    <li><strong>Color Fringing</strong> - NTSC color artifact emulation for Hi-Res graphics</li>
-                                    <li><strong>Noise</strong> - Subtle signal noise</li>
+                                    <li>
+                                        <strong>Color Fringing</strong> - NTSC
+                                        color artifact emulation for Hi-Res
+                                        graphics
+                                    </li>
+                                    <li>
+                                        <strong>Noise</strong> - Subtle signal
+                                        noise
+                                    </li>
                                 </ul>
 
                                 <h4>Image Adjustments</h4>
                                 <ul>
-                                    <li><strong>Brightness</strong> - Overall image brightness</li>
-                                    <li><strong>Contrast</strong> - Color contrast level</li>
-                                    <li><strong>Saturation</strong> - Color intensity</li>
+                                    <li>
+                                        <strong>Brightness</strong> - Overall
+                                        image brightness
+                                    </li>
+                                    <li>
+                                        <strong>Contrast</strong> - Color
+                                        contrast level
+                                    </li>
+                                    <li>
+                                        <strong>Saturation</strong> - Color
+                                        intensity
+                                    </li>
                                 </ul>
 
                                 <h4>Sharp Pixels Mode</h4>
-                                <p>Disable all effects for a clean, pixel-perfect display. Useful for screenshots or if you prefer a modern look.</p>
+                                <p>
+                                    Disable all effects for a clean,
+                                    pixel-perfect display. Useful for
+                                    screenshots or if you prefer a modern look.
+                                </p>
 
                                 <div class="info-box info">
-                                    <p><strong>Note:</strong> You can resize the display by dragging the corner handles on the monitor bezel.</p>
+                                    <p>
+                                        <strong>Note:</strong> You can resize
+                                        the display by dragging the corner
+                                        handles on the monitor bezel.
+                                    </p>
                                 </div>
                             </section>
 
                             <!-- Disk Operations Section -->
-                            <section id="doc-disks" class="documentation-section">
+                            <section
+                                id="doc-disks"
+                                class="documentation-section"
+                            >
                                 <h3>Disk Operations</h3>
-                                <p>The emulator includes two Disk II drives for loading and saving software.</p>
+                                <p>
+                                    The emulator includes two Disk II drives for
+                                    loading and saving software.
+                                </p>
 
                                 <h4>Supported Formats</h4>
                                 <div class="format-list">
@@ -943,109 +1296,209 @@
 
                                 <h4>Inserting Disks</h4>
                                 <ul>
-                                    <li><strong>Insert button</strong> - Opens a file picker to select a disk image</li>
-                                    <li><strong>Drag and drop</strong> - Drag disk files directly onto a drive</li>
-                                    <li><strong>Blank button</strong> - Creates a new blank formatted disk</li>
+                                    <li>
+                                        <strong>Insert button</strong> - Opens a
+                                        file picker to select a disk image
+                                    </li>
+                                    <li>
+                                        <strong>Drag and drop</strong> - Drag
+                                        disk files directly onto a drive
+                                    </li>
+                                    <li>
+                                        <strong>Blank button</strong> - Creates
+                                        a new blank formatted disk
+                                    </li>
                                 </ul>
 
                                 <h4>Ejecting Disks</h4>
-                                <p>Click the <strong>Eject</strong> button to remove a disk. If the disk has been modified, you'll be prompted to save it.</p>
+                                <p>
+                                    Click the <strong>Eject</strong> button to
+                                    remove a disk. If the disk has been
+                                    modified, you'll be prompted to save it.
+                                </p>
 
                                 <h4>Booting from Disk</h4>
-                                <p>After inserting a bootable disk in drive 1:</p>
+                                <p>
+                                    After inserting a bootable disk in drive 1:
+                                </p>
                                 <ul>
-                                    <li>Type <kbd>PR#6</kbd> and press <kbd>Return</kbd> to boot</li>
-                                    <li>Or press the <strong>Reboot</strong> button to cold boot</li>
+                                    <li>
+                                        Type <kbd>PR#6</kbd> and press
+                                        <kbd>Return</kbd> to boot
+                                    </li>
+                                    <li>
+                                        Or press the
+                                        <strong>Reboot</strong> button to cold
+                                        boot
+                                    </li>
                                 </ul>
 
                                 <div class="info-box warning">
-                                    <p><strong>Important:</strong> Modified disks are stored in memory only. Use <strong>Eject</strong> and save when prompted to preserve changes.</p>
+                                    <p>
+                                        <strong>Important:</strong> Modified
+                                        disks are stored in memory only. Use
+                                        <strong>Eject</strong> and save when
+                                        prompted to preserve changes.
+                                    </p>
                                 </div>
                             </section>
 
                             <!-- Debug Tools Section -->
-                            <section id="doc-debug" class="documentation-section">
+                            <section
+                                id="doc-debug"
+                                class="documentation-section"
+                            >
                                 <h3>Debug Tools</h3>
-                                <p>Advanced debugging tools for developers and enthusiasts. Access these from the <strong>Debug</strong> menu.</p>
+                                <p>
+                                    Advanced debugging tools for developers and
+                                    enthusiasts. Access these from the
+                                    <strong>Debug</strong> menu.
+                                </p>
 
                                 <div class="debug-tools-list">
                                     <div class="debug-tool-item">
                                         <div>
                                             <h5>CPU Debugger</h5>
-                                            <p>View CPU registers, flags, and current instruction. Step through code one instruction at a time.</p>
+                                            <p>
+                                                View CPU registers, flags, and
+                                                current instruction. Step
+                                                through code one instruction at
+                                                a time.
+                                            </p>
                                         </div>
                                     </div>
                                     <div class="debug-tool-item">
                                         <div>
                                             <h5>Drive Monitor</h5>
-                                            <p>Watch disk drive activity including track position, motor status, and read/write operations.</p>
+                                            <p>
+                                                Watch disk drive activity
+                                                including track position, motor
+                                                status, and read/write
+                                                operations.
+                                            </p>
                                         </div>
                                     </div>
                                     <div class="debug-tool-item">
                                         <div>
                                             <h5>Soft Switches</h5>
-                                            <p>Monitor the state of Apple II soft switches that control memory banking, display modes, and I/O.</p>
+                                            <p>
+                                                Monitor the state of Apple II
+                                                soft switches that control
+                                                memory banking, display modes,
+                                                and I/O.
+                                            </p>
                                         </div>
                                     </div>
                                     <div class="debug-tool-item">
                                         <div>
                                             <h5>Memory Browser</h5>
-                                            <p>Examine and search through the full 128KB memory space with hex and ASCII views.</p>
+                                            <p>
+                                                Examine and search through the
+                                                full 128KB memory space with hex
+                                                and ASCII views.
+                                            </p>
                                         </div>
                                     </div>
                                     <div class="debug-tool-item">
                                         <div>
                                             <h5>Memory Heat Map</h5>
-                                            <p>Visualize memory access patterns in real-time. See which areas are being read or written.</p>
+                                            <p>
+                                                Visualize memory access patterns
+                                                in real-time. See which areas
+                                                are being read or written.
+                                            </p>
                                         </div>
                                     </div>
                                     <div class="debug-tool-item">
                                         <div>
                                             <h5>Stack Viewer</h5>
-                                            <p>Monitor the 6502 stack at page $01, showing push/pop operations and return addresses.</p>
+                                            <p>
+                                                Monitor the 6502 stack at page
+                                                $01, showing push/pop operations
+                                                and return addresses.
+                                            </p>
                                         </div>
                                     </div>
                                     <div class="debug-tool-item">
                                         <div>
                                             <h5>Zero Page Watch</h5>
-                                            <p>Track changes to zero page memory ($00-$FF), commonly used for variables and pointers.</p>
+                                            <p>
+                                                Track changes to zero page
+                                                memory ($00-$FF), commonly used
+                                                for variables and pointers.
+                                            </p>
                                         </div>
                                     </div>
                                 </div>
                             </section>
 
                             <!-- Tips & Troubleshooting Section -->
-                            <section id="doc-tips" class="documentation-section">
+                            <section
+                                id="doc-tips"
+                                class="documentation-section"
+                            >
                                 <h3>Tips & Troubleshooting</h3>
 
                                 <h4>Common Issues</h4>
 
                                 <div class="info-box info">
-                                    <p><strong>Keyboard not working?</strong><br>
-                                    Click on the emulator screen to give it focus. The green border indicates the screen has keyboard focus.</p>
+                                    <p>
+                                        <strong>Keyboard not working?</strong
+                                        ><br />
+                                        Click on the emulator screen to give it
+                                        focus. The green border indicates the
+                                        screen has keyboard focus.
+                                    </p>
                                 </div>
 
                                 <div class="info-box info">
-                                    <p><strong>No sound?</strong><br>
-                                    Browser security requires user interaction before playing audio. Click the Power button or anywhere on the page first.</p>
+                                    <p>
+                                        <strong>No sound?</strong><br />
+                                        Browser security requires user
+                                        interaction before playing audio. Click
+                                        the Power button or anywhere on the page
+                                        first.
+                                    </p>
                                 </div>
 
                                 <div class="info-box info">
-                                    <p><strong>Disk won't boot?</strong><br>
-                                    Make sure the disk is in Drive 1 and type <kbd>PR#6</kbd> then press <kbd>Return</kbd>. Some disks may need a cold boot (Reboot button).</p>
+                                    <p>
+                                        <strong>Disk won't boot?</strong><br />
+                                        Make sure the disk is in Drive 1 and
+                                        type <kbd>PR#6</kbd> then press
+                                        <kbd>Return</kbd>. Some disks may need a
+                                        cold boot (Reboot button).
+                                    </p>
                                 </div>
 
                                 <div class="info-box info">
-                                    <p><strong>Screen looks wrong?</strong><br>
-                                    Try the "Sharp Pixels" option in Display Settings, or adjust the CRT effect sliders to your preference.</p>
+                                    <p>
+                                        <strong>Screen looks wrong?</strong
+                                        ><br />
+                                        Try the "Sharp Pixels" option in Display
+                                        Settings, or adjust the CRT effect
+                                        sliders to your preference.
+                                    </p>
                                 </div>
 
                                 <h4>Performance Tips</h4>
                                 <ul>
-                                    <li>Close other browser tabs to ensure smooth emulation</li>
-                                    <li>Use Chrome or Firefox for best WebGL performance</li>
-                                    <li>Disable browser extensions that might interfere with keyboard input</li>
-                                    <li>If audio stutters, try reducing other system load</li>
+                                    <li>
+                                        Close other browser tabs to ensure
+                                        smooth emulation
+                                    </li>
+                                    <li>
+                                        Use Chrome or Firefox for best WebGL
+                                        performance
+                                    </li>
+                                    <li>
+                                        Disable browser extensions that might
+                                        interfere with keyboard input
+                                    </li>
+                                    <li>
+                                        If audio stutters, try reducing other
+                                        system load
+                                    </li>
                                 </ul>
 
                                 <h4>Keyboard Shortcuts</h4>
@@ -1059,7 +1512,10 @@
                                     <tbody>
                                         <tr>
                                             <td><kbd>F1</kbd></td>
-                                            <td>Open/close this help documentation</td>
+                                            <td>
+                                                Open/close this help
+                                                documentation
+                                            </td>
                                         </tr>
                                         <tr>
                                             <td><kbd>Escape</kbd></td>

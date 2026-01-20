@@ -122,7 +122,8 @@
     /* Monitor adjustments for mobile */
     .monitor-bezel {
         padding: 12px 14px 24px;
-        border-radius: var(--radius-md) var(--radius-md) var(--radius-sm) var(--radius-sm);
+        border-radius: var(--radius-md) var(--radius-md) var(--radius-sm)
+            var(--radius-sm);
     }
 
     .monitor-bezel::before {
@@ -247,11 +248,6 @@
     footer kbd {
         padding: 0 3px;
         font-size: 0.625rem;
-    }
-
-    /* Hide resize reminder on mobile - touch devices use pinch */
-    #resize-reminder {
-        display: none !important;
     }
 
     /* Hide monitor resize handles on mobile */
@@ -479,7 +475,6 @@
 
     /* Hide reminders in landscape */
     .power-reminder,
-    #resize-reminder,
     #drives-reminder {
         display: none !important;
     }

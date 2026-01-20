@@ -85,7 +85,10 @@ class AppleIIeEmulator {
       this.windowManager.register(switchWindow);
 
       // Set up display settings window (pass renderer for shader control, wasmModule for video settings)
-      this.displaySettings = new DisplaySettingsWindow(this.renderer, this.wasmModule);
+      this.displaySettings = new DisplaySettingsWindow(
+        this.renderer,
+        this.wasmModule,
+      );
       this.displaySettings.create();
       this.windowManager.register(this.displaySettings);
 
@@ -116,7 +119,7 @@ class AppleIIeEmulator {
       this.windowManager.loadState();
 
       // Save window states when page is closed
-      window.addEventListener('beforeunload', () => {
+      window.addEventListener("beforeunload", () => {
         if (this.windowManager) {
           this.windowManager.saveState();
         }
@@ -150,9 +153,7 @@ class AppleIIeEmulator {
           }
           this.reminderController.repositionAll();
         },
-        onResizeComplete: () => {
-          this.reminderController.dismissResizeReminder();
-        },
+        onResizeComplete: () => {},
       });
       this.monitorResizer.init();
 
@@ -164,7 +165,6 @@ class AppleIIeEmulator {
 
       this.showLoading(false);
       this.reminderController.showPowerReminder(true);
-      this.reminderController.showResizeReminder(true);
       this.reminderController.showDrivesReminder(true);
 
       console.log("Apple //e Emulator initialized");

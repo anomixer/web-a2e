@@ -6,7 +6,6 @@
 export class ReminderController {
   constructor() {
     this.isPowerReminderVisible = false;
-    this.isResizeReminderVisible = false;
     this.isDrivesReminderVisible = false;
   }
 
@@ -19,7 +18,8 @@ export class ReminderController {
    */
   positionReminderBelowElement(reminderId, target, defaultWidth = 200) {
     const reminder = document.getElementById(reminderId);
-    const targetEl = typeof target === 'string' ? document.getElementById(target) : target;
+    const targetEl =
+      typeof target === "string" ? document.getElementById(target) : target;
     if (!reminder || !targetEl) return;
 
     const targetRect = targetEl.getBoundingClientRect();
@@ -39,7 +39,7 @@ export class ReminderController {
 
     reminder.style.left = `${reminderLeft}px`;
     reminder.style.top = `${targetRect.bottom + 15}px`;
-    reminder.style.setProperty('--arrow-left', `${arrowLeft}px`);
+    reminder.style.setProperty("--arrow-left", `${arrowLeft}px`);
   }
 
   // Power reminder methods
@@ -62,50 +62,6 @@ export class ReminderController {
       this.isPowerReminderVisible = false;
       reminder.classList.add("hidden");
     }
-  }
-
-  // Resize reminder methods
-
-  showResizeReminder(show) {
-    const reminder = document.getElementById("resize-reminder");
-    if (!reminder) return;
-
-    // Check if already dismissed
-    if (show && localStorage.getItem("a2e-resize-reminder-dismissed")) {
-      return;
-    }
-
-    if (show) {
-      this.isResizeReminderVisible = true;
-      reminder.classList.remove("hidden");
-      requestAnimationFrame(() => {
-        this.repositionResizeReminder();
-      });
-    } else {
-      this.isResizeReminderVisible = false;
-      reminder.classList.add("hidden");
-    }
-  }
-
-  repositionResizeReminder() {
-    const reminder = document.getElementById("resize-reminder");
-    const monitorBezel = document.querySelector(".monitor-bezel");
-    if (!reminder || !monitorBezel) return;
-
-    const bezelRect = monitorBezel.getBoundingClientRect();
-    const reminderRect = reminder.getBoundingClientRect();
-
-    // Position above and to the left of bottom-right corner
-    const reminderLeft = bezelRect.right - reminderRect.width - 10;
-    const reminderTop = bezelRect.bottom - reminderRect.height - 40;
-
-    reminder.style.left = `${reminderLeft}px`;
-    reminder.style.top = `${reminderTop}px`;
-  }
-
-  dismissResizeReminder() {
-    this.showResizeReminder(false);
-    localStorage.setItem("a2e-resize-reminder-dismissed", "true");
   }
 
   // Drives toggle reminder methods
@@ -146,9 +102,6 @@ export class ReminderController {
   repositionAll() {
     if (this.isPowerReminderVisible) {
       requestAnimationFrame(() => this.repositionPowerReminder());
-    }
-    if (this.isResizeReminderVisible) {
-      requestAnimationFrame(() => this.repositionResizeReminder());
     }
     if (this.isDrivesReminderVisible) {
       requestAnimationFrame(() => this.repositionDrivesReminder());

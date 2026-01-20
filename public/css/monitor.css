@@ -74,7 +74,7 @@
 .monitor-power {
     position: absolute;
     bottom: 8px;
-    right: 20px;
+    right: 28px;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -159,9 +159,77 @@
 }
 
 .monitor-resize-handle.se {
-    bottom: -4px;
-    right: -4px;
+    bottom: 5px;
+    right: 5px;
+    width: 18px;
+    height: 18px;
     cursor: se-resize;
+    background:
+        radial-gradient(
+            circle at 15px 3px,
+            rgba(60, 55, 45, 0.8) 2.5px,
+            transparent 2.5px
+        ),
+        radial-gradient(
+            circle at 9px 9px,
+            rgba(60, 55, 45, 0.8) 2.5px,
+            transparent 2.5px
+        ),
+        radial-gradient(
+            circle at 15px 9px,
+            rgba(60, 55, 45, 0.8) 2.5px,
+            transparent 2.5px
+        ),
+        radial-gradient(
+            circle at 3px 15px,
+            rgba(60, 55, 45, 0.8) 2.5px,
+            transparent 2.5px
+        ),
+        radial-gradient(
+            circle at 9px 15px,
+            rgba(60, 55, 45, 0.8) 2.5px,
+            transparent 2.5px
+        ),
+        radial-gradient(
+            circle at 15px 15px,
+            rgba(60, 55, 45, 0.8) 2.5px,
+            transparent 2.5px
+        );
+    transition: all 0.2s;
+}
+
+.monitor-resize-handle.se:hover {
+    background:
+        radial-gradient(
+            circle at 15px 3px,
+            rgba(40, 35, 25, 0.95) 2.5px,
+            transparent 2.5px
+        ),
+        radial-gradient(
+            circle at 9px 9px,
+            rgba(40, 35, 25, 0.95) 2.5px,
+            transparent 2.5px
+        ),
+        radial-gradient(
+            circle at 15px 9px,
+            rgba(40, 35, 25, 0.95) 2.5px,
+            transparent 2.5px
+        ),
+        radial-gradient(
+            circle at 3px 15px,
+            rgba(40, 35, 25, 0.95) 2.5px,
+            transparent 2.5px
+        ),
+        radial-gradient(
+            circle at 9px 15px,
+            rgba(40, 35, 25, 0.95) 2.5px,
+            transparent 2.5px
+        ),
+        radial-gradient(
+            circle at 15px 15px,
+            rgba(40, 35, 25, 0.95) 2.5px,
+            transparent 2.5px
+        );
 }
 
 .monitor-bezel.resizing {
@@ -206,7 +274,8 @@
 }
 
 @keyframes pulse-glow {
-    0%, 100% {
+    0%,
+    100% {
         box-shadow: 0 0 4px rgba(63, 185, 80, 0.4);
     }
     50% {
@@ -483,8 +552,13 @@ body.full-page-mode .full-page-exit-hint {
 }
 
 @keyframes fadeOutHint {
-    0%, 70% { opacity: 0.8; }
-    100% { opacity: 0; }
+    0%,
+    70% {
+        opacity: 0.8;
+    }
+    100% {
+        opacity: 0;
+    }
 }
 
 /* Text selection overlay styling */
