@@ -192,10 +192,13 @@
     }
 
     /* Disk drives - more compact layout */
-    #disk-drives {
-        gap: var(--space-sm);
+    .disk-drives-container {
         max-width: 100%;
         padding: 0 var(--space-sm);
+    }
+
+    #disk-drives {
+        gap: var(--space-sm);
     }
 
     .disk-drive {
@@ -415,11 +418,14 @@
     }
 
     /* Disk drives in landscape - side by side, compact */
+    .disk-drives-container {
+        max-width: 180px;
+        align-self: center;
+    }
+
     #disk-drives {
         flex-direction: column;
         gap: var(--space-xs);
-        max-width: 180px;
-        align-self: center;
     }
 
     .disk-drive {

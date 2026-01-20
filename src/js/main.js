@@ -252,26 +252,40 @@ class AppleIIeEmulator {
 
     // Disk drives visibility toggle
     const drivesBtn = document.getElementById("btn-drives");
-    const diskDrives = document.getElementById("disk-drives");
+    const drivesContainer = document.querySelector(".disk-drives-container");
 
-    if (!drivesBtn || !diskDrives) {
+    if (!drivesBtn || !drivesContainer) {
       console.warn("Disk drive UI elements not found");
     }
 
     // Load saved drives visibility setting (default to visible)
     const savedDrivesVisible = localStorage.getItem("a2e-show-drives");
-    if (savedDrivesVisible === "false" && diskDrives && drivesBtn) {
-      diskDrives.classList.add("hidden");
+    if (savedDrivesVisible === "false" && drivesBtn && drivesContainer) {
+      drivesContainer.classList.add("collapsed");
       drivesBtn.classList.add("off");
       requestAnimationFrame(() => this.monitorResizer.handleResize());
     }
 
-    if (drivesBtn && diskDrives) {
+    if (drivesBtn && drivesContainer) {
       drivesBtn.addEventListener("click", () => {
-        const isHidden = diskDrives.classList.toggle("hidden");
-        drivesBtn.classList.toggle("off", isHidden);
-        localStorage.setItem("a2e-show-drives", !isHidden);
-        this.monitorResizer.handleResize();
+        const isCurrentlyCollapsed =
+          drivesContainer.classList.contains("collapsed");
+
+        drivesContainer.classList.toggle("collapsed");
+        drivesBtn.classList.toggle("off", !isCurrentlyCollapsed);
+        localStorage.setItem("a2e-show-drives", isCurrentlyCollapsed);
+
+        // Resize monitor continuously during animation
+        const startTime = performance.now();
+        const duration = 280; // Slightly longer than CSS transition
+        const animateResize = () => {
+          this.monitorResizer.handleResize();
+          if (performance.now() - startTime < duration) {
+            requestAnimationFrame(animateResize);
+          }
+        };
+        requestAnimationFrame(animateResize);
+
         this.reminderController.dismissDrivesReminder();
         refocusCanvas();
       });

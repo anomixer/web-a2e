@@ -199,13 +199,15 @@ export class MonitorResizer {
    * Calculate the maximum canvas width based on available space
    */
   getMaxCanvasWidth() {
-    const diskDrives = document.getElementById("disk-drives");
+    const drivesContainer = document.querySelector(".disk-drives-container");
     const header = document.querySelector("header");
     const footer = document.querySelector("footer");
 
     const headerHeight = header ? header.offsetHeight : 0;
     const footerHeight = footer ? footer.offsetHeight : 0;
-    const diskDrivesHeight = diskDrives ? diskDrives.offsetHeight + 16 : 100;
+    const drivesHeight = drivesContainer
+      ? drivesContainer.offsetHeight + 16
+      : 0;
 
     const padding = 32;
     const bezelPaddingX = 88;
@@ -216,7 +218,7 @@ export class MonitorResizer {
       window.innerHeight -
       headerHeight -
       footerHeight -
-      diskDrivesHeight -
+      drivesHeight -
       padding -
       bezelPaddingY;
 
@@ -250,13 +252,15 @@ export class MonitorResizer {
     const canvas = document.getElementById("screen");
     if (!canvas) return;
 
-    const diskDrives = document.getElementById("disk-drives");
+    const drivesContainer = document.querySelector(".disk-drives-container");
     const header = document.querySelector("header");
     const footer = document.querySelector("footer");
 
     const headerHeight = header ? header.offsetHeight : 0;
     const footerHeight = footer ? footer.offsetHeight : 0;
-    const diskDrivesHeight = diskDrives ? diskDrives.offsetHeight + 16 : 100;
+    const drivesHeight = drivesContainer
+      ? drivesContainer.offsetHeight + 16
+      : 0;
 
     const windowWidth = window.innerWidth;
     const windowHeight = window.innerHeight;
@@ -264,7 +268,7 @@ export class MonitorResizer {
     const padding = 32;
     const availableWidth = windowWidth - padding;
     const availableHeight =
-      windowHeight - headerHeight - footerHeight - diskDrivesHeight - padding;
+      windowHeight - headerHeight - footerHeight - drivesHeight - padding;
 
     const bezelPaddingX = 88;
     const bezelPaddingY = 104;
@@ -277,7 +281,7 @@ export class MonitorResizer {
     if (this.customCanvasWidth) {
       const maxWidth = Math.min(
         maxCanvasWidth,
-        maxCanvasHeight * this.aspectRatio
+        maxCanvasHeight * this.aspectRatio,
       );
       canvasWidth = Math.min(this.customCanvasWidth, maxWidth);
       canvasWidth = Math.max(280, canvasWidth);
