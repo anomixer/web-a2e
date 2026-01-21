@@ -1,4 +1,5 @@
 import { DebugWindow } from './DebugWindow.js';
+import { getSymbol } from './symbols.js';
 
 /**
  * CPUDebuggerWindow - CPU registers, disassembly, and breakpoints
@@ -377,7 +378,7 @@ export class CPUDebuggerWindow extends DebugWindow {
 
       const instrSpan = document.createElement('span');
       instrSpan.className = 'cpu-disasm-instr';
-      instrSpan.textContent = instrPart;
+      instrSpan.innerHTML = this.symbolizeInstruction(instrPart);
 
       line.appendChild(gutterSpan);
       line.appendChild(addrSpan);
@@ -427,6 +428,40 @@ export class CPUDebuggerWindow extends DebugWindow {
 
       list.appendChild(item);
     }
+  }
+
+  /**
+   * Replace addresses in instruction text with symbolic names when known,
+   * and wrap constants in spans for colorization.
+   * Handles formats like: "$XXXX", "$XXXX,X", "#$XX", "($XXXX)", etc.
+   */
+  symbolizeInstruction(instrText) {
+    // First, wrap immediate constants (#$XX or #$XXXX) in spans
+    let result = instrText.replace(/#\$([0-9A-Fa-f]{2,4})/g, (match) => {
+      return `<span class="cpu-disasm-const">${match}</span>`;
+    });
+
+    // Then replace $XXXX patterns (4-digit hex addresses) with symbols
+    result = result.replace(/\$([0-9A-Fa-f]{4})(?![0-9A-Fa-f])/g, (match, hexAddr) => {
+      const addr = parseInt(hexAddr, 16);
+      const symbol = getSymbol(addr);
+      if (symbol) {
+        return `<span class="cpu-disasm-symbol">${symbol}</span>`;
+      }
+      return match; // Keep original if no symbol found
+    });
+
+    // Also handle 2-digit zero page addresses that have symbols
+    result = result.replace(/\$([0-9A-Fa-f]{2})(?![0-9A-Fa-f])/g, (match, hexAddr) => {
+      const addr = parseInt(hexAddr, 16);
+      const symbol = getSymbol(addr);
+      if (symbol) {
+        return `<span class="cpu-disasm-symbol">${symbol}</span>`;
+      }
+      return match;
+    });
+
+    return result;
   }
 
   /**

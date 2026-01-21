@@ -494,6 +494,31 @@ const uint8_t* getMemoryWriteCounts() {
   return nullptr;
 }
 
+// Direct memory array access for heat map visualization
+EMSCRIPTEN_KEEPALIVE
+const uint8_t* getMainRAM() {
+  if (g_emulator) {
+    return g_emulator->getMMU().getMainRAM();
+  }
+  return nullptr;
+}
+
+EMSCRIPTEN_KEEPALIVE
+const uint8_t* getAuxRAM() {
+  if (g_emulator) {
+    return g_emulator->getMMU().getAuxRAM();
+  }
+  return nullptr;
+}
+
+EMSCRIPTEN_KEEPALIVE
+const uint8_t* getSystemROM() {
+  if (g_emulator) {
+    return g_emulator->getMMU().getSystemROM();
+  }
+  return nullptr;
+}
+
 // Read auxiliary memory directly (for 80-column text selection)
 EMSCRIPTEN_KEEPALIVE
 uint8_t peekAuxMemory(uint16_t address) {

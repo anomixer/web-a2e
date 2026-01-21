@@ -391,6 +391,24 @@
     font-weight: 500;
 }
 
+/* Constants (immediate values like #$00) */
+.cpu-disasm-const {
+    color: #f0a0f0;  /* Pink/magenta for constants */
+}
+
+/* Symbolic names (ROM routines, soft switches) */
+.cpu-disasm-symbol {
+    color: #7ec8e3;  /* Cyan/light blue for symbols */
+}
+
+.cpu-disasm-line.current .cpu-disasm-const {
+    color: #ffb0ff;  /* Brighter pink when current */
+}
+
+.cpu-disasm-line.current .cpu-disasm-symbol {
+    color: #9ee0f8;  /* Brighter cyan when current */
+}
+
 /* Breakpoints */
 .cpu-breakpoints h4 {
     font-size: 9px;
@@ -1248,6 +1266,27 @@
     font-size: 10px;
     color: var(--text-muted);
     cursor: pointer;
+}
+
+.heatmap-dual-container {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+}
+
+.heatmap-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.heatmap-panel-title {
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--accent-blue);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
 }
 
 .heatmap-canvas-container {

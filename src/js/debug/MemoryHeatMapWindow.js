@@ -1,10 +1,11 @@
 /**
- * MemoryHeatMapWindow - 256x256 visualization of memory access patterns
+ * MemoryHeatMapWindow - Dual 256x256 visualization of memory access patterns
+ * Left: Main RAM + ROM, Right: Auxiliary RAM (banked memory)
  */
 import { DebugWindow } from "./DebugWindow.js";
 
-// Memory region labels for hover info
-const MEMORY_REGIONS = [
+// Memory region labels for main memory
+const MAIN_MEMORY_REGIONS = [
   { name: "Zero Page", start: 0x0000, end: 0x00ff },
   { name: "Stack", start: 0x0100, end: 0x01ff },
   { name: "Input Buffer", start: 0x0200, end: 0x02ff },
@@ -21,15 +22,29 @@ const MEMORY_REGIONS = [
   { name: "ROM/LC RAM", start: 0xd000, end: 0xffff },
 ];
 
+// Memory region labels for auxiliary memory
+const AUX_MEMORY_REGIONS = [
+  { name: "Aux Zero Page", start: 0x0000, end: 0x00ff },
+  { name: "Aux Stack", start: 0x0100, end: 0x01ff },
+  { name: "Aux $0200", start: 0x0200, end: 0x03ff },
+  { name: "Aux Text Page 1", start: 0x0400, end: 0x07ff },
+  { name: "Aux Text Page 2", start: 0x0800, end: 0x0bff },
+  { name: "Aux RAM", start: 0x0c00, end: 0x1fff },
+  { name: "Aux HiRes Page 1", start: 0x2000, end: 0x3fff },
+  { name: "Aux HiRes Page 2", start: 0x4000, end: 0x5fff },
+  { name: "Aux RAM", start: 0x6000, end: 0xbfff },
+  { name: "Aux $C000-$FFFF", start: 0xc000, end: 0xffff },
+];
+
 export class MemoryHeatMapWindow extends DebugWindow {
   constructor(wasmModule) {
     super({
       id: "memory-heatmap",
       title: "Memory Heat Map",
-      defaultWidth: 340,
-      defaultHeight: 400,
-      minWidth: 300,
-      minHeight: 350,
+      defaultWidth: 580,
+      defaultHeight: 420,
+      minWidth: 500,
+      minHeight: 380,
       defaultPosition: { x: 200, y: 200 },
     });
     this.wasmModule = wasmModule;
@@ -37,6 +52,7 @@ export class MemoryHeatMapWindow extends DebugWindow {
     this.viewMode = "combined"; // combined, reads, writes
     this.decayEnabled = false;
     this.onJumpToAddress = null; // Callback for Memory Browser integration
+    this.activeCanvas = "main"; // Which canvas is being hovered
   }
 
   renderContent() {
@@ -54,9 +70,19 @@ export class MemoryHeatMapWindow extends DebugWindow {
           Decay
         </label>
       </div>
-      <div class="heatmap-canvas-container">
-        <canvas class="heatmap-canvas" width="256" height="256"></canvas>
-        <div class="heatmap-tooltip"></div>
+      <div class="heatmap-dual-container">
+        <div class="heatmap-panel">
+          <div class="heatmap-panel-title">Main RAM + ROM</div>
+          <div class="heatmap-canvas-container">
+            <canvas class="heatmap-canvas heatmap-canvas-main" width="256" height="256"></canvas>
+          </div>
+        </div>
+        <div class="heatmap-panel">
+          <div class="heatmap-panel-title">Auxiliary RAM</div>
+          <div class="heatmap-canvas-container">
+            <canvas class="heatmap-canvas heatmap-canvas-aux" width="256" height="256"></canvas>
+          </div>
+        </div>
       </div>
       <div class="heatmap-legend">
         <span class="heatmap-legend-item"><span class="legend-color reads"></span> Reads</span>
@@ -72,9 +98,10 @@ export class MemoryHeatMapWindow extends DebugWindow {
   }
 
   onContentRendered() {
-    this.canvas = this.contentElement.querySelector(".heatmap-canvas");
-    this.ctx = this.canvas.getContext("2d");
-    this.tooltip = this.contentElement.querySelector(".heatmap-tooltip");
+    this.canvasMain = this.contentElement.querySelector(".heatmap-canvas-main");
+    this.canvasAux = this.contentElement.querySelector(".heatmap-canvas-aux");
+    this.ctxMain = this.canvasMain.getContext("2d");
+    this.ctxAux = this.canvasAux.getContext("2d");
     this.toggleBtn = this.contentElement.querySelector(".heatmap-toggle-btn");
     this.modeSelect = this.contentElement.querySelector(".heatmap-mode-select");
     this.decayCheck = this.contentElement.querySelector(".heatmap-decay-check");
@@ -82,8 +109,9 @@ export class MemoryHeatMapWindow extends DebugWindow {
     this.regionSpan = this.contentElement.querySelector(".heatmap-region");
     this.countsSpan = this.contentElement.querySelector(".heatmap-counts");
 
-    // Pre-allocate image data
-    this.imageData = this.ctx.createImageData(256, 256);
+    // Pre-allocate image data for both canvases
+    this.imageDataMain = this.ctxMain.createImageData(256, 256);
+    this.imageDataAux = this.ctxAux.createImageData(256, 256);
 
     this.setupHeatmapEventListeners();
   }
@@ -114,48 +142,59 @@ export class MemoryHeatMapWindow extends DebugWindow {
       this.decayEnabled = e.target.checked;
     });
 
-    // Canvas hover for address info
-    this.canvas.addEventListener("mousemove", (e) => {
-      const rect = this.canvas.getBoundingClientRect();
-      const x = Math.floor(
-        ((e.clientX - rect.left) / rect.width) * 256
-      );
-      const y = Math.floor(
-        ((e.clientY - rect.top) / rect.height) * 256
-      );
-      const addr = y * 256 + x;
-      this.showAddressInfo(addr);
+    // Canvas hover for main memory
+    this.canvasMain.addEventListener("mousemove", (e) => {
+      this.activeCanvas = "main";
+      const addr = this.getAddressFromEvent(e, this.canvasMain);
+      this.showAddressInfo(addr, MAIN_MEMORY_REGIONS, "Main");
     });
 
-    this.canvas.addEventListener("mouseleave", () => {
-      this.addrSpan.textContent = "$----";
-      this.regionSpan.textContent = "";
-      this.countsSpan.textContent = "";
+    // Canvas hover for aux memory
+    this.canvasAux.addEventListener("mousemove", (e) => {
+      this.activeCanvas = "aux";
+      const addr = this.getAddressFromEvent(e, this.canvasAux);
+      this.showAddressInfo(addr, AUX_MEMORY_REGIONS, "Aux");
     });
+
+    this.canvasMain.addEventListener("mouseleave", () => this.clearAddressInfo());
+    this.canvasAux.addEventListener("mouseleave", () => this.clearAddressInfo());
 
     // Click to jump to Memory Browser
-    this.canvas.addEventListener("click", (e) => {
-      const rect = this.canvas.getBoundingClientRect();
-      const x = Math.floor(
-        ((e.clientX - rect.left) / rect.width) * 256
-      );
-      const y = Math.floor(
-        ((e.clientY - rect.top) / rect.height) * 256
-      );
-      const addr = y * 256 + x;
+    this.canvasMain.addEventListener("click", (e) => {
+      const addr = this.getAddressFromEvent(e, this.canvasMain);
+      if (this.onJumpToAddress) {
+        this.onJumpToAddress(addr);
+      }
+    });
+
+    this.canvasAux.addEventListener("click", (e) => {
+      const addr = this.getAddressFromEvent(e, this.canvasAux);
       if (this.onJumpToAddress) {
         this.onJumpToAddress(addr);
       }
     });
   }
 
-  showAddressInfo(addr) {
+  getAddressFromEvent(e, canvas) {
+    const rect = canvas.getBoundingClientRect();
+    const x = Math.floor(((e.clientX - rect.left) / rect.width) * 256);
+    const y = Math.floor(((e.clientY - rect.top) / rect.height) * 256);
+    return y * 256 + x;
+  }
+
+  clearAddressInfo() {
+    this.addrSpan.textContent = "$----";
+    this.regionSpan.textContent = "";
+    this.countsSpan.textContent = "";
+  }
+
+  showAddressInfo(addr, regions, prefix) {
     if (addr < 0 || addr > 0xffff) return;
 
-    this.addrSpan.textContent = `$${this.formatHex(addr, 4)}`;
+    this.addrSpan.textContent = `${prefix} $${this.formatHex(addr, 4)}`;
 
     // Find region
-    for (const region of MEMORY_REGIONS) {
+    for (const region of regions) {
       if (addr >= region.start && addr <= region.end) {
         this.regionSpan.textContent = region.name;
         break;
@@ -173,52 +212,78 @@ export class MemoryHeatMapWindow extends DebugWindow {
     }
   }
 
-  getRegionForAddress(addr) {
-    for (const region of MEMORY_REGIONS) {
-      if (addr >= region.start && addr <= region.end) {
-        return region.name;
-      }
-    }
-    return "Unknown";
-  }
-
   update(wasmModule) {
-    if (!this.isVisible || !this.canvas) return;
+    if (!this.isVisible || !this.canvasMain || !this.canvasAux) return;
 
     const readCountsPtr = wasmModule._getMemoryReadCounts();
     const writeCountsPtr = wasmModule._getMemoryWriteCounts();
+    const mainRAMPtr = wasmModule._getMainRAM();
+    const auxRAMPtr = wasmModule._getAuxRAM();
+    const systemROMPtr = wasmModule._getSystemROM();
 
     if (!readCountsPtr || !writeCountsPtr) return;
 
-    const data = this.imageData.data;
+    // Update main memory canvas
+    this.updateCanvas(
+      this.imageDataMain,
+      this.ctxMain,
+      readCountsPtr,
+      writeCountsPtr,
+      mainRAMPtr,
+      systemROMPtr
+    );
+
+    // Update aux memory canvas
+    this.updateCanvasAux(
+      this.imageDataAux,
+      this.ctxAux,
+      readCountsPtr,
+      writeCountsPtr,
+      auxRAMPtr
+    );
+
+    // Apply decay if enabled
+    if (this.decayEnabled && this.isTracking) {
+      wasmModule._decayMemoryTracking(2);
+    }
+  }
+
+  updateCanvas(imageData, ctx, readCountsPtr, writeCountsPtr, mainRAMPtr, systemROMPtr) {
+    const data = imageData.data;
+    const wasmModule = this.wasmModule;
 
     for (let addr = 0; addr < 65536; addr++) {
       const readCount = wasmModule.HEAPU8[readCountsPtr + addr];
       const writeCount = wasmModule.HEAPU8[writeCountsPtr + addr];
 
-      const pixelIndex = addr * 4;
+      // Get memory content for background brightness
+      let memValue = 0;
+      if (mainRAMPtr && addr < 0xC000) {
+        memValue = wasmModule.HEAPU8[mainRAMPtr + addr];
+      } else if (systemROMPtr && addr >= 0xC000) {
+        memValue = wasmModule.HEAPU8[systemROMPtr + (addr - 0xC000)];
+      }
 
-      let r = 0,
-        g = 0,
-        b = 0;
+      const pixelIndex = addr * 4;
+      const bgLevel = memValue >> 4; // 0-15 background level
+
+      let r = bgLevel,
+        g = bgLevel,
+        b = bgLevel;
 
       switch (this.viewMode) {
         case "reads":
-          // Blue for reads
-          b = readCount;
+          b = Math.min(255, bgLevel + readCount);
           break;
         case "writes":
-          // Red for writes
-          r = writeCount;
+          r = Math.min(255, bgLevel + writeCount);
           break;
         case "combined":
         default:
-          // Blue for reads, red for writes, purple for both
-          r = writeCount;
-          b = readCount;
-          // Add some green when both are active for purple tint
+          r = Math.min(255, bgLevel + writeCount);
+          b = Math.min(255, bgLevel + readCount);
           if (readCount > 0 && writeCount > 0) {
-            g = Math.min(readCount, writeCount) >> 1;
+            g = Math.min(255, bgLevel + (Math.min(readCount, writeCount) >> 1));
           }
           break;
       }
@@ -226,24 +291,68 @@ export class MemoryHeatMapWindow extends DebugWindow {
       data[pixelIndex] = r;
       data[pixelIndex + 1] = g;
       data[pixelIndex + 2] = b;
-      data[pixelIndex + 3] = 255; // Alpha
+      data[pixelIndex + 3] = 255;
     }
 
-    this.ctx.putImageData(this.imageData, 0, 0);
-
-    // Apply decay if enabled (reduces counts over time for real-time visualization)
-    if (this.decayEnabled && this.isTracking) {
-      wasmModule._decayMemoryTracking(2); // Decay by 2 each frame
-    }
+    ctx.putImageData(imageData, 0, 0);
   }
 
-  // Set callback for integration with Memory Browser
+  updateCanvasAux(imageData, ctx, readCountsPtr, writeCountsPtr, auxRAMPtr) {
+    const data = imageData.data;
+    const wasmModule = this.wasmModule;
+
+    for (let addr = 0; addr < 65536; addr++) {
+      // Note: tracking counts are for the main address space
+      // Aux memory accesses happen when RAMRD/RAMWRT are set
+      // For now, show aux memory content with dimmed tracking overlay
+      const readCount = wasmModule.HEAPU8[readCountsPtr + addr];
+      const writeCount = wasmModule.HEAPU8[writeCountsPtr + addr];
+
+      // Get aux memory content
+      let memValue = 0;
+      if (auxRAMPtr) {
+        memValue = wasmModule.HEAPU8[auxRAMPtr + addr];
+      }
+
+      const pixelIndex = addr * 4;
+      const bgLevel = memValue >> 4;
+
+      let r = bgLevel,
+        g = bgLevel,
+        b = bgLevel;
+
+      // Apply tracking overlay (dimmed since tracking is address-based, not bank-specific)
+      switch (this.viewMode) {
+        case "reads":
+          b = Math.min(255, bgLevel + (readCount >> 1));
+          break;
+        case "writes":
+          r = Math.min(255, bgLevel + (writeCount >> 1));
+          break;
+        case "combined":
+        default:
+          r = Math.min(255, bgLevel + (writeCount >> 1));
+          b = Math.min(255, bgLevel + (readCount >> 1));
+          if (readCount > 0 && writeCount > 0) {
+            g = Math.min(255, bgLevel + (Math.min(readCount, writeCount) >> 2));
+          }
+          break;
+      }
+
+      data[pixelIndex] = r;
+      data[pixelIndex + 1] = g;
+      data[pixelIndex + 2] = b;
+      data[pixelIndex + 3] = 255;
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+  }
+
   setJumpCallback(callback) {
     this.onJumpToAddress = callback;
   }
 
   hide() {
-    // Stop tracking when window is closed
     if (this.isTracking) {
       this.isTracking = false;
       this.toggleBtn.textContent = "Start";
