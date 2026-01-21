@@ -553,7 +553,7 @@ export class DiskManager {
     const drive = this.drives[driveNum];
     if (!drive.recentDropdown) return;
 
-    const recentDisks = await getRecentDisks();
+    const recentDisks = await getRecentDisks(driveNum);
 
     drive.recentDropdown.innerHTML = "";
 
@@ -585,7 +585,7 @@ export class DiskManager {
       clearItem.textContent = "Clear Recent";
       clearItem.addEventListener("click", async (e) => {
         e.stopPropagation();
-        await clearRecentDisks();
+        await clearRecentDisks(driveNum);
         this.closeRecentDropdown();
       });
       drive.recentDropdown.appendChild(clearItem);
@@ -619,6 +619,6 @@ export class DiskManager {
     );
 
     // Update access time by re-adding to recent list
-    addToRecentDisks(diskData.filename, diskData.data);
+    addToRecentDisks(driveNum, diskData.filename, diskData.data);
   }
 }

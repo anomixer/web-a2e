@@ -51,8 +51,8 @@ export async function loadDisk(
       // Save to IndexedDB for persistence across sessions
       await saveDiskToStorage(driveNum, file.name, data);
 
-      // Add to recent disks list
-      await addToRecentDisks(file.name, data);
+      // Add to recent disks list for this drive
+      await addToRecentDisks(driveNum, file.name, data);
 
       if (onSuccess) onSuccess(file.name);
     } else {

@@ -2,7 +2,7 @@
 // Allows disks to persist across browser sessions
 
 const DB_NAME = "a2e-disk-persistence";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE_NAME = "disks";
 const RECENT_STORE_NAME = "recentDisks";
 const MAX_RECENT_DISKS = 10;
@@ -34,10 +34,13 @@ function openDB() {
 
     request.onupgradeneeded = (event) => {
       const database = event.target.result;
+      const oldVersion = event.oldVersion;
+
       if (!database.objectStoreNames.contains(STORE_NAME)) {
         database.createObjectStore(STORE_NAME, { keyPath: "driveNum" });
       }
-      // Add recent disks store (v2)
+
+      // v2: Add recent disks store
       if (!database.objectStoreNames.contains(RECENT_STORE_NAME)) {
         const recentStore = database.createObjectStore(RECENT_STORE_NAME, {
           keyPath: "id",
@@ -45,6 +48,14 @@ function openDB() {
         });
         recentStore.createIndex("filename", "filename", { unique: false });
         recentStore.createIndex("accessedAt", "accessedAt", { unique: false });
+        recentStore.createIndex("driveNum", "driveNum", { unique: false });
+      } else if (oldVersion < 3) {
+        // v3: Add driveNum index to existing store
+        const transaction = event.target.transaction;
+        const recentStore = transaction.objectStore(RECENT_STORE_NAME);
+        if (!recentStore.indexNames.contains("driveNum")) {
+          recentStore.createIndex("driveNum", "driveNum", { unique: false });
+        }
       }
     };
   });
@@ -180,19 +191,20 @@ export async function hasPersistedDisks() {
 // ============================================================================
 
 /**
- * Add a disk to the recent disks list
- * If the disk already exists (same filename), update its access time
- * Maintains a maximum of MAX_RECENT_DISKS entries
+ * Add a disk to the recent disks list for a specific drive
+ * If the disk already exists (same filename for same drive), update its access time
+ * Maintains a maximum of MAX_RECENT_DISKS entries per drive
+ * @param {number} driveNum - Drive number (0 or 1)
  * @param {string} filename - The disk filename
  * @param {Uint8Array} data - The disk image data
  * @returns {Promise<void>}
  */
-export async function addToRecentDisks(filename, data) {
+export async function addToRecentDisks(driveNum, filename, data) {
   try {
     const database = await openDB();
 
-    // First, check if this filename already exists and remove it
-    const existingId = await findRecentDiskByFilename(database, filename);
+    // First, check if this filename already exists for this drive and remove it
+    const existingId = await findRecentDiskByFilename(database, driveNum, filename);
     if (existingId !== null) {
       await removeRecentDiskById(database, existingId);
     }
@@ -202,6 +214,7 @@ export async function addToRecentDisks(filename, data) {
     const store = transaction.objectStore(RECENT_STORE_NAME);
 
     const diskRecord = {
+      driveNum,
       filename,
       data: new Uint8Array(data),
       accessedAt: Date.now(),
@@ -213,29 +226,42 @@ export async function addToRecentDisks(filename, data) {
       request.onerror = () => reject(request.error);
     });
 
-    // Trim to MAX_RECENT_DISKS
-    await trimRecentDisks(database);
+    // Trim to MAX_RECENT_DISKS for this drive
+    await trimRecentDisks(database, driveNum);
 
-    console.log(`Added to recent disks: ${filename}`);
+    console.log(`Added to recent disks (drive ${driveNum + 1}): ${filename}`);
   } catch (error) {
     console.error("Error adding to recent disks:", error);
   }
 }
 
 /**
- * Find a recent disk by filename
+ * Find a recent disk by filename for a specific drive
  * @param {IDBDatabase} database
+ * @param {number} driveNum - Drive number (0 or 1)
  * @param {string} filename
  * @returns {Promise<number|null>} The record ID or null
  */
-async function findRecentDiskByFilename(database, filename) {
+async function findRecentDiskByFilename(database, driveNum, filename) {
   return new Promise((resolve, reject) => {
     const transaction = database.transaction(RECENT_STORE_NAME, "readonly");
     const store = transaction.objectStore(RECENT_STORE_NAME);
     const index = store.index("filename");
 
-    const request = index.getKey(filename);
-    request.onsuccess = () => resolve(request.result ?? null);
+    // Need to iterate to find matching driveNum and filename
+    const request = index.openCursor(IDBKeyRange.only(filename));
+    request.onsuccess = (event) => {
+      const cursor = event.target.result;
+      if (cursor) {
+        if (cursor.value.driveNum === driveNum) {
+          resolve(cursor.primaryKey);
+        } else {
+          cursor.continue();
+        }
+      } else {
+        resolve(null);
+      }
+    };
     request.onerror = () => reject(request.error);
   });
 }
@@ -258,48 +284,38 @@ async function removeRecentDiskById(database, id) {
 }
 
 /**
- * Trim recent disks to MAX_RECENT_DISKS entries, removing oldest
+ * Trim recent disks to MAX_RECENT_DISKS entries for a specific drive, removing oldest
  * @param {IDBDatabase} database
+ * @param {number} driveNum - Drive number (0 or 1)
  * @returns {Promise<void>}
  */
-async function trimRecentDisks(database) {
+async function trimRecentDisks(database, driveNum) {
   return new Promise((resolve, reject) => {
     const transaction = database.transaction(RECENT_STORE_NAME, "readwrite");
     const store = transaction.objectStore(RECENT_STORE_NAME);
     const index = store.index("accessedAt");
 
-    // Get all records sorted by accessedAt (ascending = oldest first)
+    // Collect all records for this drive, sorted by accessedAt (ascending = oldest first)
+    const records = [];
     const request = index.openCursor();
-    const toDelete = [];
-    let count = 0;
 
     request.onsuccess = (event) => {
       const cursor = event.target.result;
       if (cursor) {
-        count++;
+        if (cursor.value.driveNum === driveNum) {
+          records.push({ id: cursor.primaryKey, accessedAt: cursor.value.accessedAt });
+        }
         cursor.continue();
       } else {
-        // We've counted all records, now delete excess
-        if (count > MAX_RECENT_DISKS) {
-          const deleteCount = count - MAX_RECENT_DISKS;
-          // Re-open cursor to delete oldest entries
-          const deleteRequest = index.openCursor();
-          let deleted = 0;
-
-          deleteRequest.onsuccess = (e) => {
-            const deleteCursor = e.target.result;
-            if (deleteCursor && deleted < deleteCount) {
-              store.delete(deleteCursor.primaryKey);
-              deleted++;
-              deleteCursor.continue();
-            } else {
-              resolve();
-            }
-          };
-          deleteRequest.onerror = () => reject(deleteRequest.error);
-        } else {
-          resolve();
+        // Delete excess entries for this drive
+        if (records.length > MAX_RECENT_DISKS) {
+          const deleteCount = records.length - MAX_RECENT_DISKS;
+          // Records are already sorted by accessedAt (oldest first)
+          for (let i = 0; i < deleteCount; i++) {
+            store.delete(records[i].id);
+          }
         }
+        resolve();
       }
     };
     request.onerror = () => reject(request.error);
@@ -307,10 +323,11 @@ async function trimRecentDisks(database) {
 }
 
 /**
- * Get the list of recent disks, sorted by most recently accessed
+ * Get the list of recent disks for a specific drive, sorted by most recently accessed
+ * @param {number} driveNum - Drive number (0 or 1)
  * @returns {Promise<Array<{id: number, filename: string, accessedAt: number}>>}
  */
-export async function getRecentDisks() {
+export async function getRecentDisks(driveNum) {
   try {
     const database = await openDB();
     const transaction = database.transaction(RECENT_STORE_NAME, "readonly");
@@ -325,11 +342,14 @@ export async function getRecentDisks() {
       request.onsuccess = (event) => {
         const cursor = event.target.result;
         if (cursor) {
-          results.push({
-            id: cursor.value.id,
-            filename: cursor.value.filename,
-            accessedAt: cursor.value.accessedAt,
-          });
+          // Only include entries for this drive
+          if (cursor.value.driveNum === driveNum) {
+            results.push({
+              id: cursor.value.id,
+              filename: cursor.value.filename,
+              accessedAt: cursor.value.accessedAt,
+            });
+          }
           cursor.continue();
         } else {
           resolve(results);
@@ -391,20 +411,30 @@ export async function removeRecentDisk(id) {
 }
 
 /**
- * Clear all recent disks
+ * Clear all recent disks for a specific drive
+ * @param {number} driveNum - Drive number (0 or 1)
  * @returns {Promise<void>}
  */
-export async function clearRecentDisks() {
+export async function clearRecentDisks(driveNum) {
   try {
     const database = await openDB();
     const transaction = database.transaction(RECENT_STORE_NAME, "readwrite");
     const store = transaction.objectStore(RECENT_STORE_NAME);
 
     return new Promise((resolve, reject) => {
-      const request = store.clear();
-      request.onsuccess = () => {
-        console.log("Cleared all recent disks");
-        resolve();
+      // Iterate through all records and delete those matching driveNum
+      const request = store.openCursor();
+      request.onsuccess = (event) => {
+        const cursor = event.target.result;
+        if (cursor) {
+          if (cursor.value.driveNum === driveNum) {
+            store.delete(cursor.primaryKey);
+          }
+          cursor.continue();
+        } else {
+          console.log(`Cleared recent disks for drive ${driveNum + 1}`);
+          resolve();
+        }
       };
       request.onerror = () => reject(request.error);
     });
