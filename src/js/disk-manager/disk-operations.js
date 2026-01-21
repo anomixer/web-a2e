@@ -49,10 +49,10 @@ export async function loadDisk(
       console.log(`Inserted disk in drive ${driveNum + 1}: ${file.name}`);
 
       // Save to IndexedDB for persistence across sessions
-      saveDiskToStorage(driveNum, file.name, data);
+      await saveDiskToStorage(driveNum, file.name, data);
 
       // Add to recent disks list
-      addToRecentDisks(file.name, data);
+      await addToRecentDisks(file.name, data);
 
       if (onSuccess) onSuccess(file.name);
     } else {

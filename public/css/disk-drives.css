@@ -2,45 +2,25 @@
    Disk drive UI components
 */
 
-/* Container for slide animation */
+/* Container for disk drives - simple show/hide */
 .disk-drives-container {
     width: 100%;
     max-width: 576px;
     flex-shrink: 0;
-    display: grid;
-    grid-template-rows: 1fr;
-    transition: grid-template-rows 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .disk-drives-container.collapsed {
-    grid-template-rows: 0fr;
-    transition: grid-template-rows 0.2s ease-out;
-}
-
-/* Skip animation on initial page load */
-.disk-drives-container.no-transition,
-.disk-drives-container.no-transition #disk-drives {
-    transition: none !important;
+    display: none;
 }
 
 .disk-drives-inner {
-    overflow: hidden;
+    /* No overflow hidden - allows dropdowns to render above */
 }
 
 #disk-drives {
     display: flex;
     gap: var(--space-md);
     width: 100%;
-    transform: translateY(0);
-    opacity: 1;
-    transition:
-        transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-        opacity 0.15s ease-out;
-}
-
-.disk-drives-container.collapsed #disk-drives {
-    transform: translateY(20px);
-    opacity: 0;
 }
 
 .disk-drive {
@@ -222,10 +202,8 @@
     background: var(--bg-panel);
     border: 1px solid var(--border-default);
     border-radius: var(--radius-sm);
-    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.15);
-    max-height: 320px;
-    overflow-y: auto;
-    z-index: 100;
+    box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
 }
 
 .recent-dropdown.open {
@@ -258,6 +236,22 @@
     color: var(--text-muted);
     font-style: italic;
     cursor: default;
+}
+
+.recent-separator {
+    height: 1px;
+    background: var(--border-default);
+    margin: var(--space-xs) 0;
+}
+
+.recent-item.recent-clear {
+    color: var(--text-muted);
+    text-align: center;
+}
+
+.recent-item.recent-clear:hover {
+    color: var(--error);
+    background: var(--bg-light);
 }
 
 /* Scrollbar styling for dropdown */

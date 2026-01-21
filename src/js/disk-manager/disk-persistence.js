@@ -5,7 +5,7 @@ const DB_NAME = "a2e-disk-persistence";
 const DB_VERSION = 2;
 const STORE_NAME = "disks";
 const RECENT_STORE_NAME = "recentDisks";
-const MAX_RECENT_DISKS = 20;
+const MAX_RECENT_DISKS = 10;
 
 let db = null;
 

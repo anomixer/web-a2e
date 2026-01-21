@@ -15,6 +15,7 @@ import {
   getRecentDisks,
   loadRecentDisk,
   addToRecentDisks,
+  clearRecentDisks,
 } from "./disk-persistence.js";
 
 export class DiskManager {
@@ -573,6 +574,21 @@ export class DiskManager {
         });
         drive.recentDropdown.appendChild(item);
       }
+
+      // Add separator and clear option
+      const separator = document.createElement("div");
+      separator.className = "recent-separator";
+      drive.recentDropdown.appendChild(separator);
+
+      const clearItem = document.createElement("div");
+      clearItem.className = "recent-item recent-clear";
+      clearItem.textContent = "Clear Recent";
+      clearItem.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        await clearRecentDisks();
+        this.closeRecentDropdown();
+      });
+      drive.recentDropdown.appendChild(clearItem);
     }
   }
 
