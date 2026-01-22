@@ -88,7 +88,7 @@ export class FileExplorerWindow {
             <span class="dis-stack">Stack/Reg</span>
             <span class="dis-address">Address</span>
             <span class="dis-immediate">Immediate</span>
-            <span class="dis-comment">Comment</span>
+            <span class="dis-data">Data</span>
           </div>
           <div class="fe-file-content"></div>
         </div>

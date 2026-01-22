@@ -100,6 +100,16 @@ function formatOperand(mode, operand1, operand2, target) {
  * Format a single instruction to HTML
  */
 function formatInstruction(instr) {
+  // Handle ORG directive
+  if (instr.isOrg) {
+    return formatOrg(instr.address);
+  }
+
+  // Handle data bytes (non-code)
+  if (instr.isData) {
+    return formatDataLine(instr);
+  }
+
   const catClass = CATEGORY_CLASSES[instr.category] || 'dis-mnemonic';
 
   // Address
@@ -129,6 +139,87 @@ function formatInstruction(instr) {
   }
 
   return html;
+}
+
+/**
+ * Format a data line (unvisited bytes)
+ */
+function formatDataLine(entry) {
+  let html = `<span class="dis-addr">${hexWord(entry.address)}:</span> `;
+
+  // Show bytes (up to 8 per line)
+  const byteStrs = entry.bytes.map(b => hexByte(b));
+  html += `<span class="dis-bytes">${byteStrs.join(' ').padEnd(23)}</span>`;
+
+  // .BYTE directive
+  html += `  <span class="dis-directive">.BYTE</span> `;
+  html += `<span class="dis-data">${byteStrs.map(b => '$' + b).join(',')}</span>`;
+
+  return html;
+}
+
+/**
+ * Format ORG directive
+ */
+function formatOrg(address) {
+  return `<span class="dis-directive">        ORG</span>   <span class="dis-punct">$</span><span class="dis-address">${hexWord(address)}</span>`;
+}
+
+/**
+ * Build complete listing with code and data
+ * Fills gaps between visited instructions with .BYTE data
+ */
+function buildCompleteListing(codeInstructions, rawData, baseAddress) {
+  const lines = [];
+  const dataLength = rawData.length;
+  const endAddress = baseAddress + dataLength;
+
+  // Build a map of address -> instruction for visited code
+  const codeMap = new Map();
+  const coveredAddresses = new Set();
+
+  for (const instr of codeInstructions) {
+    codeMap.set(instr.address, instr);
+    // Mark all bytes covered by this instruction
+    for (let i = 0; i < instr.length; i++) {
+      coveredAddresses.add(instr.address + i);
+    }
+  }
+
+  // Iterate through all addresses
+  let addr = baseAddress;
+  while (addr < endAddress) {
+    if (codeMap.has(addr)) {
+      // This is a visited code instruction
+      const instr = codeMap.get(addr);
+      lines.push(instr);
+      addr += instr.length;
+    } else if (coveredAddresses.has(addr)) {
+      // This byte is part of a multi-byte instruction, skip it
+      addr++;
+    } else {
+      // This is unvisited data - collect consecutive data bytes
+      const dataBytes = [];
+      const dataStart = addr;
+
+      while (addr < endAddress &&
+             !codeMap.has(addr) &&
+             !coveredAddresses.has(addr) &&
+             dataBytes.length < 8) {
+        const offset = addr - baseAddress;
+        dataBytes.push(rawData[offset]);
+        addr++;
+      }
+
+      lines.push({
+        isData: true,
+        address: dataStart,
+        bytes: dataBytes
+      });
+    }
+  }
+
+  return lines;
 }
 
 /**
@@ -313,8 +404,8 @@ export async function disassemble(data, targetElement) {
   const dataPtr = wasmModule._malloc(codeData.length);
   wasmModule.HEAPU8.set(codeData, dataPtr);
 
-  // Call C++ disassembler
-  const count = wasmModule._disassembleRawData(dataPtr, codeData.length, baseAddress);
+  // Call C++ disassembler with flow analysis (recursive descent)
+  const count = wasmModule._disassembleWithFlowAnalysis(dataPtr, codeData.length, baseAddress);
   wasmModule._free(dataPtr);
 
   if (count === 0) {
@@ -324,19 +415,29 @@ export async function disassemble(data, targetElement) {
 
   // Get pointer to instruction array
   const instrPtr = wasmModule._getDisasmInstructions();
-  const instructions = parseInstructions(instrPtr, count);
+  const codeInstructions = parseInstructions(instrPtr, count);
+
+  // Build complete listing with code and data gaps filled
+  const listing = buildCompleteListing(codeInstructions, codeData, baseAddress);
 
   targetElement.innerHTML = '';
 
+  // Build output lines with ORG at top
+  const outputLines = [formatOrg(baseAddress)];
+
   // Small output: render directly
-  if (instructions.length < 500) {
+  if (listing.length < 500) {
     const pre = document.createElement('pre');
-    const lines = instructions.map(instr => formatInstruction(instr));
-    pre.innerHTML = lines.join('\n');
+    for (const entry of listing) {
+      outputLines.push(formatInstruction(entry));
+    }
+    pre.innerHTML = outputLines.join('\n');
     targetElement.appendChild(pre);
     return;
   }
 
   // Large output: virtual scrolling
-  currentRenderer = new VirtualScrollRenderer(targetElement, instructions);
+  // Prepend a fake ORG entry for the virtual scroller
+  const listingWithOrg = [{ isOrg: true, address: baseAddress }, ...listing];
+  currentRenderer = new VirtualScrollRenderer(targetElement, listingWithOrg);
 }

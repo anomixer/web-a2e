@@ -364,6 +364,10 @@
     background: #8b949e;
 }
 
+.fe-asm-legend .dis-data::before {
+    background: #8b949e;
+}
+
 .fe-file-content {
     flex: 1;
     overflow: auto;
@@ -443,6 +447,10 @@
 
 .dis-directive {
     color: #d2a8ff;  /* Purple for assembler directives */
+}
+
+.dis-data {
+    color: #8b949e;  /* Grey for unvisited data bytes */
 }
 
 .dis-immediate {

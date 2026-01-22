@@ -627,4 +627,21 @@ int getDisasmInstructionLength(uint8_t opcode) {
   return a2e::getInstructionLength(opcode);
 }
 
+EMSCRIPTEN_KEEPALIVE
+uint32_t disassembleWithFlowAnalysis(const uint8_t *data, size_t size,
+                                      uint16_t baseAddress) {
+  g_disasmResult = a2e::disassembleWithFlowAnalysis(data, size, baseAddress);
+  return static_cast<uint32_t>(g_disasmResult.instructions.size());
+}
+
+EMSCRIPTEN_KEEPALIVE
+uint32_t disassembleWithFlowAnalysisMultiEntry(const uint8_t *data, size_t size,
+                                                uint16_t baseAddress,
+                                                const uint16_t *entryPoints,
+                                                size_t entryCount) {
+  std::vector<uint16_t> entries(entryPoints, entryPoints + entryCount);
+  g_disasmResult = a2e::disassembleWithFlowAnalysis(data, size, baseAddress, entries);
+  return static_cast<uint32_t>(g_disasmResult.instructions.size());
+}
+
 } // extern "C"
