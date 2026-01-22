@@ -5,6 +5,7 @@
 
 import { getBinaryFileInfo } from "./dos33.js";
 import { disassemble } from "./disassembler.js";
+import { escapeHtml } from "../utils/string-utils.js";
 
 // Integer BASIC tokens ($00-$7F)
 // Source: https://github.com/paleotronic/diskm8/blob/master/disk/atokens.go
@@ -477,12 +478,6 @@ function getBasicKeywordClass(keyword) {
   return "bas-keyword";
 }
 
-function escapeHtml(text) {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
 
 /**
  * Detokenize Integer BASIC program with HTML syntax highlighting

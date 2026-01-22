@@ -1,5 +1,11 @@
 // Audio Driver - Uses Web Audio API to drive emulator timing
 
+// Audio constants
+const SAMPLE_RATE = 48000;
+const AUDIO_BUFFER_SIZE = 128; // AudioWorklet processes 128 samples at a time
+const CYCLES_PER_SECOND = 1023000;
+const DEFAULT_VOLUME = 0.5;
+
 export class AudioDriver {
   constructor(wasmModule) {
     this.wasmModule = wasmModule;
@@ -7,8 +13,8 @@ export class AudioDriver {
     this.workletNode = null;
     this.gainNode = null;
 
-    this.sampleRate = 48000;
-    this.bufferSize = 128; // AudioWorklet processes 128 samples at a time
+    this.sampleRate = SAMPLE_RATE;
+    this.bufferSize = AUDIO_BUFFER_SIZE;
     this.running = false;
     this.muted = false;
     this.volume = this.loadVolume(); // Load saved volume or default to 0.5
@@ -152,8 +158,7 @@ export class AudioDriver {
 
   startFallbackTiming() {
     // If audio doesn't work, use setInterval for timing
-    const cyclesPerSecond = 1023000;
-    const cyclesPerTick = cyclesPerSecond / 60;
+    const cyclesPerTick = CYCLES_PER_SECOND / 60;
 
     this.fallbackInterval = setInterval(() => {
       if (this.speed === 0) {
@@ -299,7 +304,7 @@ export class AudioDriver {
     } catch (e) {
       // Ignore localStorage errors
     }
-    return 0.5; // Default volume
+    return DEFAULT_VOLUME;
   }
 
   saveVolume() {

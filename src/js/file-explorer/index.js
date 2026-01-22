@@ -6,6 +6,7 @@ import { isDOS33, readCatalog, readFile, parseVTOC, getBinaryFileInfo } from './
 import { isProDOS, readCatalog as readProDOSCatalog, readFile as readProDOSFile, parseVolumeInfo, mapFileTypeForViewer, getBinaryFileInfo as getProDOSBinaryInfo } from './prodos.js';
 import { formatFileContents, formatFileSize, formatHexDump } from './file-viewer.js';
 import { disassemble, setWasmModule } from './disassembler.js';
+import { escapeHtml } from '../utils/string-utils.js';
 
 export class FileExplorerWindow {
   constructor(wasmModule) {
@@ -386,7 +387,7 @@ export class FileExplorerWindow {
         catalogList.innerHTML = this.catalog.map((entry, index) => `
           <div class="fe-catalog-item" data-index="${index}">
             <span class="fe-file-type ${entry.isLocked ? 'locked' : ''}">${entry.isLocked ? '*' : ' '}${entry.fileTypeName}</span>
-            <span class="fe-file-name">${this.escapeHtml(entry.filename)}</span>
+            <span class="fe-file-name">${escapeHtml(entry.filename)}</span>
             <span class="fe-file-sectors">${entry.sectorCount}</span>
           </div>
         `).join('');
@@ -420,7 +421,7 @@ export class FileExplorerWindow {
       let builtPath = '';
       for (const part of parts) {
         builtPath += (builtPath ? '/' : '') + part;
-        pathHtml += `/<span class="fe-path-item" data-path="${this.escapeHtml(builtPath)}">${this.escapeHtml(part)}</span>`;
+        pathHtml += `/<span class="fe-path-item" data-path="${escapeHtml(builtPath)}">${escapeHtml(part)}</span>`;
       }
       pathBar.innerHTML = pathHtml;
     } else {
@@ -471,7 +472,7 @@ export class FileExplorerWindow {
         return `
           <div class="fe-catalog-item ${isDir ? 'fe-directory' : ''}" data-index="${originalIndex}" ${isDir ? 'data-action="enter"' : ''}>
             <span class="fe-file-type ${entry.isLocked ? 'locked' : ''}">${entry.isLocked ? '*' : ' '}${isDir ? 'DIR' : entry.fileTypeName}</span>
-            <span class="fe-file-name">${this.escapeHtml(entry.filename)}${isDir ? '/' : ''}</span>
+            <span class="fe-file-name">${escapeHtml(entry.filename)}${isDir ? '/' : ''}</span>
             <span class="fe-file-sectors">${entry.blocksUsed}</span>
           </div>
         `;
@@ -595,7 +596,7 @@ export class FileExplorerWindow {
           // Show hex dump
           const hexContent = formatHexDump(displayData, info?.address || 0);
           contentEl.className = 'fe-file-content hex';
-          contentEl.innerHTML = `<pre>${this.escapeHtml(hexContent)}</pre>`;
+          contentEl.innerHTML = `<pre>${escapeHtml(hexContent)}</pre>`;
         } else {
           // Show disassembly (async) - progressive rendering to avoid freezing
           contentEl.className = 'fe-file-content asm';
@@ -631,7 +632,7 @@ export class FileExplorerWindow {
         if (viewerFileType === -1) {
           const hexContent = formatHexDump(fileData);
           contentEl.className = 'fe-file-content hex';
-          contentEl.innerHTML = `<pre>${this.escapeHtml(hexContent)}</pre>`;
+          contentEl.innerHTML = `<pre>${escapeHtml(hexContent)}</pre>`;
           this.basicLineNumToIndex = null;
           this.basicOriginalHtml = null;
           return;
@@ -653,7 +654,7 @@ export class FileExplorerWindow {
             this.basicOriginalHtml = null;
           }
         } else {
-          contentEl.innerHTML = `<pre>${this.escapeHtml(formatted.content)}</pre>`;
+          contentEl.innerHTML = `<pre>${escapeHtml(formatted.content)}</pre>`;
           this.basicLineNumToIndex = null;
           this.basicOriginalHtml = null;
         }
@@ -711,12 +712,6 @@ export class FileExplorerWindow {
     this.basicOriginalHtml = null;
   }
 
-  escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
-
   saveSettings() {
     try {
       localStorage.setItem('a2e-file-explorer', JSON.stringify({
@@ -727,7 +722,7 @@ export class FileExplorerWindow {
         visible: this.isVisible,
       }));
     } catch (e) {
-      // Ignore storage errors
+      console.warn('Failed to save file explorer settings:', e.message);
     }
   }
 
@@ -747,7 +742,7 @@ export class FileExplorerWindow {
         this.element.style.height = `${this.currentHeight}px`;
       }
     } catch (e) {
-      // Ignore storage errors
+      console.warn('Failed to load file explorer settings:', e.message);
     }
   }
 

@@ -28,6 +28,16 @@ import {
   getSavedStateTimestamp,
 } from "./state-persistence.js";
 
+// Timing constants
+const AUTO_SAVE_INTERVAL_MS = 5000;
+const REMINDER_DISMISS_DELAY_MS = 2000;
+const NOTIFICATION_DISPLAY_MS = 3000;
+const STATE_BUTTON_FLASH_MS = 600;
+const DRIVE_ANIMATION_DURATION_MS = 280;
+
+// Display constants
+const MONITOR_ASPECT_RATIO = 4 / 3;
+
 class AppleIIeEmulator {
   constructor() {
     this.wasmModule = null;
@@ -155,13 +165,13 @@ class AppleIIeEmulator {
         }
       });
 
-      // Periodic auto-save while running (every 5 seconds)
+      // Periodic auto-save while running
       // This ensures state is saved even if beforeunload doesn't complete
       this.autoSaveInterval = setInterval(() => {
         if (this.running && !document.hidden && this.autoSaveEnabled) {
           this.saveState();
         }
-      }, 5000);
+      }, AUTO_SAVE_INTERVAL_MS);
 
       // Start with TV static "no signal" since emulator is off
       this.renderer.setNoSignal(true);
@@ -178,7 +188,7 @@ class AppleIIeEmulator {
 
       // Set up monitor resizer
       this.monitorResizer = new MonitorResizer({
-        aspectRatio: 4 / 3,
+        aspectRatio: MONITOR_ASPECT_RATIO,
         onResize: (width, height) => {
           if (this.renderer) {
             this.renderer.resize(width, height);
@@ -246,7 +256,7 @@ class AppleIIeEmulator {
       // Dismiss BASIC reminder after a short delay
       setTimeout(() => {
         this.reminderController.dismissBasicReminder();
-      }, 2000);
+      }, REMINDER_DISMISS_DELAY_MS);
       refocusCanvas();
     });
 
@@ -330,10 +340,9 @@ class AppleIIeEmulator {
 
         // Resize monitor continuously during animation
         const startTime = performance.now();
-        const duration = 280; // Slightly longer than CSS transition
         const animateResize = () => {
           this.monitorResizer.handleResize();
-          if (performance.now() - startTime < duration) {
+          if (performance.now() - startTime < DRIVE_ANIMATION_DURATION_MS) {
             requestAnimationFrame(animateResize);
           }
         };
@@ -673,10 +682,10 @@ class AppleIIeEmulator {
     notification.textContent = message;
     notification.classList.add("visible");
 
-    // Hide after 3 seconds
+    // Hide after delay
     setTimeout(() => {
       notification.classList.remove("visible");
-    }, 3000);
+    }, NOTIFICATION_DISPLAY_MS);
   }
 
   start() {
@@ -718,7 +727,7 @@ class AppleIIeEmulator {
     // Remove after animation
     setTimeout(() => {
       stateBtn.classList.remove("saving");
-    }, 600);
+    }, STATE_BUTTON_FLASH_MS);
   }
 
   /**

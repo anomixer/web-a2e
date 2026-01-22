@@ -75,7 +75,8 @@ export class ZeroPageWatchWindow extends DebugWindow {
     try {
       const saved = localStorage.getItem("zp-custom-watches");
       return saved ? JSON.parse(saved) : [];
-    } catch {
+    } catch (e) {
+      console.warn('Failed to load custom watches:', e.message);
       return [];
     }
   }
@@ -86,8 +87,8 @@ export class ZeroPageWatchWindow extends DebugWindow {
         "zp-custom-watches",
         JSON.stringify(this.customWatches)
       );
-    } catch {
-      // Ignore storage errors
+    } catch (e) {
+      console.warn('Failed to save custom watches:', e.message);
     }
   }
 

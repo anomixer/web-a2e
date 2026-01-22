@@ -338,15 +338,3 @@ export function getSymbol(addr) {
   return ALL_SYMBOLS[addr] || null;
 }
 
-/**
- * Format an address with its symbol if known
- * @param {number} addr - The address
- * @returns {string} - Formatted as "SYMBOL" or "$XXXX" if no symbol
- */
-export function formatAddressWithSymbol(addr) {
-  const symbol = ALL_SYMBOLS[addr];
-  if (symbol) {
-    return symbol;
-  }
-  return '$' + addr.toString(16).toUpperCase().padStart(4, '0');
-}
