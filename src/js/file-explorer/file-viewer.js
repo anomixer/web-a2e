@@ -3,94 +3,485 @@
  * Supports different Apple II file types
  */
 
-import { getBinaryFileInfo } from './dos33.js';
-import { disassemble } from './disassembler.js';
+import { getBinaryFileInfo } from "./dos33.js";
+import { disassemble } from "./disassembler.js";
 
 // Integer BASIC tokens ($00-$7F)
 // Source: https://github.com/paleotronic/diskm8/blob/master/disk/atokens.go
 // Note: $01 = end of line, $B0-$B9 = numeric constant prefix (followed by 2-byte integer)
 const INTEGER_BASIC_TOKENS = {
-  0x00: ' HIMEM: ', 0x02: '_', 0x03: ':',
-  0x04: ' LOAD ', 0x05: ' SAVE ', 0x06: ' CON ', 0x07: ' RUN ', 0x08: ' RUN ',
-  0x09: ' DEL ', 0x0A: ',', 0x0B: ' NEW ', 0x0C: ' CLR ', 0x0D: ' AUTO ',
-  0x0E: ',', 0x0F: ' MAN ', 0x10: ' HIMEM: ', 0x11: ' LOMEM: ',
-  0x12: '+', 0x13: '-', 0x14: '*', 0x15: '/', 0x16: '=', 0x17: '#',
-  0x18: '>=', 0x19: '>', 0x1A: '<=', 0x1B: '<>', 0x1C: '<',
-  0x1D: ' AND ', 0x1E: ' OR ', 0x1F: ' MOD ', 0x20: '^',
-  0x21: '+', 0x22: '(', 0x23: ',', 0x24: ' THEN ', 0x25: ' THEN ',
-  0x26: ',', 0x27: ',', 0x28: '"', 0x29: '"',
-  0x2A: '(', 0x2B: '!', 0x2C: '!', 0x2D: '(',
-  0x2E: 'PEEK', 0x2F: 'RND', 0x30: 'SGN', 0x31: 'ABS', 0x32: 'PDL', 0x33: 'RNDX',
-  0x34: '(', 0x35: '+', 0x36: '-', 0x37: ' NOT ', 0x38: '(',
-  0x39: '=', 0x3A: '#', 0x3B: 'LEN(', 0x3C: 'ASC(', 0x3D: 'SCRN(',
-  0x3E: ',', 0x3F: '(', 0x40: '$', 0x41: '$', 0x42: '(',
-  0x43: ',', 0x44: ',', 0x45: ';', 0x46: ';', 0x47: ';',
-  0x48: ',', 0x49: ',', 0x4A: ',',
-  0x4B: ' TEXT ', 0x4C: ' GR ', 0x4D: ' CALL ',
-  0x4E: ' DIM ', 0x4F: ' DIM ', 0x50: ' TAB ', 0x51: ' END ',
-  0x52: ' INPUT ', 0x53: ' INPUT ', 0x54: ' INPUT ',
-  0x55: ' FOR ', 0x56: '=', 0x57: ' TO ', 0x58: ' STEP ',
-  0x59: ' NEXT ', 0x5A: ',', 0x5B: ' RETURN ', 0x5C: ' GOSUB ',
-  0x5D: ' REM ', 0x5E: ' LET ', 0x5F: ' GOTO ', 0x60: ' IF ',
-  0x61: ' PRINT ', 0x62: ' PRINT ', 0x63: ' PRINT ',
-  0x64: ' POKE ', 0x65: ',', 0x66: ' COLOR= ', 0x67: ' PLOT ', 0x68: ',',
-  0x69: ' HLIN ', 0x6A: ',', 0x6B: ' AT ', 0x6C: ' VLIN ', 0x6D: ',', 0x6E: ' AT ',
-  0x6F: ' VTAB ', 0x70: '=', 0x71: '=', 0x72: ')', 0x73: ')',
-  0x74: ' LIST ', 0x75: ',', 0x76: ' LIST ',
-  0x77: ' POP ', 0x78: ' NODSP ', 0x79: ' DSP ', 0x7A: ' NOTRACE ',
-  0x7B: ' DSP ', 0x7C: ' DSP ', 0x7D: ' TRACE ', 0x7E: ' PR# ', 0x7F: ' IN# ',
+  0x00: " HIMEM: ",
+  0x02: "_",
+  0x03: ":",
+  0x04: " LOAD ",
+  0x05: " SAVE ",
+  0x06: " CON ",
+  0x07: " RUN ",
+  0x08: " RUN ",
+  0x09: " DEL ",
+  0x0a: ",",
+  0x0b: " NEW ",
+  0x0c: " CLR ",
+  0x0d: " AUTO ",
+  0x0e: ",",
+  0x0f: " MAN ",
+  0x10: " HIMEM: ",
+  0x11: " LOMEM: ",
+  0x12: "+",
+  0x13: "-",
+  0x14: "*",
+  0x15: "/",
+  0x16: "=",
+  0x17: "#",
+  0x18: ">=",
+  0x19: ">",
+  0x1a: "<=",
+  0x1b: "<>",
+  0x1c: "<",
+  0x1d: " AND ",
+  0x1e: " OR ",
+  0x1f: " MOD ",
+  0x20: "^",
+  0x21: "+",
+  0x22: "(",
+  0x23: ",",
+  0x24: " THEN ",
+  0x25: " THEN ",
+  0x26: ",",
+  0x27: ",",
+  0x28: '"',
+  0x29: '"',
+  0x2a: "(",
+  0x2b: "!",
+  0x2c: "!",
+  0x2d: "(",
+  0x2e: "PEEK",
+  0x2f: "RND",
+  0x30: "SGN",
+  0x31: "ABS",
+  0x32: "PDL",
+  0x33: "RNDX",
+  0x34: "(",
+  0x35: "+",
+  0x36: "-",
+  0x37: " NOT ",
+  0x38: "(",
+  0x39: "=",
+  0x3a: "#",
+  0x3b: "LEN(",
+  0x3c: "ASC(",
+  0x3d: "SCRN(",
+  0x3e: ",",
+  0x3f: "(",
+  0x40: "$",
+  0x41: "$",
+  0x42: "(",
+  0x43: ",",
+  0x44: ",",
+  0x45: ";",
+  0x46: ";",
+  0x47: ";",
+  0x48: ",",
+  0x49: ",",
+  0x4a: ",",
+  0x4b: " TEXT ",
+  0x4c: " GR ",
+  0x4d: " CALL ",
+  0x4e: " DIM ",
+  0x4f: " DIM ",
+  0x50: " TAB ",
+  0x51: " END ",
+  0x52: " INPUT ",
+  0x53: " INPUT ",
+  0x54: " INPUT ",
+  0x55: " FOR ",
+  0x56: "=",
+  0x57: " TO ",
+  0x58: " STEP ",
+  0x59: " NEXT ",
+  0x5a: ",",
+  0x5b: " RETURN ",
+  0x5c: " GOSUB ",
+  0x5d: " REM ",
+  0x5e: " LET ",
+  0x5f: " GOTO ",
+  0x60: " IF ",
+  0x61: " PRINT ",
+  0x62: " PRINT ",
+  0x63: " PRINT ",
+  0x64: " POKE ",
+  0x65: ",",
+  0x66: " COLOR= ",
+  0x67: " PLOT ",
+  0x68: ",",
+  0x69: " HLIN ",
+  0x6a: ",",
+  0x6b: " AT ",
+  0x6c: " VLIN ",
+  0x6d: ",",
+  0x6e: " AT ",
+  0x6f: " VTAB ",
+  0x70: "=",
+  0x71: "=",
+  0x72: ")",
+  0x73: ")",
+  0x74: " LIST ",
+  0x75: ",",
+  0x76: " LIST ",
+  0x77: " POP ",
+  0x78: " NODSP ",
+  0x79: " DSP ",
+  0x7a: " NOTRACE ",
+  0x7b: " DSP ",
+  0x7c: " DSP ",
+  0x7d: " TRACE ",
+  0x7e: " PR# ",
+  0x7f: " IN# ",
 };
 
 // Applesoft BASIC tokens (0x80-0xFF)
 // No embedded spaces - we handle spacing during output
 const APPLESOFT_TOKENS = [
-  'END', 'FOR', 'NEXT', 'DATA', 'INPUT', 'DEL', 'DIM', 'READ',
-  'GR', 'TEXT', 'PR#', 'IN#', 'CALL', 'PLOT', 'HLIN', 'VLIN',
-  'HGR2', 'HGR', 'HCOLOR=', 'HPLOT', 'DRAW', 'XDRAW', 'HTAB', 'HOME',
-  'ROT=', 'SCALE=', 'SHLOAD', 'TRACE', 'NOTRACE', 'NORMAL', 'INVERSE', 'FLASH',
-  'COLOR=', 'POP', 'VTAB', 'HIMEM:', 'LOMEM:', 'ONERR', 'RESUME', 'RECALL',
-  'STORE', 'SPEED=', 'LET', 'GOTO', 'RUN', 'IF', 'RESTORE', '&',
-  'GOSUB', 'RETURN', 'REM', 'STOP', 'ON', 'WAIT', 'LOAD', 'SAVE',
-  'DEF', 'POKE', 'PRINT', 'CONT', 'LIST', 'CLEAR', 'GET', 'NEW',
-  'TAB(', 'TO', 'FN', 'SPC(', 'THEN', 'AT', 'NOT', 'STEP',
-  '+', '-', '*', '/', '^', 'AND', 'OR', '>',
-  '=', '<', 'SGN', 'INT', 'ABS', 'USR', 'FRE', 'SCRN(',
-  'PDL', 'POS', 'SQR', 'RND', 'LOG', 'EXP', 'COS', 'SIN',
-  'TAN', 'ATN', 'PEEK', 'LEN', 'STR$', 'VAL', 'ASC', 'CHR$',
-  'LEFT$', 'RIGHT$', 'MID$', '', '', '', '', '',
-  '', '', '', '', '', '', '', '',
+  "END",
+  "FOR",
+  "NEXT",
+  "DATA",
+  "INPUT",
+  "DEL",
+  "DIM",
+  "READ",
+  "GR",
+  "TEXT",
+  "PR#",
+  "IN#",
+  "CALL",
+  "PLOT",
+  "HLIN",
+  "VLIN",
+  "HGR2",
+  "HGR",
+  "HCOLOR=",
+  "HPLOT",
+  "DRAW",
+  "XDRAW",
+  "HTAB",
+  "HOME",
+  "ROT=",
+  "SCALE=",
+  "SHLOAD",
+  "TRACE",
+  "NOTRACE",
+  "NORMAL",
+  "INVERSE",
+  "FLASH",
+  "COLOR=",
+  "POP",
+  "VTAB",
+  "HIMEM:",
+  "LOMEM:",
+  "ONERR",
+  "RESUME",
+  "RECALL",
+  "STORE",
+  "SPEED=",
+  "LET",
+  "GOTO",
+  "RUN",
+  "IF",
+  "RESTORE",
+  "&",
+  "GOSUB",
+  "RETURN",
+  "REM",
+  "STOP",
+  "ON",
+  "WAIT",
+  "LOAD",
+  "SAVE",
+  "DEF",
+  "POKE",
+  "PRINT",
+  "CONT",
+  "LIST",
+  "CLEAR",
+  "GET",
+  "NEW",
+  "TAB(",
+  "TO",
+  "FN",
+  "SPC(",
+  "THEN",
+  "AT",
+  "NOT",
+  "STEP",
+  "+",
+  "-",
+  "*",
+  "/",
+  "^",
+  "AND",
+  "OR",
+  ">",
+  "=",
+  "<",
+  "SGN",
+  "INT",
+  "ABS",
+  "USR",
+  "FRE",
+  "SCRN(",
+  "PDL",
+  "POS",
+  "SQR",
+  "RND",
+  "LOG",
+  "EXP",
+  "COS",
+  "SIN",
+  "TAN",
+  "ATN",
+  "PEEK",
+  "LEN",
+  "STR$",
+  "VAL",
+  "ASC",
+  "CHR$",
+  "LEFT$",
+  "RIGHT$",
+  "MID$",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
+  "",
 ];
 
 // Tokens that need space before them
-const NEEDS_SPACE_BEFORE = ['FOR', 'NEXT', 'DATA', 'INPUT', 'DIM', 'READ', 'GR', 'TEXT', 'CALL', 'PLOT', 'HLIN', 'VLIN', 'HGR2', 'HGR', 'HPLOT', 'DRAW', 'XDRAW', 'HTAB', 'HOME', 'SHLOAD', 'TRACE', 'NOTRACE', 'NORMAL', 'INVERSE', 'FLASH', 'POP', 'VTAB', 'ONERR', 'RESUME', 'RECALL', 'STORE', 'LET', 'GOTO', 'RUN', 'IF', 'RESTORE', 'GOSUB', 'RETURN', 'REM', 'STOP', 'ON', 'WAIT', 'LOAD', 'SAVE', 'DEF', 'POKE', 'PRINT', 'CONT', 'LIST', 'CLEAR', 'GET', 'NEW', 'TO', 'FN', 'THEN', 'AT', 'NOT', 'STEP', 'AND', 'OR', 'END'];
+const NEEDS_SPACE_BEFORE = [
+  "FOR",
+  "NEXT",
+  "DATA",
+  "INPUT",
+  "DIM",
+  "READ",
+  "GR",
+  "TEXT",
+  "CALL",
+  "PLOT",
+  "HLIN",
+  "VLIN",
+  "HGR2",
+  "HGR",
+  "HPLOT",
+  "DRAW",
+  "XDRAW",
+  "HTAB",
+  "HOME",
+  "SHLOAD",
+  "TRACE",
+  "NOTRACE",
+  "NORMAL",
+  "INVERSE",
+  "FLASH",
+  "POP",
+  "VTAB",
+  "ONERR",
+  "RESUME",
+  "RECALL",
+  "STORE",
+  "LET",
+  "GOTO",
+  "RUN",
+  "IF",
+  "RESTORE",
+  "GOSUB",
+  "RETURN",
+  "REM",
+  "STOP",
+  "ON",
+  "WAIT",
+  "LOAD",
+  "SAVE",
+  "DEF",
+  "POKE",
+  "PRINT",
+  "CONT",
+  "LIST",
+  "CLEAR",
+  "GET",
+  "NEW",
+  "TO",
+  "FN",
+  "THEN",
+  "AT",
+  "NOT",
+  "STEP",
+  "AND",
+  "OR",
+  "END",
+];
 // Tokens that need space after them (keywords followed by expressions)
-const NEEDS_SPACE_AFTER = ['GOTO', 'GOSUB', 'THEN', 'TO', 'STEP', 'AND', 'OR', 'NOT', 'IF', 'ON', 'LET', 'FOR', 'NEXT', 'PRINT', 'INPUT', 'READ', 'DATA', 'DIM', 'DEF', 'POKE', 'CALL', 'PLOT', 'HLIN', 'VLIN', 'HPLOT', 'DRAW', 'XDRAW', 'HTAB', 'VTAB', 'ONERR', 'WAIT', 'GET', 'AT', 'FN'];
+const NEEDS_SPACE_AFTER = [
+  "GOTO",
+  "GOSUB",
+  "THEN",
+  "TO",
+  "STEP",
+  "AND",
+  "OR",
+  "NOT",
+  "IF",
+  "ON",
+  "LET",
+  "FOR",
+  "NEXT",
+  "PRINT",
+  "INPUT",
+  "READ",
+  "DATA",
+  "DIM",
+  "DEF",
+  "POKE",
+  "CALL",
+  "PLOT",
+  "HLIN",
+  "VLIN",
+  "HPLOT",
+  "DRAW",
+  "XDRAW",
+  "HTAB",
+  "VTAB",
+  "ONERR",
+  "WAIT",
+  "GET",
+  "AT",
+  "FN",
+];
 
 // BASIC keyword categories for syntax highlighting
-const BASIC_FLOW = ['GOTO', 'GOSUB', 'RETURN', 'IF', 'THEN', 'ON', 'ONERR', 'RESUME', 'END', 'STOP', 'RUN'];
-const BASIC_LOOP = ['FOR', 'TO', 'STEP', 'NEXT'];
-const BASIC_IO = ['PRINT', 'INPUT', 'GET', 'DATA', 'READ', 'RESTORE'];
-const BASIC_GRAPHICS = ['GR', 'HGR', 'HGR2', 'TEXT', 'PLOT', 'HPLOT', 'HLIN', 'VLIN', 'COLOR=', 'HCOLOR=', 'DRAW', 'XDRAW', 'ROT=', 'SCALE=', 'SCRN(', 'HOME', 'HTAB', 'VTAB', 'NORMAL', 'INVERSE', 'FLASH'];
-const BASIC_MEMORY = ['PEEK', 'POKE', 'CALL', 'HIMEM:', 'LOMEM:', 'USR', 'DEF', 'FN'];
-const BASIC_FUNCTIONS = ['SGN', 'INT', 'ABS', 'SQR', 'RND', 'LOG', 'EXP', 'COS', 'SIN', 'TAN', 'ATN', 'LEN', 'ASC', 'VAL', 'STR$', 'CHR$', 'LEFT$', 'RIGHT$', 'MID$', 'FRE', 'PDL', 'POS', 'TAB(', 'SPC('];
-const BASIC_VAR = ['DIM', 'LET', 'DEL', 'NEW', 'CLR', 'CLEAR'];
-const BASIC_MISC = ['REM', 'LOAD', 'SAVE', 'SHLOAD', 'STORE', 'RECALL', 'PR#', 'IN#', 'WAIT', 'CONT', 'LIST', 'TRACE', 'NOTRACE', 'SPEED=', 'POP', 'NOT', 'AND', 'OR', 'MOD'];
+const BASIC_FLOW = [
+  "GOTO",
+  "GOSUB",
+  "RETURN",
+  "IF",
+  "THEN",
+  "ON",
+  "ONERR",
+  "RESUME",
+  "END",
+  "STOP",
+  "RUN",
+];
+const BASIC_LOOP = ["FOR", "TO", "STEP", "NEXT"];
+const BASIC_IO = ["PRINT", "INPUT", "GET", "DATA", "READ", "RESTORE"];
+const BASIC_GRAPHICS = [
+  "GR",
+  "HGR",
+  "HGR2",
+  "TEXT",
+  "PLOT",
+  "HPLOT",
+  "HLIN",
+  "VLIN",
+  "COLOR=",
+  "HCOLOR=",
+  "DRAW",
+  "XDRAW",
+  "ROT=",
+  "SCALE=",
+  "SCRN(",
+  "HOME",
+  "HTAB",
+  "VTAB",
+  "NORMAL",
+  "INVERSE",
+  "FLASH",
+];
+const BASIC_MEMORY = [
+  "PEEK",
+  "POKE",
+  "CALL",
+  "HIMEM:",
+  "LOMEM:",
+  "USR",
+  "DEF",
+  "FN",
+];
+const BASIC_FUNCTIONS = [
+  "SGN",
+  "INT",
+  "ABS",
+  "SQR",
+  "RND",
+  "LOG",
+  "EXP",
+  "COS",
+  "SIN",
+  "TAN",
+  "ATN",
+  "LEN",
+  "ASC",
+  "VAL",
+  "STR$",
+  "CHR$",
+  "LEFT$",
+  "RIGHT$",
+  "MID$",
+  "FRE",
+  "PDL",
+  "POS",
+  "TAB(",
+  "SPC(",
+];
+const BASIC_VAR = ["DIM", "LET", "DEL", "NEW", "CLR", "CLEAR"];
+const BASIC_MISC = [
+  "REM",
+  "LOAD",
+  "SAVE",
+  "SHLOAD",
+  "STORE",
+  "RECALL",
+  "PR#",
+  "IN#",
+  "WAIT",
+  "CONT",
+  "LIST",
+  "TRACE",
+  "NOTRACE",
+  "SPEED=",
+  "POP",
+  "NOT",
+  "AND",
+  "OR",
+  "MOD",
+];
 
 function getBasicKeywordClass(keyword) {
   const kw = keyword.trim().toUpperCase();
-  if (BASIC_FLOW.includes(kw)) return 'bas-flow';
-  if (BASIC_LOOP.includes(kw)) return 'bas-loop';
-  if (BASIC_IO.includes(kw)) return 'bas-io';
-  if (BASIC_GRAPHICS.includes(kw)) return 'bas-graphics';
-  if (BASIC_MEMORY.includes(kw)) return 'bas-memory';
-  if (BASIC_FUNCTIONS.includes(kw)) return 'bas-func';
-  if (BASIC_VAR.includes(kw)) return 'bas-var';
-  if (BASIC_MISC.includes(kw)) return 'bas-misc';
-  return 'bas-keyword';
+  if (BASIC_FLOW.includes(kw)) return "bas-flow";
+  if (BASIC_LOOP.includes(kw)) return "bas-loop";
+  if (BASIC_IO.includes(kw)) return "bas-io";
+  if (BASIC_GRAPHICS.includes(kw)) return "bas-graphics";
+  if (BASIC_MEMORY.includes(kw)) return "bas-memory";
+  if (BASIC_FUNCTIONS.includes(kw)) return "bas-func";
+  if (BASIC_VAR.includes(kw)) return "bas-var";
+  if (BASIC_MISC.includes(kw)) return "bas-misc";
+  return "bas-keyword";
 }
 
 function escapeHtml(text) {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 /**
@@ -123,18 +514,19 @@ export function detokenizeIntegerBasic(data) {
 
   while (offset < data.length) {
     const lineLength = data[offset];
-    if (lineLength === 0 || lineLength < 4 || offset + lineLength > data.length) break;
+    if (lineLength === 0 || lineLength < 4 || offset + lineLength > data.length)
+      break;
 
     const lineNum = data[offset + 1] | (data[offset + 2] << 8);
     if (lineNum > 32767) break;
 
     let pos = offset + 3;
     const lineEnd = offset + lineLength;
-    let lineHtml = '';
+    let lineHtml = "";
     let inRem = false;
     let inQuote = false;
-    let stringContent = '';
-    let remContent = '';
+    let stringContent = "";
+    let remContent = "";
 
     // Track keywords for indentation
     let hasFor = false;
@@ -148,25 +540,26 @@ export function detokenizeIntegerBasic(data) {
         break; // End of line
       } else if (inRem) {
         // Inside REM - rest of line is literal text with high bit set
-        const charCode = byte >= 0x80 ? byte & 0x7F : byte;
+        const charCode = byte >= 0x80 ? byte & 0x7f : byte;
         // Only include printable ASCII, skip control chars to prevent line breaks
-        if (charCode >= 0x20 && charCode < 0x7F) {
+        if (charCode >= 0x20 && charCode < 0x7f) {
           remContent += String.fromCharCode(charCode);
         }
       } else if (inQuote) {
         // Inside quoted string
-        if (byte === 0x29) { // End quote token
+        if (byte === 0x29) {
+          // End quote token
           lineHtml += `<span class="bas-string">"${escapeHtml(stringContent)}"</span>`;
-          stringContent = '';
+          stringContent = "";
           inQuote = false;
         } else {
-          const charCode = byte >= 0x80 ? byte & 0x7F : byte;
+          const charCode = byte >= 0x80 ? byte & 0x7f : byte;
           // Only include printable ASCII, skip control chars to prevent line breaks
-          if (charCode >= 0x20 && charCode < 0x7F) {
+          if (charCode >= 0x20 && charCode < 0x7f) {
             stringContent += String.fromCharCode(charCode);
           }
         }
-      } else if (byte >= 0xB0 && byte <= 0xB9) {
+      } else if (byte >= 0xb0 && byte <= 0xb9) {
         // Numeric constant: $B0-$B9 followed by 2-byte little-endian integer
         if (pos + 1 < lineEnd) {
           const num = data[pos] | (data[pos + 1] << 8);
@@ -183,7 +576,7 @@ export function detokenizeIntegerBasic(data) {
       } else if (byte === 0x28) {
         // Start quote token
         inQuote = true;
-      } else if (byte === 0x5D) {
+      } else if (byte === 0x5d) {
         // REM token - rest of line is comment
         lineHtml += `<span class="bas-misc"> REM </span>`;
         inRem = true;
@@ -192,33 +585,44 @@ export function detokenizeIntegerBasic(data) {
         const trimmed = token.trim();
 
         // Track FOR/NEXT for indentation
-        if (trimmed === 'FOR') hasFor = true;
-        if (trimmed === 'NEXT') nextCount++;
+        if (trimmed === "FOR") hasFor = true;
+        if (trimmed === "NEXT") nextCount++;
 
         if (trimmed.length > 1 && /^[A-Z]/.test(trimmed)) {
           // It's a keyword
           const kwClass = getBasicKeywordClass(trimmed);
           lineHtml += `<span class="${kwClass}">${token}</span>`;
           // Track when we expect a line number (GOTO, GOSUB)
-          if (trimmed === 'GOTO' || trimmed === 'GOSUB') {
+          if (trimmed === "GOTO" || trimmed === "GOSUB") {
             expectingLineNum = true;
           }
-        } else if ('+-*/^=<>'.includes(trimmed) || trimmed === '<>' || trimmed === '>=' || trimmed === '<=') {
-          lineHtml += `<span class="bas-operator">${escapeHtml(token)}</span>`;
-        } else if ('(),;:'.includes(trimmed)) {
+        } else if (
+          "+-*/^=<>".includes(trimmed) ||
+          trimmed === "<>" ||
+          trimmed === ">=" ||
+          trimmed === "<="
+        ) {
+          lineHtml += `<span class="bas-operator"> ${escapeHtml(trimmed)} </span>`;
+        } else if (trimmed === ":") {
+          lineHtml += `<span class="bas-punct">: </span>`;
+        } else if ("(),;".includes(trimmed)) {
           lineHtml += `<span class="bas-punct">${escapeHtml(token)}</span>`;
         } else {
           lineHtml += escapeHtml(token);
         }
       } else if (byte >= 0x80) {
         // High-bit ASCII character (variable name)
-        let varName = String.fromCharCode(byte & 0x7F);
+        let varName = String.fromCharCode(byte & 0x7f);
         // Collect subsequent variable name characters
         while (pos < lineEnd) {
           const next = data[pos];
           if (next >= 0x80) {
-            const ch = next & 0x7F;
-            if ((ch >= 0x41 && ch <= 0x5A) || (ch >= 0x61 && ch <= 0x7A) || (ch >= 0x30 && ch <= 0x39)) {
+            const ch = next & 0x7f;
+            if (
+              (ch >= 0x41 && ch <= 0x5a) ||
+              (ch >= 0x61 && ch <= 0x7a) ||
+              (ch >= 0x30 && ch <= 0x39)
+            ) {
               varName += String.fromCharCode(ch);
               pos++;
             } else {
@@ -268,15 +672,15 @@ export function detokenizeIntegerBasic(data) {
   const lineNumToIndex = new Map();
   const lines = parsedLines.map((line, index) => {
     lineNumToIndex.set(line.lineNum, index);
-    const padding = ' '.repeat(line.indent * INDENT_WIDTH);
+    const padding = " ".repeat(line.indent * INDENT_WIDTH);
     const lineNumStr = String(line.lineNum).padStart(5);
     return `<span class="bas-linenum">${lineNumStr}</span> ${padding}${line.content}`;
   });
 
   return {
-    html: lines.join('\n'),
+    html: lines.join("\n"),
     lineNumToIndex,
-    lineCount: lines.length
+    lineCount: lines.length,
   };
 }
 
@@ -327,42 +731,42 @@ export function detokenizeApplesoft(data) {
     let inString = false;
     let inRem = false;
     let inData = false;
-    let stringContent = '';
-    let remContent = '';
-    let dataContent = '';
-    let lastType = 'start'; // Track what we last output for spacing
+    let stringContent = "";
+    let remContent = "";
+    let dataContent = "";
+    let lastType = "start"; // Track what we last output for spacing
     let expectingLineNum = false; // True after GOTO, GOSUB, THEN, ON...GOTO
 
     while (offset < data.length && data[offset] !== 0x00) {
       const byte = data[offset++];
 
       if (inRem) {
-        const charCode = byte & 0x7F;
+        const charCode = byte & 0x7f;
         // Only include printable ASCII, skip control chars to prevent line breaks
-        if (charCode >= 0x20 && charCode < 0x7F) {
+        if (charCode >= 0x20 && charCode < 0x7f) {
           remContent += String.fromCharCode(charCode);
         }
       } else if (inString) {
-        const charCode = byte & 0x7F;
+        const charCode = byte & 0x7f;
         if (byte === 0x22) {
-          parts.push({ type: 'string', text: '"' + stringContent + '"' });
-          stringContent = '';
+          parts.push({ type: "string", text: '"' + stringContent + '"' });
+          stringContent = "";
           inString = false;
-          lastType = 'string';
-        } else if (charCode >= 0x20 && charCode < 0x7F) {
+          lastType = "string";
+        } else if (charCode >= 0x20 && charCode < 0x7f) {
           // Only include printable ASCII characters, skip control chars (including CR/LF)
           stringContent += String.fromCharCode(charCode);
         }
         // Control characters (0x00-0x1F) are silently skipped to prevent line breaks
       } else if (inData) {
-        const charCode = byte & 0x7F;
-        if (byte === 0x3A) {
-          parts.push({ type: 'data', text: dataContent });
-          parts.push({ type: 'punct', text: ':' });
-          dataContent = '';
+        const charCode = byte & 0x7f;
+        if (byte === 0x3a) {
+          parts.push({ type: "data", text: dataContent });
+          parts.push({ type: "punct", text: ":" });
+          dataContent = "";
           inData = false;
-          lastType = 'punct';
-        } else if (charCode >= 0x20 && charCode < 0x7F) {
+          lastType = "punct";
+        } else if (charCode >= 0x20 && charCode < 0x7f) {
           // Only include printable ASCII, skip control chars to prevent line breaks
           dataContent += String.fromCharCode(charCode);
         }
@@ -371,130 +775,188 @@ export function detokenizeApplesoft(data) {
         if (!token) continue;
 
         // Track FOR/NEXT for indentation
-        if (token === 'FOR') hasFor = true;
-        if (token === 'NEXT') nextCount++;
+        if (token === "FOR") hasFor = true;
+        if (token === "NEXT") nextCount++;
 
         // Add space before keyword if needed
-        if (NEEDS_SPACE_BEFORE.includes(token) && lastType !== 'start' && lastType !== 'punct') {
-          parts.push({ type: 'space', text: ' ' });
+        if (
+          NEEDS_SPACE_BEFORE.includes(token) &&
+          lastType !== "start" &&
+          lastType !== "punct"
+        ) {
+          parts.push({ type: "space", text: " " });
         }
 
-        if (token === 'REM') {
-          parts.push({ type: 'keyword', text: token, kwClass: getBasicKeywordClass(token) });
+        if (token === "REM") {
+          parts.push({
+            type: "keyword",
+            text: token,
+            kwClass: getBasicKeywordClass(token),
+          });
           inRem = true;
-          lastType = 'keyword';
-        } else if (token === 'DATA') {
-          parts.push({ type: 'keyword', text: token, kwClass: getBasicKeywordClass(token) });
+          lastType = "keyword";
+        } else if (token === "DATA") {
+          parts.push({
+            type: "keyword",
+            text: token,
+            kwClass: getBasicKeywordClass(token),
+          });
           inData = true;
-          lastType = 'keyword';
+          lastType = "keyword";
+        } else if ("+-*/^=<>".includes(token)) {
+          // Tokenized operators - add spaces around them
+          parts.push({ type: "operator", text: " " + token + " " });
+          lastType = "operator";
         } else {
-          parts.push({ type: 'keyword', text: token, kwClass: getBasicKeywordClass(token) });
-          lastType = 'keyword';
+          parts.push({
+            type: "keyword",
+            text: token,
+            kwClass: getBasicKeywordClass(token),
+          });
+          lastType = "keyword";
 
           // Track when we expect a line number (GOTO, GOSUB, THEN, ON...GOTO patterns)
-          if (token === 'GOTO' || token === 'GOSUB' || token === 'THEN') {
+          if (token === "GOTO" || token === "GOSUB" || token === "THEN") {
             expectingLineNum = true;
           }
 
           // Add space after keyword if needed
           if (NEEDS_SPACE_AFTER.includes(token)) {
-            parts.push({ type: 'space', text: ' ' });
-            lastType = 'space';
+            parts.push({ type: "space", text: " " });
+            lastType = "space";
           }
         }
       } else if (byte === 0x22) {
         inString = true;
-      } else if (byte === 0x3A) {
+      } else if (byte === 0x3a) {
         // Colon - statement separator, ends line number sequence
-        parts.push({ type: 'punct', text: ':' });
-        lastType = 'punct';
+        parts.push({ type: "punct", text: " : " });
+        lastType = "punct";
         expectingLineNum = false;
       } else if (byte >= 0x30 && byte <= 0x39) {
         let num = String.fromCharCode(byte);
-        while (offset < data.length && data[offset] !== 0x00 && data[offset] >= 0x30 && data[offset] <= 0x39) {
+        while (
+          offset < data.length &&
+          data[offset] !== 0x00 &&
+          data[offset] >= 0x30 &&
+          data[offset] <= 0x39
+        ) {
           num += String.fromCharCode(data[offset++]);
         }
-        if (offset < data.length && data[offset] === 0x2E) {
-          num += '.';
+        if (offset < data.length && data[offset] === 0x2e) {
+          num += ".";
           offset++;
-          while (offset < data.length && data[offset] !== 0x00 && data[offset] >= 0x30 && data[offset] <= 0x39) {
+          while (
+            offset < data.length &&
+            data[offset] !== 0x00 &&
+            data[offset] >= 0x30 &&
+            data[offset] <= 0x39
+          ) {
             num += String.fromCharCode(data[offset++]);
           }
         }
         // Check if this is a line number reference (after GOTO, GOSUB, THEN)
         // Don't reset expectingLineNum - there may be more line numbers separated by commas
-        if (expectingLineNum && !num.includes('.')) {
-          parts.push({ type: 'lineref', text: num, targetLine: parseInt(num, 10) });
+        if (expectingLineNum && !num.includes(".")) {
+          parts.push({
+            type: "lineref",
+            text: num,
+            targetLine: parseInt(num, 10),
+          });
         } else {
-          parts.push({ type: 'number', text: num });
+          parts.push({ type: "number", text: num });
         }
-        lastType = 'number';
-      } else if ((byte >= 0x41 && byte <= 0x5A) || (byte >= 0x61 && byte <= 0x7A)) {
+        lastType = "number";
+      } else if (
+        (byte >= 0x41 && byte <= 0x5a) ||
+        (byte >= 0x61 && byte <= 0x7a)
+      ) {
         // Variable name ends line number sequence
         expectingLineNum = false;
         let varName = String.fromCharCode(byte);
         while (offset < data.length && data[offset] !== 0x00) {
           const next = data[offset];
-          if ((next >= 0x41 && next <= 0x5A) || (next >= 0x61 && next <= 0x7A) ||
-              (next >= 0x30 && next <= 0x39) || next === 0x24 || next === 0x25) {
+          if (
+            (next >= 0x41 && next <= 0x5a) ||
+            (next >= 0x61 && next <= 0x7a) ||
+            (next >= 0x30 && next <= 0x39) ||
+            next === 0x24 ||
+            next === 0x25
+          ) {
             varName += String.fromCharCode(next);
             offset++;
           } else {
             break;
           }
         }
-        parts.push({ type: 'variable', text: varName });
-        lastType = 'variable';
+        parts.push({ type: "variable", text: varName });
+        lastType = "variable";
       } else if (byte === 0x20) {
         // Space - only add if not redundant
-        if (lastType !== 'space' && lastType !== 'punct' && lastType !== 'start') {
-          parts.push({ type: 'space', text: ' ' });
-          lastType = 'space';
+        if (
+          lastType !== "space" &&
+          lastType !== "punct" &&
+          lastType !== "start"
+        ) {
+          parts.push({ type: "space", text: " " });
+          lastType = "space";
         }
       } else {
         const char = String.fromCharCode(byte);
-        if ('+-*/^=<>'.includes(char)) {
-          parts.push({ type: 'operator', text: char });
-          lastType = 'operator';
-        } else if ('(),;'.includes(char)) {
-          parts.push({ type: 'punct', text: char });
-          lastType = 'punct';
-        } else if (byte >= 0x20 && byte < 0x7F) {
-          parts.push({ type: 'text', text: char });
-          lastType = 'text';
+        if ("+-*/^=<>".includes(char)) {
+          parts.push({ type: "operator", text: " " + char + " " });
+          lastType = "operator";
+        } else if ("(),;".includes(char)) {
+          parts.push({ type: "punct", text: char });
+          lastType = "punct";
+        } else if (byte >= 0x20 && byte < 0x7f) {
+          parts.push({ type: "text", text: char });
+          lastType = "text";
         }
       }
     }
 
     // Flush remaining content
     if (inString && stringContent) {
-      parts.push({ type: 'string', text: '"' + stringContent });
+      parts.push({ type: "string", text: '"' + stringContent });
     }
     if (inRem) {
-      parts.push({ type: 'comment', text: remContent });
+      parts.push({ type: "comment", text: remContent });
     }
     if (inData && dataContent) {
-      parts.push({ type: 'data', text: dataContent });
+      parts.push({ type: "data", text: dataContent });
     }
 
     offset++; // Skip end-of-line marker
 
     // Convert parts to HTML
-    let lineHtml = parts.map(p => {
-      const escaped = escapeHtml(p.text);
-      switch (p.type) {
-        case 'keyword': return `<span class="${p.kwClass}">${escaped}</span>`;
-        case 'string': return `<span class="bas-string">${escaped}</span>`;
-        case 'number': return `<span class="bas-number">${escaped}</span>`;
-        case 'lineref': return `<span class="bas-number bas-lineref" data-target-line="${p.targetLine}">${escaped}</span>`;
-        case 'variable': return `<span class="bas-variable">${escaped}</span>`;
-        case 'operator': return `<span class="bas-operator">${escaped}</span>`;
-        case 'punct': return `<span class="bas-punct">${escaped}</span>`;
-        case 'comment': return `<span class="bas-comment">${escaped}</span>`;
-        case 'data': return `<span class="bas-data">${escaped}</span>`;
-        default: return escaped;
-      }
-    }).join('');
+    let lineHtml = parts
+      .map((p) => {
+        const escaped = escapeHtml(p.text);
+        switch (p.type) {
+          case "keyword":
+            return `<span class="${p.kwClass}">${escaped}</span>`;
+          case "string":
+            return `<span class="bas-string">${escaped}</span>`;
+          case "number":
+            return `<span class="bas-number">${escaped}</span>`;
+          case "lineref":
+            return `<span class="bas-number bas-lineref" data-target-line="${p.targetLine}">${escaped}</span>`;
+          case "variable":
+            return `<span class="bas-variable">${escaped}</span>`;
+          case "operator":
+            return `<span class="bas-operator">${escaped}</span>`;
+          case "punct":
+            return `<span class="bas-punct">${escaped}</span>`;
+          case "comment":
+            return `<span class="bas-comment">${escaped}</span>`;
+          case "data":
+            return `<span class="bas-data">${escaped}</span>`;
+          default:
+            return escaped;
+        }
+      })
+      .join("");
 
     // Calculate indentation
     if (nextCount > 0) {
@@ -517,15 +979,15 @@ export function detokenizeApplesoft(data) {
   const lineNumToIndex = new Map();
   const lines = parsedLines.map((line, index) => {
     lineNumToIndex.set(line.lineNum, index);
-    const padding = ' '.repeat(line.indent * INDENT_WIDTH);
+    const padding = " ".repeat(line.indent * INDENT_WIDTH);
     const lineNumStr = String(line.lineNum).padStart(5);
     return `<span class="bas-linenum">${lineNumStr}</span> ${padding}${line.content}`;
   });
 
   return {
-    html: lines.join('\n'),
+    html: lines.join("\n"),
     lineNumToIndex,
-    lineCount: lines.length
+    lineCount: lines.length,
   };
 }
 
@@ -538,29 +1000,30 @@ export function detokenizeApplesoft(data) {
  */
 export function formatHexDump(data, baseAddress = 0, maxBytes = 0) {
   const lines = [];
-  const bytesToShow = maxBytes > 0 ? Math.min(data.length, maxBytes) : data.length;
+  const bytesToShow =
+    maxBytes > 0 ? Math.min(data.length, maxBytes) : data.length;
 
   for (let i = 0; i < bytesToShow; i += 16) {
-    const addr = (baseAddress + i).toString(16).toUpperCase().padStart(4, '0');
+    const addr = (baseAddress + i).toString(16).toUpperCase().padStart(4, "0");
 
     // Hex bytes
-    let hex = '';
-    let ascii = '';
+    let hex = "";
+    let ascii = "";
 
     for (let j = 0; j < 16; j++) {
       if (i + j < bytesToShow) {
         const byte = data[i + j];
-        hex += byte.toString(16).toUpperCase().padStart(2, '0') + ' ';
+        hex += byte.toString(16).toUpperCase().padStart(2, "0") + " ";
         // ASCII representation (printable chars only)
-        const ch = byte & 0x7F;
-        ascii += (ch >= 0x20 && ch < 0x7F) ? String.fromCharCode(ch) : '.';
+        const ch = byte & 0x7f;
+        ascii += ch >= 0x20 && ch < 0x7f ? String.fromCharCode(ch) : ".";
       } else {
-        hex += '   ';
-        ascii += ' ';
+        hex += "   ";
+        ascii += " ";
       }
 
       // Add extra space in middle
-      if (j === 7) hex += ' ';
+      if (j === 7) hex += " ";
     }
 
     lines.push(`${addr}: ${hex} ${ascii}`);
@@ -570,7 +1033,7 @@ export function formatHexDump(data, baseAddress = 0, maxBytes = 0) {
     lines.push(`... (${data.length - maxBytes} more bytes)`);
   }
 
-  return lines.join('\n');
+  return lines.join("\n");
 }
 
 /**
@@ -579,23 +1042,23 @@ export function formatHexDump(data, baseAddress = 0, maxBytes = 0) {
  * @returns {string} Formatted text
  */
 export function formatTextFile(data) {
-  let text = '';
+  let text = "";
 
   for (let i = 0; i < data.length; i++) {
-    const byte = data[i] & 0x7F; // Strip high bit
+    const byte = data[i] & 0x7f; // Strip high bit
 
-    if (byte === 0x0D) {
+    if (byte === 0x0d) {
       // Carriage return -> newline
-      text += '\n';
+      text += "\n";
     } else if (byte === 0x00) {
       // Null - end of text or padding
       continue;
-    } else if (byte >= 0x20 && byte < 0x7F) {
+    } else if (byte >= 0x20 && byte < 0x7f) {
       // Printable ASCII
       text += String.fromCharCode(byte);
     } else if (byte === 0x09) {
       // Tab
-      text += '\t';
+      text += "\t";
     }
   }
 
@@ -613,17 +1076,18 @@ export function formatFileContents(data, fileType) {
     case 0x00: // Text
       return {
         content: formatTextFile(data),
-        format: 'text',
-        description: 'Text File',
+        format: "text",
+        description: "Text File",
       };
 
-    case 0x02: { // Applesoft BASIC
+    case 0x02: {
+      // Applesoft BASIC
       try {
         const result = detokenizeApplesoft(data);
         return {
           content: result.html,
-          format: 'basic',
-          description: 'Applesoft BASIC',
+          format: "basic",
+          description: "Applesoft BASIC",
           isHtml: true,
           lineNumToIndex: result.lineNumToIndex,
           lineCount: result.lineCount,
@@ -632,19 +1096,20 @@ export function formatFileContents(data, fileType) {
         // Fall back to hex if detokenization fails
         return {
           content: formatHexDump(data),
-          format: 'hex',
-          description: 'Applesoft BASIC (raw)',
+          format: "hex",
+          description: "Applesoft BASIC (raw)",
         };
       }
     }
 
-    case 0x01: { // Integer BASIC
+    case 0x01: {
+      // Integer BASIC
       try {
         const result = detokenizeIntegerBasic(data);
         return {
           content: result.html,
-          format: 'basic',
-          description: 'Integer BASIC',
+          format: "basic",
+          description: "Integer BASIC",
           isHtml: true,
           lineNumToIndex: result.lineNumToIndex,
           lineCount: result.lineCount,
@@ -653,15 +1118,16 @@ export function formatFileContents(data, fileType) {
         // Fall back to hex if detokenization fails
         return {
           content: formatHexDump(data),
-          format: 'hex',
-          description: 'Integer BASIC (raw)',
+          format: "hex",
+          description: "Integer BASIC (raw)",
         };
       }
     }
 
-    case 0x04: { // Binary
+    case 0x04: {
+      // Binary
       const info = getBinaryFileInfo(data);
-      let description = 'Binary File';
+      let description = "Binary File";
 
       if (info) {
         description = `Binary File - Load: $${info.address.toString(16).toUpperCase()}, Length: ${info.length} bytes`;
@@ -670,7 +1136,7 @@ export function formatFileContents(data, fileType) {
       // Return a promise for async disassembly
       return {
         content: null, // Will be filled by async disassembly
-        format: 'text',
+        format: "text",
         description,
         // Async loader for disassembly
         loadAsync: async () => {
@@ -688,8 +1154,8 @@ export function formatFileContents(data, fileType) {
     default:
       return {
         content: formatHexDump(data),
-        format: 'hex',
-        description: 'Unknown File Type',
+        format: "hex",
+        description: "Unknown File Type",
       };
   }
 }
