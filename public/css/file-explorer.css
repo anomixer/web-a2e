@@ -465,6 +465,18 @@
     color: #ff7b72;  /* Red for branch targets */
 }
 
+.dis-clickable {
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 2px;
+}
+
+.dis-clickable:hover {
+    text-decoration-style: solid;
+    filter: brightness(1.2);
+}
+
 .dis-register {
     color: #7ee787;  /* Green for registers */
 }

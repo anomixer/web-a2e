@@ -53,6 +53,11 @@ export class ReminderController {
     const reminder = document.getElementById("power-reminder");
     if (!reminder) return;
 
+    // Check if already dismissed (first visit)
+    if (show && localStorage.getItem("a2e-power-reminder-dismissed")) {
+      return;
+    }
+
     if (show) {
       this.isPowerReminderVisible = true;
       reminder.classList.remove("hidden");
@@ -63,6 +68,11 @@ export class ReminderController {
       this.isPowerReminderVisible = false;
       reminder.classList.add("hidden");
     }
+  }
+
+  dismissPowerReminder() {
+    this.showPowerReminder(false);
+    localStorage.setItem("a2e-power-reminder-dismissed", "true");
   }
 
   // Drives toggle reminder methods

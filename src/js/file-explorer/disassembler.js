@@ -55,9 +55,17 @@ function hexWord(w) {
 }
 
 /**
- * Format operand based on addressing mode
+ * Format a clickable target address for branches/jumps
  */
-function formatOperand(mode, operand1, operand2, target) {
+function formatClickableTarget(target) {
+  return `<span class="dis-target dis-clickable" data-target="${target}">$${hexWord(target)}</span>`;
+}
+
+/**
+ * Format operand based on addressing mode
+ * isBranch: if true, make targets clickable for navigation
+ */
+function formatOperand(mode, operand1, operand2, target, isBranch = false) {
   switch (mode) {
     case AddrMode.IMP:
       return '';
@@ -72,6 +80,9 @@ function formatOperand(mode, operand1, operand2, target) {
     case AddrMode.ZPY:
       return `<span class="dis-punct">$</span><span class="dis-address">${hexByte(operand1)}</span><span class="dis-punct">,</span><span class="dis-register">Y</span>`;
     case AddrMode.ABS:
+      if (isBranch) {
+        return formatClickableTarget(target);
+      }
       return `<span class="dis-punct">$</span><span class="dis-address">${hexWord(target)}</span>`;
     case AddrMode.ABX:
       return `<span class="dis-punct">$</span><span class="dis-address">${hexWord(target)}</span><span class="dis-punct">,</span><span class="dis-register">X</span>`;
@@ -84,13 +95,13 @@ function formatOperand(mode, operand1, operand2, target) {
     case AddrMode.IZY:
       return `<span class="dis-punct">($</span><span class="dis-address">${hexByte(operand1)}</span><span class="dis-punct">),</span><span class="dis-register">Y</span>`;
     case AddrMode.REL:
-      return `<span class="dis-punct">$</span><span class="dis-target">${hexWord(target)}</span>`;
+      return formatClickableTarget(target);
     case AddrMode.ZPI:
       return `<span class="dis-punct">($</span><span class="dis-address">${hexByte(operand1)}</span><span class="dis-punct">)</span>`;
     case AddrMode.AIX:
       return `<span class="dis-punct">($</span><span class="dis-address">${hexWord(target)}</span><span class="dis-punct">,</span><span class="dis-register">X</span><span class="dis-punct">)</span>`;
     case AddrMode.ZPR:
-      return `<span class="dis-punct">$</span><span class="dis-address">${hexByte(operand1)}</span><span class="dis-punct">,$</span><span class="dis-target">${hexWord(target)}</span>`;
+      return `<span class="dis-punct">$</span><span class="dis-address">${hexByte(operand1)}</span><span class="dis-punct">,</span>${formatClickableTarget(target)}`;
     default:
       return '';
   }
@@ -132,8 +143,9 @@ function formatInstruction(instr) {
   // Mnemonic
   html += `  <span class="${catClass}">${instr.mnemonic}</span>`;
 
-  // Operand
-  const operand = formatOperand(instr.mode, instr.operand1, instr.operand2, instr.target);
+  // Operand - make branch targets clickable
+  const isBranch = instr.category === Category.BRANCH;
+  const operand = formatOperand(instr.mode, instr.operand1, instr.operand2, instr.target, isBranch);
   if (operand) {
     html += ` ${operand}`;
   }
@@ -232,6 +244,15 @@ class VirtualScrollRenderer {
     this.lineHeight = LINE_HEIGHT;
     this.totalHeight = instructions.length * this.lineHeight;
 
+    // Build address-to-line-index map for navigation
+    this.addressToLine = new Map();
+    for (let i = 0; i < instructions.length; i++) {
+      const instr = instructions[i];
+      if (instr.address !== undefined) {
+        this.addressToLine.set(instr.address, i);
+      }
+    }
+
     this.scrollContainer = document.createElement('div');
     this.scrollContainer.className = 'virtual-scroll-container';
     this.scrollContainer.style.cssText = `
@@ -275,8 +296,10 @@ class VirtualScrollRenderer {
 
     this.handleScroll = this.handleScroll.bind(this);
     this.handleResize = this.handleResize.bind(this);
+    this.handleClick = this.handleClick.bind(this);
 
     this.scrollContainer.addEventListener('scroll', this.handleScroll, { passive: true });
+    this.content.addEventListener('click', this.handleClick);
     this.resizeObserver = new ResizeObserver(this.handleResize);
     this.resizeObserver.observe(this.scrollContainer);
 
@@ -294,6 +317,27 @@ class VirtualScrollRenderer {
       this.visibleEnd = -1;
       this.render();
     }, 16);
+  }
+
+  handleClick(event) {
+    const target = event.target.closest('.dis-clickable');
+    if (target) {
+      const address = parseInt(target.dataset.target, 10);
+      if (!isNaN(address)) {
+        this.scrollToAddress(address);
+      }
+    }
+  }
+
+  scrollToAddress(address) {
+    const lineIndex = this.addressToLine.get(address);
+    if (lineIndex !== undefined) {
+      const scrollTop = lineIndex * this.lineHeight;
+      // Center the target line in the viewport
+      const viewportHeight = this.scrollContainer.clientHeight;
+      const centeredScrollTop = Math.max(0, scrollTop - viewportHeight / 2 + this.lineHeight / 2);
+      this.scrollContainer.scrollTop = centeredScrollTop;
+    }
   }
 
   render() {
@@ -326,8 +370,33 @@ class VirtualScrollRenderer {
 
   destroy() {
     this.scrollContainer.removeEventListener('scroll', this.handleScroll);
+    this.content.removeEventListener('click', this.handleClick);
     if (this.resizeObserver) this.resizeObserver.disconnect();
     if (this.resizeTimeout) clearTimeout(this.resizeTimeout);
+  }
+}
+
+// Store address map for small output click handling
+let currentAddressMap = null;
+let currentScrollContainer = null;
+
+/**
+ * Handle clicks on branch targets in small output mode
+ */
+function handleSmallOutputClick(event) {
+  const target = event.target.closest('.dis-clickable');
+  if (target && currentAddressMap && currentScrollContainer) {
+    const address = parseInt(target.dataset.target, 10);
+    if (!isNaN(address)) {
+      const lineIndex = currentAddressMap.get(address);
+      if (lineIndex !== undefined) {
+        const lineHeight = LINE_HEIGHT;
+        const scrollTop = lineIndex * lineHeight;
+        const viewportHeight = currentScrollContainer.clientHeight;
+        const centeredScrollTop = Math.max(0, scrollTop - viewportHeight / 2 + lineHeight / 2);
+        currentScrollContainer.scrollTop = centeredScrollTop;
+      }
+    }
   }
 }
 
@@ -425,6 +494,9 @@ export async function disassemble(data, targetElement) {
   // Build output lines with ORG at top
   const outputLines = [formatOrg(baseAddress)];
 
+  // Build address map for navigation (used by both small and large outputs)
+  const listingWithOrg = [{ isOrg: true, address: baseAddress }, ...listing];
+
   // Small output: render directly
   if (listing.length < 500) {
     const pre = document.createElement('pre');
@@ -433,11 +505,22 @@ export async function disassemble(data, targetElement) {
     }
     pre.innerHTML = outputLines.join('\n');
     targetElement.appendChild(pre);
+
+    // Set up click handling for small output
+    currentAddressMap = new Map();
+    for (let i = 0; i < listingWithOrg.length; i++) {
+      const entry = listingWithOrg[i];
+      if (entry.address !== undefined) {
+        currentAddressMap.set(entry.address, i);
+      }
+    }
+    currentScrollContainer = targetElement;
+    pre.addEventListener('click', handleSmallOutputClick);
     return;
   }
 
   // Large output: virtual scrolling
-  // Prepend a fake ORG entry for the virtual scroller
-  const listingWithOrg = [{ isOrg: true, address: baseAddress }, ...listing];
+  currentAddressMap = null;
+  currentScrollContainer = null;
   currentRenderer = new VirtualScrollRenderer(targetElement, listingWithOrg);
 }

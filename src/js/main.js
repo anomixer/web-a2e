@@ -229,7 +229,7 @@ class AppleIIeEmulator {
 
     // Power button - simple on/off, no state save/restore
     powerBtn.addEventListener("click", () => {
-      this.reminderController.showPowerReminder(false);
+      this.reminderController.dismissPowerReminder();
       if (this.running) {
         this.stop();
         this.reminderController.showBasicReminder(false);
@@ -796,7 +796,7 @@ class AppleIIeEmulator {
       if (success) {
         // Hide power reminder since we're now running
         if (this.reminderController) {
-          this.reminderController.showPowerReminder(false);
+          this.reminderController.dismissPowerReminder();
           this.reminderController.showBasicReminder(false);
         }
         // Sync disk manager UI with restored disk state
