@@ -36,6 +36,9 @@ uniform float u_noSignal;
 // NTSC fringing effect
 uniform float u_ntscFringing;
 
+// Monochrome mode (0=color, 1=green, 2=amber, 3=white)
+uniform int u_monochromeMode;
+
 varying vec2 v_texCoord;
 
 // Constants
@@ -407,6 +410,34 @@ vec3 adjustColor(vec3 color) {
 }
 
 // ============================================
+// Monochrome mode
+// ============================================
+
+vec3 applyMonochrome(vec3 color) {
+    if (u_monochromeMode == 0) return color; // Color mode - no change
+
+    // Convert to grayscale using luminance
+    float gray = rgb2grey(color);
+
+    // Apply tint based on monochrome mode
+    if (u_monochromeMode == 1) {
+        // Green phosphor (classic Apple II monitor)
+        // P1 phosphor green: slightly blue-green tint
+        return vec3(gray * 0.2, gray * 1.0, gray * 0.2);
+    } else if (u_monochromeMode == 2) {
+        // Amber phosphor (common on IBM PCs)
+        // Warm orange-yellow tint
+        return vec3(gray * 1.0, gray * 0.75, gray * 0.2);
+    } else if (u_monochromeMode == 3) {
+        // White phosphor (paper white)
+        // Slight warm tint for authenticity
+        return vec3(gray * 1.0, gray * 1.0, gray * 0.9);
+    }
+
+    return color;
+}
+
+// ============================================
 // Edge effects
 // ============================================
 
@@ -519,6 +550,9 @@ void main() {
 
     // Apply color adjustments
     color = adjustColor(color);
+
+    // Apply monochrome mode (after color adjustments, before vignette)
+    color = applyMonochrome(color);
 
     // Apply vignette
     color *= vignette(contentUV);

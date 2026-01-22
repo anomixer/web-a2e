@@ -18,6 +18,14 @@ export class DisplaySettingsWindow extends DebugWindow {
     this.renderer = renderer;
     this.wasmModule = wasmModule;
 
+    // Monochrome mode options
+    this.monochromeModes = [
+      { value: 0, label: 'Color' },
+      { value: 1, label: 'Green' },
+      { value: 2, label: 'Amber' },
+      { value: 3, label: 'White' },
+    ];
+
     // Default values (percentages 0-100 for UI, converted to shader values)
     this.defaults = {
       curvature: 21,
@@ -40,6 +48,8 @@ export class DisplaySettingsWindow extends DebugWindow {
       sharpPixels: false,
       // NTSC fringing (shader-based)
       ntscFringing: 67,
+      // Monochrome mode (0=color, 1=green, 2=amber, 3=white)
+      monochromeMode: 0,
     };
 
     // Current values
@@ -92,10 +102,18 @@ export class DisplaySettingsWindow extends DebugWindow {
       html += '</div>';
     }
 
-    // Toggle for sharp pixels
+    // Rendering section with monochrome mode and sharp pixels
     html += `
       <div class="settings-section">
         <div class="settings-section-title">Rendering</div>
+        <div class="setting-row">
+          <label>Display Mode</label>
+          <select id="ds-monochromeMode" class="settings-select">
+            ${this.monochromeModes.map(mode =>
+              `<option value="${mode.value}" ${this.settings.monochromeMode === mode.value ? 'selected' : ''}>${mode.label}</option>`
+            ).join('')}
+          </select>
+        </div>
         <div class="setting-row toggle-row">
           <label>Sharp Pixels</label>
           <label class="toggle">
@@ -143,6 +161,17 @@ export class DisplaySettingsWindow extends DebugWindow {
           });
         }
       }
+    }
+
+    // Monochrome mode dropdown
+    const monochromeSelect = this.contentElement.querySelector('#ds-monochromeMode');
+    if (monochromeSelect) {
+      monochromeSelect.addEventListener('change', (e) => {
+        const value = parseInt(e.target.value, 10);
+        this.settings.monochromeMode = value;
+        this.applyToRenderer('monochromeMode', value);
+        this.saveSettings();
+      });
     }
 
     // Sharp pixels toggle
@@ -219,6 +248,13 @@ export class DisplaySettingsWindow extends DebugWindow {
         this.applyToRenderer(slider.param, this.settings[slider.id] / 100);
       }
     }
+
+    // Apply monochrome mode
+    const monochromeSelect = this.contentElement.querySelector('#ds-monochromeMode');
+    if (monochromeSelect) {
+      monochromeSelect.value = this.settings.monochromeMode;
+    }
+    this.applyToRenderer('monochromeMode', this.settings.monochromeMode);
 
     // Apply sharp pixels
     const sharpToggle = this.contentElement.querySelector('#ds-sharpPixels');

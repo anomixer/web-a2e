@@ -60,6 +60,9 @@ export class WebGLRenderer {
 
       // NTSC color fringing (simulates chroma bandwidth limiting)
       ntscFringing: 0.67, // 0.0 to 1.0
+
+      // Monochrome mode (0=color, 1=green, 2=amber, 3=white)
+      monochromeMode: 0,
     };
 
     // Time for animated effects
@@ -174,6 +177,7 @@ export class WebGLRenderer {
       overscan: gl.getUniformLocation(this.program, "u_overscan"),
       noSignal: gl.getUniformLocation(this.program, "u_noSignal"),
       ntscFringing: gl.getUniformLocation(this.program, "u_ntscFringing"),
+      monochromeMode: gl.getUniformLocation(this.program, "u_monochromeMode"),
     };
 
     // Get burn-in program uniform locations
@@ -421,6 +425,7 @@ export class WebGLRenderer {
     gl.uniform1f(this.uniforms.overscan, this.crtParams.overscan);
     gl.uniform1f(this.uniforms.noSignal, this.crtParams.noSignal);
     gl.uniform1f(this.uniforms.ntscFringing, this.crtParams.ntscFringing);
+    gl.uniform1i(this.uniforms.monochromeMode, this.crtParams.monochromeMode);
 
     // Draw
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
