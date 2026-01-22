@@ -333,6 +333,32 @@ class AppleIIeEmulator {
   }
 }
 
+// Register service worker for offline support
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker
+      .register("/sw.js")
+      .then((registration) => {
+        console.log("Service Worker registered:", registration.scope);
+
+        // Check for updates periodically
+        registration.addEventListener("updatefound", () => {
+          const newWorker = registration.installing;
+          if (newWorker) {
+            newWorker.addEventListener("statechange", () => {
+              if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+                console.log("New version available - refresh to update");
+              }
+            });
+          }
+        });
+      })
+      .catch((error) => {
+        console.log("Service Worker registration failed:", error);
+      });
+  });
+}
+
 // Initialize when DOM is ready
 document.addEventListener("DOMContentLoaded", () => {
   // Display version in header
