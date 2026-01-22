@@ -293,6 +293,7 @@ class VirtualScrollRenderer {
     this.visibleStart = -1;
     this.visibleEnd = -1;
     this.resizeTimeout = null;
+    this.highlightedLine = -1;
 
     this.handleScroll = this.handleScroll.bind(this);
     this.handleResize = this.handleResize.bind(this);
@@ -332,11 +333,19 @@ class VirtualScrollRenderer {
   scrollToAddress(address) {
     const lineIndex = this.addressToLine.get(address);
     if (lineIndex !== undefined) {
+      // Highlight the target line
+      this.highlightedLine = lineIndex;
+
       const scrollTop = lineIndex * this.lineHeight;
       // Center the target line in the viewport
       const viewportHeight = this.scrollContainer.clientHeight;
       const centeredScrollTop = Math.max(0, scrollTop - viewportHeight / 2 + this.lineHeight / 2);
       this.scrollContainer.scrollTop = centeredScrollTop;
+
+      // Force re-render to show highlight
+      this.visibleStart = -1;
+      this.visibleEnd = -1;
+      this.render();
     }
   }
 
@@ -363,7 +372,12 @@ class VirtualScrollRenderer {
     // Render visible instructions
     const lines = [];
     for (let i = startLine; i < endLine; i++) {
-      lines.push(formatInstruction(this.instructions[i]));
+      const line = formatInstruction(this.instructions[i]);
+      if (i === this.highlightedLine) {
+        lines.push(`<span class="dis-highlight">${line}</span>`);
+      } else {
+        lines.push(line);
+      }
     }
     this.content.innerHTML = lines.join('\n');
   }
@@ -379,13 +393,14 @@ class VirtualScrollRenderer {
 // Store address map for small output click handling
 let currentAddressMap = null;
 let currentScrollContainer = null;
+let currentPreElement = null;
 
 /**
  * Handle clicks on branch targets in small output mode
  */
 function handleSmallOutputClick(event) {
   const target = event.target.closest('.dis-clickable');
-  if (target && currentAddressMap && currentScrollContainer) {
+  if (target && currentAddressMap && currentScrollContainer && currentPreElement) {
     const address = parseInt(target.dataset.target, 10);
     if (!isNaN(address)) {
       const lineIndex = currentAddressMap.get(address);
@@ -395,8 +410,32 @@ function handleSmallOutputClick(event) {
         const viewportHeight = currentScrollContainer.clientHeight;
         const centeredScrollTop = Math.max(0, scrollTop - viewportHeight / 2 + lineHeight / 2);
         currentScrollContainer.scrollTop = centeredScrollTop;
+
+        // Highlight the target line
+        highlightSmallOutputLine(lineIndex);
       }
     }
+  }
+}
+
+/**
+ * Highlight a line in small output mode
+ */
+function highlightSmallOutputLine(lineIndex) {
+  if (!currentPreElement) return;
+
+  // Remove any existing highlight
+  const existing = currentPreElement.querySelector('.dis-highlight');
+  if (existing) {
+    existing.outerHTML = existing.innerHTML;
+  }
+
+  // Find and wrap the target line
+  const html = currentPreElement.innerHTML;
+  const lines = html.split('\n');
+  if (lineIndex >= 0 && lineIndex < lines.length) {
+    lines[lineIndex] = `<span class="dis-highlight">${lines[lineIndex]}</span>`;
+    currentPreElement.innerHTML = lines.join('\n');
   }
 }
 
@@ -515,6 +554,7 @@ export async function disassemble(data, targetElement) {
       }
     }
     currentScrollContainer = targetElement;
+    currentPreElement = pre;
     pre.addEventListener('click', handleSmallOutputClick);
     return;
   }
@@ -522,5 +562,6 @@ export async function disassemble(data, targetElement) {
   // Large output: virtual scrolling
   currentAddressMap = null;
   currentScrollContainer = null;
+  currentPreElement = null;
   currentRenderer = new VirtualScrollRenderer(targetElement, listingWithOrg);
 }

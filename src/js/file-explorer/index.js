@@ -37,11 +37,13 @@ export class FileExplorerWindow {
     this.diskData = null;
     this.binaryViewMode = 'asm'; // 'asm' or 'hex'
     this.currentFileData = null; // Cache for current file data
+    this.basicLineNumToIndex = null; // For BASIC GOTO/GOSUB navigation
 
     // Bind handlers
     this.handleMouseDown = this.handleMouseDown.bind(this);
     this.handleMouseMove = this.handleMouseMove.bind(this);
     this.handleMouseUp = this.handleMouseUp.bind(this);
+    this.handleBasicLineClick = this.handleBasicLineClick.bind(this);
   }
 
   create() {
@@ -441,13 +443,55 @@ export class FileExplorerWindow {
         // BASIC files output HTML with syntax highlighting, others need escaping
         if (formatted.isHtml) {
           contentEl.innerHTML = `<pre>${formatted.content}</pre>`;
+          // Set up BASIC line navigation if available
+          if (formatted.lineNumToIndex) {
+            this.basicLineNumToIndex = formatted.lineNumToIndex;
+            contentEl.querySelector('pre').addEventListener('click', this.handleBasicLineClick);
+          }
         } else {
           contentEl.innerHTML = `<pre>${this.escapeHtml(formatted.content)}</pre>`;
+          this.basicLineNumToIndex = null;
         }
       }
     } catch (e) {
       contentEl.className = 'fe-file-content error';
       contentEl.innerHTML = `<div class="fe-error">Error reading file: ${e.message}</div>`;
+    }
+  }
+
+  handleBasicLineClick(event) {
+    const target = event.target.closest('.bas-lineref');
+    if (!target || !this.basicLineNumToIndex) return;
+
+    const targetLineNum = parseInt(target.dataset.targetLine, 10);
+    if (isNaN(targetLineNum)) return;
+
+    const lineIndex = this.basicLineNumToIndex.get(targetLineNum);
+    if (lineIndex === undefined) return;
+
+    const contentEl = this.element.querySelector('.fe-file-content');
+    const pre = contentEl.querySelector('pre');
+    if (!pre) return;
+
+    // Remove any existing highlight
+    const existing = pre.querySelector('.bas-highlight');
+    if (existing) {
+      existing.outerHTML = existing.innerHTML;
+    }
+
+    // Find and highlight the target line
+    const html = pre.innerHTML;
+    const lines = html.split('\n');
+    if (lineIndex >= 0 && lineIndex < lines.length) {
+      lines[lineIndex] = `<span class="bas-highlight">${lines[lineIndex]}</span>`;
+      pre.innerHTML = lines.join('\n');
+
+      // Scroll to the target line
+      const lineHeight = 18;
+      const scrollTop = lineIndex * lineHeight;
+      const viewportHeight = contentEl.clientHeight;
+      const centeredScrollTop = Math.max(0, scrollTop - viewportHeight / 2 + lineHeight / 2);
+      contentEl.scrollTop = centeredScrollTop;
     }
   }
 
@@ -465,6 +509,7 @@ export class FileExplorerWindow {
     viewToggle.classList.add('hidden');
     asmLegend.classList.add('hidden');
     this.currentFileData = null;
+    this.basicLineNumToIndex = null;
   }
 
   escapeHtml(text) {

@@ -477,6 +477,14 @@
     filter: brightness(1.2);
 }
 
+.dis-highlight {
+    background: rgba(88, 166, 255, 0.25);
+    display: inline-block;
+    width: 100%;
+    margin: 0 -8px;
+    padding: 0 8px;
+}
+
 .dis-register {
     color: #7ee787;  /* Green for registers */
 }
@@ -549,6 +557,26 @@
 
 .bas-punct {
     color: #d2a8ff;  /* Purple for punctuation (:, ;, etc.) */
+}
+
+.bas-lineref {
+    cursor: pointer;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    text-underline-offset: 2px;
+}
+
+.bas-lineref:hover {
+    text-decoration-style: solid;
+    filter: brightness(1.2);
+}
+
+.bas-highlight {
+    background: rgba(88, 166, 255, 0.25);
+    display: inline-block;
+    width: 100%;
+    margin: 0 -8px;
+    padding: 0 8px;
 }
 
 .fe-file-content.text pre {

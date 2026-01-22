@@ -139,6 +139,7 @@ export function detokenizeIntegerBasic(data) {
     // Track keywords for indentation
     let hasFor = false;
     let nextCount = 0;
+    let expectingLineNum = false; // True after GOTO, GOSUB
 
     while (pos < lineEnd) {
       const byte = data[pos++];
@@ -165,7 +166,12 @@ export function detokenizeIntegerBasic(data) {
           const num = data[pos] | (data[pos + 1] << 8);
           // Handle as signed 16-bit if needed
           const value = (num > 32767 ? num - 65536 : num).toString();
-          lineHtml += `<span class="bas-number">${value}</span>`;
+          if (expectingLineNum && num >= 0 && num <= 32767) {
+            lineHtml += `<span class="bas-number bas-lineref" data-target-line="${num}">${value}</span>`;
+            expectingLineNum = false;
+          } else {
+            lineHtml += `<span class="bas-number">${value}</span>`;
+          }
           pos += 2;
         }
       } else if (byte === 0x28) {
@@ -187,6 +193,10 @@ export function detokenizeIntegerBasic(data) {
           // It's a keyword
           const kwClass = getBasicKeywordClass(trimmed);
           lineHtml += `<span class="${kwClass}">${token}</span>`;
+          // Track when we expect a line number (GOTO, GOSUB)
+          if (trimmed === 'GOTO' || trimmed === 'GOSUB') {
+            expectingLineNum = true;
+          }
         } else if ('+-*/^=<>'.includes(trimmed) || trimmed === '<>' || trimmed === '>=' || trimmed === '<=') {
           lineHtml += `<span class="bas-operator">${escapeHtml(token)}</span>`;
         } else if ('(),;:'.includes(trimmed)) {
@@ -249,13 +259,19 @@ export function detokenizeIntegerBasic(data) {
 
   // Format lines with indentation
   const INDENT_WIDTH = 2;
-  const lines = parsedLines.map(line => {
+  const lineNumToIndex = new Map();
+  const lines = parsedLines.map((line, index) => {
+    lineNumToIndex.set(line.lineNum, index);
     const padding = ' '.repeat(line.indent * INDENT_WIDTH);
     const lineNumStr = String(line.lineNum).padStart(5);
     return `<span class="bas-linenum">${lineNumStr}</span> ${padding}${line.content}`;
   });
 
-  return lines.join('\n');
+  return {
+    html: lines.join('\n'),
+    lineNumToIndex,
+    lineCount: lines.length
+  };
 }
 
 /**
@@ -309,6 +325,7 @@ export function detokenizeApplesoft(data) {
     let remContent = '';
     let dataContent = '';
     let lastType = 'start'; // Track what we last output for spacing
+    let expectingLineNum = false; // True after GOTO, GOSUB, THEN, ON...GOTO
 
     while (offset < data.length && data[offset] !== 0x00) {
       const byte = data[offset++];
@@ -360,6 +377,12 @@ export function detokenizeApplesoft(data) {
         } else {
           parts.push({ type: 'keyword', text: token, kwClass: getBasicKeywordClass(token) });
           lastType = 'keyword';
+
+          // Track when we expect a line number (GOTO, GOSUB, THEN, ON...GOTO patterns)
+          if (token === 'GOTO' || token === 'GOSUB' || token === 'THEN') {
+            expectingLineNum = true;
+          }
+
           // Add space after keyword if needed
           if (NEEDS_SPACE_AFTER.includes(token)) {
             parts.push({ type: 'space', text: ' ' });
@@ -383,7 +406,13 @@ export function detokenizeApplesoft(data) {
             num += String.fromCharCode(data[offset++]);
           }
         }
-        parts.push({ type: 'number', text: num });
+        // Check if this is a line number reference (after GOTO, GOSUB, THEN)
+        if (expectingLineNum && !num.includes('.')) {
+          parts.push({ type: 'lineref', text: num, targetLine: parseInt(num, 10) });
+          expectingLineNum = false; // Reset after capturing the line number
+        } else {
+          parts.push({ type: 'number', text: num });
+        }
         lastType = 'number';
       } else if ((byte >= 0x41 && byte <= 0x5A) || (byte >= 0x61 && byte <= 0x7A)) {
         let varName = String.fromCharCode(byte);
@@ -440,6 +469,7 @@ export function detokenizeApplesoft(data) {
         case 'keyword': return `<span class="${p.kwClass}">${escaped}</span>`;
         case 'string': return `<span class="bas-string">${escaped}</span>`;
         case 'number': return `<span class="bas-number">${escaped}</span>`;
+        case 'lineref': return `<span class="bas-number bas-lineref" data-target-line="${p.targetLine}">${escaped}</span>`;
         case 'variable': return `<span class="bas-variable">${escaped}</span>`;
         case 'operator': return `<span class="bas-operator">${escaped}</span>`;
         case 'punct': return `<span class="bas-punct">${escaped}</span>`;
@@ -467,13 +497,19 @@ export function detokenizeApplesoft(data) {
 
   // Format lines with indentation
   const INDENT_WIDTH = 3;
-  const lines = parsedLines.map(line => {
+  const lineNumToIndex = new Map();
+  const lines = parsedLines.map((line, index) => {
+    lineNumToIndex.set(line.lineNum, index);
     const padding = ' '.repeat(line.indent * INDENT_WIDTH);
     const lineNumStr = String(line.lineNum).padStart(5);
     return `<span class="bas-linenum">${lineNumStr}</span> ${padding}${line.content}`;
   });
 
-  return lines.join('\n');
+  return {
+    html: lines.join('\n'),
+    lineNumToIndex,
+    lineCount: lines.length
+  };
 }
 
 /**
@@ -564,13 +600,16 @@ export function formatFileContents(data, fileType) {
         description: 'Text File',
       };
 
-    case 0x02: // Applesoft BASIC
+    case 0x02: { // Applesoft BASIC
       try {
+        const result = detokenizeApplesoft(data);
         return {
-          content: detokenizeApplesoft(data),
+          content: result.html,
           format: 'basic',
           description: 'Applesoft BASIC',
           isHtml: true,
+          lineNumToIndex: result.lineNumToIndex,
+          lineCount: result.lineCount,
         };
       } catch (e) {
         // Fall back to hex if detokenization fails
@@ -580,14 +619,18 @@ export function formatFileContents(data, fileType) {
           description: 'Applesoft BASIC (raw)',
         };
       }
+    }
 
-    case 0x01: // Integer BASIC
+    case 0x01: { // Integer BASIC
       try {
+        const result = detokenizeIntegerBasic(data);
         return {
-          content: detokenizeIntegerBasic(data),
+          content: result.html,
           format: 'basic',
           description: 'Integer BASIC',
           isHtml: true,
+          lineNumToIndex: result.lineNumToIndex,
+          lineCount: result.lineCount,
         };
       } catch (e) {
         // Fall back to hex if detokenization fails
@@ -597,6 +640,7 @@ export function formatFileContents(data, fileType) {
           description: 'Integer BASIC (raw)',
         };
       }
+    }
 
     case 0x04: { // Binary
       const info = getBinaryFileInfo(data);
