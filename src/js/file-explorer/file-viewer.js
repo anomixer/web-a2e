@@ -148,17 +148,23 @@ export function detokenizeIntegerBasic(data) {
         break; // End of line
       } else if (inRem) {
         // Inside REM - rest of line is literal text with high bit set
-        remContent += String.fromCharCode(byte >= 0x80 ? byte & 0x7F : byte);
+        const charCode = byte >= 0x80 ? byte & 0x7F : byte;
+        // Only include printable ASCII, skip control chars to prevent line breaks
+        if (charCode >= 0x20 && charCode < 0x7F) {
+          remContent += String.fromCharCode(charCode);
+        }
       } else if (inQuote) {
         // Inside quoted string
         if (byte === 0x29) { // End quote token
           lineHtml += `<span class="bas-string">"${escapeHtml(stringContent)}"</span>`;
           stringContent = '';
           inQuote = false;
-        } else if (byte >= 0x80) {
-          stringContent += String.fromCharCode(byte & 0x7F);
         } else {
-          stringContent += String.fromCharCode(byte);
+          const charCode = byte >= 0x80 ? byte & 0x7F : byte;
+          // Only include printable ASCII, skip control chars to prevent line breaks
+          if (charCode >= 0x20 && charCode < 0x7F) {
+            stringContent += String.fromCharCode(charCode);
+          }
         }
       } else if (byte >= 0xB0 && byte <= 0xB9) {
         // Numeric constant: $B0-$B9 followed by 2-byte little-endian integer
@@ -331,27 +337,34 @@ export function detokenizeApplesoft(data) {
       const byte = data[offset++];
 
       if (inRem) {
-        remContent += String.fromCharCode(byte & 0x7F);
+        const charCode = byte & 0x7F;
+        // Only include printable ASCII, skip control chars to prevent line breaks
+        if (charCode >= 0x20 && charCode < 0x7F) {
+          remContent += String.fromCharCode(charCode);
+        }
       } else if (inString) {
-        const char = String.fromCharCode(byte & 0x7F);
+        const charCode = byte & 0x7F;
         if (byte === 0x22) {
           parts.push({ type: 'string', text: '"' + stringContent + '"' });
           stringContent = '';
           inString = false;
           lastType = 'string';
-        } else {
-          stringContent += char;
+        } else if (charCode >= 0x20 && charCode < 0x7F) {
+          // Only include printable ASCII characters, skip control chars (including CR/LF)
+          stringContent += String.fromCharCode(charCode);
         }
+        // Control characters (0x00-0x1F) are silently skipped to prevent line breaks
       } else if (inData) {
-        const char = String.fromCharCode(byte & 0x7F);
+        const charCode = byte & 0x7F;
         if (byte === 0x3A) {
           parts.push({ type: 'data', text: dataContent });
           parts.push({ type: 'punct', text: ':' });
           dataContent = '';
           inData = false;
           lastType = 'punct';
-        } else {
-          dataContent += char;
+        } else if (charCode >= 0x20 && charCode < 0x7F) {
+          // Only include printable ASCII, skip control chars to prevent line breaks
+          dataContent += String.fromCharCode(charCode);
         }
       } else if (byte >= 0x80) {
         const token = APPLESOFT_TOKENS[byte - 0x80];
@@ -392,8 +405,10 @@ export function detokenizeApplesoft(data) {
       } else if (byte === 0x22) {
         inString = true;
       } else if (byte === 0x3A) {
+        // Colon - statement separator, ends line number sequence
         parts.push({ type: 'punct', text: ':' });
         lastType = 'punct';
+        expectingLineNum = false;
       } else if (byte >= 0x30 && byte <= 0x39) {
         let num = String.fromCharCode(byte);
         while (offset < data.length && data[offset] !== 0x00 && data[offset] >= 0x30 && data[offset] <= 0x39) {
@@ -407,14 +422,16 @@ export function detokenizeApplesoft(data) {
           }
         }
         // Check if this is a line number reference (after GOTO, GOSUB, THEN)
+        // Don't reset expectingLineNum - there may be more line numbers separated by commas
         if (expectingLineNum && !num.includes('.')) {
           parts.push({ type: 'lineref', text: num, targetLine: parseInt(num, 10) });
-          expectingLineNum = false; // Reset after capturing the line number
         } else {
           parts.push({ type: 'number', text: num });
         }
         lastType = 'number';
       } else if ((byte >= 0x41 && byte <= 0x5A) || (byte >= 0x61 && byte <= 0x7A)) {
+        // Variable name ends line number sequence
+        expectingLineNum = false;
         let varName = String.fromCharCode(byte);
         while (offset < data.length && data[offset] !== 0x00) {
           const next = data[offset];

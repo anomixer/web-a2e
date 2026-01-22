@@ -38,6 +38,7 @@ export class FileExplorerWindow {
     this.binaryViewMode = 'asm'; // 'asm' or 'hex'
     this.currentFileData = null; // Cache for current file data
     this.basicLineNumToIndex = null; // For BASIC GOTO/GOSUB navigation
+    this.basicOriginalHtml = null; // Original unhighlighted BASIC content
 
     // Bind handlers
     this.handleMouseDown = this.handleMouseDown.bind(this);
@@ -418,6 +419,9 @@ export class FileExplorerWindow {
       // Handle binary files with view toggle
       if (isBinary) {
         const info = getBinaryFileInfo(fileData);
+        // Clear BASIC navigation state for binary files
+        this.basicLineNumToIndex = null;
+        this.basicOriginalHtml = null;
 
         if (this.binaryViewMode === 'hex') {
           // Show hex dump
@@ -446,11 +450,15 @@ export class FileExplorerWindow {
           // Set up BASIC line navigation if available
           if (formatted.lineNumToIndex) {
             this.basicLineNumToIndex = formatted.lineNumToIndex;
+            this.basicOriginalHtml = formatted.content; // Store original for highlight restoration
             contentEl.querySelector('pre').addEventListener('click', this.handleBasicLineClick);
+          } else {
+            this.basicOriginalHtml = null;
           }
         } else {
           contentEl.innerHTML = `<pre>${this.escapeHtml(formatted.content)}</pre>`;
           this.basicLineNumToIndex = null;
+          this.basicOriginalHtml = null;
         }
       }
     } catch (e) {
@@ -461,7 +469,7 @@ export class FileExplorerWindow {
 
   handleBasicLineClick(event) {
     const target = event.target.closest('.bas-lineref');
-    if (!target || !this.basicLineNumToIndex) return;
+    if (!target || !this.basicLineNumToIndex || !this.basicOriginalHtml) return;
 
     const targetLineNum = parseInt(target.dataset.targetLine, 10);
     if (isNaN(targetLineNum)) return;
@@ -473,15 +481,8 @@ export class FileExplorerWindow {
     const pre = contentEl.querySelector('pre');
     if (!pre) return;
 
-    // Remove any existing highlight
-    const existing = pre.querySelector('.bas-highlight');
-    if (existing) {
-      existing.outerHTML = existing.innerHTML;
-    }
-
-    // Find and highlight the target line
-    const html = pre.innerHTML;
-    const lines = html.split('\n');
+    // Always rebuild from original HTML to avoid corruption from previous highlights
+    const lines = this.basicOriginalHtml.split('\n');
     if (lineIndex >= 0 && lineIndex < lines.length) {
       lines[lineIndex] = `<span class="bas-highlight">${lines[lineIndex]}</span>`;
       pre.innerHTML = lines.join('\n');
@@ -510,6 +511,7 @@ export class FileExplorerWindow {
     asmLegend.classList.add('hidden');
     this.currentFileData = null;
     this.basicLineNumToIndex = null;
+    this.basicOriginalHtml = null;
   }
 
   escapeHtml(text) {
