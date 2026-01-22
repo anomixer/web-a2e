@@ -333,7 +333,7 @@ export class FileExplorerWindow {
       const filenamePtr = this.wasmModule._getDiskFilename(this.selectedDrive);
       const filename = filenamePtr ? this.wasmModule.UTF8ToString(filenamePtr) : 'Disk';
       diskInfo.textContent = filename;
-      catalogList.innerHTML = '<div class="fe-empty">Cannot read sector data<br><small>WOZ format disks are not supported</small></div>';
+      catalogList.innerHTML = '<div class="fe-empty">Cannot read sector data<br><small>Copy-protected or non-standard disk format</small></div>';
       this.catalog = [];
       this.diskData = null;
       this.diskFormat = null;

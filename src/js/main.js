@@ -1,5 +1,6 @@
 // Apple //e Emulator - Main Entry Point
 
+import { VERSION } from "./version.js";
 import { WebGLRenderer } from "./webgl-renderer.js";
 import { AudioDriver } from "./audio-driver.js";
 import { InputHandler } from "./input-handler.js";
@@ -334,6 +335,12 @@ class AppleIIeEmulator {
 
 // Initialize when DOM is ready
 document.addEventListener("DOMContentLoaded", () => {
+  // Display version in header
+  const versionEl = document.getElementById("app-version");
+  if (versionEl) {
+    versionEl.textContent = `v${VERSION}`;
+  }
+
   const emulator = new AppleIIeEmulator();
   emulator.init();
 

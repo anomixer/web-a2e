@@ -42,6 +42,17 @@ header {
     background-clip: text;
 }
 
+.app-version {
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--text-muted);
+    padding: 2px 6px;
+    background: var(--bg-dark);
+    border-radius: var(--radius-sm);
+    margin-left: var(--space-xs);
+    vertical-align: middle;
+}
+
 .tagline {
     font-size: 0.75rem;
     color: var(--text-muted);
