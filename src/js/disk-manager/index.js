@@ -104,18 +104,18 @@ export class DiskManager {
         const diskData = await loadDiskFromStorage(driveNum);
         if (diskData) {
           const drive = this.drives[driveNum];
-          loadDiskFromData(
-            this.wasmModule,
+          loadDiskFromData({
+            wasmModule: this.wasmModule,
             drive,
             driveNum,
-            diskData.filename,
-            diskData.data,
-            (filename) => {
+            filename: diskData.filename,
+            data: diskData.data,
+            onSuccess: (filename) => {
               this.setDiskName(driveNum, filename);
               if (this.onDiskLoaded) this.onDiskLoaded(driveNum, filename);
             },
-            (error) => console.error(`Failed to restore disk in drive ${driveNum + 1}:`, error),
-          );
+            onError: (error) => console.error(`Failed to restore disk in drive ${driveNum + 1}:`, error),
+          });
         }
       } catch (error) {
         console.error(`Error restoring disk for drive ${driveNum + 1}:`, error);
@@ -384,42 +384,48 @@ export class DiskManager {
 
   async loadDisk(driveNum, file) {
     const drive = this.drives[driveNum];
-    await loadDisk(
-      this.wasmModule,
+    await loadDisk({
+      wasmModule: this.wasmModule,
       drive,
       driveNum,
       file,
-      (filename) => {
+      onSuccess: (filename) => {
         this.setDiskName(driveNum, filename);
         if (this.onDiskLoaded) this.onDiskLoaded(driveNum, filename);
       },
-      (error) => alert(error),
-    );
+      onError: (error) => alert(error),
+    });
   }
 
   insertBlankDisk(driveNum) {
     const drive = this.drives[driveNum];
-    insertBlankDisk(
-      this.wasmModule,
+    insertBlankDisk({
+      wasmModule: this.wasmModule,
       drive,
       driveNum,
-      (filename) => this.setDiskName(driveNum, filename),
-      (error) => alert(error),
-    );
+      onSuccess: (filename) => this.setDiskName(driveNum, filename),
+      onError: (error) => alert(error),
+    });
   }
 
   async ejectDisk(driveNum) {
     const drive = this.drives[driveNum];
-    await ejectDisk(this.wasmModule, drive, driveNum, () =>
-      this.setDiskName(driveNum, "No Disk"),
-    );
+    await ejectDisk({
+      wasmModule: this.wasmModule,
+      drive,
+      driveNum,
+      onEject: () => this.setDiskName(driveNum, "No Disk"),
+    });
   }
 
   performEject(driveNum) {
     const drive = this.drives[driveNum];
-    performEject(this.wasmModule, drive, driveNum, () =>
-      this.setDiskName(driveNum, "No Disk"),
-    );
+    performEject({
+      wasmModule: this.wasmModule,
+      drive,
+      driveNum,
+      onEject: () => this.setDiskName(driveNum, "No Disk"),
+    });
   }
 
   // Drive state and LED updates
@@ -605,18 +611,18 @@ export class DiskManager {
     }
 
     const drive = this.drives[driveNum];
-    loadDiskFromData(
-      this.wasmModule,
+    loadDiskFromData({
+      wasmModule: this.wasmModule,
       drive,
       driveNum,
-      diskData.filename,
-      diskData.data,
-      (filename) => {
+      filename: diskData.filename,
+      data: diskData.data,
+      onSuccess: (filename) => {
         this.setDiskName(driveNum, filename);
         if (this.onDiskLoaded) this.onDiskLoaded(driveNum, filename);
       },
-      (error) => alert(error),
-    );
+      onError: (error) => alert(error),
+    });
 
     // Update access time by re-adding to recent list
     addToRecentDisks(driveNum, diskData.filename, diskData.data);

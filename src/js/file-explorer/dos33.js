@@ -3,6 +3,8 @@
  * Parses DOS 3.3 disk images to read catalog and file contents
  */
 
+import { parseDOS33Filename } from './utils.js';
+
 // DOS 3.3 Constants
 const TRACKS = 35;
 const SECTORS_PER_TRACK = 16;
@@ -86,20 +88,6 @@ export function parseVTOC(diskData) {
   };
 }
 
-/**
- * Convert high-bit ASCII filename to normal string
- * @param {Uint8Array} bytes - Filename bytes (high-bit set)
- * @returns {string} Clean filename
- */
-function parseFilename(bytes) {
-  let name = '';
-  for (let i = 0; i < bytes.length; i++) {
-    const ch = bytes[i] & 0x7F; // Strip high bit
-    if (ch === 0x00 || ch === 0x20 && name.length === 0) continue;
-    name += String.fromCharCode(ch);
-  }
-  return name.trimEnd();
-}
 
 /**
  * Parse a catalog entry
@@ -120,7 +108,7 @@ function parseCatalogEntry(entry) {
   const isLocked = (typeAndFlags & 0x80) !== 0;
 
   const filenameBytes = entry.slice(0x03, 0x03 + 30);
-  const filename = parseFilename(filenameBytes);
+  const filename = parseDOS33Filename(filenameBytes);
 
   const sectorCount = entry[0x21] | (entry[0x22] << 8);
 

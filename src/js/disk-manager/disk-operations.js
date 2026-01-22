@@ -8,40 +8,48 @@ import {
 } from "./disk-persistence.js";
 
 /**
- * Load a disk image from a file into a drive
+ * Helper to insert a disk into WASM with proper memory management
  * @param {Object} wasmModule - The WASM module
- * @param {Object} drive - The drive state object
  * @param {number} driveNum - Drive number (0 or 1)
- * @param {File} file - The file to load
- * @param {Function} onSuccess - Callback on successful load
- * @param {Function} onError - Callback on error
+ * @param {Uint8Array} data - The disk image data
+ * @param {string} filename - The disk filename
+ * @returns {boolean} True if successful
  */
-export async function loadDisk(
-  wasmModule,
-  drive,
-  driveNum,
-  file,
-  onSuccess,
-  onError,
-) {
+function insertDiskToWasm(wasmModule, driveNum, data, filename) {
+  // Allocate memory for disk data
+  const dataPtr = wasmModule._malloc(data.length);
+  wasmModule.HEAPU8.set(data, dataPtr);
+
+  // Allocate string for filename
+  const filenamePtr = wasmModule._malloc(filename.length + 1);
+  wasmModule.stringToUTF8(filename, filenamePtr, filename.length + 1);
+
+  // Insert disk
+  const success = wasmModule._insertDisk(driveNum, dataPtr, data.length, filenamePtr);
+
+  // Free memory
+  wasmModule._free(dataPtr);
+  wasmModule._free(filenamePtr);
+
+  return success;
+}
+
+/**
+ * Load a disk image from a file into a drive
+ * @param {Object} options
+ * @param {Object} options.wasmModule - The WASM module
+ * @param {Object} options.drive - The drive state object
+ * @param {number} options.driveNum - Drive number (0 or 1)
+ * @param {File} options.file - The file to load
+ * @param {Function} [options.onSuccess] - Callback on successful load
+ * @param {Function} [options.onError] - Callback on error
+ */
+export async function loadDisk({ wasmModule, drive, driveNum, file, onSuccess, onError }) {
   try {
     const arrayBuffer = await file.arrayBuffer();
     const data = new Uint8Array(arrayBuffer);
 
-    // Allocate memory in WASM
-    const ptr = wasmModule._malloc(data.length);
-    wasmModule.HEAPU8.set(data, ptr);
-
-    // Allocate string for filename
-    const filenamePtr = wasmModule._malloc(file.name.length + 1);
-    wasmModule.stringToUTF8(file.name, filenamePtr, file.name.length + 1);
-
-    // Insert disk
-    const success = wasmModule._insertDisk(driveNum, ptr, data.length, filenamePtr);
-
-    // Free memory
-    wasmModule._free(ptr);
-    wasmModule._free(filenamePtr);
+    const success = insertDiskToWasm(wasmModule, driveNum, data, file.name);
 
     if (success) {
       drive.filename = file.name;
@@ -68,38 +76,18 @@ export async function loadDisk(
 
 /**
  * Load a disk image from raw data (used for restoring from persistence)
- * @param {Object} wasmModule - The WASM module
- * @param {Object} drive - The drive state object
- * @param {number} driveNum - Drive number (0 or 1)
- * @param {string} filename - The disk filename
- * @param {Uint8Array} data - The disk image data
- * @param {Function} onSuccess - Callback on successful load
- * @param {Function} onError - Callback on error
+ * @param {Object} options
+ * @param {Object} options.wasmModule - The WASM module
+ * @param {Object} options.drive - The drive state object
+ * @param {number} options.driveNum - Drive number (0 or 1)
+ * @param {string} options.filename - The disk filename
+ * @param {Uint8Array} options.data - The disk image data
+ * @param {Function} [options.onSuccess] - Callback on successful load
+ * @param {Function} [options.onError] - Callback on error
  */
-export function loadDiskFromData(
-  wasmModule,
-  drive,
-  driveNum,
-  filename,
-  data,
-  onSuccess,
-  onError,
-) {
+export function loadDiskFromData({ wasmModule, drive, driveNum, filename, data, onSuccess, onError }) {
   try {
-    // Allocate memory in WASM
-    const ptr = wasmModule._malloc(data.length);
-    wasmModule.HEAPU8.set(data, ptr);
-
-    // Allocate string for filename
-    const filenamePtr = wasmModule._malloc(filename.length + 1);
-    wasmModule.stringToUTF8(filename, filenamePtr, filename.length + 1);
-
-    // Insert disk
-    const success = wasmModule._insertDisk(driveNum, ptr, data.length, filenamePtr);
-
-    // Free memory
-    wasmModule._free(ptr);
-    wasmModule._free(filenamePtr);
+    const success = insertDiskToWasm(wasmModule, driveNum, data, filename);
 
     if (success) {
       drive.filename = filename;
@@ -119,13 +107,14 @@ export function loadDiskFromData(
 
 /**
  * Insert a blank WOZ disk into a drive
- * @param {Object} wasmModule - The WASM module
- * @param {Object} drive - The drive state object
- * @param {number} driveNum - Drive number (0 or 1)
- * @param {Function} onSuccess - Callback on successful insert
- * @param {Function} onError - Callback on error
+ * @param {Object} options
+ * @param {Object} options.wasmModule - The WASM module
+ * @param {Object} options.drive - The drive state object
+ * @param {number} options.driveNum - Drive number (0 or 1)
+ * @param {Function} [options.onSuccess] - Callback on successful insert
+ * @param {Function} [options.onError] - Callback on error
  */
-export function insertBlankDisk(wasmModule, drive, driveNum, onSuccess, onError) {
+export function insertBlankDisk({ wasmModule, drive, driveNum, onSuccess, onError }) {
   const filename = "Blank Disk.woz";
 
   // Use the WASM function to create and insert a blank disk
@@ -145,12 +134,13 @@ export function insertBlankDisk(wasmModule, drive, driveNum, onSuccess, onError)
 
 /**
  * Perform the actual disk ejection
- * @param {Object} wasmModule - The WASM module
- * @param {Object} drive - The drive state object
- * @param {number} driveNum - Drive number (0 or 1)
- * @param {Function} onEject - Callback after ejection
+ * @param {Object} options
+ * @param {Object} options.wasmModule - The WASM module
+ * @param {Object} options.drive - The drive state object
+ * @param {number} options.driveNum - Drive number (0 or 1)
+ * @param {Function} [options.onEject] - Callback after ejection
  */
-export function performEject(wasmModule, drive, driveNum, onEject) {
+export function performEject({ wasmModule, drive, driveNum, onEject }) {
   wasmModule._ejectDisk(driveNum);
 
   drive.filename = null;
@@ -166,12 +156,13 @@ export function performEject(wasmModule, drive, driveNum, onEject) {
 
 /**
  * Eject a disk, prompting to save if modified
- * @param {Object} wasmModule - The WASM module
- * @param {Object} drive - The drive state object
- * @param {number} driveNum - Drive number (0 or 1)
- * @param {Function} onEject - Callback after ejection
+ * @param {Object} options
+ * @param {Object} options.wasmModule - The WASM module
+ * @param {Object} options.drive - The drive state object
+ * @param {number} options.driveNum - Drive number (0 or 1)
+ * @param {Function} [options.onEject] - Callback after ejection
  */
-export async function ejectDisk(wasmModule, drive, driveNum, onEject) {
+export async function ejectDisk({ wasmModule, drive, driveNum, onEject }) {
   // Check if disk is modified
   const hasModifiedCheck = typeof wasmModule._isDiskModified === "function";
   const isModified = hasModifiedCheck && wasmModule._isDiskModified(driveNum);
@@ -189,7 +180,7 @@ export async function ejectDisk(wasmModule, drive, driveNum, onEject) {
   }
 
   // Always eject after save attempt
-  performEject(wasmModule, drive, driveNum, onEject);
+  performEject({ wasmModule, drive, driveNum, onEject });
 }
 
 /**

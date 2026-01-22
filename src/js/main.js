@@ -224,11 +224,9 @@ class AppleIIeEmulator {
   }
 
   setupControls() {
-    const powerBtn = document.getElementById("btn-power");
     const canvas = document.getElementById("screen");
-
-    if (!powerBtn || !canvas) {
-      console.error("Required DOM elements not found: btn-power or screen");
+    if (!canvas) {
+      console.error("Required DOM element not found: screen");
       return;
     }
 
@@ -237,7 +235,22 @@ class AppleIIeEmulator {
       setTimeout(() => canvas.focus(), 0);
     };
 
-    // Power button - simple on/off, no state save/restore
+    this.setupPowerControls(refocusCanvas);
+    this.setupFullPageModeControls(refocusCanvas);
+    this.setupDrivesToggle(refocusCanvas);
+    this.setupSoundControls();
+    this.setupDebugMenuControls(refocusCanvas);
+    this.setupMiscControls(refocusCanvas);
+  }
+
+  setupPowerControls(refocusCanvas) {
+    const powerBtn = document.getElementById("btn-power");
+    if (!powerBtn) {
+      console.error("Required DOM element not found: btn-power");
+      return;
+    }
+
+    // Power button - simple on/off
     powerBtn.addEventListener("click", () => {
       this.reminderController.dismissPowerReminder();
       if (this.running) {
@@ -253,7 +266,6 @@ class AppleIIeEmulator {
     // Warm reset button (preserves memory)
     document.getElementById("btn-warm-reset").addEventListener("click", () => {
       this.wasmModule._warmReset();
-      // Dismiss BASIC reminder after a short delay
       setTimeout(() => {
         this.reminderController.dismissBasicReminder();
       }, REMINDER_DISMISS_DELAY_MS);
@@ -263,13 +275,15 @@ class AppleIIeEmulator {
     // Cold reset button (full restart)
     document.getElementById("btn-cold-reset").addEventListener("click", async () => {
       this.wasmModule._reset();
-      // Clear saved state on cold reset so next power-on starts fresh
       await clearStateFromStorage();
       refocusCanvas();
     });
+  }
 
-    // Full page mode button
+  setupFullPageModeControls(refocusCanvas) {
     const fullscreenBtn = document.getElementById("btn-fullscreen");
+    if (!fullscreenBtn) return;
+
     const exitFullPageMode = () => {
       document.body.classList.remove("full-page-mode");
       this.isFullPageMode = false;
@@ -291,7 +305,7 @@ class AppleIIeEmulator {
       }
     });
 
-    // Exit full page mode on Ctrl+Escape (plain Escape goes to emulator)
+    // Exit full page mode on Ctrl+Escape
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape" && e.ctrlKey && this.isFullPageMode) {
         e.preventDefault();
@@ -305,72 +319,63 @@ class AppleIIeEmulator {
         exitFullPageMode();
       }
     });
+  }
 
-    // Disk drives visibility toggle
+  setupDrivesToggle(refocusCanvas) {
     const drivesBtn = document.getElementById("btn-drives");
     const drivesContainer = document.querySelector(".disk-drives-container");
 
     if (!drivesBtn || !drivesContainer) {
       console.warn("Disk drive UI elements not found");
+      return;
     }
 
     // Load saved drives visibility setting (default to visible)
     const savedDrivesVisible = localStorage.getItem("a2e-show-drives");
-    if (savedDrivesVisible === "false" && drivesBtn && drivesContainer) {
+    if (savedDrivesVisible === "false") {
       // Skip animation on initial load
       drivesContainer.classList.add("no-transition");
       drivesContainer.classList.add("collapsed");
       drivesBtn.classList.add("off");
-      // Force reflow then remove no-transition class
-      drivesContainer.offsetHeight;
+      drivesContainer.offsetHeight; // Force reflow
       requestAnimationFrame(() => {
         drivesContainer.classList.remove("no-transition");
         this.monitorResizer.handleResize();
       });
     }
 
-    if (drivesBtn && drivesContainer) {
-      drivesBtn.addEventListener("click", () => {
-        const isCurrentlyCollapsed =
-          drivesContainer.classList.contains("collapsed");
+    drivesBtn.addEventListener("click", () => {
+      const isCurrentlyCollapsed = drivesContainer.classList.contains("collapsed");
 
-        drivesContainer.classList.toggle("collapsed");
-        drivesBtn.classList.toggle("off", !isCurrentlyCollapsed);
-        localStorage.setItem("a2e-show-drives", isCurrentlyCollapsed);
+      drivesContainer.classList.toggle("collapsed");
+      drivesBtn.classList.toggle("off", !isCurrentlyCollapsed);
+      localStorage.setItem("a2e-show-drives", isCurrentlyCollapsed);
 
-        // Resize monitor continuously during animation
-        const startTime = performance.now();
-        const animateResize = () => {
-          this.monitorResizer.handleResize();
-          if (performance.now() - startTime < DRIVE_ANIMATION_DURATION_MS) {
-            requestAnimationFrame(animateResize);
-          }
-        };
-        requestAnimationFrame(animateResize);
+      // Resize monitor continuously during animation
+      const startTime = performance.now();
+      const animateResize = () => {
+        this.monitorResizer.handleResize();
+        if (performance.now() - startTime < DRIVE_ANIMATION_DURATION_MS) {
+          requestAnimationFrame(animateResize);
+        }
+      };
+      requestAnimationFrame(animateResize);
 
-        this.reminderController.dismissDrivesReminder();
-        refocusCanvas();
-      });
-    }
+      this.reminderController.dismissDrivesReminder();
+      refocusCanvas();
+    });
+  }
 
-    // File explorer button
-    const fileExplorerBtn = document.getElementById("btn-file-explorer");
-    if (fileExplorerBtn) {
-      fileExplorerBtn.addEventListener("click", () => {
-        this.fileExplorer.toggle();
-      });
-    }
-
-    // State management popup
-    this.setupStateManagement(refocusCanvas);
-
-    // Sound popup
+  setupSoundControls() {
     const soundBtn = document.getElementById("btn-sound");
     const soundPopup = document.getElementById("sound-popup");
     const volumeSlider = document.getElementById("volume-slider");
     const volumeValue = document.getElementById("volume-value");
     const muteToggle = document.getElementById("mute-toggle");
     const driveSoundsToggle = document.getElementById("drive-sounds-toggle");
+    const charsetToggle = document.getElementById("charset-toggle");
+
+    if (!soundBtn || !soundPopup) return;
 
     // Load saved drive sounds setting
     const savedDriveSounds = localStorage.getItem("a2e-drive-sounds");
@@ -430,7 +435,6 @@ class AppleIIeEmulator {
     });
 
     // Character set toggle (UK/US)
-    const charsetToggle = document.getElementById("charset-toggle");
     if (charsetToggle) {
       const savedCharset = localStorage.getItem("a2e-charset");
       if (savedCharset === "uk") {
@@ -445,53 +449,67 @@ class AppleIIeEmulator {
         const isUK = !e.target.checked;
         this.wasmModule._setUKCharacterSet(isUK);
         localStorage.setItem("a2e-charset", isUK ? "uk" : "us");
-        refocusCanvas();
       });
     }
+  }
 
-    // Debug dropdown menu
+  setupDebugMenuControls(refocusCanvas) {
     const debugMenuContainer = document.querySelector(".debug-menu-container");
     const debugMenuBtn = document.getElementById("btn-debug-menu");
     const debugMenu = document.getElementById("debug-menu");
 
-    if (debugMenuBtn && debugMenu) {
-      debugMenuBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        debugMenuContainer.classList.toggle("open");
-      });
+    if (!debugMenuBtn || !debugMenu) return;
 
-      debugMenu.querySelectorAll(".debug-menu-item").forEach((item) => {
-        item.addEventListener("click", () => {
-          const windowType = item.dataset.window;
-          const windowMap = {
-            cpu: "cpu-debugger",
-            drives: "drive-detail",
-            switches: "soft-switches",
-            memory: "memory-browser",
-            heatmap: "memory-heatmap",
-            stack: "stack-viewer",
-            zeropage: "zeropage-watch",
-          };
-          if (windowMap[windowType]) {
-            this.windowManager.toggleWindow(windowMap[windowType]);
-          }
-          debugMenuContainer.classList.remove("open");
-          refocusCanvas();
-        });
-      });
+    const windowMap = {
+      cpu: "cpu-debugger",
+      drives: "drive-detail",
+      switches: "soft-switches",
+      memory: "memory-browser",
+      heatmap: "memory-heatmap",
+      stack: "stack-viewer",
+      zeropage: "zeropage-watch",
+    };
 
-      document.addEventListener("click", (e) => {
-        if (!debugMenuContainer.contains(e.target)) {
-          debugMenuContainer.classList.remove("open");
+    debugMenuBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      debugMenuContainer.classList.toggle("open");
+    });
+
+    debugMenu.querySelectorAll(".debug-menu-item").forEach((item) => {
+      item.addEventListener("click", () => {
+        const windowType = item.dataset.window;
+        if (windowMap[windowType]) {
+          this.windowManager.toggleWindow(windowMap[windowType]);
         }
+        debugMenuContainer.classList.remove("open");
+        refocusCanvas();
       });
+    });
 
-      document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape") {
-          debugMenuContainer.classList.remove("open");
-        }
+    document.addEventListener("click", (e) => {
+      if (!debugMenuContainer.contains(e.target)) {
+        debugMenuContainer.classList.remove("open");
+      }
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        debugMenuContainer.classList.remove("open");
+      }
+    });
+  }
+
+  setupMiscControls(refocusCanvas) {
+    // File explorer button
+    const fileExplorerBtn = document.getElementById("btn-file-explorer");
+    if (fileExplorerBtn) {
+      fileExplorerBtn.addEventListener("click", () => {
+        this.fileExplorer.toggle();
       });
     }
+
+    // State management popup
+    this.setupStateManagement(refocusCanvas);
 
     // Display settings button
     const displayBtn = document.getElementById("btn-display");

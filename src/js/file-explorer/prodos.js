@@ -3,6 +3,8 @@
  * Parses ProDOS disk images to read catalog and file contents
  */
 
+import { parseProDOSFilename } from './utils.js';
+
 // ProDOS Constants
 const BLOCK_SIZE = 512;
 const VOLUME_DIRECTORY_BLOCK = 2;
@@ -178,7 +180,7 @@ export function parseVolumeInfo(diskData) {
   const nameLength = storageTypeAndNameLength & 0x0F;
 
   // Volume name is at offset 0x05
-  const volumeName = parseFilename(block2.slice(0x05, 0x05 + nameLength));
+  const volumeName = parseProDOSFilename(block2.slice(0x05, 0x05 + nameLength));
 
   // Validate volume name contains only valid ProDOS characters (A-Z, 0-9, .)
   if (!/^[A-Z][A-Z0-9.]*$/i.test(volumeName)) {
@@ -238,20 +240,6 @@ function parseProDOSDate(dateWord, timeWord) {
   return new Date(adjustedYear, month - 1, day, hour, minute);
 }
 
-/**
- * Parse ProDOS filename
- * @param {Uint8Array} bytes - Filename bytes
- * @returns {string} Filename
- */
-function parseFilename(bytes) {
-  let name = '';
-  for (let i = 0; i < bytes.length; i++) {
-    const ch = bytes[i] & 0x7F;
-    if (ch === 0) break;
-    name += String.fromCharCode(ch);
-  }
-  return name;
-}
 
 /**
  * Parse a directory entry
@@ -274,7 +262,7 @@ function parseDirectoryEntry(entry) {
     return null;
   }
 
-  const filename = parseFilename(entry.slice(0x01, 0x01 + nameLength));
+  const filename = parseProDOSFilename(entry.slice(0x01, 0x01 + nameLength));
   const fileType = entry[0x10];
   const keyPointer = entry[0x11] | (entry[0x12] << 8);
   const blocksUsed = entry[0x13] | (entry[0x14] << 8);
