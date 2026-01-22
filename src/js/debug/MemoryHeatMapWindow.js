@@ -248,6 +248,26 @@ export class MemoryHeatMapWindow extends DebugWindow {
     }
   }
 
+  /**
+   * Render the memory heat map for main RAM and system ROM.
+   *
+   * Color encoding scheme:
+   * - Background brightness: Based on memory content value (0-255 → 0-15 gray level).
+   *   This shows a dim representation of the actual memory contents.
+   * - Read activity: Blue channel. Higher read count = brighter blue.
+   * - Write activity: Red channel. Higher write count = brighter red.
+   * - Combined read+write: Purple (red + blue), with green tint for addresses
+   *   that have both reads and writes (green = min(read, write) / 2).
+   *
+   * Each pixel represents one memory address. The canvas is 256x256 = 65536 pixels,
+   * covering the entire 64KB address space. Addresses are laid out left-to-right,
+   * top-to-bottom (address 0 at top-left, address 65535 at bottom-right).
+   *
+   * Memory regions:
+   * - $0000-$BFFF: Main RAM (48KB)
+   * - $C000-$CFFF: I/O and soft switches
+   * - $D000-$FFFF: ROM or bank-switched RAM
+   */
   updateCanvas(imageData, ctx, readCountsPtr, writeCountsPtr, mainRAMPtr, systemROMPtr) {
     const data = imageData.data;
     const wasmModule = this.wasmModule;

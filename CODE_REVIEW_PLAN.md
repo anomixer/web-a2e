@@ -266,22 +266,22 @@ src/js/
 ## 5. Implementation Priority
 
 ### Phase 1: Quick Wins (Low Risk, High Impact)
-1. [ ] Remove unused `formatAddressWithSymbol()` function
-2. [ ] Add constants for magic numbers in main.js and audio-driver.js
-3. [ ] Add logging to silent catch blocks
-4. [ ] Extract `escapeHtml()` to shared utility
+1. [x] Remove unused `formatAddressWithSymbol()` function
+2. [x] Add constants for magic numbers in main.js and audio-driver.js
+3. [x] Add logging to silent catch blocks
+4. [x] Extract `escapeHtml()` to shared utility
 
 ### Phase 2: Consolidation (Medium Risk, High Impact)
-1. [ ] Create IndexedDB helper module and refactor persistence files
-2. [ ] Split `setupControls()` into focused methods
-3. [ ] Refactor functions with 6+ parameters to use options objects
-4. [ ] Create shared file-explorer utilities (parseFilename, etc.)
+1. [x] Create IndexedDB helper module and refactor persistence files
+2. [x] Split `setupControls()` into focused methods
+3. [x] Refactor functions with 6+ parameters to use options objects
+4. [x] Create shared file-explorer utilities (parseFilename, etc.)
 
 ### Phase 3: Architecture (Higher Risk, Long-term Benefit)
-1. [ ] Extract UI controller from AppleIIeEmulator
-2. [ ] Create interface abstractions for WASM operations
-3. [ ] Split FileExplorerWindow into separate concerns
-4. [ ] Add JSDoc documentation to complex functions
+1. [x] Extract UI controller from AppleIIeEmulator (UIController.js, StateManager.js)
+2. [ ] Create interface abstractions for WASM operations (optional)
+3. [ ] Split FileExplorerWindow into separate concerns (optional)
+4. [x] Add JSDoc documentation to complex functions
 
 ---
 

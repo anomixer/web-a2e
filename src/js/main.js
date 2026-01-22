@@ -9,6 +9,8 @@ import { TextSelection } from "./TextSelection.js";
 import { MonitorResizer } from "./ui/MonitorResizer.js";
 import { ReminderController } from "./ui/ReminderController.js";
 import { DocumentationDialog } from "./ui/DocumentationDialog.js";
+import { UIController } from "./ui/UIController.js";
+import { StateManager } from "./ui/StateManager.js";
 import {
   WindowManager,
   CPUDebuggerWindow,
@@ -20,20 +22,6 @@ import {
   StackViewerWindow,
   ZeroPageWatchWindow,
 } from "./debug/index.js";
-import {
-  saveStateToStorage,
-  loadStateFromStorage,
-  hasSavedState,
-  clearStateFromStorage,
-  getSavedStateTimestamp,
-} from "./state-persistence.js";
-
-// Timing constants
-const AUTO_SAVE_INTERVAL_MS = 5000;
-const REMINDER_DISMISS_DELAY_MS = 2000;
-const NOTIFICATION_DISPLAY_MS = 3000;
-const STATE_BUTTON_FLASH_MS = 600;
-const DRIVE_ANIMATION_DURATION_MS = 280;
 
 // Display constants
 const MONITOR_ASPECT_RATIO = 4 / 3;
@@ -52,11 +40,10 @@ class AppleIIeEmulator {
     this.monitorResizer = null;
     this.reminderController = null;
     this.documentationDialog = null;
+    this.uiController = null;
+    this.stateManager = null;
 
     this.running = false;
-    this.isFullPageMode = false;
-    this.autoSaveInterval = null;
-    this.autoSaveEnabled = true;
   }
 
   async init() {
@@ -146,32 +133,12 @@ class AppleIIeEmulator {
       // Load saved window states
       this.windowManager.loadState();
 
-      // Save window states and emulator state when page is closed
+      // Save window states when page is closed
       window.addEventListener("beforeunload", () => {
         if (this.windowManager) {
           this.windowManager.saveState();
         }
-        // Save emulator state if auto-save is enabled
-        if (this.autoSaveEnabled) {
-          this.saveState();
-        }
       });
-
-      // Also save state when page becomes hidden (tab switch, minimize, mobile)
-      // Only if auto-save is enabled
-      document.addEventListener("visibilitychange", () => {
-        if (document.hidden && this.running && this.autoSaveEnabled) {
-          this.saveState();
-        }
-      });
-
-      // Periodic auto-save while running
-      // This ensures state is saved even if beforeunload doesn't complete
-      this.autoSaveInterval = setInterval(() => {
-        if (this.running && !document.hidden && this.autoSaveEnabled) {
-          this.saveState();
-        }
-      }, AUTO_SAVE_INTERVAL_MS);
 
       // Start with TV static "no signal" since emulator is off
       this.renderer.setNoSignal(true);
@@ -205,8 +172,28 @@ class AppleIIeEmulator {
       });
       this.monitorResizer.init();
 
-      // Set up UI controls
-      this.setupControls();
+      // Set up UI controller
+      this.uiController = new UIController({
+        emulator: this,
+        wasmModule: this.wasmModule,
+        audioDriver: this.audioDriver,
+        diskManager: this.diskManager,
+        fileExplorer: this.fileExplorer,
+        windowManager: this.windowManager,
+        monitorResizer: this.monitorResizer,
+        reminderController: this.reminderController,
+      });
+      this.uiController.init();
+
+      // Set up state manager
+      this.stateManager = new StateManager({
+        emulator: this,
+        wasmModule: this.wasmModule,
+        uiController: this.uiController,
+        diskManager: this.diskManager,
+        reminderController: this.reminderController,
+      });
+      this.stateManager.init();
 
       // Start render loop
       this.startRenderLoop();
@@ -223,487 +210,12 @@ class AppleIIeEmulator {
     }
   }
 
-  setupControls() {
-    const canvas = document.getElementById("screen");
-    if (!canvas) {
-      console.error("Required DOM element not found: screen");
-      return;
-    }
-
-    // Helper to refocus canvas after button clicks
-    const refocusCanvas = () => {
-      setTimeout(() => canvas.focus(), 0);
-    };
-
-    this.setupPowerControls(refocusCanvas);
-    this.setupFullPageModeControls(refocusCanvas);
-    this.setupDrivesToggle(refocusCanvas);
-    this.setupSoundControls();
-    this.setupDebugMenuControls(refocusCanvas);
-    this.setupMiscControls(refocusCanvas);
-  }
-
-  setupPowerControls(refocusCanvas) {
-    const powerBtn = document.getElementById("btn-power");
-    if (!powerBtn) {
-      console.error("Required DOM element not found: btn-power");
-      return;
-    }
-
-    // Power button - simple on/off
-    powerBtn.addEventListener("click", () => {
-      this.reminderController.dismissPowerReminder();
-      if (this.running) {
-        this.stop();
-        this.reminderController.showBasicReminder(false);
-      } else {
-        this.start();
-        this.reminderController.showBasicReminder(true);
-      }
-      refocusCanvas();
-    });
-
-    // Warm reset button (preserves memory)
-    document.getElementById("btn-warm-reset").addEventListener("click", () => {
-      this.wasmModule._warmReset();
-      setTimeout(() => {
-        this.reminderController.dismissBasicReminder();
-      }, REMINDER_DISMISS_DELAY_MS);
-      refocusCanvas();
-    });
-
-    // Cold reset button (full restart)
-    document.getElementById("btn-cold-reset").addEventListener("click", async () => {
-      this.wasmModule._reset();
-      await clearStateFromStorage();
-      refocusCanvas();
-    });
-  }
-
-  setupFullPageModeControls(refocusCanvas) {
-    const fullscreenBtn = document.getElementById("btn-fullscreen");
-    if (!fullscreenBtn) return;
-
-    const exitFullPageMode = () => {
-      document.body.classList.remove("full-page-mode");
-      this.isFullPageMode = false;
-      refocusCanvas();
-    };
-
-    const enterFullPageMode = () => {
-      this.windowManager.hideAll();
-      document.body.classList.add("full-page-mode");
-      this.isFullPageMode = true;
-      refocusCanvas();
-    };
-
-    fullscreenBtn.addEventListener("click", () => {
-      if (this.isFullPageMode) {
-        exitFullPageMode();
-      } else {
-        enterFullPageMode();
-      }
-    });
-
-    // Exit full page mode on Ctrl+Escape
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && e.ctrlKey && this.isFullPageMode) {
-        e.preventDefault();
-        exitFullPageMode();
-      }
-    });
-
-    // Exit full page mode on click (on the black background area)
-    document.querySelector("main").addEventListener("click", (e) => {
-      if (this.isFullPageMode && e.target.tagName !== "CANVAS") {
-        exitFullPageMode();
-      }
-    });
-  }
-
-  setupDrivesToggle(refocusCanvas) {
-    const drivesBtn = document.getElementById("btn-drives");
-    const drivesContainer = document.querySelector(".disk-drives-container");
-
-    if (!drivesBtn || !drivesContainer) {
-      console.warn("Disk drive UI elements not found");
-      return;
-    }
-
-    // Load saved drives visibility setting (default to visible)
-    const savedDrivesVisible = localStorage.getItem("a2e-show-drives");
-    if (savedDrivesVisible === "false") {
-      // Skip animation on initial load
-      drivesContainer.classList.add("no-transition");
-      drivesContainer.classList.add("collapsed");
-      drivesBtn.classList.add("off");
-      drivesContainer.offsetHeight; // Force reflow
-      requestAnimationFrame(() => {
-        drivesContainer.classList.remove("no-transition");
-        this.monitorResizer.handleResize();
-      });
-    }
-
-    drivesBtn.addEventListener("click", () => {
-      const isCurrentlyCollapsed = drivesContainer.classList.contains("collapsed");
-
-      drivesContainer.classList.toggle("collapsed");
-      drivesBtn.classList.toggle("off", !isCurrentlyCollapsed);
-      localStorage.setItem("a2e-show-drives", isCurrentlyCollapsed);
-
-      // Resize monitor continuously during animation
-      const startTime = performance.now();
-      const animateResize = () => {
-        this.monitorResizer.handleResize();
-        if (performance.now() - startTime < DRIVE_ANIMATION_DURATION_MS) {
-          requestAnimationFrame(animateResize);
-        }
-      };
-      requestAnimationFrame(animateResize);
-
-      this.reminderController.dismissDrivesReminder();
-      refocusCanvas();
-    });
-  }
-
-  setupSoundControls() {
-    const soundBtn = document.getElementById("btn-sound");
-    const soundPopup = document.getElementById("sound-popup");
-    const volumeSlider = document.getElementById("volume-slider");
-    const volumeValue = document.getElementById("volume-value");
-    const muteToggle = document.getElementById("mute-toggle");
-    const driveSoundsToggle = document.getElementById("drive-sounds-toggle");
-    const charsetToggle = document.getElementById("charset-toggle");
-
-    if (!soundBtn || !soundPopup) return;
-
-    // Load saved drive sounds setting
-    const savedDriveSounds = localStorage.getItem("a2e-drive-sounds");
-    const driveSoundsEnabled = savedDriveSounds !== "false";
-    driveSoundsToggle.checked = driveSoundsEnabled;
-    this.diskManager.setSeekSoundEnabled(driveSoundsEnabled);
-    this.diskManager.setMotorSoundEnabled(driveSoundsEnabled);
-
-    // Toggle popup on button click
-    soundBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      soundPopup.classList.toggle("hidden");
-    });
-
-    // Close popup when clicking outside
-    document.addEventListener("click", (e) => {
-      if (!soundPopup.contains(e.target) && e.target !== soundBtn) {
-        soundPopup.classList.add("hidden");
-      }
-    });
-
-    // Prevent popup from closing when clicking inside
-    soundPopup.addEventListener("click", (e) => {
-      e.stopPropagation();
-    });
-
-    // Volume slider
-    if (volumeSlider) {
-      const initialVolume = Math.round(this.audioDriver.getVolume() * 100);
-      volumeSlider.value = initialVolume;
-      volumeValue.textContent = `${initialVolume}%`;
-
-      volumeSlider.addEventListener("input", (e) => {
-        const volume = parseInt(e.target.value, 10);
-        volumeValue.textContent = `${volume}%`;
-        this.audioDriver.setVolume(volume / 100);
-      });
-    }
-
-    // Mute toggle
-    muteToggle.checked = this.audioDriver.isMuted();
-    muteToggle.addEventListener("change", (e) => {
-      if (e.target.checked) {
-        this.audioDriver.mute();
-      } else {
-        this.audioDriver.unmute();
-      }
-      this.updateSoundButton();
-    });
-
-    // Drive sounds toggle
-    driveSoundsToggle.addEventListener("change", (e) => {
-      const enabled = e.target.checked;
-      this.diskManager.setSeekSoundEnabled(enabled);
-      this.diskManager.setMotorSoundEnabled(enabled);
-      localStorage.setItem("a2e-drive-sounds", enabled);
-    });
-
-    // Character set toggle (UK/US)
-    if (charsetToggle) {
-      const savedCharset = localStorage.getItem("a2e-charset");
-      if (savedCharset === "uk") {
-        charsetToggle.checked = false;
-        this.wasmModule._setUKCharacterSet(true);
-      } else {
-        charsetToggle.checked = true;
-        this.wasmModule._setUKCharacterSet(false);
-      }
-
-      charsetToggle.addEventListener("change", (e) => {
-        const isUK = !e.target.checked;
-        this.wasmModule._setUKCharacterSet(isUK);
-        localStorage.setItem("a2e-charset", isUK ? "uk" : "us");
-      });
-    }
-  }
-
-  setupDebugMenuControls(refocusCanvas) {
-    const debugMenuContainer = document.querySelector(".debug-menu-container");
-    const debugMenuBtn = document.getElementById("btn-debug-menu");
-    const debugMenu = document.getElementById("debug-menu");
-
-    if (!debugMenuBtn || !debugMenu) return;
-
-    const windowMap = {
-      cpu: "cpu-debugger",
-      drives: "drive-detail",
-      switches: "soft-switches",
-      memory: "memory-browser",
-      heatmap: "memory-heatmap",
-      stack: "stack-viewer",
-      zeropage: "zeropage-watch",
-    };
-
-    debugMenuBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      debugMenuContainer.classList.toggle("open");
-    });
-
-    debugMenu.querySelectorAll(".debug-menu-item").forEach((item) => {
-      item.addEventListener("click", () => {
-        const windowType = item.dataset.window;
-        if (windowMap[windowType]) {
-          this.windowManager.toggleWindow(windowMap[windowType]);
-        }
-        debugMenuContainer.classList.remove("open");
-        refocusCanvas();
-      });
-    });
-
-    document.addEventListener("click", (e) => {
-      if (!debugMenuContainer.contains(e.target)) {
-        debugMenuContainer.classList.remove("open");
-      }
-    });
-
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") {
-        debugMenuContainer.classList.remove("open");
-      }
-    });
-  }
-
-  setupMiscControls(refocusCanvas) {
-    // File explorer button
-    const fileExplorerBtn = document.getElementById("btn-file-explorer");
-    if (fileExplorerBtn) {
-      fileExplorerBtn.addEventListener("click", () => {
-        this.fileExplorer.toggle();
-      });
-    }
-
-    // State management popup
-    this.setupStateManagement(refocusCanvas);
-
-    // Display settings button
-    const displayBtn = document.getElementById("btn-display");
-    if (displayBtn) {
-      displayBtn.addEventListener("click", () => {
-        this.windowManager.toggleWindow("display-settings");
-        refocusCanvas();
-      });
-    }
-  }
-
-  updateSoundButton() {
-    const soundBtn = document.getElementById("btn-sound");
-    const iconUnmuted = soundBtn.querySelector(".icon-unmuted");
-    const iconMuted = soundBtn.querySelector(".icon-muted");
-
-    if (this.audioDriver.isMuted()) {
-      iconUnmuted.classList.add("hidden");
-      iconMuted.classList.remove("hidden");
-    } else {
-      iconUnmuted.classList.remove("hidden");
-      iconMuted.classList.add("hidden");
-    }
-  }
-
-  updatePowerButton() {
-    const powerBtn = document.getElementById("btn-power");
-    const powerLed = document.getElementById("monitor-power-led");
-    if (this.running) {
-      powerBtn.classList.remove("off");
-      powerBtn.title = "Power Off";
-      powerLed?.classList.add("on");
-    } else {
-      powerBtn.classList.add("off");
-      powerBtn.title = "Power On";
-      powerLed?.classList.remove("on");
-    }
-  }
-
-  setupStateManagement(refocusCanvas) {
-    const stateBtn = document.getElementById("btn-state");
-    const statePopup = document.getElementById("state-popup");
-    const autosaveToggle = document.getElementById("autosave-toggle");
-    const saveStateBtn = document.getElementById("btn-save-state");
-    const restoreStateBtn = document.getElementById("btn-restore-state");
-    const stateStatus = document.getElementById("state-status");
-    const lastSavedEl = document.getElementById("state-last-saved");
-
-    if (!stateBtn || !statePopup) return;
-
-    // Load saved auto-save setting (default to enabled)
-    const savedAutosave = localStorage.getItem("a2e-autosave-state");
-    this.autoSaveEnabled = savedAutosave !== "false";
-    if (autosaveToggle) {
-      autosaveToggle.checked = this.autoSaveEnabled;
-    }
-    this.updateStateUI();
-
-    // Toggle popup
-    stateBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      statePopup.classList.toggle("hidden");
-      if (!statePopup.classList.contains("hidden")) {
-        this.updateStateUI();
-        this.updateLastSavedTime();
-      }
-    });
-
-    // Close popup when clicking outside
-    document.addEventListener("click", (e) => {
-      if (!statePopup.contains(e.target) && e.target !== stateBtn) {
-        statePopup.classList.add("hidden");
-      }
-    });
-
-    // Prevent popup from closing when clicking inside
-    statePopup.addEventListener("click", (e) => {
-      e.stopPropagation();
-    });
-
-    // Auto-save toggle
-    if (autosaveToggle) {
-      autosaveToggle.addEventListener("change", () => {
-        this.autoSaveEnabled = autosaveToggle.checked;
-        localStorage.setItem("a2e-autosave-state", this.autoSaveEnabled);
-        this.updateStateUI();
-      });
-    }
-
-    // Save state button
-    if (saveStateBtn) {
-      saveStateBtn.addEventListener("click", async () => {
-        if (!this.running) {
-          this.showNotification("Power on the emulator first to save state");
-          return;
-        }
-        await this.saveState();
-        this.updateLastSavedTime();
-        this.showNotification("State saved");
-      });
-    }
-
-    // Restore state button
-    if (restoreStateBtn) {
-      restoreStateBtn.addEventListener("click", async () => {
-        const hasState = await hasSavedState();
-        if (!hasState) {
-          this.showNotification("No saved state to restore");
-          return;
-        }
-        // Restore does a full power cycle, so it works whether running or not
-        const restored = await this.restoreState();
-        if (restored) {
-          this.showNotification("State restored");
-          statePopup.classList.add("hidden");
-        } else {
-          this.showNotification("Failed to restore state");
-        }
-        refocusCanvas();
-      });
-    }
-  }
-
-  updateStateUI() {
-    const stateBtn = document.getElementById("btn-state");
-    const stateStatus = document.getElementById("state-status");
-    const saveStateBtn = document.getElementById("btn-save-state");
-
-    if (stateBtn) {
-      stateBtn.classList.toggle("has-autosave", this.autoSaveEnabled);
-    }
-
-    if (stateStatus) {
-      if (this.autoSaveEnabled) {
-        stateStatus.textContent = "AUTO";
-        stateStatus.className = "state-status on";
-      } else {
-        stateStatus.textContent = "OFF";
-        stateStatus.className = "state-status off";
-      }
-    }
-
-    // Disable save button when auto-save is on (it's already saving automatically)
-    if (saveStateBtn) {
-      saveStateBtn.disabled = this.autoSaveEnabled;
-    }
-  }
-
-  async updateLastSavedTime() {
-    const lastSavedEl = document.getElementById("state-last-saved");
-    if (!lastSavedEl) return;
-
-    const timestamp = await getSavedStateTimestamp();
-    if (timestamp) {
-      const date = new Date(timestamp);
-      const now = new Date();
-      const diffMs = now - date;
-      const diffMins = Math.floor(diffMs / 60000);
-      const diffHours = Math.floor(diffMs / 3600000);
-
-      let timeStr;
-      if (diffMins < 1) {
-        timeStr = "just now";
-      } else if (diffMins < 60) {
-        timeStr = `${diffMins} minute${diffMins === 1 ? "" : "s"} ago`;
-      } else if (diffHours < 24) {
-        timeStr = `${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
-      } else {
-        timeStr = date.toLocaleDateString();
-      }
-      lastSavedEl.textContent = `Last saved: ${timeStr}`;
-    } else {
-      lastSavedEl.textContent = "No saved state";
-    }
-  }
-
-  showNotification(message) {
-    // Create notification element if it doesn't exist
-    let notification = document.getElementById("state-notification");
-    if (!notification) {
-      notification = document.createElement("div");
-      notification.id = "state-notification";
-      notification.className = "state-notification";
-      document.body.appendChild(notification);
-    }
-
-    // Set message and show
-    notification.textContent = message;
-    notification.classList.add("visible");
-
-    // Hide after delay
-    setTimeout(() => {
-      notification.classList.remove("visible");
-    }, NOTIFICATION_DISPLAY_MS);
+  /**
+   * Check if the emulator is running
+   * @returns {boolean}
+   */
+  isRunning() {
+    return this.running;
   }
 
   start() {
@@ -713,7 +225,9 @@ class AppleIIeEmulator {
     this.running = true;
     this.renderer.setNoSignal(false);
     this.audioDriver.start();
-    this.updatePowerButton();
+    if (this.uiController) {
+      this.uiController.updatePowerButton(true);
+    }
     console.log("Emulator powered on");
   }
 
@@ -728,149 +242,10 @@ class AppleIIeEmulator {
     }
 
     this.renderer.setNoSignal(true);
-    this.updatePowerButton();
+    if (this.uiController) {
+      this.uiController.updatePowerButton(false);
+    }
     console.log("Emulator powered off");
-  }
-
-  /**
-   * Flash the state button to indicate saving
-   */
-  flashStateButton() {
-    const stateBtn = document.getElementById("btn-state");
-    if (!stateBtn) return;
-
-    // Add saving class
-    stateBtn.classList.add("saving");
-
-    // Remove after animation
-    setTimeout(() => {
-      stateBtn.classList.remove("saving");
-    }, STATE_BUTTON_FLASH_MS);
-  }
-
-  /**
-   * Save the current emulator state to IndexedDB
-   * @returns {Promise<void>}
-   */
-  async saveState() {
-    if (!this.running || !this.wasmModule) {
-      return;
-    }
-
-    try {
-      // Flash state button to indicate saving
-      this.flashStateButton();
-
-      // Get size pointer in WASM memory
-      const sizePtr = this.wasmModule._malloc(4);
-      const statePtr = this.wasmModule._exportState(sizePtr);
-
-      if (statePtr && sizePtr) {
-        // Access HEAPU32 fresh each time (typed arrays can be detached on memory growth)
-        const heapU32 = new Uint32Array(this.wasmModule.HEAPU8.buffer);
-        const size = heapU32[sizePtr / 4];
-
-        if (size > 0) {
-          // Copy state data from WASM memory
-          const stateData = new Uint8Array(size);
-          stateData.set(
-            new Uint8Array(this.wasmModule.HEAPU8.buffer, statePtr, size),
-          );
-          await saveStateToStorage(stateData);
-        }
-      }
-
-      this.wasmModule._free(sizePtr);
-    } catch (error) {
-      console.error("Failed to save emulator state:", error);
-    }
-  }
-
-  /**
-   * Restore emulator state from IndexedDB
-   * This is equivalent to powering off, powering on, and loading state.
-   * @returns {Promise<boolean>} True if state was restored
-   */
-  async restoreState() {
-    if (!this.wasmModule) {
-      return false;
-    }
-
-    try {
-      const stateData = await loadStateFromStorage();
-      if (!stateData) {
-        return false;
-      }
-
-      // Power cycle: stop and restart the emulator for a clean slate
-      const wasRunning = this.running;
-      if (wasRunning) {
-        this.stop();
-      }
-
-      // Start fresh (this calls _reset internally)
-      this.start();
-
-      // Copy state data to WASM memory
-      const statePtr = this.wasmModule._malloc(stateData.length);
-      this.wasmModule.HEAPU8.set(stateData, statePtr);
-
-      // Import state (this also calls reset() internally for safety)
-      const success = this.wasmModule._importState(statePtr, stateData.length);
-
-      this.wasmModule._free(statePtr);
-
-      if (success) {
-        // Hide power reminder since we're now running
-        if (this.reminderController) {
-          this.reminderController.dismissPowerReminder();
-          this.reminderController.showBasicReminder(false);
-        }
-        // Sync disk manager UI with restored disk state
-        if (this.diskManager) {
-          this.diskManager.syncWithEmulatorState();
-        }
-        console.log("Restored emulator state from storage");
-        return true;
-      } else {
-        // If restore failed, stop the emulator
-        this.stop();
-      }
-    } catch (error) {
-      console.error("Failed to restore emulator state:", error);
-    }
-
-    return false;
-  }
-
-  /**
-   * Start the emulator and restore saved state if available
-   */
-  async startWithRestore() {
-    if (this.running) return;
-
-    // Check if there's a saved state
-    const hasState = await hasSavedState();
-
-    if (hasState) {
-      // Initialize without full reset
-      this.running = true;
-      this.renderer.setNoSignal(false);
-      this.audioDriver.start();
-      this.updatePowerButton();
-
-      // Try to restore state
-      const restored = await this.restoreState();
-      if (restored) {
-        return;
-      }
-
-      // If restore failed, do a normal reset
-      this.wasmModule._reset();
-    } else {
-      // Normal start with reset
-      this.start();
-    }
   }
 
   renderFrame() {
@@ -918,9 +293,9 @@ class AppleIIeEmulator {
       this.stop();
     }
 
-    if (this.autoSaveInterval) {
-      clearInterval(this.autoSaveInterval);
-      this.autoSaveInterval = null;
+    if (this.stateManager) {
+      this.stateManager.destroy();
+      this.stateManager = null;
     }
 
     if (this.monitorResizer) {
@@ -951,6 +326,7 @@ class AppleIIeEmulator {
     }
     this.inputHandler = null;
     this.reminderController = null;
+    this.uiController = null;
 
     console.log("Apple //e Emulator destroyed");
   }

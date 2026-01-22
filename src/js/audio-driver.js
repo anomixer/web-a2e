@@ -156,8 +156,21 @@ export class AudioDriver {
     this.scriptProcessor.connect(this.gainNode);
   }
 
+  /**
+   * Start fallback timing when Web Audio API is unavailable or suspended.
+   *
+   * The Apple IIe runs at 1.023 MHz. Normally, timing is driven by the Web Audio API's
+   * sample rate (48kHz), which provides precise timing through the audio callback.
+   * When audio is unavailable (browser autoplay policy, no audio hardware, etc.),
+   * this fallback uses setInterval at 60Hz to maintain approximate timing.
+   *
+   * At 60Hz, each tick should execute ~17,050 cycles (1,023,000 / 60).
+   * Speed multiplier allows for fast-forward (speed > 1) or unlimited speed (speed = 0).
+   *
+   * Note: setInterval timing is less precise than Web Audio, so emulation timing
+   * may be slightly off. This is acceptable for basic functionality until audio resumes.
+   */
   startFallbackTiming() {
-    // If audio doesn't work, use setInterval for timing
     const cyclesPerTick = CYCLES_PER_SECOND / 60;
 
     this.fallbackInterval = setInterval(() => {
@@ -179,14 +192,31 @@ export class AudioDriver {
     console.log("Using fallback timing (no audio)");
   }
 
+  /**
+   * Generate audio samples by running the emulator and collecting speaker output.
+   *
+   * This is the core timing mechanism: the Web Audio API requests samples at 48kHz,
+   * and we run the emulator for exactly enough cycles to produce those samples.
+   * The WASM module tracks the ratio of CPU cycles to audio samples (1,023,000 Hz / 48,000 Hz ≈ 21.3 cycles per sample).
+   *
+   * The emulator's speaker produces 1-bit audio by toggling a soft switch ($C030).
+   * The WASM module converts these toggles into floating-point samples.
+   *
+   * Frame synchronization: The emulator also counts audio samples to determine when
+   * a video frame is complete (~17,050 cycles = ~800 samples per 60Hz frame).
+   * When a frame's worth of samples is generated, we trigger onFrameReady for rendering.
+   *
+   * @param {number} count - Number of audio samples to generate
+   * @returns {Float32Array} Generated audio samples in range [-1, 1]
+   */
   generateSamples(count) {
     // Allocate buffer in WASM memory
     const bufferPtr = this.wasmModule._malloc(count * 4); // float = 4 bytes
 
-    // Generate samples
+    // Generate samples (this runs the emulator for the required cycles)
     const generated = this.wasmModule._generateAudioSamples(bufferPtr, count);
 
-    // Copy samples from WASM memory
+    // Copy samples from WASM memory to JavaScript
     const samples = new Float32Array(count);
     for (let i = 0; i < count; i++) {
       samples[i] = this.wasmModule.HEAPF32[(bufferPtr >> 2) + i];

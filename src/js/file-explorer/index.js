@@ -429,7 +429,12 @@ export class FileExplorerWindow {
       pathBar.innerHTML = '';
     }
 
-    // Get entries in current directory
+    // Filter catalog entries to show only direct children of currentPath.
+    // ProDOS stores all entries with full paths (e.g., "SUBDIR/FILE.TXT").
+    // We filter to show only entries at the current directory level:
+    // - At root (currentPath=''): show entries with no '/' in their path
+    // - In subdirectory: show entries whose path starts with "currentPath/"
+    //   and have no additional '/' after that prefix (direct children only)
     const entriesInPath = this.catalog.filter(entry => {
       if (this.currentPath === '') {
         // Root: show entries without a path separator (direct children)
@@ -602,7 +607,12 @@ export class FileExplorerWindow {
           contentEl.className = 'fe-file-content asm';
           contentEl.innerHTML = '<pre>Disassembling...</pre>';
 
-          // For ProDOS, create a fake DOS 3.3-style header for disassembler
+          // Create compatible data format for the disassembler.
+          // The disassembler expects DOS 3.3 binary format: 4-byte header + data
+          // Header: bytes 0-1 = load address (little-endian), bytes 2-3 = length (little-endian)
+          // DOS 3.3 binary files already have this header, but ProDOS BIN files store
+          // address/length in the file's aux_type field, not in the file data itself.
+          // We create a synthetic header for ProDOS files so the disassembler works uniformly.
           let dataForDisasm;
           if (this.diskFormat === 'prodos') {
             // Create header: 2 bytes address + 2 bytes length + actual data
