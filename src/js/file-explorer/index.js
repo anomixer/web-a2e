@@ -535,7 +535,9 @@ export class FileExplorerWindow {
           return;
         }
 
-        const formatted = formatFileContents(fileData, viewerFileType);
+        // ProDOS BASIC files don't have the 2-byte length header that DOS 3.3 files have
+        const hasLengthHeader = this.diskFormat !== 'prodos';
+        const formatted = formatFileContents(fileData, viewerFileType, { hasLengthHeader });
         contentEl.className = `fe-file-content ${formatted.format}`;
         // BASIC files output HTML with syntax highlighting, others need escaping
         if (formatted.isHtml) {

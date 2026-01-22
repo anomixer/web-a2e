@@ -505,12 +505,12 @@ function escapeHtml(text) {
  * @param {Uint8Array} data - Raw file data
  * @returns {string} Detokenized BASIC listing as HTML
  */
-export function detokenizeIntegerBasic(data) {
+export function detokenizeIntegerBasic(data, hasLengthHeader = true) {
   const parsedLines = [];
   let indentLevel = 0;
 
-  // Skip 2-byte program length header
-  let offset = 2;
+  // DOS 3.3 files have a 2-byte program length header, ProDOS files do not
+  let offset = hasLengthHeader ? 2 : 0;
 
   while (offset < data.length) {
     const lineLength = data[offset];
@@ -699,12 +699,12 @@ export function detokenizeIntegerBasic(data) {
  * @param {Uint8Array} data - Raw file data
  * @returns {string} Detokenized BASIC listing as HTML
  */
-export function detokenizeApplesoft(data) {
+export function detokenizeApplesoft(data, hasLengthHeader = true) {
   const parsedLines = [];
   let indentLevel = 0;
 
-  // Skip the 2-byte file length header
-  let offset = 2;
+  // DOS 3.3 files have a 2-byte file length header, ProDOS files do not
+  let offset = hasLengthHeader ? 2 : 0;
   let prevLineNum = -1;
 
   while (offset < data.length - 4) {
@@ -1069,9 +1069,13 @@ export function formatTextFile(data) {
  * Format file contents based on type
  * @param {Uint8Array} data - Raw file data
  * @param {number} fileType - DOS 3.3 file type code
+ * @param {Object} options - Optional settings
+ * @param {boolean} options.hasLengthHeader - Whether BASIC files have 2-byte length header (DOS 3.3 = true, ProDOS = false)
  * @returns {Object} {content, format} where format is 'text' or 'hex'
  */
-export function formatFileContents(data, fileType) {
+export function formatFileContents(data, fileType, options = {}) {
+  const { hasLengthHeader = true } = options;
+
   switch (fileType) {
     case 0x00: // Text
       return {
@@ -1083,7 +1087,7 @@ export function formatFileContents(data, fileType) {
     case 0x02: {
       // Applesoft BASIC
       try {
-        const result = detokenizeApplesoft(data);
+        const result = detokenizeApplesoft(data, hasLengthHeader);
         return {
           content: result.html,
           format: "basic",
@@ -1105,7 +1109,7 @@ export function formatFileContents(data, fileType) {
     case 0x01: {
       // Integer BASIC
       try {
-        const result = detokenizeIntegerBasic(data);
+        const result = detokenizeIntegerBasic(data, hasLengthHeader);
         return {
           content: result.html,
           format: "basic",
