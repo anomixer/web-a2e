@@ -275,9 +275,9 @@ class AppleIIeEmulator {
       }
     });
 
-    // Exit full page mode on Escape key
+    // Exit full page mode on Ctrl+Escape (plain Escape goes to emulator)
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && this.isFullPageMode) {
+      if (e.key === "Escape" && e.ctrlKey && this.isFullPageMode) {
         e.preventDefault();
         exitFullPageMode();
       }
