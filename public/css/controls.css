@@ -65,12 +65,23 @@
 }
 
 /* Drives toggle button */
+#btn-drives {
+    color: var(--accent-green);
+}
+
+#btn-drives:hover {
+    border-color: var(--accent-green);
+    box-shadow: 0 0 15px rgba(63, 185, 80, 0.3);
+}
+
 #btn-drives.off {
-    opacity: 0.5;
+    color: var(--text-muted);
 }
 
 #btn-drives.off:hover {
-    opacity: 0.8;
+    color: var(--text-secondary);
+    border-color: var(--border-subtle);
+    box-shadow: none;
 }
 
 /* State control popup */
