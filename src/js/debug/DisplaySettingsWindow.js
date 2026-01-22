@@ -169,6 +169,11 @@ export class DisplaySettingsWindow extends DebugWindow {
       monochromeSelect.addEventListener('change', (e) => {
         const value = parseInt(e.target.value, 10);
         this.settings.monochromeMode = value;
+        // Tell emulator core to use monochrome rendering (bypasses NTSC artifacts)
+        if (this.wasmModule && this.wasmModule._setMonochrome) {
+          this.wasmModule._setMonochrome(value !== 0);
+        }
+        // Tell shader which phosphor color to use
         this.applyToRenderer('monochromeMode', value);
         this.saveSettings();
       });
@@ -254,6 +259,11 @@ export class DisplaySettingsWindow extends DebugWindow {
     if (monochromeSelect) {
       monochromeSelect.value = this.settings.monochromeMode;
     }
+    // Tell emulator core to use monochrome rendering (bypasses NTSC artifacts)
+    if (this.wasmModule && this.wasmModule._setMonochrome) {
+      this.wasmModule._setMonochrome(this.settings.monochromeMode !== 0);
+    }
+    // Tell shader which phosphor color to use
     this.applyToRenderer('monochromeMode', this.settings.monochromeMode);
 
     // Apply sharp pixels

@@ -552,6 +552,22 @@ bool isUKCharacterSet() {
   return false;
 }
 
+// Monochrome display mode (bypasses NTSC artifact coloring)
+EMSCRIPTEN_KEEPALIVE
+void setMonochrome(bool mono) {
+  if (g_emulator) {
+    g_emulator->getVideo().setMonochrome(mono);
+  }
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool isMonochrome() {
+  if (g_emulator) {
+    return g_emulator->getVideo().isMonochrome();
+  }
+  return false;
+}
+
 // ============================================================================
 // State Serialization
 // ============================================================================
