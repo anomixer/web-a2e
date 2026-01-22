@@ -604,14 +604,22 @@ bool importState(const uint8_t *data, size_t size) {
 // Standalone Disassembler (for file browser, external tools)
 // ============================================================================
 
-// Static buffer for disassembly output
-static std::string g_disasmBuffer;
+// Static buffer for disassembly result
+static a2e::DisasmResult g_disasmResult;
 
 EMSCRIPTEN_KEEPALIVE
-const char *disassembleRawData(const uint8_t *data, size_t size,
-                               uint16_t baseAddress, bool html) {
-  g_disasmBuffer = a2e::disassembleBlock(data, size, baseAddress, html);
-  return g_disasmBuffer.c_str();
+uint32_t disassembleRawData(const uint8_t *data, size_t size,
+                            uint16_t baseAddress) {
+  g_disasmResult = a2e::disassembleBlock(data, size, baseAddress);
+  return static_cast<uint32_t>(g_disasmResult.instructions.size());
+}
+
+EMSCRIPTEN_KEEPALIVE
+const a2e::DisasmInstruction *getDisasmInstructions() {
+  if (g_disasmResult.instructions.empty()) {
+    return nullptr;
+  }
+  return g_disasmResult.instructions.data();
 }
 
 EMSCRIPTEN_KEEPALIVE
