@@ -4,6 +4,7 @@ import { WebGLRenderer } from "./webgl-renderer.js";
 import { AudioDriver } from "./audio-driver.js";
 import { InputHandler } from "./input-handler.js";
 import { DiskManager } from "./disk-manager/index.js";
+import { FileExplorerWindow } from "./file-explorer/index.js";
 import { TextSelection } from "./TextSelection.js";
 import { MonitorResizer } from "./ui/MonitorResizer.js";
 import { ReminderController } from "./ui/ReminderController.js";
@@ -34,6 +35,7 @@ class AppleIIeEmulator {
     this.audioDriver = null;
     this.inputHandler = null;
     this.diskManager = null;
+    this.fileExplorer = null;
     this.windowManager = null;
     this.displaySettings = null;
     this.textSelection = null;
@@ -80,6 +82,10 @@ class AppleIIeEmulator {
       this.diskManager.onDiskLoaded = () => {
         this.reminderController.dismissBasicReminder();
       };
+
+      // Set up file explorer
+      this.fileExplorer = new FileExplorerWindow(this.wasmModule);
+      this.fileExplorer.create();
 
       // Set up debug windows
       this.windowManager = new WindowManager();
@@ -335,6 +341,14 @@ class AppleIIeEmulator {
 
         this.reminderController.dismissDrivesReminder();
         refocusCanvas();
+      });
+    }
+
+    // File explorer button
+    const fileExplorerBtn = document.getElementById("btn-file-explorer");
+    if (fileExplorerBtn) {
+      fileExplorerBtn.addEventListener("click", () => {
+        this.fileExplorer.toggle();
       });
     }
 
@@ -904,6 +918,10 @@ class AppleIIeEmulator {
 
     this.renderer = null;
     this.diskManager = null;
+    if (this.fileExplorer) {
+      this.fileExplorer.destroy();
+      this.fileExplorer = null;
+    }
     this.inputHandler = null;
     this.reminderController = null;
 

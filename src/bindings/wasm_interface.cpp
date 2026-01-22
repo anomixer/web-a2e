@@ -155,6 +155,15 @@ uint8_t *getDiskData(int drive, size_t *size) {
 }
 
 EMSCRIPTEN_KEEPALIVE
+const uint8_t *getDiskSectorData(int drive, size_t *size) {
+  if (g_emulator) {
+    return g_emulator->getDiskData(drive, size);
+  }
+  *size = 0;
+  return nullptr;
+}
+
+EMSCRIPTEN_KEEPALIVE
 void addBreakpoint(uint16_t address) {
   if (g_emulator) {
     g_emulator->addBreakpoint(address);
