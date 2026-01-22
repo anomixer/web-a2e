@@ -306,12 +306,81 @@
     vertical-align: middle;
 }
 
+/* ASM Legend */
+.fe-asm-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    padding: 6px 10px;
+    background: var(--bg-dark, #0d1117);
+    border-bottom: 1px solid var(--border-subtle);
+    font-family: var(--font-mono);
+    font-size: 10px;
+}
+
+.fe-asm-legend.hidden {
+    display: none;
+}
+
+.fe-asm-legend span {
+    display: inline-flex;
+    align-items: center;
+}
+
+.fe-asm-legend span::before {
+    content: '';
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    margin-right: 4px;
+}
+
+.fe-asm-legend .dis-branch::before {
+    background: #ff7b72;
+}
+
+.fe-asm-legend .dis-load::before {
+    background: #7ee787;
+}
+
+.fe-asm-legend .dis-math::before {
+    background: #ffa657;
+}
+
+.fe-asm-legend .dis-stack::before {
+    background: #d2a8ff;
+}
+
+.fe-asm-legend .dis-address::before {
+    background: #ffa657;
+}
+
+.fe-asm-legend .dis-immediate::before {
+    background: #a5d6ff;
+}
+
+.fe-asm-legend .dis-comment::before {
+    background: #8b949e;
+}
+
 .fe-file-content {
     flex: 1;
     overflow: auto;
     padding: 8px;
     background: var(--bg-dark, #0d1117);
     border-radius: 0 0 var(--radius-lg) 0;
+    /* Isolate layout calculations to improve resize performance */
+    contain: strict;
+}
+
+/* Virtual scroll container for large disassemblies */
+.fe-file-content .virtual-scroll-container {
+    contain: strict;
+}
+
+.fe-file-content .virtual-scroll-content {
+    color: var(--text-primary);
 }
 
 .fe-file-content pre {
@@ -326,6 +395,140 @@
 
 .fe-file-content.hex pre {
     color: var(--accent-cyan);
+}
+
+/* Disassembler syntax highlighting */
+.fe-file-content.asm pre {
+    color: var(--text-primary);
+    white-space: pre;
+}
+
+.dis-addr {
+    color: var(--text-muted, #6e7681);
+}
+
+.dis-bytes {
+    color: var(--accent-cyan, #79c0ff);
+}
+
+.dis-branch {
+    color: #ff7b72;  /* Red-ish for jumps/branches */
+    font-weight: 500;
+}
+
+.dis-load {
+    color: #7ee787;  /* Green for load/store */
+    font-weight: 500;
+}
+
+.dis-math {
+    color: #ffa657;  /* Orange for math/logic */
+    font-weight: 500;
+}
+
+.dis-stack {
+    color: #d2a8ff;  /* Purple for stack/register */
+    font-weight: 500;
+}
+
+.dis-flag {
+    color: #a5d6ff;  /* Light blue for flags */
+    font-weight: 500;
+}
+
+.dis-mnemonic {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.dis-directive {
+    color: #d2a8ff;  /* Purple for assembler directives */
+}
+
+.dis-immediate {
+    color: #a5d6ff;  /* Light blue for immediate values */
+}
+
+.dis-address {
+    color: #ffa657;  /* Orange for addresses */
+}
+
+.dis-target {
+    color: #ff7b72;  /* Red for branch targets */
+}
+
+.dis-register {
+    color: #7ee787;  /* Green for registers */
+}
+
+.dis-punct {
+    color: var(--text-muted, #6e7681);
+}
+
+.dis-comment {
+    color: #8b949e;  /* Grey for comments */
+    font-style: italic;
+}
+
+.dis-number {
+    color: #a5d6ff;  /* Light blue for numbers */
+}
+
+.dis-unknown {
+    color: var(--accent-red, #f85149);
+}
+
+/* BASIC syntax highlighting */
+.fe-file-content.basic pre {
+    color: var(--text-primary);
+    white-space: pre;
+}
+
+.bas-linenum {
+    color: var(--text-muted, #6e7681);
+}
+
+/* All keywords/commands - same color */
+.bas-flow,
+.bas-loop,
+.bas-io,
+.bas-graphics,
+.bas-memory,
+.bas-func,
+.bas-var,
+.bas-misc,
+.bas-keyword {
+    color: #79c0ff;  /* Blue for all commands */
+    font-weight: 500;
+}
+
+.bas-variable {
+    color: var(--text-primary);  /* White for variables */
+}
+
+.bas-string {
+    color: #7ee787;  /* Green for strings */
+}
+
+.bas-number {
+    color: #ffa657;  /* Orange for numbers */
+}
+
+.bas-comment {
+    color: #8b949e;  /* Grey for comments */
+    font-style: italic;
+}
+
+.bas-data {
+    color: #7ee787;  /* Same as strings for DATA values */
+}
+
+.bas-operator {
+    color: #d2a8ff;  /* Purple for operators (+, -, *, /, =, <, >) */
+}
+
+.bas-punct {
+    color: #d2a8ff;  /* Purple for punctuation (:, ;, etc.) */
 }
 
 .fe-file-content.text pre {

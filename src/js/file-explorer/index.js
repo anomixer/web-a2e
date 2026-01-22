@@ -4,13 +4,16 @@
 
 import { isDOS33, readCatalog, readFile, parseVTOC, getBinaryFileInfo } from './dos33.js';
 import { formatFileContents, formatFileSize, formatHexDump } from './file-viewer.js';
-import { disassemble } from './disassembler.js';
+import { disassemble, setWasmModule } from './disassembler.js';
 
 export class FileExplorerWindow {
   constructor(wasmModule) {
     this.wasmModule = wasmModule;
     this.element = null;
     this.isVisible = false;
+
+    // Initialize the disassembler with the WASM module
+    setWasmModule(wasmModule);
 
     // Window state
     this.currentX = 150;
@@ -77,6 +80,15 @@ export class FileExplorerWindow {
               <button class="fe-view-btn active" data-view="asm" title="Disassembly">ASM<span class="fe-experimental">experimental</span></button>
               <button class="fe-view-btn" data-view="hex" title="Hex dump">HEX</button>
             </div>
+          </div>
+          <div class="fe-asm-legend hidden">
+            <span class="dis-branch">Jump/Branch</span>
+            <span class="dis-load">Load/Store</span>
+            <span class="dis-math">Math/Logic</span>
+            <span class="dis-stack">Stack/Reg</span>
+            <span class="dis-address">Address</span>
+            <span class="dis-immediate">Immediate</span>
+            <span class="dis-comment">Comment</span>
           </div>
           <div class="fe-file-content"></div>
         </div>
@@ -370,6 +382,7 @@ export class FileExplorerWindow {
     const infoEl = this.element.querySelector('.fe-file-info');
     const contentEl = this.element.querySelector('.fe-file-content');
     const viewToggle = this.element.querySelector('.fe-view-toggle');
+    const asmLegend = this.element.querySelector('.fe-asm-legend');
 
     if (!this.selectedFile || !this.diskData) {
       this.clearFileView();
@@ -382,6 +395,10 @@ export class FileExplorerWindow {
     // Show/hide view toggle based on file type (only for binary files)
     const isBinary = this.selectedFile.fileType === 0x04;
     viewToggle.classList.toggle('hidden', !isBinary);
+
+    // Show/hide ASM legend based on binary file and view mode
+    const showLegend = isBinary && this.binaryViewMode === 'asm';
+    asmLegend.classList.toggle('hidden', !showLegend);
 
     // Read file data (cache it for view switching)
     try {
@@ -407,16 +424,12 @@ export class FileExplorerWindow {
           contentEl.className = 'fe-file-content hex';
           contentEl.innerHTML = `<pre>${this.escapeHtml(hexContent)}</pre>`;
         } else {
-          // Show disassembly (async)
-          contentEl.className = 'fe-file-content text';
+          // Show disassembly (async) - progressive rendering to avoid freezing
+          contentEl.className = 'fe-file-content asm';
           contentEl.innerHTML = '<pre>Disassembling...</pre>';
 
-          disassemble(fileData).then(content => {
-            // Only update if this file is still selected
-            if (this.selectedFile && this.currentFileData?.filename === this.selectedFile.filename) {
-              contentEl.innerHTML = `<pre>${this.escapeHtml(content)}</pre>`;
-            }
-          }).catch(e => {
+          // Pass contentEl for progressive rendering
+          disassemble(fileData, contentEl).catch(e => {
             contentEl.className = 'fe-file-content error';
             contentEl.innerHTML = `<div class="fe-error">Error disassembling: ${e.message}</div>`;
           });
@@ -425,7 +438,12 @@ export class FileExplorerWindow {
         // Non-binary files - use formatFileContents
         const formatted = formatFileContents(fileData, this.selectedFile.fileType);
         contentEl.className = `fe-file-content ${formatted.format}`;
-        contentEl.innerHTML = `<pre>${this.escapeHtml(formatted.content)}</pre>`;
+        // BASIC files output HTML with syntax highlighting, others need escaping
+        if (formatted.isHtml) {
+          contentEl.innerHTML = `<pre>${formatted.content}</pre>`;
+        } else {
+          contentEl.innerHTML = `<pre>${this.escapeHtml(formatted.content)}</pre>`;
+        }
       }
     } catch (e) {
       contentEl.className = 'fe-file-content error';
@@ -438,12 +456,14 @@ export class FileExplorerWindow {
     const infoEl = this.element.querySelector('.fe-file-info');
     const contentEl = this.element.querySelector('.fe-file-content');
     const viewToggle = this.element.querySelector('.fe-view-toggle');
+    const asmLegend = this.element.querySelector('.fe-asm-legend');
 
     titleEl.textContent = 'Select a file';
     infoEl.textContent = '';
     contentEl.innerHTML = '';
     contentEl.className = 'fe-file-content';
     viewToggle.classList.add('hidden');
+    asmLegend.classList.add('hidden');
     this.currentFileData = null;
   }
 

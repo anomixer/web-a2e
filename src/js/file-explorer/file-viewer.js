@@ -42,27 +42,59 @@ const INTEGER_BASIC_TOKENS = {
 };
 
 // Applesoft BASIC tokens (0x80-0xFF)
-// Spaces added around keywords that need them for readability
+// No embedded spaces - we handle spacing during output
 const APPLESOFT_TOKENS = [
-  ' END ', ' FOR ', ' NEXT ', ' DATA ', ' INPUT ', ' DEL ', ' DIM ', ' READ ',
-  ' GR ', ' TEXT ', ' PR# ', ' IN# ', ' CALL ', ' PLOT ', ' HLIN ', ' VLIN ',
-  ' HGR2 ', ' HGR ', ' HCOLOR= ', ' HPLOT ', ' DRAW ', ' XDRAW ', ' HTAB ', ' HOME ',
-  ' ROT= ', ' SCALE= ', ' SHLOAD ', ' TRACE ', ' NOTRACE ', ' NORMAL ', ' INVERSE ', ' FLASH ',
-  ' COLOR= ', ' POP ', ' VTAB ', ' HIMEM: ', ' LOMEM: ', ' ONERR ', ' RESUME ', ' RECALL ',
-  ' STORE ', ' SPEED= ', ' LET ', ' GOTO ', ' RUN ', ' IF ', ' RESTORE ', '&',
-  ' GOSUB ', ' RETURN ', ' REM ', ' STOP ', ' ON ', ' WAIT ', ' LOAD ', ' SAVE ',
-  ' DEF ', ' POKE ', ' PRINT ', ' CONT ', ' LIST ', ' CLEAR ', ' GET ', ' NEW ',
-  ' TAB(', ' TO ', ' FN ', ' SPC(', ' THEN ', ' AT ', ' NOT ', ' STEP ',
-  '+', '-', '*', '/', '^', ' AND ', ' OR ', '>',
-  '=', '<', 'SGN', 'INT', 'ABS', 'USR', 'FRE', ' SCRN(',
+  'END', 'FOR', 'NEXT', 'DATA', 'INPUT', 'DEL', 'DIM', 'READ',
+  'GR', 'TEXT', 'PR#', 'IN#', 'CALL', 'PLOT', 'HLIN', 'VLIN',
+  'HGR2', 'HGR', 'HCOLOR=', 'HPLOT', 'DRAW', 'XDRAW', 'HTAB', 'HOME',
+  'ROT=', 'SCALE=', 'SHLOAD', 'TRACE', 'NOTRACE', 'NORMAL', 'INVERSE', 'FLASH',
+  'COLOR=', 'POP', 'VTAB', 'HIMEM:', 'LOMEM:', 'ONERR', 'RESUME', 'RECALL',
+  'STORE', 'SPEED=', 'LET', 'GOTO', 'RUN', 'IF', 'RESTORE', '&',
+  'GOSUB', 'RETURN', 'REM', 'STOP', 'ON', 'WAIT', 'LOAD', 'SAVE',
+  'DEF', 'POKE', 'PRINT', 'CONT', 'LIST', 'CLEAR', 'GET', 'NEW',
+  'TAB(', 'TO', 'FN', 'SPC(', 'THEN', 'AT', 'NOT', 'STEP',
+  '+', '-', '*', '/', '^', 'AND', 'OR', '>',
+  '=', '<', 'SGN', 'INT', 'ABS', 'USR', 'FRE', 'SCRN(',
   'PDL', 'POS', 'SQR', 'RND', 'LOG', 'EXP', 'COS', 'SIN',
   'TAN', 'ATN', 'PEEK', 'LEN', 'STR$', 'VAL', 'ASC', 'CHR$',
   'LEFT$', 'RIGHT$', 'MID$', '', '', '', '', '',
   '', '', '', '', '', '', '', '',
 ];
 
+// Tokens that need space before them
+const NEEDS_SPACE_BEFORE = ['FOR', 'NEXT', 'DATA', 'INPUT', 'DIM', 'READ', 'GR', 'TEXT', 'CALL', 'PLOT', 'HLIN', 'VLIN', 'HGR2', 'HGR', 'HPLOT', 'DRAW', 'XDRAW', 'HTAB', 'HOME', 'SHLOAD', 'TRACE', 'NOTRACE', 'NORMAL', 'INVERSE', 'FLASH', 'POP', 'VTAB', 'ONERR', 'RESUME', 'RECALL', 'STORE', 'LET', 'GOTO', 'RUN', 'IF', 'RESTORE', 'GOSUB', 'RETURN', 'REM', 'STOP', 'ON', 'WAIT', 'LOAD', 'SAVE', 'DEF', 'POKE', 'PRINT', 'CONT', 'LIST', 'CLEAR', 'GET', 'NEW', 'TO', 'FN', 'THEN', 'AT', 'NOT', 'STEP', 'AND', 'OR', 'END'];
+// Tokens that need space after them (keywords followed by expressions)
+const NEEDS_SPACE_AFTER = ['GOTO', 'GOSUB', 'THEN', 'TO', 'STEP', 'AND', 'OR', 'NOT', 'IF', 'ON', 'LET', 'FOR', 'NEXT', 'PRINT', 'INPUT', 'READ', 'DATA', 'DIM', 'DEF', 'POKE', 'CALL', 'PLOT', 'HLIN', 'VLIN', 'HPLOT', 'DRAW', 'XDRAW', 'HTAB', 'VTAB', 'ONERR', 'WAIT', 'GET', 'AT', 'FN'];
+
+// BASIC keyword categories for syntax highlighting
+const BASIC_FLOW = ['GOTO', 'GOSUB', 'RETURN', 'IF', 'THEN', 'ON', 'ONERR', 'RESUME', 'END', 'STOP', 'RUN'];
+const BASIC_LOOP = ['FOR', 'TO', 'STEP', 'NEXT'];
+const BASIC_IO = ['PRINT', 'INPUT', 'GET', 'DATA', 'READ', 'RESTORE'];
+const BASIC_GRAPHICS = ['GR', 'HGR', 'HGR2', 'TEXT', 'PLOT', 'HPLOT', 'HLIN', 'VLIN', 'COLOR=', 'HCOLOR=', 'DRAW', 'XDRAW', 'ROT=', 'SCALE=', 'SCRN(', 'HOME', 'HTAB', 'VTAB', 'NORMAL', 'INVERSE', 'FLASH'];
+const BASIC_MEMORY = ['PEEK', 'POKE', 'CALL', 'HIMEM:', 'LOMEM:', 'USR', 'DEF', 'FN'];
+const BASIC_FUNCTIONS = ['SGN', 'INT', 'ABS', 'SQR', 'RND', 'LOG', 'EXP', 'COS', 'SIN', 'TAN', 'ATN', 'LEN', 'ASC', 'VAL', 'STR$', 'CHR$', 'LEFT$', 'RIGHT$', 'MID$', 'FRE', 'PDL', 'POS', 'TAB(', 'SPC('];
+const BASIC_VAR = ['DIM', 'LET', 'DEL', 'NEW', 'CLR', 'CLEAR'];
+const BASIC_MISC = ['REM', 'LOAD', 'SAVE', 'SHLOAD', 'STORE', 'RECALL', 'PR#', 'IN#', 'WAIT', 'CONT', 'LIST', 'TRACE', 'NOTRACE', 'SPEED=', 'POP', 'NOT', 'AND', 'OR', 'MOD'];
+
+function getBasicKeywordClass(keyword) {
+  const kw = keyword.trim().toUpperCase();
+  if (BASIC_FLOW.includes(kw)) return 'bas-flow';
+  if (BASIC_LOOP.includes(kw)) return 'bas-loop';
+  if (BASIC_IO.includes(kw)) return 'bas-io';
+  if (BASIC_GRAPHICS.includes(kw)) return 'bas-graphics';
+  if (BASIC_MEMORY.includes(kw)) return 'bas-memory';
+  if (BASIC_FUNCTIONS.includes(kw)) return 'bas-func';
+  if (BASIC_VAR.includes(kw)) return 'bas-var';
+  if (BASIC_MISC.includes(kw)) return 'bas-misc';
+  return 'bas-keyword';
+}
+
+function escapeHtml(text) {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 /**
- * Detokenize Integer BASIC program
+ * Detokenize Integer BASIC program with HTML syntax highlighting
  *
  * Integer BASIC file format:
  * - 2 bytes: program length (little-endian)
@@ -80,10 +112,11 @@ const APPLESOFT_TOKENS = [
  * Source: https://github.com/paleotronic/diskm8 and Apple II documentation
  *
  * @param {Uint8Array} data - Raw file data
- * @returns {string} Detokenized BASIC listing
+ * @returns {string} Detokenized BASIC listing as HTML
  */
 export function detokenizeIntegerBasic(data) {
-  const lines = [];
+  const parsedLines = [];
+  let indentLevel = 0;
 
   // Skip 2-byte program length header
   let offset = 2;
@@ -97,9 +130,15 @@ export function detokenizeIntegerBasic(data) {
 
     let pos = offset + 3;
     const lineEnd = offset + lineLength;
-    let line = `${lineNum} `;
+    let lineHtml = '';
     let inRem = false;
     let inQuote = false;
+    let stringContent = '';
+    let remContent = '';
+
+    // Track keywords for indentation
+    let hasFor = false;
+    let nextCount = 0;
 
     while (pos < lineEnd) {
       const byte = data[pos++];
@@ -108,55 +147,119 @@ export function detokenizeIntegerBasic(data) {
         break; // End of line
       } else if (inRem) {
         // Inside REM - rest of line is literal text with high bit set
-        line += String.fromCharCode(byte >= 0x80 ? byte & 0x7F : byte);
+        remContent += String.fromCharCode(byte >= 0x80 ? byte & 0x7F : byte);
       } else if (inQuote) {
         // Inside quoted string
         if (byte === 0x29) { // End quote token
-          line += '"';
+          lineHtml += `<span class="bas-string">"${escapeHtml(stringContent)}"</span>`;
+          stringContent = '';
           inQuote = false;
         } else if (byte >= 0x80) {
-          line += String.fromCharCode(byte & 0x7F);
+          stringContent += String.fromCharCode(byte & 0x7F);
         } else {
-          line += String.fromCharCode(byte);
+          stringContent += String.fromCharCode(byte);
         }
       } else if (byte >= 0xB0 && byte <= 0xB9) {
         // Numeric constant: $B0-$B9 followed by 2-byte little-endian integer
         if (pos + 1 < lineEnd) {
           const num = data[pos] | (data[pos + 1] << 8);
           // Handle as signed 16-bit if needed
-          line += (num > 32767 ? num - 65536 : num).toString();
+          const value = (num > 32767 ? num - 65536 : num).toString();
+          lineHtml += `<span class="bas-number">${value}</span>`;
           pos += 2;
         }
       } else if (byte === 0x28) {
         // Start quote token
-        line += '"';
         inQuote = true;
       } else if (byte === 0x5D) {
         // REM token - rest of line is comment
-        line += ' REM ';
+        lineHtml += `<span class="bas-misc"> REM </span>`;
         inRem = true;
       } else if (INTEGER_BASIC_TOKENS[byte] !== undefined) {
-        line += INTEGER_BASIC_TOKENS[byte];
+        const token = INTEGER_BASIC_TOKENS[byte];
+        const trimmed = token.trim();
+
+        // Track FOR/NEXT for indentation
+        if (trimmed === 'FOR') hasFor = true;
+        if (trimmed === 'NEXT') nextCount++;
+
+        if (trimmed.length > 1 && /^[A-Z]/.test(trimmed)) {
+          // It's a keyword
+          const kwClass = getBasicKeywordClass(trimmed);
+          lineHtml += `<span class="${kwClass}">${token}</span>`;
+        } else if ('+-*/^=<>'.includes(trimmed) || trimmed === '<>' || trimmed === '>=' || trimmed === '<=') {
+          lineHtml += `<span class="bas-operator">${escapeHtml(token)}</span>`;
+        } else if ('(),;:'.includes(trimmed)) {
+          lineHtml += `<span class="bas-punct">${escapeHtml(token)}</span>`;
+        } else {
+          lineHtml += escapeHtml(token);
+        }
       } else if (byte >= 0x80) {
-        // High-bit ASCII character (variable name, string content)
-        line += String.fromCharCode(byte & 0x7F);
+        // High-bit ASCII character (variable name)
+        let varName = String.fromCharCode(byte & 0x7F);
+        // Collect subsequent variable name characters
+        while (pos < lineEnd) {
+          const next = data[pos];
+          if (next >= 0x80) {
+            const ch = next & 0x7F;
+            if ((ch >= 0x41 && ch <= 0x5A) || (ch >= 0x61 && ch <= 0x7A) || (ch >= 0x30 && ch <= 0x39)) {
+              varName += String.fromCharCode(ch);
+              pos++;
+            } else {
+              break;
+            }
+          } else {
+            break;
+          }
+        }
+        lineHtml += `<span class="bas-variable">${escapeHtml(varName)}</span>`;
       } else if (byte >= 0x20 && byte < 0x80) {
         // Should not normally occur, but handle gracefully
-        line += String.fromCharCode(byte);
+        lineHtml += escapeHtml(String.fromCharCode(byte));
       }
     }
 
-    // Clean up multiple spaces
-    line = line.replace(/  +/g, ' ');
-    lines.push(line);
+    // Flush any remaining content
+    if (inQuote && stringContent) {
+      lineHtml += `<span class="bas-string">"${escapeHtml(stringContent)}</span>`;
+    }
+    if (inRem) {
+      lineHtml += `<span class="bas-comment">${escapeHtml(remContent)}</span>`;
+    }
+
+    // Calculate indentation: NEXT decreases before, FOR increases after
+    if (nextCount > 0) {
+      indentLevel = Math.max(0, indentLevel - nextCount);
+    }
+
+    // Store the line with current indent
+    parsedLines.push({
+      lineNum,
+      content: lineHtml,
+      indent: indentLevel,
+    });
+
+    // FOR increases indent for subsequent lines
+    if (hasFor) {
+      indentLevel++;
+    }
+
     offset += lineLength;
   }
+
+  // Format lines with indentation
+  const INDENT_WIDTH = 2;
+  const lines = parsedLines.map(line => {
+    const padding = ' '.repeat(line.indent * INDENT_WIDTH);
+    const lineNumStr = String(line.lineNum).padStart(5);
+    return `<span class="bas-linenum">${lineNumStr}</span> ${padding}${line.content}`;
+  });
 
   return lines.join('\n');
 }
 
 /**
- * Detokenize Applesoft BASIC program
+ * Detokenize Applesoft BASIC program with HTML syntax highlighting
  *
  * DOS 3.3 Applesoft file format:
  * - 2 bytes: file length (we skip this)
@@ -168,13 +271,15 @@ export function detokenizeIntegerBasic(data) {
  * - Program ends when next line pointer is 0x0000
  *
  * @param {Uint8Array} data - Raw file data
- * @returns {string} Detokenized BASIC listing
+ * @returns {string} Detokenized BASIC listing as HTML
  */
 export function detokenizeApplesoft(data) {
-  const lines = [];
+  const parsedLines = [];
+  let indentLevel = 0;
 
   // Skip the 2-byte file length header
   let offset = 2;
+  let prevLineNum = -1;
 
   while (offset < data.length - 4) {
     // Read next line pointer (2 bytes)
@@ -184,52 +289,189 @@ export function detokenizeApplesoft(data) {
     // Read line number (2 bytes)
     const lineNum = data[offset + 2] | (data[offset + 3] << 8);
 
-    // Sanity check: line numbers should be 0-63999
-    if (lineNum > 63999) {
-      break; // Invalid line number, stop parsing
-    }
+    // Sanity checks
+    if (lineNum > 63999) break;
+    if (lineNum <= prevLineNum && prevLineNum >= 0) break; // Line numbers must increase
+    prevLineNum = lineNum;
 
     offset += 4;
 
-    // Read tokens until end of line (0x00)
-    let line = '';
+    // Track keywords for indentation
+    let hasFor = false;
+    let nextCount = 0;
+
+    // Build plain text first, then convert to HTML
+    let parts = []; // Array of {type, text} objects
     let inString = false;
     let inRem = false;
     let inData = false;
+    let stringContent = '';
+    let remContent = '';
+    let dataContent = '';
+    let lastType = 'start'; // Track what we last output for spacing
 
     while (offset < data.length && data[offset] !== 0x00) {
       const byte = data[offset++];
 
-      if (inString || inRem || inData) {
-        // Inside string, REM, or DATA - just output character
-        line += String.fromCharCode(byte & 0x7F);
-        if (inString && byte === 0x22) inString = false; // End quote
+      if (inRem) {
+        remContent += String.fromCharCode(byte & 0x7F);
+      } else if (inString) {
+        const char = String.fromCharCode(byte & 0x7F);
+        if (byte === 0x22) {
+          parts.push({ type: 'string', text: '"' + stringContent + '"' });
+          stringContent = '';
+          inString = false;
+          lastType = 'string';
+        } else {
+          stringContent += char;
+        }
+      } else if (inData) {
+        const char = String.fromCharCode(byte & 0x7F);
+        if (byte === 0x3A) {
+          parts.push({ type: 'data', text: dataContent });
+          parts.push({ type: 'punct', text: ':' });
+          dataContent = '';
+          inData = false;
+          lastType = 'punct';
+        } else {
+          dataContent += char;
+        }
       } else if (byte >= 0x80) {
-        // Token
         const token = APPLESOFT_TOKENS[byte - 0x80];
-        line += token;
-        if (token.includes('REM')) inRem = true;
-        if (token.includes('DATA')) inData = true;
+        if (!token) continue;
+
+        // Track FOR/NEXT for indentation
+        if (token === 'FOR') hasFor = true;
+        if (token === 'NEXT') nextCount++;
+
+        // Add space before keyword if needed
+        if (NEEDS_SPACE_BEFORE.includes(token) && lastType !== 'start' && lastType !== 'punct') {
+          parts.push({ type: 'space', text: ' ' });
+        }
+
+        if (token === 'REM') {
+          parts.push({ type: 'keyword', text: token, kwClass: getBasicKeywordClass(token) });
+          inRem = true;
+          lastType = 'keyword';
+        } else if (token === 'DATA') {
+          parts.push({ type: 'keyword', text: token, kwClass: getBasicKeywordClass(token) });
+          inData = true;
+          lastType = 'keyword';
+        } else {
+          parts.push({ type: 'keyword', text: token, kwClass: getBasicKeywordClass(token) });
+          lastType = 'keyword';
+          // Add space after keyword if needed
+          if (NEEDS_SPACE_AFTER.includes(token)) {
+            parts.push({ type: 'space', text: ' ' });
+            lastType = 'space';
+          }
+        }
       } else if (byte === 0x22) {
-        // Start of string
-        line += '"';
         inString = true;
       } else if (byte === 0x3A) {
-        // Colon - statement separator, reset DATA mode
-        line += ':';
-        inData = false;
+        parts.push({ type: 'punct', text: ':' });
+        lastType = 'punct';
+      } else if (byte >= 0x30 && byte <= 0x39) {
+        let num = String.fromCharCode(byte);
+        while (offset < data.length && data[offset] !== 0x00 && data[offset] >= 0x30 && data[offset] <= 0x39) {
+          num += String.fromCharCode(data[offset++]);
+        }
+        if (offset < data.length && data[offset] === 0x2E) {
+          num += '.';
+          offset++;
+          while (offset < data.length && data[offset] !== 0x00 && data[offset] >= 0x30 && data[offset] <= 0x39) {
+            num += String.fromCharCode(data[offset++]);
+          }
+        }
+        parts.push({ type: 'number', text: num });
+        lastType = 'number';
+      } else if ((byte >= 0x41 && byte <= 0x5A) || (byte >= 0x61 && byte <= 0x7A)) {
+        let varName = String.fromCharCode(byte);
+        while (offset < data.length && data[offset] !== 0x00) {
+          const next = data[offset];
+          if ((next >= 0x41 && next <= 0x5A) || (next >= 0x61 && next <= 0x7A) ||
+              (next >= 0x30 && next <= 0x39) || next === 0x24 || next === 0x25) {
+            varName += String.fromCharCode(next);
+            offset++;
+          } else {
+            break;
+          }
+        }
+        parts.push({ type: 'variable', text: varName });
+        lastType = 'variable';
+      } else if (byte === 0x20) {
+        // Space - only add if not redundant
+        if (lastType !== 'space' && lastType !== 'punct' && lastType !== 'start') {
+          parts.push({ type: 'space', text: ' ' });
+          lastType = 'space';
+        }
       } else {
-        // Regular character
-        line += String.fromCharCode(byte);
+        const char = String.fromCharCode(byte);
+        if ('+-*/^=<>'.includes(char)) {
+          parts.push({ type: 'operator', text: char });
+          lastType = 'operator';
+        } else if ('(),;'.includes(char)) {
+          parts.push({ type: 'punct', text: char });
+          lastType = 'punct';
+        } else if (byte >= 0x20 && byte < 0x7F) {
+          parts.push({ type: 'text', text: char });
+          lastType = 'text';
+        }
       }
+    }
+
+    // Flush remaining content
+    if (inString && stringContent) {
+      parts.push({ type: 'string', text: '"' + stringContent });
+    }
+    if (inRem) {
+      parts.push({ type: 'comment', text: remContent });
+    }
+    if (inData && dataContent) {
+      parts.push({ type: 'data', text: dataContent });
     }
 
     offset++; // Skip end-of-line marker
 
-    // Clean up: collapse multiple spaces and trim
-    line = line.replace(/  +/g, ' ').trim();
-    lines.push(`${lineNum} ${line}`);
+    // Convert parts to HTML
+    let lineHtml = parts.map(p => {
+      const escaped = escapeHtml(p.text);
+      switch (p.type) {
+        case 'keyword': return `<span class="${p.kwClass}">${escaped}</span>`;
+        case 'string': return `<span class="bas-string">${escaped}</span>`;
+        case 'number': return `<span class="bas-number">${escaped}</span>`;
+        case 'variable': return `<span class="bas-variable">${escaped}</span>`;
+        case 'operator': return `<span class="bas-operator">${escaped}</span>`;
+        case 'punct': return `<span class="bas-punct">${escaped}</span>`;
+        case 'comment': return `<span class="bas-comment">${escaped}</span>`;
+        case 'data': return `<span class="bas-data">${escaped}</span>`;
+        default: return escaped;
+      }
+    }).join('');
+
+    // Calculate indentation
+    if (nextCount > 0) {
+      indentLevel = Math.max(0, indentLevel - nextCount);
+    }
+
+    parsedLines.push({
+      lineNum,
+      content: lineHtml,
+      indent: indentLevel,
+    });
+
+    if (hasFor) {
+      indentLevel++;
+    }
   }
+
+  // Format lines with indentation
+  const INDENT_WIDTH = 3;
+  const lines = parsedLines.map(line => {
+    const padding = ' '.repeat(line.indent * INDENT_WIDTH);
+    const lineNumStr = String(line.lineNum).padStart(5);
+    return `<span class="bas-linenum">${lineNumStr}</span> ${padding}${line.content}`;
+  });
 
   return lines.join('\n');
 }
@@ -326,8 +568,9 @@ export function formatFileContents(data, fileType) {
       try {
         return {
           content: detokenizeApplesoft(data),
-          format: 'text',
+          format: 'basic',
           description: 'Applesoft BASIC',
+          isHtml: true,
         };
       } catch (e) {
         // Fall back to hex if detokenization fails
@@ -342,8 +585,9 @@ export function formatFileContents(data, fileType) {
       try {
         return {
           content: detokenizeIntegerBasic(data),
-          format: 'text',
+          format: 'basic',
           description: 'Integer BASIC',
+          isHtml: true,
         };
       } catch (e) {
         // Fall back to hex if detokenization fails

@@ -1,5 +1,7 @@
 #include "../core/emulator.hpp"
+#include "../core/disassembler/disassembler.hpp"
 #include <cstdlib>
+#include <cstring>
 #include <emscripten.h>
 
 // Global emulator instance
@@ -596,6 +598,25 @@ bool importState(const uint8_t *data, size_t size) {
     return g_emulator->importState(data, size);
   }
   return false;
+}
+
+// ============================================================================
+// Standalone Disassembler (for file browser, external tools)
+// ============================================================================
+
+// Static buffer for disassembly output
+static std::string g_disasmBuffer;
+
+EMSCRIPTEN_KEEPALIVE
+const char *disassembleRawData(const uint8_t *data, size_t size,
+                               uint16_t baseAddress, bool html) {
+  g_disasmBuffer = a2e::disassembleBlock(data, size, baseAddress, html);
+  return g_disasmBuffer.c_str();
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getDisasmInstructionLength(uint8_t opcode) {
+  return a2e::getInstructionLength(opcode);
 }
 
 } // extern "C"
