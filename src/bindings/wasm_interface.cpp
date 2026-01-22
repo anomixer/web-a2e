@@ -456,6 +456,14 @@ bool isDiskModified(int drive) {
   return false;
 }
 
+EMSCRIPTEN_KEEPALIVE
+const char *getDiskFilename(int drive) {
+  if (g_emulator) {
+    return g_emulator->getDiskFilename(drive);
+  }
+  return nullptr;
+}
+
 // Memory tracking for debugger heat map
 EMSCRIPTEN_KEEPALIVE
 void enableMemoryTracking(bool enable) {
@@ -540,6 +548,27 @@ EMSCRIPTEN_KEEPALIVE
 bool isUKCharacterSet() {
   if (g_emulator) {
     return g_emulator->getVideo().isUKCharacterSet();
+  }
+  return false;
+}
+
+// ============================================================================
+// State Serialization
+// ============================================================================
+
+EMSCRIPTEN_KEEPALIVE
+uint8_t *exportState(size_t *size) {
+  if (g_emulator) {
+    return const_cast<uint8_t *>(g_emulator->exportState(size));
+  }
+  *size = 0;
+  return nullptr;
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool importState(const uint8_t *data, size_t size) {
+  if (g_emulator) {
+    return g_emulator->importState(data, size);
   }
   return false;
 }

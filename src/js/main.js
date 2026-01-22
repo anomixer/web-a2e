@@ -19,6 +19,13 @@ import {
   StackViewerWindow,
   ZeroPageWatchWindow,
 } from "./debug/index.js";
+import {
+  saveStateToStorage,
+  loadStateFromStorage,
+  hasSavedState,
+  clearStateFromStorage,
+  getSavedStateTimestamp,
+} from "./state-persistence.js";
 
 class AppleIIeEmulator {
   constructor() {
@@ -36,6 +43,8 @@ class AppleIIeEmulator {
 
     this.running = false;
     this.isFullPageMode = false;
+    this.autoSaveInterval = null;
+    this.autoSaveEnabled = true;
   }
 
   async init() {
@@ -121,12 +130,32 @@ class AppleIIeEmulator {
       // Load saved window states
       this.windowManager.loadState();
 
-      // Save window states when page is closed
+      // Save window states and emulator state when page is closed
       window.addEventListener("beforeunload", () => {
         if (this.windowManager) {
           this.windowManager.saveState();
         }
+        // Save emulator state if auto-save is enabled
+        if (this.autoSaveEnabled) {
+          this.saveState();
+        }
       });
+
+      // Also save state when page becomes hidden (tab switch, minimize, mobile)
+      // Only if auto-save is enabled
+      document.addEventListener("visibilitychange", () => {
+        if (document.hidden && this.running && this.autoSaveEnabled) {
+          this.saveState();
+        }
+      });
+
+      // Periodic auto-save while running (every 5 seconds)
+      // This ensures state is saved even if beforeunload doesn't complete
+      this.autoSaveInterval = setInterval(() => {
+        if (this.running && !document.hidden && this.autoSaveEnabled) {
+          this.saveState();
+        }
+      }, 5000);
 
       // Start with TV static "no signal" since emulator is off
       this.renderer.setNoSignal(true);
@@ -192,7 +221,7 @@ class AppleIIeEmulator {
       setTimeout(() => canvas.focus(), 0);
     };
 
-    // Power button
+    // Power button - simple on/off, no state save/restore
     powerBtn.addEventListener("click", () => {
       this.reminderController.showPowerReminder(false);
       if (this.running) {
@@ -216,8 +245,10 @@ class AppleIIeEmulator {
     });
 
     // Cold reset button (full restart)
-    document.getElementById("btn-cold-reset").addEventListener("click", () => {
+    document.getElementById("btn-cold-reset").addEventListener("click", async () => {
       this.wasmModule._reset();
+      // Clear saved state on cold reset so next power-on starts fresh
+      await clearStateFromStorage();
       refocusCanvas();
     });
 
@@ -306,6 +337,9 @@ class AppleIIeEmulator {
         refocusCanvas();
       });
     }
+
+    // State management popup
+    this.setupStateManagement(refocusCanvas);
 
     // Sound popup
     const soundBtn = document.getElementById("btn-sound");
@@ -474,6 +508,163 @@ class AppleIIeEmulator {
     }
   }
 
+  setupStateManagement(refocusCanvas) {
+    const stateBtn = document.getElementById("btn-state");
+    const statePopup = document.getElementById("state-popup");
+    const autosaveToggle = document.getElementById("autosave-toggle");
+    const saveStateBtn = document.getElementById("btn-save-state");
+    const restoreStateBtn = document.getElementById("btn-restore-state");
+    const stateStatus = document.getElementById("state-status");
+    const lastSavedEl = document.getElementById("state-last-saved");
+
+    if (!stateBtn || !statePopup) return;
+
+    // Load saved auto-save setting (default to enabled)
+    const savedAutosave = localStorage.getItem("a2e-autosave-state");
+    this.autoSaveEnabled = savedAutosave !== "false";
+    if (autosaveToggle) {
+      autosaveToggle.checked = this.autoSaveEnabled;
+    }
+    this.updateStateUI();
+
+    // Toggle popup
+    stateBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      statePopup.classList.toggle("hidden");
+      if (!statePopup.classList.contains("hidden")) {
+        this.updateStateUI();
+        this.updateLastSavedTime();
+      }
+    });
+
+    // Close popup when clicking outside
+    document.addEventListener("click", (e) => {
+      if (!statePopup.contains(e.target) && e.target !== stateBtn) {
+        statePopup.classList.add("hidden");
+      }
+    });
+
+    // Prevent popup from closing when clicking inside
+    statePopup.addEventListener("click", (e) => {
+      e.stopPropagation();
+    });
+
+    // Auto-save toggle
+    if (autosaveToggle) {
+      autosaveToggle.addEventListener("change", () => {
+        this.autoSaveEnabled = autosaveToggle.checked;
+        localStorage.setItem("a2e-autosave-state", this.autoSaveEnabled);
+        this.updateStateUI();
+      });
+    }
+
+    // Save state button
+    if (saveStateBtn) {
+      saveStateBtn.addEventListener("click", async () => {
+        if (!this.running) {
+          this.showNotification("Power on the emulator first to save state");
+          return;
+        }
+        await this.saveState();
+        this.updateLastSavedTime();
+        this.showNotification("State saved");
+      });
+    }
+
+    // Restore state button
+    if (restoreStateBtn) {
+      restoreStateBtn.addEventListener("click", async () => {
+        const hasState = await hasSavedState();
+        if (!hasState) {
+          this.showNotification("No saved state to restore");
+          return;
+        }
+        // Restore does a full power cycle, so it works whether running or not
+        const restored = await this.restoreState();
+        if (restored) {
+          this.showNotification("State restored");
+          statePopup.classList.add("hidden");
+        } else {
+          this.showNotification("Failed to restore state");
+        }
+        refocusCanvas();
+      });
+    }
+  }
+
+  updateStateUI() {
+    const stateBtn = document.getElementById("btn-state");
+    const stateStatus = document.getElementById("state-status");
+    const saveStateBtn = document.getElementById("btn-save-state");
+
+    if (stateBtn) {
+      stateBtn.classList.toggle("has-autosave", this.autoSaveEnabled);
+    }
+
+    if (stateStatus) {
+      if (this.autoSaveEnabled) {
+        stateStatus.textContent = "AUTO";
+        stateStatus.className = "state-status on";
+      } else {
+        stateStatus.textContent = "OFF";
+        stateStatus.className = "state-status off";
+      }
+    }
+
+    // Disable save button when auto-save is on (it's already saving automatically)
+    if (saveStateBtn) {
+      saveStateBtn.disabled = this.autoSaveEnabled;
+    }
+  }
+
+  async updateLastSavedTime() {
+    const lastSavedEl = document.getElementById("state-last-saved");
+    if (!lastSavedEl) return;
+
+    const timestamp = await getSavedStateTimestamp();
+    if (timestamp) {
+      const date = new Date(timestamp);
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+
+      let timeStr;
+      if (diffMins < 1) {
+        timeStr = "just now";
+      } else if (diffMins < 60) {
+        timeStr = `${diffMins} minute${diffMins === 1 ? "" : "s"} ago`;
+      } else if (diffHours < 24) {
+        timeStr = `${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
+      } else {
+        timeStr = date.toLocaleDateString();
+      }
+      lastSavedEl.textContent = `Last saved: ${timeStr}`;
+    } else {
+      lastSavedEl.textContent = "No saved state";
+    }
+  }
+
+  showNotification(message) {
+    // Create notification element if it doesn't exist
+    let notification = document.getElementById("state-notification");
+    if (!notification) {
+      notification = document.createElement("div");
+      notification.id = "state-notification";
+      notification.className = "state-notification";
+      document.body.appendChild(notification);
+    }
+
+    // Set message and show
+    notification.textContent = message;
+    notification.classList.add("visible");
+
+    // Hide after 3 seconds
+    setTimeout(() => {
+      notification.classList.remove("visible");
+    }, 3000);
+  }
+
   start() {
     if (this.running) return;
 
@@ -498,6 +689,142 @@ class AppleIIeEmulator {
     this.renderer.setNoSignal(true);
     this.updatePowerButton();
     console.log("Emulator powered off");
+  }
+
+  /**
+   * Flash the state button to indicate saving
+   */
+  flashStateButton() {
+    const stateBtn = document.getElementById("btn-state");
+    if (!stateBtn) return;
+
+    // Add saving class
+    stateBtn.classList.add("saving");
+
+    // Remove after animation
+    setTimeout(() => {
+      stateBtn.classList.remove("saving");
+    }, 600);
+  }
+
+  /**
+   * Save the current emulator state to IndexedDB
+   * @returns {Promise<void>}
+   */
+  async saveState() {
+    if (!this.running || !this.wasmModule) {
+      return;
+    }
+
+    try {
+      // Flash state button to indicate saving
+      this.flashStateButton();
+
+      // Get size pointer in WASM memory
+      const sizePtr = this.wasmModule._malloc(4);
+      const statePtr = this.wasmModule._exportState(sizePtr);
+
+      if (statePtr && sizePtr) {
+        // Access HEAPU32 fresh each time (typed arrays can be detached on memory growth)
+        const heapU32 = new Uint32Array(this.wasmModule.HEAPU8.buffer);
+        const size = heapU32[sizePtr / 4];
+
+        if (size > 0) {
+          // Copy state data from WASM memory
+          const stateData = new Uint8Array(size);
+          stateData.set(
+            new Uint8Array(this.wasmModule.HEAPU8.buffer, statePtr, size),
+          );
+          await saveStateToStorage(stateData);
+        }
+      }
+
+      this.wasmModule._free(sizePtr);
+    } catch (error) {
+      console.error("Failed to save emulator state:", error);
+    }
+  }
+
+  /**
+   * Restore emulator state from IndexedDB
+   * This is equivalent to powering off, powering on, and loading state.
+   * @returns {Promise<boolean>} True if state was restored
+   */
+  async restoreState() {
+    if (!this.wasmModule) {
+      return false;
+    }
+
+    try {
+      const stateData = await loadStateFromStorage();
+      if (!stateData) {
+        return false;
+      }
+
+      // Power cycle: stop and restart the emulator for a clean slate
+      const wasRunning = this.running;
+      if (wasRunning) {
+        this.stop();
+      }
+
+      // Start fresh (this calls _reset internally)
+      this.start();
+
+      // Copy state data to WASM memory
+      const statePtr = this.wasmModule._malloc(stateData.length);
+      this.wasmModule.HEAPU8.set(stateData, statePtr);
+
+      // Import state (this also calls reset() internally for safety)
+      const success = this.wasmModule._importState(statePtr, stateData.length);
+
+      this.wasmModule._free(statePtr);
+
+      if (success) {
+        // Sync disk manager UI with restored disk state
+        if (this.diskManager) {
+          this.diskManager.syncWithEmulatorState();
+        }
+        console.log("Restored emulator state from storage");
+        return true;
+      } else {
+        // If restore failed, stop the emulator
+        this.stop();
+      }
+    } catch (error) {
+      console.error("Failed to restore emulator state:", error);
+    }
+
+    return false;
+  }
+
+  /**
+   * Start the emulator and restore saved state if available
+   */
+  async startWithRestore() {
+    if (this.running) return;
+
+    // Check if there's a saved state
+    const hasState = await hasSavedState();
+
+    if (hasState) {
+      // Initialize without full reset
+      this.running = true;
+      this.renderer.setNoSignal(false);
+      this.audioDriver.start();
+      this.updatePowerButton();
+
+      // Try to restore state
+      const restored = await this.restoreState();
+      if (restored) {
+        return;
+      }
+
+      // If restore failed, do a normal reset
+      this.wasmModule._reset();
+    } else {
+      // Normal start with reset
+      this.start();
+    }
   }
 
   renderFrame() {
@@ -543,6 +870,11 @@ class AppleIIeEmulator {
   destroy() {
     if (this.running) {
       this.stop();
+    }
+
+    if (this.autoSaveInterval) {
+      clearInterval(this.autoSaveInterval);
+      this.autoSaveInterval = null;
     }
 
     if (this.monitorResizer) {

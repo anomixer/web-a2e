@@ -621,4 +621,35 @@ export class DiskManager {
     // Update access time by re-adding to recent list
     addToRecentDisks(driveNum, diskData.filename, diskData.data);
   }
+
+  /**
+   * Sync UI with emulator state after a state restore
+   * This updates the drive displays to show any disks loaded from the state snapshot
+   */
+  syncWithEmulatorState() {
+    for (let driveNum = 0; driveNum < 2; driveNum++) {
+      const drive = this.drives[driveNum];
+      const hasDisk = this.wasmModule._isDiskInserted(driveNum);
+
+      if (hasDisk) {
+        // Get filename from emulator
+        const filenamePtr = this.wasmModule._getDiskFilename(driveNum);
+        let filename = "Restored Disk";
+        if (filenamePtr) {
+          filename = this.wasmModule.UTF8ToString(filenamePtr);
+        }
+
+        drive.filename = filename;
+        if (drive.ejectBtn) drive.ejectBtn.disabled = false;
+        this.setDiskName(driveNum, filename);
+        console.log(`Synced drive ${driveNum + 1}: ${filename}`);
+      } else {
+        // No disk in drive
+        drive.filename = null;
+        if (drive.ejectBtn) drive.ejectBtn.disabled = true;
+        if (drive.input) drive.input.value = "";
+        this.setDiskName(driveNum, "No Disk");
+      }
+    }
+  }
 }

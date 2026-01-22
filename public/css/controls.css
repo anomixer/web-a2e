@@ -73,6 +73,264 @@
     opacity: 0.8;
 }
 
+/* State control popup */
+.state-control-wrapper {
+    position: relative;
+}
+
+.state-popup {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    width: 240px;
+    background: var(--bg-medium);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    z-index: 1000;
+    overflow: hidden;
+}
+
+.state-popup.hidden {
+    display: none;
+}
+
+.state-popup-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 14px;
+    background: var(--bg-dark);
+    border-bottom: 1px solid var(--border-default);
+}
+
+.state-popup-title {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.state-status {
+    font-size: 0.625rem;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: 500;
+}
+
+.state-status.on {
+    background: var(--accent-green-dim);
+    color: var(--accent-green);
+}
+
+.state-status.off {
+    background: rgba(139, 148, 158, 0.2);
+    color: var(--text-muted);
+}
+
+.state-popup-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 14px;
+}
+
+.state-row-label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.state-row-label span:first-child {
+    font-size: 0.8125rem;
+    color: var(--text-primary);
+}
+
+.state-row-hint {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+}
+
+/* State popup toggle switch */
+.state-popup .toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 22px;
+    background: transparent;
+    border: none;
+}
+
+.state-popup .toggle-switch::after {
+    display: none;
+}
+
+.state-popup .toggle-switch input {
+    position: absolute;
+    opacity: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+
+.state-popup .toggle-slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.15);
+    border-radius: 22px;
+    transition: 0.2s;
+}
+
+.state-popup .toggle-slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 3px;
+    bottom: 3px;
+    background-color: white;
+    border-radius: 50%;
+    transition: 0.2s;
+}
+
+.state-popup .toggle-switch input:checked + .toggle-slider {
+    background-color: var(--accent-green);
+}
+
+.state-popup .toggle-switch input:checked + .toggle-slider:before {
+    transform: translateX(18px);
+}
+
+.state-popup-divider {
+    height: 1px;
+    background: var(--border-default);
+    margin: 0 14px;
+}
+
+.state-popup-actions {
+    display: flex;
+    gap: 8px;
+    padding: 12px 14px;
+}
+
+.state-action-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 12px;
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    background: var(--bg-light);
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.state-action-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+.state-action-btn:hover:not(:disabled) {
+    background: var(--bg-panel);
+    color: var(--text-primary);
+    border-color: var(--text-muted);
+}
+
+.state-action-btn.save-btn:hover:not(:disabled) {
+    color: var(--accent-green);
+    border-color: var(--accent-green);
+    background: var(--accent-green-dim);
+}
+
+.state-action-btn.restore-btn:hover:not(:disabled) {
+    color: var(--accent-blue);
+    border-color: var(--accent-blue);
+    background: rgba(88, 166, 255, 0.15);
+}
+
+.state-action-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.state-action-btn:active:not(:disabled) {
+    transform: scale(0.97);
+}
+
+.state-last-saved {
+    padding: 8px 14px 12px;
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    text-align: center;
+    border-top: 1px solid var(--border-default);
+    background: var(--bg-dark);
+}
+
+.state-last-saved:empty {
+    display: none;
+}
+
+/* State button active indicator */
+#btn-state.has-autosave {
+    color: var(--accent-green);
+    border-color: var(--accent-green-dim);
+}
+
+/* State button saving animation */
+#btn-state.saving {
+    color: #f0883e;
+    border-color: #f0883e;
+    background: rgba(240, 136, 62, 0.2);
+    animation: state-save-pulse 0.6s ease;
+}
+
+@keyframes state-save-pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(240, 136, 62, 0.5);
+    }
+    50% {
+        box-shadow: 0 0 0 6px rgba(240, 136, 62, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(240, 136, 62, 0);
+    }
+}
+
+/* State notification toast */
+.state-notification {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    padding: 12px 20px;
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-default);
+    box-shadow: var(--shadow-lg);
+    font-size: 0.875rem;
+    z-index: 10000;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+}
+
+.state-notification.visible {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+    pointer-events: auto;
+}
+
 /* Reset buttons with labels */
 .control-btn.reset-btn {
     width: auto;

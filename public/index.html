@@ -111,24 +111,70 @@
                                 stroke="currentColor"
                                 stroke-width="2"
                             >
-                                <rect
-                                    x="4"
-                                    y="2"
-                                    width="16"
-                                    height="20"
-                                    rx="2"
-                                />
-                                <rect x="8" y="2" width="8" height="6" rx="1" />
-                                <rect
-                                    x="7"
-                                    y="12"
-                                    width="10"
-                                    height="7"
-                                    rx="1"
-                                />
-                                <line x1="10" y1="15" x2="14" y2="15" />
+                                <!-- Disk II drive box -->
+                                <rect x="2" y="6" width="20" height="12" rx="2" />
+                                <!-- Drive slot -->
+                                <rect x="5" y="9" width="10" height="1.5" rx="0.5" />
+                                <!-- LED indicator -->
+                                <circle cx="18" cy="12" r="1.5" />
+                                <!-- Drive door latch -->
+                                <line x1="5" y1="14" x2="8" y2="14" />
                             </svg>
                         </button>
+                        <div class="state-control-wrapper">
+                            <button
+                                id="btn-state"
+                                class="control-btn"
+                                title="State Management"
+                                aria-label="State Management"
+                            >
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                                    <polyline points="17 21 17 13 7 13 7 21"/>
+                                    <polyline points="7 3 7 8 15 8"/>
+                                </svg>
+                            </button>
+                            <div id="state-popup" class="state-popup hidden">
+                                <div class="state-popup-header">
+                                    <span class="state-popup-title">State Management</span>
+                                    <span id="state-status" class="state-status"></span>
+                                </div>
+                                <div class="state-popup-row">
+                                    <div class="state-row-label">
+                                        <span>Auto-Save</span>
+                                        <span class="state-row-hint">Save every 5 seconds</span>
+                                    </div>
+                                    <label class="toggle-switch">
+                                        <input type="checkbox" id="autosave-toggle" checked />
+                                        <span class="toggle-slider"></span>
+                                    </label>
+                                </div>
+                                <div class="state-popup-divider"></div>
+                                <div class="state-popup-actions">
+                                    <button id="btn-save-state" class="state-action-btn save-btn">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                                            <polyline points="17 21 17 13 7 13 7 21"/>
+                                            <polyline points="7 3 7 8 15 8"/>
+                                        </svg>
+                                        <span>Save Now</span>
+                                    </button>
+                                    <button id="btn-restore-state" class="state-action-btn restore-btn">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                            <polyline points="1 4 1 10 7 10"/>
+                                            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                                        </svg>
+                                        <span>Restore</span>
+                                    </button>
+                                </div>
+                                <div id="state-last-saved" class="state-last-saved"></div>
+                            </div>
+                        </div>
                         <div class="sound-control-wrapper">
                             <button
                                 id="btn-sound"
@@ -768,6 +814,19 @@
                                 </svg>
                                 Disk Drives
                             </button>
+                            <button data-section="state">
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="2"
+                                >
+                                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                                    <polyline points="17 21 17 13 7 13 7 21"/>
+                                    <polyline points="7 3 7 8 15 8"/>
+                                </svg>
+                                State Management
+                            </button>
                             <button data-section="debug">
                                 <svg
                                     viewBox="0 0 24 24"
@@ -1398,6 +1457,97 @@
                                         disks are stored in memory only. Use
                                         <strong>Eject</strong> and save when
                                         prompted to preserve changes.
+                                    </p>
+                                </div>
+                            </section>
+
+                            <!-- State Management Section -->
+                            <section
+                                id="doc-state"
+                                class="documentation-section"
+                            >
+                                <h3>State Management</h3>
+                                <p>
+                                    The emulator can save and restore its complete
+                                    state, allowing you to pause your session and
+                                    resume exactly where you left off.
+                                </p>
+
+                                <h4>What Gets Saved</h4>
+                                <ul>
+                                    <li>
+                                        <strong>CPU State</strong> - All registers
+                                        (A, X, Y, SP, PC) and status flags
+                                    </li>
+                                    <li>
+                                        <strong>Memory</strong> - Full 128KB RAM
+                                        (64KB main + 64KB auxiliary)
+                                    </li>
+                                    <li>
+                                        <strong>Language Card</strong> - 16KB
+                                        Language Card RAM banks
+                                    </li>
+                                    <li>
+                                        <strong>Soft Switches</strong> - All memory
+                                        banking and display mode settings
+                                    </li>
+                                    <li>
+                                        <strong>Disk Drives</strong> - Complete disk
+                                        images including any modifications, track
+                                        positions, and filenames
+                                    </li>
+                                </ul>
+
+                                <h4>Auto-Save</h4>
+                                <p>
+                                    When enabled (the default), the emulator
+                                    automatically saves state every 5 seconds while
+                                    running. This means you can close your browser
+                                    and return later to continue exactly where you
+                                    left off.
+                                </p>
+                                <ul>
+                                    <li>Toggle auto-save on/off in the State popup</li>
+                                    <li>State is stored in your browser's local storage</li>
+                                    <li>A timestamp shows when the last save occurred</li>
+                                </ul>
+
+                                <h4>Manual Save &amp; Restore</h4>
+                                <ul>
+                                    <li>
+                                        <strong>Save Now</strong> - Immediately
+                                        saves the current state
+                                    </li>
+                                    <li>
+                                        <strong>Restore</strong> - Reloads the last
+                                        saved state (performs a full power cycle)
+                                    </li>
+                                </ul>
+
+                                <h4>How Restore Works</h4>
+                                <p>
+                                    Restoring state is equivalent to powering off
+                                    the emulator, powering it back on, and then
+                                    loading the saved state. This ensures a clean
+                                    restoration with no leftover state from the
+                                    current session.
+                                </p>
+
+                                <div class="info-box tip">
+                                    <p>
+                                        <strong>Tip:</strong> State is preserved
+                                        even if your browser closes unexpectedly.
+                                        Just return to the emulator and click
+                                        <strong>Restore</strong> to continue.
+                                    </p>
+                                </div>
+
+                                <div class="info-box info">
+                                    <p>
+                                        <strong>Note:</strong> State is stored
+                                        locally in your browser using IndexedDB.
+                                        Clearing browser data will remove saved
+                                        states.
                                     </p>
                                 </div>
                             </section>
