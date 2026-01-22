@@ -37,6 +37,7 @@ export class FileExplorerWindow {
     this.selectedFile = null;
     this.diskData = null;
     this.diskFormat = null; // 'dos33' | 'prodos' | null
+    this.currentPath = ''; // Current directory path for ProDOS navigation
     this.binaryViewMode = 'asm'; // 'asm' or 'hex'
     this.currentFileData = null; // Cache for current file data
     this.basicLineNumToIndex = null; // For BASIC GOTO/GOSUB navigation
@@ -75,6 +76,7 @@ export class FileExplorerWindow {
       <div class="fe-content">
         <div class="fe-catalog-panel">
           <div class="fe-panel-header">Catalog</div>
+          <div class="fe-path-bar hidden"></div>
           <div class="fe-catalog-list"></div>
         </div>
         <div class="fe-file-panel">
@@ -140,8 +142,27 @@ export class FileExplorerWindow {
     catalogList.addEventListener('click', (e) => {
       const item = e.target.closest('.fe-catalog-item');
       if (item) {
+        // Check for parent directory navigation
+        if (item.dataset.action === 'parent') {
+          const parts = this.currentPath.split('/');
+          parts.pop();
+          this.navigateToPath(parts.join('/'));
+          return;
+        }
         const index = parseInt(item.dataset.index, 10);
-        this.selectFile(index);
+        if (!isNaN(index)) {
+          this.selectFile(index);
+        }
+      }
+    });
+
+    // Path bar breadcrumb navigation (ProDOS)
+    const pathBar = this.element.querySelector('.fe-path-bar');
+    pathBar.addEventListener('click', (e) => {
+      const pathItem = e.target.closest('.fe-path-item');
+      if (pathItem && !pathItem.matches(':last-child')) {
+        const path = pathItem.dataset.path || '';
+        this.navigateToPath(path);
       }
     });
 
@@ -341,29 +362,15 @@ export class FileExplorerWindow {
     // Check disk format - try ProDOS first, then DOS 3.3
     if (isProDOS(this.diskData)) {
       this.diskFormat = 'prodos';
-      const volumeInfo = parseVolumeInfo(this.diskData);
-      diskInfo.textContent = `${filename} (ProDOS: ${volumeInfo.volumeName})`;
+      this.volumeInfo = parseVolumeInfo(this.diskData);
+      diskInfo.textContent = `${filename} (ProDOS: ${this.volumeInfo.volumeName})`;
 
       // Read ProDOS catalog
       this.catalog = readProDOSCatalog(this.diskData);
 
-      // Render catalog - filter out directories, show paths
-      const fileEntries = this.catalog.filter(e => !e.isDirectory);
-      if (fileEntries.length === 0) {
-        catalogList.innerHTML = '<div class="fe-empty">Disk is empty</div>';
-      } else {
-        catalogList.innerHTML = fileEntries.map((entry, index) => {
-          // Find original index in full catalog
-          const originalIndex = this.catalog.indexOf(entry);
-          return `
-          <div class="fe-catalog-item" data-index="${originalIndex}">
-            <span class="fe-file-type ${entry.isLocked ? 'locked' : ''}">${entry.isLocked ? '*' : ' '}${entry.fileTypeName}</span>
-            <span class="fe-file-name">${this.escapeHtml(entry.path || entry.filename)}</span>
-            <span class="fe-file-sectors">${entry.blocksUsed}</span>
-          </div>
-        `;
-        }).join('');
-      }
+      // Reset to root directory and render
+      this.currentPath = '';
+      this.renderProDOSCatalog();
     } else if (isDOS33(this.diskData)) {
       this.diskFormat = 'dos33';
       const vtoc = parseVTOC(this.diskData);
@@ -397,8 +404,103 @@ export class FileExplorerWindow {
     this.clearFileView();
   }
 
+  /**
+   * Render the ProDOS catalog for the current directory path
+   */
+  renderProDOSCatalog() {
+    const catalogList = this.element.querySelector('.fe-catalog-list');
+    const pathBar = this.element.querySelector('.fe-path-bar');
+
+    // Show/hide path bar based on whether we're in a subdirectory
+    if (this.currentPath) {
+      pathBar.classList.remove('hidden');
+      // Build clickable breadcrumb path
+      const parts = this.currentPath.split('/');
+      let pathHtml = `<span class="fe-path-item" data-path="">/${this.volumeInfo.volumeName}</span>`;
+      let builtPath = '';
+      for (const part of parts) {
+        builtPath += (builtPath ? '/' : '') + part;
+        pathHtml += `/<span class="fe-path-item" data-path="${this.escapeHtml(builtPath)}">${this.escapeHtml(part)}</span>`;
+      }
+      pathBar.innerHTML = pathHtml;
+    } else {
+      pathBar.classList.add('hidden');
+      pathBar.innerHTML = '';
+    }
+
+    // Get entries in current directory
+    const entriesInPath = this.catalog.filter(entry => {
+      if (this.currentPath === '') {
+        // Root: show entries without a path separator (direct children)
+        return !entry.path.includes('/');
+      } else {
+        // Subdirectory: show entries whose path starts with currentPath/
+        // and have exactly one more component
+        const prefix = this.currentPath + '/';
+        if (!entry.path.startsWith(prefix)) return false;
+        const remainder = entry.path.slice(prefix.length);
+        return !remainder.includes('/');
+      }
+    });
+
+    if (entriesInPath.length === 0) {
+      catalogList.innerHTML = '<div class="fe-empty">Directory is empty</div>';
+    } else {
+      // Sort: directories first, then files, alphabetically
+      entriesInPath.sort((a, b) => {
+        if (a.isDirectory && !b.isDirectory) return -1;
+        if (!a.isDirectory && b.isDirectory) return 1;
+        return a.filename.localeCompare(b.filename);
+      });
+
+      // Add parent directory entry if in subdirectory
+      let html = '';
+      if (this.currentPath) {
+        html += `
+          <div class="fe-catalog-item fe-directory fe-parent-dir" data-action="parent">
+            <span class="fe-file-type">DIR</span>
+            <span class="fe-file-name">..</span>
+            <span class="fe-file-sectors"></span>
+          </div>
+        `;
+      }
+
+      html += entriesInPath.map(entry => {
+        const originalIndex = this.catalog.indexOf(entry);
+        const isDir = entry.isDirectory;
+        return `
+          <div class="fe-catalog-item ${isDir ? 'fe-directory' : ''}" data-index="${originalIndex}" ${isDir ? 'data-action="enter"' : ''}>
+            <span class="fe-file-type ${entry.isLocked ? 'locked' : ''}">${entry.isLocked ? '*' : ' '}${isDir ? 'DIR' : entry.fileTypeName}</span>
+            <span class="fe-file-name">${this.escapeHtml(entry.filename)}${isDir ? '/' : ''}</span>
+            <span class="fe-file-sectors">${entry.blocksUsed}</span>
+          </div>
+        `;
+      }).join('');
+
+      catalogList.innerHTML = html;
+    }
+  }
+
+  /**
+   * Navigate to a directory path (ProDOS)
+   */
+  navigateToPath(path) {
+    this.currentPath = path;
+    this.selectedFile = null;
+    this.clearFileView();
+    this.renderProDOSCatalog();
+  }
+
   selectFile(index) {
     if (index < 0 || index >= this.catalog.length) return;
+
+    const entry = this.catalog[index];
+
+    // If it's a directory, navigate into it instead of selecting
+    if (entry.isDirectory) {
+      this.navigateToPath(entry.path);
+      return;
+    }
 
     // Update selection UI - compare with data-index attribute since items may be filtered
     const items = this.element.querySelectorAll('.fe-catalog-item');
@@ -407,7 +509,7 @@ export class FileExplorerWindow {
       item.classList.toggle('selected', itemIndex === index);
     });
 
-    this.selectedFile = this.catalog[index];
+    this.selectedFile = entry;
     this.showFileContents();
   }
 

@@ -221,6 +221,58 @@
     font-size: 12px;
 }
 
+/* ProDOS Path Bar */
+.fe-path-bar {
+    padding: 6px 10px;
+    background: var(--bg-medium);
+    border-bottom: 1px solid var(--border-subtle);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.fe-path-bar.hidden {
+    display: none;
+}
+
+.fe-path-item {
+    color: var(--accent-blue);
+    cursor: pointer;
+}
+
+.fe-path-item:hover {
+    text-decoration: underline;
+}
+
+.fe-path-item:last-child {
+    color: var(--text-primary);
+    cursor: default;
+}
+
+.fe-path-item:last-child:hover {
+    text-decoration: none;
+}
+
+/* ProDOS Directory entries */
+.fe-catalog-item.fe-directory .fe-file-type {
+    color: var(--accent-cyan);
+}
+
+.fe-catalog-item.fe-directory .fe-file-name {
+    color: var(--accent-cyan);
+}
+
+.fe-catalog-item.fe-parent-dir {
+    background: var(--bg-medium);
+}
+
+.fe-catalog-item.fe-parent-dir:hover {
+    background: var(--bg-light);
+}
+
 /* File panel */
 .fe-file-panel {
     flex: 1;
