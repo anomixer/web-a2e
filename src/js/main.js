@@ -780,6 +780,11 @@ class AppleIIeEmulator {
       this.wasmModule._free(statePtr);
 
       if (success) {
+        // Hide power reminder since we're now running
+        if (this.reminderController) {
+          this.reminderController.showPowerReminder(false);
+          this.reminderController.showBasicReminder(false);
+        }
         // Sync disk manager UI with restored disk state
         if (this.diskManager) {
           this.diskManager.syncWithEmulatorState();
