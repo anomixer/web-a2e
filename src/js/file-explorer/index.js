@@ -3,6 +3,7 @@
  */
 
 import { isDOS33, readCatalog, readFile, parseVTOC, getBinaryFileInfo } from './dos33.js';
+import { isProDOS, readCatalog as readProDOSCatalog, readFile as readProDOSFile, parseVolumeInfo, mapFileTypeForViewer, getBinaryFileInfo as getProDOSBinaryInfo } from './prodos.js';
 import { formatFileContents, formatFileSize, formatHexDump } from './file-viewer.js';
 import { disassemble, setWasmModule } from './disassembler.js';
 
@@ -35,6 +36,7 @@ export class FileExplorerWindow {
     this.catalog = [];
     this.selectedFile = null;
     this.diskData = null;
+    this.diskFormat = null; // 'dos33' | 'prodos' | null
     this.binaryViewMode = 'asm'; // 'asm' or 'hex'
     this.currentFileData = null; // Cache for current file data
     this.basicLineNumToIndex = null; // For BASIC GOTO/GOSUB navigation
@@ -293,6 +295,7 @@ export class FileExplorerWindow {
       catalogList.innerHTML = '<div class="fe-empty">No disk in drive</div>';
       this.catalog = [];
       this.diskData = null;
+      this.diskFormat = null;
       this.clearFileView();
       return;
     }
@@ -311,6 +314,7 @@ export class FileExplorerWindow {
       catalogList.innerHTML = '<div class="fe-empty">Cannot read sector data<br><small>WOZ format disks are not supported</small></div>';
       this.catalog = [];
       this.diskData = null;
+      this.diskFormat = null;
       this.clearFileView();
       return;
     }
@@ -334,33 +338,59 @@ export class FileExplorerWindow {
       vtocBytes: Array.from(this.diskData.slice(17 * 16 * 256, 17 * 16 * 256 + 16)).map(b => b.toString(16).padStart(2, '0')).join(' '),
     });
 
-    // Check if DOS 3.3
-    if (!isDOS33(this.diskData)) {
-      diskInfo.textContent = `${filename} (Not DOS 3.3)`;
-      catalogList.innerHTML = '<div class="fe-empty">Not a DOS 3.3 disk</div>';
+    // Check disk format - try ProDOS first, then DOS 3.3
+    if (isProDOS(this.diskData)) {
+      this.diskFormat = 'prodos';
+      const volumeInfo = parseVolumeInfo(this.diskData);
+      diskInfo.textContent = `${filename} (ProDOS: ${volumeInfo.volumeName})`;
+
+      // Read ProDOS catalog
+      this.catalog = readProDOSCatalog(this.diskData);
+
+      // Render catalog - filter out directories, show paths
+      const fileEntries = this.catalog.filter(e => !e.isDirectory);
+      if (fileEntries.length === 0) {
+        catalogList.innerHTML = '<div class="fe-empty">Disk is empty</div>';
+      } else {
+        catalogList.innerHTML = fileEntries.map((entry, index) => {
+          // Find original index in full catalog
+          const originalIndex = this.catalog.indexOf(entry);
+          return `
+          <div class="fe-catalog-item" data-index="${originalIndex}">
+            <span class="fe-file-type ${entry.isLocked ? 'locked' : ''}">${entry.isLocked ? '*' : ' '}${entry.fileTypeName}</span>
+            <span class="fe-file-name">${this.escapeHtml(entry.path || entry.filename)}</span>
+            <span class="fe-file-sectors">${entry.blocksUsed}</span>
+          </div>
+        `;
+        }).join('');
+      }
+    } else if (isDOS33(this.diskData)) {
+      this.diskFormat = 'dos33';
+      const vtoc = parseVTOC(this.diskData);
+      diskInfo.textContent = `${filename} (Vol ${vtoc.volumeNumber})`;
+
+      // Read DOS 3.3 catalog
+      this.catalog = readCatalog(this.diskData);
+
+      // Render catalog
+      if (this.catalog.length === 0) {
+        catalogList.innerHTML = '<div class="fe-empty">Disk is empty</div>';
+      } else {
+        catalogList.innerHTML = this.catalog.map((entry, index) => `
+          <div class="fe-catalog-item" data-index="${index}">
+            <span class="fe-file-type ${entry.isLocked ? 'locked' : ''}">${entry.isLocked ? '*' : ' '}${entry.fileTypeName}</span>
+            <span class="fe-file-name">${this.escapeHtml(entry.filename)}</span>
+            <span class="fe-file-sectors">${entry.sectorCount}</span>
+          </div>
+        `).join('');
+      }
+    } else {
+      this.diskFormat = null;
+      diskInfo.textContent = `${filename} (Unknown format)`;
+      catalogList.innerHTML = '<div class="fe-empty">Unknown disk format</div>';
       this.catalog = [];
       this.clearFileView();
       return;
-    }
-
-    // Parse VTOC for disk info
-    const vtoc = parseVTOC(this.diskData);
-    diskInfo.textContent = `${filename} (Vol ${vtoc.volumeNumber})`;
-
-    // Read catalog
-    this.catalog = readCatalog(this.diskData);
-
-    // Render catalog
-    if (this.catalog.length === 0) {
-      catalogList.innerHTML = '<div class="fe-empty">Disk is empty</div>';
-    } else {
-      catalogList.innerHTML = this.catalog.map((entry, index) => `
-        <div class="fe-catalog-item" data-index="${index}">
-          <span class="fe-file-type ${entry.isLocked ? 'locked' : ''}">${entry.isLocked ? '*' : ' '}${entry.fileTypeName}</span>
-          <span class="fe-file-name">${this.escapeHtml(entry.filename)}</span>
-          <span class="fe-file-sectors">${entry.sectorCount}</span>
-        </div>
-      `).join('');
     }
 
     this.selectedFile = null;
@@ -370,10 +400,11 @@ export class FileExplorerWindow {
   selectFile(index) {
     if (index < 0 || index >= this.catalog.length) return;
 
-    // Update selection UI
+    // Update selection UI - compare with data-index attribute since items may be filtered
     const items = this.element.querySelectorAll('.fe-catalog-item');
-    items.forEach((item, i) => {
-      item.classList.toggle('selected', i === index);
+    items.forEach((item) => {
+      const itemIndex = parseInt(item.dataset.index, 10);
+      item.classList.toggle('selected', itemIndex === index);
     });
 
     this.selectedFile = this.catalog[index];
@@ -392,11 +423,26 @@ export class FileExplorerWindow {
       return;
     }
 
-    titleEl.textContent = this.selectedFile.filename;
-    infoEl.textContent = `${this.selectedFile.fileTypeDescription} - ${formatFileSize(this.selectedFile.sectorCount)}`;
+    // Display filename (with path for ProDOS)
+    const displayName = this.diskFormat === 'prodos' && this.selectedFile.path
+      ? this.selectedFile.path
+      : this.selectedFile.filename;
+    titleEl.textContent = displayName;
+
+    // Format file size info based on disk format
+    const sizeInfo = this.diskFormat === 'prodos'
+      ? formatFileSize(this.selectedFile.blocksUsed * 2) // ProDOS uses 512-byte blocks
+      : formatFileSize(this.selectedFile.sectorCount);
+    infoEl.textContent = `${this.selectedFile.fileTypeDescription} - ${sizeInfo}`;
+
+    // Determine if this is a binary file based on disk format
+    // DOS 3.3: fileType 0x04 is Binary
+    // ProDOS: fileType 0x06 (BIN) or 0xFF (SYS) are binary
+    const isBinary = this.diskFormat === 'prodos'
+      ? (this.selectedFile.fileType === 0x06 || this.selectedFile.fileType === 0xFF)
+      : this.selectedFile.fileType === 0x04;
 
     // Show/hide view toggle based on file type (only for binary files)
-    const isBinary = this.selectedFile.fileType === 0x04;
     viewToggle.classList.toggle('hidden', !isBinary);
 
     // Show/hide ASM legend based on binary file and view mode
@@ -406,10 +452,19 @@ export class FileExplorerWindow {
     // Read file data (cache it for view switching)
     try {
       // Only re-read if we don't have cached data or file changed
-      if (!this.currentFileData || this.currentFileData.filename !== this.selectedFile.filename) {
+      const cacheKey = this.diskFormat === 'prodos' && this.selectedFile.path
+        ? this.selectedFile.path
+        : this.selectedFile.filename;
+
+      if (!this.currentFileData || this.currentFileData.filename !== cacheKey) {
+        // Use appropriate read function based on disk format
+        const fileData = this.diskFormat === 'prodos'
+          ? readProDOSFile(this.diskData, this.selectedFile)
+          : readFile(this.diskData, this.selectedFile);
+
         this.currentFileData = {
-          filename: this.selectedFile.filename,
-          data: readFile(this.diskData, this.selectedFile),
+          filename: cacheKey,
+          data: fileData,
           fileType: this.selectedFile.fileType,
         };
       }
@@ -418,14 +473,24 @@ export class FileExplorerWindow {
 
       // Handle binary files with view toggle
       if (isBinary) {
-        const info = getBinaryFileInfo(fileData);
+        // Get binary info - ProDOS stores address in auxType, DOS 3.3 in file header
+        let info;
+        let displayData;
+
+        if (this.diskFormat === 'prodos') {
+          info = getProDOSBinaryInfo(this.selectedFile);
+          displayData = fileData; // ProDOS binary data doesn't have header
+        } else {
+          info = getBinaryFileInfo(fileData);
+          displayData = info ? fileData.slice(4) : fileData; // DOS 3.3 has 4-byte header
+        }
+
         // Clear BASIC navigation state for binary files
         this.basicLineNumToIndex = null;
         this.basicOriginalHtml = null;
 
         if (this.binaryViewMode === 'hex') {
           // Show hex dump
-          const displayData = info ? fileData.slice(4) : fileData;
           const hexContent = formatHexDump(displayData, info?.address || 0);
           contentEl.className = 'fe-file-content hex';
           contentEl.innerHTML = `<pre>${this.escapeHtml(hexContent)}</pre>`;
@@ -434,15 +499,43 @@ export class FileExplorerWindow {
           contentEl.className = 'fe-file-content asm';
           contentEl.innerHTML = '<pre>Disassembling...</pre>';
 
+          // For ProDOS, create a fake DOS 3.3-style header for disassembler
+          let dataForDisasm;
+          if (this.diskFormat === 'prodos') {
+            // Create header: 2 bytes address + 2 bytes length + actual data
+            dataForDisasm = new Uint8Array(4 + fileData.length);
+            dataForDisasm[0] = info.address & 0xFF;
+            dataForDisasm[1] = (info.address >> 8) & 0xFF;
+            dataForDisasm[2] = info.length & 0xFF;
+            dataForDisasm[3] = (info.length >> 8) & 0xFF;
+            dataForDisasm.set(fileData, 4);
+          } else {
+            dataForDisasm = fileData;
+          }
+
           // Pass contentEl for progressive rendering
-          disassemble(fileData, contentEl).catch(e => {
+          disassemble(dataForDisasm, contentEl).catch(e => {
             contentEl.className = 'fe-file-content error';
             contentEl.innerHTML = `<div class="fe-error">Error disassembling: ${e.message}</div>`;
           });
         }
       } else {
-        // Non-binary files - use formatFileContents
-        const formatted = formatFileContents(fileData, this.selectedFile.fileType);
+        // Non-binary files - use formatFileContents with mapped file type
+        const viewerFileType = this.diskFormat === 'prodos'
+          ? mapFileTypeForViewer(this.selectedFile.fileType)
+          : this.selectedFile.fileType;
+
+        // If mapFileTypeForViewer returns -1, use hex dump
+        if (viewerFileType === -1) {
+          const hexContent = formatHexDump(fileData);
+          contentEl.className = 'fe-file-content hex';
+          contentEl.innerHTML = `<pre>${this.escapeHtml(hexContent)}</pre>`;
+          this.basicLineNumToIndex = null;
+          this.basicOriginalHtml = null;
+          return;
+        }
+
+        const formatted = formatFileContents(fileData, viewerFileType);
         contentEl.className = `fe-file-content ${formatted.format}`;
         // BASIC files output HTML with syntax highlighting, others need escaping
         if (formatted.isHtml) {
