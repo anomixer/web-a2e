@@ -382,6 +382,23 @@
     border-color: var(--accent-blue);
 }
 
+/* Update button styling */
+.update-btn {
+    width: auto;
+    padding: 0 var(--space-md);
+    font-size: 0.8125rem;
+    font-weight: 500;
+}
+
+.update-btn span {
+    margin-left: var(--space-xs);
+}
+
+.update-btn:hover {
+    color: var(--accent-green);
+    border-color: var(--accent-green);
+}
+
 /* Display button styling */
 .display-btn {
     width: auto;

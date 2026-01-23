@@ -374,6 +374,36 @@ export class UIController {
         this.refocusCanvas();
       });
     }
+
+    // Update/refresh button - force service worker update
+    const updateBtn = document.getElementById("btn-update");
+    if (updateBtn) {
+      updateBtn.addEventListener("click", async () => {
+        if ("serviceWorker" in navigator) {
+          try {
+            const registration = await navigator.serviceWorker.getRegistration();
+            if (registration) {
+              // Unregister the service worker
+              await registration.unregister();
+              // Clear all caches
+              const cacheNames = await caches.keys();
+              await Promise.all(cacheNames.map((name) => caches.delete(name)));
+              // Reload the page to get fresh content
+              this.showNotification("Updating... page will reload");
+              setTimeout(() => window.location.reload(true), 500);
+            } else {
+              this.showNotification("No service worker registered");
+            }
+          } catch (error) {
+            console.error("Update failed:", error);
+            this.showNotification("Update failed: " + error.message);
+          }
+        } else {
+          // No service worker, just reload
+          window.location.reload(true);
+        }
+      });
+    }
   }
 
   /**

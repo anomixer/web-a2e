@@ -1,7 +1,15 @@
 // Service Worker for Apple //e Emulator
 // Enables offline functionality by caching app assets
 
-const CACHE_NAME = 'a2e-cache-v1';
+// IMPORTANT: Bump this version when WASM or core JS files change
+const CACHE_VERSION = 2;
+const CACHE_NAME = `a2e-cache-v${CACHE_VERSION}`;
+
+// Files that should always be fetched fresh (network-first)
+const NETWORK_FIRST_FILES = [
+  '/a2e.js',
+  '/a2e.wasm'
+];
 
 // Assets to cache on install
 const PRECACHE_ASSETS = [
@@ -63,6 +71,19 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// Check if URL should use network-first strategy
+function isNetworkFirst(url) {
+  // Explicit network-first files
+  if (NETWORK_FIRST_FILES.some(file => url.pathname === file || url.pathname.endsWith(file))) {
+    return true;
+  }
+  // Also use network-first for Vite JS bundles (they have hashed names)
+  if (url.pathname.includes('/assets/') && url.pathname.endsWith('.js')) {
+    return true;
+  }
+  return false;
+}
+
 // Fetch event - serve from cache, fall back to network
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
@@ -77,6 +98,29 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Use network-first for critical files (WASM, core JS)
+  if (isNetworkFirst(url)) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            // Update cache with fresh response
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          // Network failed, try cache as fallback
+          return caches.match(event.request);
+        })
+    );
+    return;
+  }
+
+  // Cache-first for other assets
   event.respondWith(
     caches.match(event.request)
       .then((cachedResponse) => {
