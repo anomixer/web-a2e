@@ -524,7 +524,7 @@ export function detokenizeIntegerBasic(data, hasLengthHeader = true) {
     let remContent = "";
 
     // Track keywords for indentation
-    let hasFor = false;
+    let forCount = 0;
     let nextCount = 0;
     let expectingLineNum = false; // True after GOTO, GOSUB
 
@@ -580,7 +580,7 @@ export function detokenizeIntegerBasic(data, hasLengthHeader = true) {
         const trimmed = token.trim();
 
         // Track FOR/NEXT for indentation
-        if (trimmed === "FOR") hasFor = true;
+        if (trimmed === "FOR") forCount++;
         if (trimmed === "NEXT") nextCount++;
 
         if (trimmed.length > 1 && /^[A-Z]/.test(trimmed)) {
@@ -642,6 +642,9 @@ export function detokenizeIntegerBasic(data, hasLengthHeader = true) {
       lineHtml += `<span class="bas-comment">${escapeHtml(remContent)}</span>`;
     }
 
+    // Strip any leading whitespace to ensure consistent alignment
+    lineHtml = lineHtml.trimStart();
+
     // Calculate indentation: NEXT decreases before, FOR increases after
     if (nextCount > 0) {
       indentLevel = Math.max(0, indentLevel - nextCount);
@@ -654,9 +657,9 @@ export function detokenizeIntegerBasic(data, hasLengthHeader = true) {
       indent: indentLevel,
     });
 
-    // FOR increases indent for subsequent lines
-    if (hasFor) {
-      indentLevel++;
+    // FOR increases indent for subsequent lines (supports nested loops)
+    if (forCount > 0) {
+      indentLevel += forCount;
     }
 
     offset += lineLength;
@@ -718,7 +721,7 @@ export function detokenizeApplesoft(data, hasLengthHeader = true) {
     offset += 4;
 
     // Track keywords for indentation
-    let hasFor = false;
+    let forCount = 0;
     let nextCount = 0;
 
     // Build plain text first, then convert to HTML
@@ -770,7 +773,7 @@ export function detokenizeApplesoft(data, hasLengthHeader = true) {
         if (!token) continue;
 
         // Track FOR/NEXT for indentation
-        if (token === "FOR") hasFor = true;
+        if (token === "FOR") forCount++;
         if (token === "NEXT") nextCount++;
 
         // Add space before keyword if needed
@@ -924,6 +927,11 @@ export function detokenizeApplesoft(data, hasLengthHeader = true) {
 
     offset++; // Skip end-of-line marker
 
+    // Strip any leading whitespace from parts to ensure consistent alignment
+    while (parts.length > 0 && parts[0].type === "space") {
+      parts.shift();
+    }
+
     // Convert parts to HTML
     let lineHtml = parts
       .map((p) => {
@@ -964,8 +972,9 @@ export function detokenizeApplesoft(data, hasLengthHeader = true) {
       indent: indentLevel,
     });
 
-    if (hasFor) {
-      indentLevel++;
+    // FOR increases indent for subsequent lines (supports nested loops)
+    if (forCount > 0) {
+      indentLevel += forCount;
     }
   }
 
