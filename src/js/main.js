@@ -24,6 +24,7 @@ import {
   StackViewerWindow,
   ZeroPageWatchWindow,
 } from "./debug/index.js";
+import { ReleaseNotesWindow } from "./ReleaseNotesWindow.js";
 
 // Display constants
 const MONITOR_ASPECT_RATIO = 4 / 3;
@@ -135,6 +136,19 @@ class AppleIIeEmulator {
       const zpWatchWindow = new ZeroPageWatchWindow(this.wasmModule);
       zpWatchWindow.create();
       this.windowManager.register(zpWatchWindow);
+
+      // Release notes window
+      this.releaseNotesWindow = new ReleaseNotesWindow();
+      this.releaseNotesWindow.create();
+      this.windowManager.register(this.releaseNotesWindow);
+
+      // Release notes button in footer
+      const releaseNotesBtn = document.getElementById("btn-release-notes");
+      if (releaseNotesBtn) {
+        releaseNotesBtn.addEventListener("click", () => {
+          this.windowManager.toggleWindow("release-notes");
+        });
+      }
 
       // Load saved window states
       this.windowManager.loadState();
@@ -338,7 +352,7 @@ class AppleIIeEmulator {
   }
 }
 
-// Register service worker for offline support
+// Register service worker for offline support with auto-update
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker
@@ -346,13 +360,28 @@ if ("serviceWorker" in navigator) {
       .then((registration) => {
         console.log("Service Worker registered:", registration.scope);
 
-        // Check for updates periodically
+        // Check for updates immediately on load
+        registration.update().catch((err) => {
+          console.log("Service Worker update check failed:", err);
+        });
+
+        // Handle new service worker installation
         registration.addEventListener("updatefound", () => {
           const newWorker = registration.installing;
           if (newWorker) {
             newWorker.addEventListener("statechange", () => {
-              if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
-                console.log("New version available - refresh to update");
+              if (newWorker.state === "installed") {
+                if (navigator.serviceWorker.controller) {
+                  // New version available - show notification and reload
+                  console.log("New version available - updating...");
+                  showUpdateNotification();
+
+                  // Tell the new service worker to take over
+                  newWorker.postMessage("skipWaiting");
+                } else {
+                  // First install - no reload needed
+                  console.log("App cached for offline use");
+                }
               }
             });
           }
@@ -361,7 +390,45 @@ if ("serviceWorker" in navigator) {
       .catch((error) => {
         console.log("Service Worker registration failed:", error);
       });
+
+    // Listen for controller change and reload
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (!refreshing) {
+        refreshing = true;
+        console.log("New service worker activated - reloading...");
+        window.location.reload();
+      }
+    });
   });
+}
+
+// Show update notification before reload
+function showUpdateNotification() {
+  const notification = document.createElement("div");
+  notification.id = "update-notification";
+  notification.innerHTML = `
+    <div class="update-notification-content">
+      <span>Updating to new version...</span>
+    </div>
+  `;
+  notification.style.cssText = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(13, 17, 23, 0.95);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(48, 54, 61, 0.6);
+    border-radius: 8px;
+    padding: 20px 30px;
+    z-index: 10000;
+    color: #e6edf3;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    font-size: 14px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  `;
+  document.body.appendChild(notification);
 }
 
 // Initialize when DOM is ready
