@@ -9,7 +9,7 @@ import { FileExplorerWindow } from "./file-explorer/index.js";
 import { TextSelection } from "./TextSelection.js";
 import { MonitorResizer } from "./ui/MonitorResizer.js";
 import { ReminderController } from "./ui/ReminderController.js";
-import { DocumentationDialog } from "./ui/DocumentationDialog.js";
+import { DocumentationWindow } from "./ui/DocumentationWindow.js";
 import { UIController } from "./ui/UIController.js";
 import { StateManager } from "./ui/StateManager.js";
 import {
@@ -42,7 +42,7 @@ class AppleIIeEmulator {
     this.textSelection = null;
     this.monitorResizer = null;
     this.reminderController = null;
-    this.documentationDialog = null;
+    this.documentationWindow = null;
     this.uiController = null;
     this.stateManager = null;
 
@@ -169,9 +169,10 @@ class AppleIIeEmulator {
       // Set up reminder controller
       this.reminderController = new ReminderController();
 
-      // Set up documentation dialog
-      this.documentationDialog = new DocumentationDialog();
-      this.documentationDialog.init();
+      // Set up documentation window
+      this.documentationWindow = new DocumentationWindow();
+      this.documentationWindow.create();
+      this.windowManager.register(this.documentationWindow);
 
       // Set up monitor resizer
       this.monitorResizer = new MonitorResizer({
