@@ -21,6 +21,52 @@ export class CPUDebuggerWindow extends DebugWindow {
     this.lastPC = null;
     this.disasmCache = [];  // Cache of {addr, disasm, len} for current view
     this.disasmStartAddr = 0;
+    this.tempBreakpoint = null;  // Temporary breakpoint for step over/out
+
+    // Load saved breakpoints
+    this.loadBreakpoints();
+  }
+
+  /**
+   * Storage key for breakpoints
+   */
+  static STORAGE_KEY = 'a2e-breakpoints';
+
+  /**
+   * Load breakpoints from localStorage
+   */
+  loadBreakpoints() {
+    try {
+      const saved = localStorage.getItem(CPUDebuggerWindow.STORAGE_KEY);
+      if (saved) {
+        const addresses = JSON.parse(saved);
+        for (const addr of addresses) {
+          this.breakpoints.set(addr, { enabled: true });
+          // Sync with WASM if available
+          if (this.wasmModule._addBreakpoint) {
+            try {
+              this.wasmModule._addBreakpoint(addr);
+            } catch (e) {
+              console.warn('Failed to restore breakpoint in WASM:', e);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load breakpoints from storage:', e);
+    }
+  }
+
+  /**
+   * Save breakpoints to localStorage
+   */
+  saveBreakpoints() {
+    try {
+      const addresses = Array.from(this.breakpoints.keys());
+      localStorage.setItem(CPUDebuggerWindow.STORAGE_KEY, JSON.stringify(addresses));
+    } catch (e) {
+      console.warn('Failed to save breakpoints to storage:', e);
+    }
   }
 
   renderContent() {
@@ -129,18 +175,16 @@ export class CPUDebuggerWindow extends DebugWindow {
       });
     }
 
-    // Step Over and Step Out - just do single step for now (same as step)
+    // Step Over - step over JSR instructions
     const stepOverBtn = this.contentElement.querySelector('#dbg-step-over');
-    const stepOutBtn = this.contentElement.querySelector('#dbg-step-out');
     if (stepOverBtn) {
-      stepOverBtn.addEventListener('click', () => {
-        this.wasmModule._stepInstruction();
-      });
+      stepOverBtn.addEventListener('click', () => this.stepOver());
     }
+
+    // Step Out - run until RTS returns
+    const stepOutBtn = this.contentElement.querySelector('#dbg-step-out');
     if (stepOutBtn) {
-      stepOutBtn.addEventListener('click', () => {
-        this.wasmModule._stepInstruction();
-      });
+      stepOutBtn.addEventListener('click', () => this.stepOut());
     }
 
     // Breakpoint add
@@ -189,6 +233,7 @@ export class CPUDebuggerWindow extends DebugWindow {
           console.warn('Failed to add breakpoint in WASM:', e);
         }
       }
+      this.saveBreakpoints();
       this.updateBreakpointList();
       this.updateDisassembly();
     }
@@ -207,6 +252,7 @@ export class CPUDebuggerWindow extends DebugWindow {
           console.warn('Failed to remove breakpoint in WASM:', e);
         }
       }
+      this.saveBreakpoints();
       this.updateBreakpointList();
       this.updateDisassembly();
     }
@@ -226,10 +272,98 @@ export class CPUDebuggerWindow extends DebugWindow {
   }
 
   /**
+   * Step Over - if current instruction is JSR, run until it returns
+   * Otherwise, just do a single step
+   */
+  stepOver() {
+    const pc = this.wasmModule._getPC();
+    const opcode = this.wasmModule._peekMemory(pc);
+
+    // JSR opcode is 0x20
+    if (opcode === 0x20) {
+      // Set temporary breakpoint at instruction after JSR (PC + 3)
+      const returnAddr = (pc + 3) & 0xFFFF;
+      this.setTempBreakpoint(returnAddr);
+      this.wasmModule._setPaused(false);
+    } else {
+      // Not a JSR, just single step
+      this.wasmModule._stepInstruction();
+    }
+  }
+
+  /**
+   * Step Out - run until the current subroutine returns
+   * Reads return address from stack and sets breakpoint there
+   */
+  stepOut() {
+    const sp = this.wasmModule._getSP();
+    // Stack is at $0100-$01FF, return address is at SP+1 (low) and SP+2 (high)
+    // The 6502 pushes PCH first, then PCL, so:
+    // $0100+SP+1 = PCL, $0100+SP+2 = PCH
+    const pcl = this.wasmModule._peekMemory(0x0100 + ((sp + 1) & 0xFF));
+    const pch = this.wasmModule._peekMemory(0x0100 + ((sp + 2) & 0xFF));
+    // RTS adds 1 to the address, so the actual return is (pch:pcl) + 1
+    const returnAddr = ((pch << 8) | pcl) + 1;
+
+    if (returnAddr > 0 && returnAddr <= 0xFFFF) {
+      this.setTempBreakpoint(returnAddr & 0xFFFF);
+      this.wasmModule._setPaused(false);
+    } else {
+      // Invalid return address (probably not in a subroutine), just step
+      this.wasmModule._stepInstruction();
+    }
+  }
+
+  /**
+   * Set a temporary breakpoint that will be auto-removed when hit
+   */
+  setTempBreakpoint(addr) {
+    // Remove any existing temp breakpoint
+    this.clearTempBreakpoint();
+
+    this.tempBreakpoint = addr;
+    if (this.wasmModule._addBreakpoint) {
+      try {
+        this.wasmModule._addBreakpoint(addr);
+      } catch (e) {
+        console.warn('Failed to add temp breakpoint:', e);
+      }
+    }
+  }
+
+  /**
+   * Clear the temporary breakpoint
+   */
+  clearTempBreakpoint() {
+    if (this.tempBreakpoint !== null) {
+      // Only remove from WASM if it's not also a user breakpoint
+      if (!this.breakpoints.has(this.tempBreakpoint)) {
+        if (this.wasmModule._removeBreakpoint) {
+          try {
+            this.wasmModule._removeBreakpoint(this.tempBreakpoint);
+          } catch (e) {
+            console.warn('Failed to remove temp breakpoint:', e);
+          }
+        }
+      }
+      this.tempBreakpoint = null;
+    }
+  }
+
+  /**
    * Update all window content
    */
   update(wasmModule) {
     this.wasmModule = wasmModule;
+
+    // Check if we hit a temporary breakpoint
+    if (this.tempBreakpoint !== null) {
+      const pc = this.wasmModule._getPC();
+      if (pc === this.tempBreakpoint) {
+        this.clearTempBreakpoint();
+      }
+    }
+
     this.updateRegisters();
     this.updateFlags();
     this.updateDisassembly();
