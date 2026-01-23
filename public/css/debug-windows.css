@@ -401,6 +401,36 @@
     cursor: help;
     border-bottom: 1px dotted currentColor;
     padding-bottom: 1px;
+    position: relative;
+}
+
+/* Custom tooltip that shows immediately on hover */
+.cpu-disasm-symbol::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 4px 8px;
+    background: #1a1a1a;
+    color: #e0e0e0;
+    font-size: 11px;
+    font-weight: normal;
+    white-space: nowrap;
+    border-radius: 4px;
+    border: 1px solid #333;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.15s, visibility 0.15s;
+    z-index: 1000;
+    pointer-events: none;
+    margin-bottom: 4px;
+}
+
+.cpu-disasm-symbol:hover::after {
+    opacity: 1;
+    visibility: visible;
 }
 
 /* Zero page symbols - green */

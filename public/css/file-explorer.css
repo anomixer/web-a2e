@@ -335,7 +335,9 @@
     font-weight: 500;
     cursor: pointer;
     border-radius: var(--radius-sm);
-    transition: background 0.15s, color 0.15s;
+    transition:
+        background 0.15s,
+        color 0.15s;
 }
 
 .fe-view-btn:hover {
@@ -382,7 +384,7 @@
 }
 
 .fe-asm-legend span::before {
-    content: '';
+    content: "";
     display: inline-block;
     width: 8px;
     height: 8px;
@@ -451,8 +453,76 @@
     word-break: break-all;
 }
 
+/* Hex dump styling */
 .fe-file-content.hex pre {
-    color: var(--accent-cyan);
+    color: var(--text-primary);
+    white-space: pre;
+    line-height: 1;
+}
+
+.hex-line {
+    display: block;
+}
+
+.hex-line:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.hex-addr {
+    color: #7c8799;
+    font-weight: 500;
+}
+
+.hex-separator {
+    color: #4a5568;
+}
+
+.hex-byte {
+    color: #79c0ff;
+}
+
+.hex-byte.hex-zero {
+    color: #4a5568;
+}
+
+.hex-byte.hex-printable {
+    color: #7ee787;
+}
+
+.hex-byte.hex-highbit {
+    color: #d2a8ff;
+}
+
+.hex-bytes-first {
+    margin-right: 4px;
+}
+
+.hex-bytes-second {
+    margin-right: 8px;
+}
+
+.hex-ascii-separator {
+    color: #3a4556;
+    margin: 0 6px;
+}
+
+.hex-ascii {
+    letter-spacing: 0;
+}
+
+.hex-ascii-printable {
+    color: #ffa657;
+}
+
+.hex-ascii-dot {
+    color: #3a4556;
+}
+
+.hex-truncated {
+    color: #7c8799;
+    font-style: italic;
+    margin-top: 8px;
+    display: block;
 }
 
 /* Disassembler syntax highlighting */
@@ -470,27 +540,27 @@
 }
 
 .dis-branch {
-    color: #ff7b72;  /* Red-ish for jumps/branches */
+    color: #ff7b72; /* Red-ish for jumps/branches */
     font-weight: 500;
 }
 
 .dis-load {
-    color: #7ee787;  /* Green for load/store */
+    color: #7ee787; /* Green for load/store */
     font-weight: 500;
 }
 
 .dis-math {
-    color: #ffa657;  /* Orange for math/logic */
+    color: #ffa657; /* Orange for math/logic */
     font-weight: 500;
 }
 
 .dis-stack {
-    color: #d2a8ff;  /* Purple for stack/register */
+    color: #d2a8ff; /* Purple for stack/register */
     font-weight: 500;
 }
 
 .dis-flag {
-    color: #a5d6ff;  /* Light blue for flags */
+    color: #a5d6ff; /* Light blue for flags */
     font-weight: 500;
 }
 
@@ -500,23 +570,23 @@
 }
 
 .dis-directive {
-    color: #d2a8ff;  /* Purple for assembler directives */
+    color: #d2a8ff; /* Purple for assembler directives */
 }
 
 .dis-data {
-    color: #8b949e;  /* Grey for unvisited data bytes */
+    color: #8b949e; /* Grey for unvisited data bytes */
 }
 
 .dis-immediate {
-    color: #a5d6ff;  /* Light blue for immediate values */
+    color: #a5d6ff; /* Light blue for immediate values */
 }
 
 .dis-address {
-    color: #ffa657;  /* Orange for addresses */
+    color: #ffa657; /* Orange for addresses */
 }
 
 .dis-target {
-    color: #ff7b72;  /* Red for branch targets */
+    color: #ff7b72; /* Red for branch targets */
 }
 
 .dis-clickable {
@@ -540,7 +610,7 @@
 }
 
 .dis-register {
-    color: #7ee787;  /* Green for registers */
+    color: #7ee787; /* Green for registers */
 }
 
 .dis-punct {
@@ -548,12 +618,12 @@
 }
 
 .dis-comment {
-    color: #8b949e;  /* Grey for comments */
+    color: #8b949e; /* Grey for comments */
     font-style: italic;
 }
 
 .dis-number {
-    color: #a5d6ff;  /* Light blue for numbers */
+    color: #a5d6ff; /* Light blue for numbers */
 }
 
 .dis-unknown {
@@ -580,37 +650,37 @@
 .bas-var,
 .bas-misc,
 .bas-keyword {
-    color: #79c0ff;  /* Blue for all commands */
+    color: #79c0ff; /* Blue for all commands */
     font-weight: 500;
 }
 
 .bas-variable {
-    color: var(--text-primary);  /* White for variables */
+    color: var(--text-primary); /* White for variables */
 }
 
 .bas-string {
-    color: #7ee787;  /* Green for strings */
+    color: #7ee787; /* Green for strings */
 }
 
 .bas-number {
-    color: #ffa657;  /* Orange for numbers */
+    color: #ffa657; /* Orange for numbers */
 }
 
 .bas-comment {
-    color: #8b949e;  /* Grey for comments */
+    color: #8b949e; /* Grey for comments */
     font-style: italic;
 }
 
 .bas-data {
-    color: #7ee787;  /* Same as strings for DATA values */
+    color: #7ee787; /* Same as strings for DATA values */
 }
 
 .bas-operator {
-    color: #d2a8ff;  /* Purple for operators (+, -, *, /, =, <, >) */
+    color: #d2a8ff; /* Purple for operators (+, -, *, /, =, <, >) */
 }
 
 .bas-punct {
-    color: #d2a8ff;  /* Purple for punctuation (:, ;, etc.) */
+    color: #d2a8ff; /* Purple for punctuation (:, ;, etc.) */
 }
 
 .bas-lineref {

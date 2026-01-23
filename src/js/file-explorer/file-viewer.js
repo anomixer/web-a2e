@@ -996,11 +996,11 @@ export function detokenizeApplesoft(data, hasLengthHeader = true) {
 }
 
 /**
- * Format binary data as hex dump with ASCII
+ * Format binary data as hex dump with ASCII (returns HTML)
  * @param {Uint8Array} data - Binary data
  * @param {number} baseAddress - Starting address for display
  * @param {number} maxBytes - Maximum bytes to show (0 = all)
- * @returns {string} Formatted hex dump
+ * @returns {string} Formatted hex dump as HTML
  */
 export function formatHexDump(data, baseAddress = 0, maxBytes = 0) {
   const lines = [];
@@ -1010,31 +1010,66 @@ export function formatHexDump(data, baseAddress = 0, maxBytes = 0) {
   for (let i = 0; i < bytesToShow; i += 16) {
     const addr = (baseAddress + i).toString(16).toUpperCase().padStart(4, "0");
 
-    // Hex bytes
-    let hex = "";
+    // Hex bytes - first half and second half
+    let hexFirst = "";
+    let hexSecond = "";
     let ascii = "";
 
     for (let j = 0; j < 16; j++) {
       if (i + j < bytesToShow) {
         const byte = data[i + j];
-        hex += byte.toString(16).toUpperCase().padStart(2, "0") + " ";
+        const hexStr = byte.toString(16).toUpperCase().padStart(2, "0");
+
+        // Style based on byte value
+        let byteClass = "hex-byte";
+        if (byte === 0x00) {
+          byteClass += " hex-zero";
+        } else if (byte >= 0x20 && byte < 0x7f) {
+          byteClass += " hex-printable";
+        } else if (byte >= 0x80) {
+          byteClass += " hex-highbit";
+        }
+
+        const styledByte = `<span class="${byteClass}">${hexStr}</span>`;
+        if (j < 8) {
+          hexFirst += styledByte + " ";
+        } else {
+          hexSecond += styledByte + " ";
+        }
+
         // ASCII representation (printable chars only)
         const ch = byte & 0x7f;
-        ascii += ch >= 0x20 && ch < 0x7f ? String.fromCharCode(ch) : ".";
+        if (ch >= 0x20 && ch < 0x7f) {
+          const escaped = ch === 0x26 ? "&amp;" : ch === 0x3c ? "&lt;" : ch === 0x3e ? "&gt;" : String.fromCharCode(ch);
+          ascii += `<span class="hex-ascii-printable">${escaped}</span>`;
+        } else {
+          ascii += `<span class="hex-ascii-dot">.</span>`;
+        }
       } else {
-        hex += "   ";
+        if (j < 8) {
+          hexFirst += "   ";
+        } else {
+          hexSecond += "   ";
+        }
         ascii += " ";
       }
-
-      // Add extra space in middle
-      if (j === 7) hex += " ";
     }
 
-    lines.push(`${addr}: ${hex} ${ascii}`);
+    lines.push(
+      `<span class="hex-line">` +
+      `<span class="hex-addr">${addr}</span>` +
+      `<span class="hex-separator">:</span> ` +
+      `<span class="hex-bytes-first">${hexFirst}</span>` +
+      `<span class="hex-bytes-second">${hexSecond}</span>` +
+      `<span class="hex-ascii-separator">│</span>` +
+      `<span class="hex-ascii">${ascii}</span>` +
+      `<span class="hex-ascii-separator">│</span>` +
+      `</span>`
+    );
   }
 
   if (maxBytes > 0 && data.length > maxBytes) {
-    lines.push(`... (${data.length - maxBytes} more bytes)`);
+    lines.push(`<span class="hex-truncated">... (${data.length - maxBytes} more bytes)</span>`);
   }
 
   return lines.join("\n");
@@ -1106,6 +1141,7 @@ export function formatFileContents(data, fileType, options = {}) {
           content: formatHexDump(data),
           format: "hex",
           description: "Applesoft BASIC (raw)",
+          isHtml: true,
         };
       }
     }
@@ -1128,6 +1164,7 @@ export function formatFileContents(data, fileType, options = {}) {
           content: formatHexDump(data),
           format: "hex",
           description: "Integer BASIC (raw)",
+          isHtml: true,
         };
       }
     }
@@ -1164,6 +1201,7 @@ export function formatFileContents(data, fileType, options = {}) {
         content: formatHexDump(data),
         format: "hex",
         description: "Unknown File Type",
+        isHtml: true,
       };
   }
 }

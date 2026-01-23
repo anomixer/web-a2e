@@ -581,7 +581,7 @@ export class CPUDebuggerWindow extends DebugWindow {
       const info = getSymbolInfo(addr);
       if (info) {
         const cssClass = getCategoryClass(info.category);
-        return `<span class="cpu-disasm-symbol ${cssClass}" title="${info.desc}">${info.name}</span>`;
+        return `<span class="cpu-disasm-symbol ${cssClass}" data-tooltip="${info.desc}">${info.name}</span>`;
       }
       return match; // Keep original if no symbol found
     });
@@ -592,7 +592,7 @@ export class CPUDebuggerWindow extends DebugWindow {
       const info = getSymbolInfo(addr);
       if (info) {
         const cssClass = getCategoryClass(info.category);
-        return `<span class="cpu-disasm-symbol ${cssClass}" title="${info.desc}">${info.name}</span>`;
+        return `<span class="cpu-disasm-symbol ${cssClass}" data-tooltip="${info.desc}">${info.name}</span>`;
       }
       return match;
     });

@@ -598,10 +598,10 @@ export class FileExplorerWindow {
         this.basicOriginalHtml = null;
 
         if (this.binaryViewMode === 'hex') {
-          // Show hex dump
+          // Show hex dump (formatHexDump returns HTML)
           const hexContent = formatHexDump(displayData, info?.address || 0);
           contentEl.className = 'fe-file-content hex';
-          contentEl.innerHTML = `<pre>${escapeHtml(hexContent)}</pre>`;
+          contentEl.innerHTML = `<pre>${hexContent}</pre>`;
         } else {
           // Show disassembly (async) - progressive rendering to avoid freezing
           contentEl.className = 'fe-file-content asm';
@@ -642,7 +642,7 @@ export class FileExplorerWindow {
         if (viewerFileType === -1) {
           const hexContent = formatHexDump(fileData);
           contentEl.className = 'fe-file-content hex';
-          contentEl.innerHTML = `<pre>${escapeHtml(hexContent)}</pre>`;
+          contentEl.innerHTML = `<pre>${hexContent}</pre>`;
           this.basicLineNumToIndex = null;
           this.basicOriginalHtml = null;
           return;

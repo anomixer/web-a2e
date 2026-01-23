@@ -170,11 +170,15 @@ export class DebugWindow {
     let x = e.clientX - this.dragOffset.x;
     let y = e.clientY - this.dragOffset.y;
 
-    // Keep window on screen
+    // Get header height to prevent dragging under it
+    const header = document.querySelector('header');
+    const minY = header ? header.offsetHeight : 0;
+
+    // Keep window on screen and below header
     const maxX = window.innerWidth - this.element.offsetWidth;
     const maxY = window.innerHeight - this.element.offsetHeight;
     x = Math.max(0, Math.min(x, maxX));
-    y = Math.max(0, Math.min(y, maxY));
+    y = Math.max(minY, Math.min(y, maxY));
 
     this.element.style.left = `${x}px`;
     this.element.style.top = `${y}px`;
@@ -392,6 +396,10 @@ export class DebugWindow {
     const width = this.currentWidth;
     const height = this.currentHeight;
 
+    // Get header height to prevent windows going under it
+    const header = document.querySelector('header');
+    const minTop = header ? header.offsetHeight : 0;
+
     let newLeft = this.currentX;
     let newTop = this.currentY;
     let changed = false;
@@ -426,14 +434,14 @@ export class DebugWindow {
       changed = true;
     }
 
-    if (height >= viewportHeight) {
-      newTop = 0;
+    if (height >= viewportHeight - minTop) {
+      newTop = minTop;
       changed = true;
     } else if (newTop + height > viewportHeight) {
       newTop = viewportHeight - height;
       changed = true;
-    } else if (newTop < 0) {
-      newTop = 0;
+    } else if (newTop < minTop) {
+      newTop = minTop;
       changed = true;
     }
 
