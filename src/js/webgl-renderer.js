@@ -63,6 +63,16 @@ export class WebGLRenderer {
 
       // Monochrome mode (0=color, 1=green, 2=amber, 3=white)
       monochromeMode: 0,
+
+      // Corner radius for rounded screen corners (0.0 to 0.15)
+      cornerRadius: 0.02,
+
+      // Screen margin - insets content so rounded corners don't clip it
+      // Should be slightly larger than cornerRadius
+      screenMargin: 0.02,
+
+      // Edge highlight intensity (0.0 to 1.0)
+      edgeHighlight: 0.3,
     };
 
     // Time for animated effects
@@ -178,6 +188,9 @@ export class WebGLRenderer {
       noSignal: gl.getUniformLocation(this.program, "u_noSignal"),
       ntscFringing: gl.getUniformLocation(this.program, "u_ntscFringing"),
       monochromeMode: gl.getUniformLocation(this.program, "u_monochromeMode"),
+      cornerRadius: gl.getUniformLocation(this.program, "u_cornerRadius"),
+      screenMargin: gl.getUniformLocation(this.program, "u_screenMargin"),
+      edgeHighlight: gl.getUniformLocation(this.program, "u_edgeHighlight"),
     };
 
     // Get burn-in program uniform locations
@@ -279,6 +292,10 @@ export class WebGLRenderer {
 
     // Set viewport
     gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+
+    // Enable blending for rounded corners transparency
+    gl.enable(gl.BLEND);
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
   }
 
   compileShader(type, source) {
@@ -367,7 +384,7 @@ export class WebGLRenderer {
     // Update burn-in accumulation
     this.updateBurnIn();
 
-    gl.clearColor(0, 0, 0, 1);
+    gl.clearColor(0.165, 0.149, 0.133, 1); // #2a2622 dark bezel color
     gl.clear(gl.COLOR_BUFFER_BIT);
 
     gl.useProgram(this.program);
@@ -426,6 +443,9 @@ export class WebGLRenderer {
     gl.uniform1f(this.uniforms.noSignal, this.crtParams.noSignal);
     gl.uniform1f(this.uniforms.ntscFringing, this.crtParams.ntscFringing);
     gl.uniform1i(this.uniforms.monochromeMode, this.crtParams.monochromeMode);
+    gl.uniform1f(this.uniforms.cornerRadius, this.crtParams.cornerRadius);
+    gl.uniform1f(this.uniforms.screenMargin, this.crtParams.screenMargin);
+    gl.uniform1f(this.uniforms.edgeHighlight, this.crtParams.edgeHighlight);
 
     // Draw
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -466,7 +486,7 @@ export class WebGLRenderer {
     }
 
     // Clear and redraw
-    gl.clearColor(0, 0, 0, 1);
+    gl.clearColor(0.165, 0.149, 0.133, 1); // #2a2622 dark bezel color
     gl.clear(gl.COLOR_BUFFER_BIT);
     this.draw();
   }

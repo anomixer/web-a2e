@@ -39,6 +39,15 @@ uniform float u_ntscFringing;
 // Monochrome mode (0=color, 1=green, 2=amber, 3=white)
 uniform int u_monochromeMode;
 
+// Corner radius for rounded screen corners
+uniform float u_cornerRadius;
+
+// Screen margin/padding for rounded corners (content is inset by this amount)
+uniform float u_screenMargin;
+
+// Edge highlight
+uniform float u_edgeHighlight;
+
 varying vec2 v_texCoord;
 
 // Constants
@@ -447,15 +456,72 @@ float edgeFade(vec2 uv) {
 }
 
 float smoothEdge(vec2 uv) {
-    if (u_curvature < 0.001) return 1.0;
+    if (u_curvature < 0.001 && u_cornerRadius < 0.001) return 1.0;
 
     vec2 centered = uv - 0.5;
-    float cornerRadius = u_curvature * 0.03;
+    // Use explicit corner radius if set, otherwise derive from curvature
+    float cornerRadius = u_cornerRadius > 0.001 ? u_cornerRadius : u_curvature * 0.03;
     vec2 cornerDist = abs(centered) - (0.5 - cornerRadius);
     cornerDist = max(cornerDist, 0.0);
     float corner = length(cornerDist) / cornerRadius;
 
     return 1.0 - smoothstep(0.9, 1.0, corner);
+}
+
+// Rounded rectangle SDF for clean corner masking
+float roundedRectAlpha(vec2 uv, float radius) {
+    if (radius < 0.001) return 1.0;
+
+    vec2 centered = abs(uv - 0.5);
+    vec2 cornerDist = centered - (0.5 - radius);
+
+    // Inside the rectangle (not in corner region)
+    if (cornerDist.x < 0.0 || cornerDist.y < 0.0) {
+        return 1.0;
+    }
+
+    // In corner region - use distance from corner arc
+    float dist = length(cornerDist);
+    // Smooth anti-aliased edge
+    return 1.0 - smoothstep(radius - 0.005, radius + 0.005, dist);
+}
+
+// Apply screen margin - scales content inward so corners don't clip it
+vec2 applyScreenMargin(vec2 uv) {
+    if (u_screenMargin < 0.001) return uv;
+
+    // Scale UV from center to create margin
+    vec2 centered = uv - 0.5;
+    float scale = 1.0 / (1.0 - u_screenMargin * 2.0);
+    return centered * scale + 0.5;
+}
+
+// Calculate edge highlight - sharp 1-pixel line around the edge
+float edgeHighlightIntensity(vec2 uv, float radius) {
+    if (u_edgeHighlight < 0.001) return 0.0;
+
+    // Distance from edge (0 at edge, increases toward center)
+    vec2 centered = abs(uv - 0.5);
+
+    // Line thickness in UV space (approximately 1-2 pixels)
+    float lineWidth = 1.5 / u_textureSize.y;
+
+    // Calculate distance from the rounded rectangle edge
+    vec2 cornerDist = centered - (0.5 - radius);
+    float distFromEdge;
+
+    if (cornerDist.x > 0.0 && cornerDist.y > 0.0) {
+        // In corner region - distance from arc
+        distFromEdge = radius - length(cornerDist);
+    } else {
+        // On straight edge - distance from nearest edge
+        distFromEdge = min(0.5 - centered.x, 0.5 - centered.y);
+    }
+
+    // Sharp line: only show when very close to edge
+    float highlight = step(distFromEdge, lineWidth) * step(0.0, distFromEdge);
+
+    return highlight * u_edgeHighlight;
 }
 
 // ============================================
@@ -472,36 +538,41 @@ void main() {
     // Apply screen curvature
     vec2 curvedUV = curveUV(uv);
 
+    // Calculate corner alpha using curved coordinates so corners follow the curvature
+    float cornerAlpha = roundedRectAlpha(curvedUV, u_cornerRadius);
+
+    // Outside rounded corners - fully transparent
+    if (cornerAlpha < 0.001) {
+        gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
+        return;
+    }
+
     // Apply overscan (adds border around content)
     vec2 contentUV = applyOverscan(curvedUV);
 
-    // Calculate edge factor
-    float edgeFactor = smoothEdge(v_texCoord);
+    // Apply screen margin - insets content so rounded corners don't clip it
+    contentUV = applyScreenMargin(contentUV);
 
-    // Outside corners - show bezel
+    // Dark bezel color for areas outside content
+    vec3 darkBezelColor = vec3(0.165, 0.149, 0.133); // #2a2622
+
+    // Calculate edge factor for curvature effects
+    float edgeFactor = smoothEdge(curvedUV);
+
+    // Outside corners from curvature - show dark bezel but respect corner alpha
     if (edgeFactor < 0.001) {
-        gl_FragColor = vec4(0.01, 0.01, 0.01, 1.0);
+        gl_FragColor = vec4(darkBezelColor, cornerAlpha);
         return;
     }
 
     // Outside screen area (including overscan border)
     if (curvedUV.x < 0.0 || curvedUV.x > 1.0 || curvedUV.y < 0.0 || curvedUV.y > 1.0) {
-        gl_FragColor = vec4(0.01, 0.01, 0.01, 1.0);
+        gl_FragColor = vec4(darkBezelColor, cornerAlpha);
         return;
     }
 
-    // Outside content area (in overscan border region)
-    if (contentUV.x < 0.0 || contentUV.x > 1.0 || contentUV.y < 0.0 || contentUV.y > 1.0) {
-        // Show static in border area too when in no-signal mode
-        if (u_noSignal > 0.5) {
-            vec3 borderStatic = noSignalStatic(curvedUV, u_time);
-            borderStatic *= edgeFactor;
-            gl_FragColor = vec4(borderStatic, 1.0);
-            return;
-        }
-        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
-        return;
-    }
+    // Check if we're in the margin area (outside content but inside screen)
+    bool inMargin = contentUV.x < 0.0 || contentUV.x > 1.0 || contentUV.y < 0.0 || contentUV.y > 1.0;
 
     // No signal mode - show TV static instead of emulator content
     if (u_noSignal > 0.5) {
@@ -521,58 +592,72 @@ void main() {
         // Blend with bezel
         staticColor = mix(vec3(0.01), staticColor, edgeFactor);
 
-        gl_FragColor = vec4(staticColor, 1.0);
+        gl_FragColor = vec4(staticColor, cornerAlpha);
         return;
     }
 
-    // Get base color with RGB shift
-    vec3 color = rgbShift(u_texture, contentUV);
+    // Get base color - dark bezel color for margin area, texture sample for content
+    vec3 color;
+    if (inMargin) {
+        color = darkBezelColor;
+    } else {
+        // Get base color with RGB shift
+        color = rgbShift(u_texture, contentUV);
 
-    // Apply NTSC color fringing (before other effects for best results)
-    color = ntscFringing(u_texture, contentUV, color);
-
-    // Apply burn-in from accumulation buffer
-    if (u_burnIn > 0.001) {
-        // Burn-in texture is stored in non-flipped coords, flip Y to match main texture
-        vec2 burnInCoord = vec2(contentUV.x, 1.0 - contentUV.y);
-        vec3 burnInColor = texture2D(u_burnInTexture, burnInCoord).rgb;
-        color = max(color, burnInColor * u_burnIn);
+        // Apply NTSC color fringing (before other effects for best results)
+        color = ntscFringing(u_texture, contentUV, color);
     }
 
-    // Add phosphor glow
-    color += glow(u_texture, contentUV);
+    // Apply texture-based effects only for content area
+    if (!inMargin) {
+        // Apply burn-in from accumulation buffer
+        if (u_burnIn > 0.001) {
+            // Burn-in texture is stored in non-flipped coords, flip Y to match main texture
+            vec2 burnInCoord = vec2(contentUV.x, 1.0 - contentUV.y);
+            vec3 burnInColor = texture2D(u_burnInTexture, burnInCoord).rgb;
+            color = max(color, burnInColor * u_burnIn);
+        }
 
-    // Apply scanlines
-    color *= scanlines(contentUV);
+        // Add phosphor glow
+        color += glow(u_texture, contentUV);
+    }
+
+    // Apply scanlines (use curvedUV for consistent scanlines across margin)
+    color *= scanlines(curvedUV);
 
     // Apply shadow mask
-    color *= shadowMask(contentUV);
+    color *= shadowMask(curvedUV);
 
-    // Apply color adjustments
+    // Apply color adjustments (brightness, contrast, saturation)
     color = adjustColor(color);
 
     // Apply monochrome mode (after color adjustments, before vignette)
     color = applyMonochrome(color);
 
     // Apply vignette
-    color *= vignette(contentUV);
+    color *= vignette(curvedUV);
 
     // Apply edge fade for curved screens
     if (u_curvature > 0.001) {
-        color *= edgeFade(contentUV);
+        color *= edgeFade(curvedUV);
     }
 
     // Apply flicker
     color *= flicker(u_time);
 
     // Add glowing line
-    color += vec3(glowingLine(contentUV, u_time));
+    color += vec3(glowingLine(curvedUV, u_time));
 
     // Add static noise
-    color += vec3(staticNoise(contentUV, u_time));
+    color += vec3(staticNoise(curvedUV, u_time));
 
     // Apply ambient light
-    color = applyAmbientLight(color, contentUV);
+    color = applyAmbientLight(color, curvedUV);
+
+    // Apply edge highlight - lighter color around the screen edge
+    float edgeGlow = edgeHighlightIntensity(curvedUV, u_cornerRadius);
+    vec3 highlightColor = vec3(0.4, 0.4, 0.35); // Slightly warm light gray
+    color = mix(color, highlightColor, edgeGlow);
 
     // Blend with bezel
     vec3 bezelColor = vec3(0.01);
@@ -581,5 +666,6 @@ void main() {
     // Clamp final color
     color = clamp(color, 0.0, 1.0);
 
-    gl_FragColor = vec4(color, 1.0);
+    // Apply corner alpha for rounded corners
+    gl_FragColor = vec4(color, cornerAlpha);
 }

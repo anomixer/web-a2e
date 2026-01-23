@@ -362,7 +362,7 @@
 /* Screen styles */
 .monitor-screen-wrapper {
     position: relative;
-    background: #000;
+    background: #2a2622; /* Dark shade of bezel color */
     border-radius: var(--radius-lg);
     overflow: hidden;
     padding: 16px;
@@ -378,7 +378,7 @@
     display: block;
     image-rendering: pixelated;
     image-rendering: crisp-edges;
-    background: #000;
+    background: #2a2622; /* Dark shade of bezel color */
     outline: none;
     width: 560px;
     height: 384px;
