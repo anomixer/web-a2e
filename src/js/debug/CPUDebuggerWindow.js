@@ -1,5 +1,5 @@
 import { DebugWindow } from './DebugWindow.js';
-import { getSymbol } from './symbols.js';
+import { getSymbolInfo, getCategoryClass } from './symbols.js';
 
 /**
  * CPUDebuggerWindow - CPU registers, disassembly, and breakpoints
@@ -444,9 +444,10 @@ export class CPUDebuggerWindow extends DebugWindow {
     // Then replace $XXXX patterns (4-digit hex addresses) with symbols
     result = result.replace(/\$([0-9A-Fa-f]{4})(?![0-9A-Fa-f])/g, (match, hexAddr) => {
       const addr = parseInt(hexAddr, 16);
-      const symbol = getSymbol(addr);
-      if (symbol) {
-        return `<span class="cpu-disasm-symbol">${symbol}</span>`;
+      const info = getSymbolInfo(addr);
+      if (info) {
+        const cssClass = getCategoryClass(info.category);
+        return `<span class="cpu-disasm-symbol ${cssClass}" title="${info.desc}">${info.name}</span>`;
       }
       return match; // Keep original if no symbol found
     });
@@ -454,9 +455,10 @@ export class CPUDebuggerWindow extends DebugWindow {
     // Also handle 2-digit zero page addresses that have symbols
     result = result.replace(/\$([0-9A-Fa-f]{2})(?![0-9A-Fa-f])/g, (match, hexAddr) => {
       const addr = parseInt(hexAddr, 16);
-      const symbol = getSymbol(addr);
-      if (symbol) {
-        return `<span class="cpu-disasm-symbol">${symbol}</span>`;
+      const info = getSymbolInfo(addr);
+      if (info) {
+        const cssClass = getCategoryClass(info.category);
+        return `<span class="cpu-disasm-symbol ${cssClass}" title="${info.desc}">${info.name}</span>`;
       }
       return match;
     });

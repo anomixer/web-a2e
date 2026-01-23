@@ -1,323 +1,369 @@
 /**
  * Apple IIe Symbol Table
- * Maps known addresses to symbolic names for disassembly display
+ * Maps known addresses to symbolic names with descriptions for disassembly display
  */
+
+// Symbol categories for color coding
+export const SYMBOL_CATEGORY = {
+  ZEROPAGE: 'zp',
+  SOFTSWITCH: 'sw',
+  DISK: 'disk',
+  ROM: 'rom',
+  BASIC: 'basic',
+  VECTOR: 'vec',
+  IO: 'io',
+};
+
+/**
+ * Create a symbol entry with name, description, and category
+ */
+function sym(name, desc, category) {
+  return { name, desc, category };
+}
 
 // Zero Page locations
 export const ZERO_PAGE_SYMBOLS = {
-  0x00: "LOMEM",      // Start of BASIC program
-  0x01: "LOMEM+1",
-  0x20: "WNDLFT",     // Text window left edge
-  0x21: "WNDWDTH",    // Text window width
-  0x22: "WNDTOP",     // Text window top
-  0x23: "WNDBTM",     // Text window bottom
-  0x24: "CH",         // Cursor horizontal position
-  0x25: "CV",         // Cursor vertical position
-  0x26: "GPTS",       // General use
-  0x27: "GBPTS",      // General use
-  0x28: "BASL",       // Text base address low
-  0x29: "BASH",       // Text base address high
-  0x2A: "BAS2L",      // Secondary base low
-  0x2B: "BAS2H",      // Secondary base high
-  0x2C: "H2",         // Horizontal 2
-  0x2D: "V2",         // Vertical 2
-  0x2E: "MASK",       // General use
-  0x30: "COLOR",      // Lo-res color
-  0x32: "INVFLG",     // Inverse flag ($FF=normal, $3F=inverse)
-  0x33: "PROMPT",     // Prompt character
-  0x36: "CSWL",       // Character output hook low
-  0x37: "CSWH",       // Character output hook high
-  0x38: "KSWL",       // Character input hook low
-  0x39: "KSWH",       // Character input hook high
-  0x3C: "A1L",        // General pointer low
-  0x3D: "A1H",        // General pointer high
-  0x3E: "A2L",        // General pointer low
-  0x3F: "A2H",        // General pointer high
-  0x40: "A3L",        // General pointer low
-  0x41: "A3H",        // General pointer high
-  0x42: "A4L",        // General pointer low
-  0x43: "A4H",        // General pointer high
-  0x45: "ACC",        // Accumulator save
-  0x46: "XREG",       // X register save
-  0x47: "YREG",       // Y register save
-  0x48: "STATUS",     // Status register save
-  0x4E: "RNDL",       // Random number low
-  0x4F: "RNDH",       // Random number high
-  0x50: "LINNUM",     // Line number low
-  0x51: "LINNUM+1",   // Line number high
-  0x67: "TXTTAB",     // Start of BASIC program low
-  0x68: "TXTTAB+1",
-  0x69: "VARTAB",     // Start of variables low
-  0x6A: "VARTAB+1",
-  0x6B: "ARYTAB",     // Start of arrays low
-  0x6C: "ARYTAB+1",
-  0x6D: "STREND",     // End of arrays low
-  0x6E: "STREND+1",
-  0x6F: "FRETOP",     // Free string space low
-  0x70: "FRETOP+1",
-  0x73: "MEMSIZ",     // Top of memory low
-  0x74: "MEMSIZ+1",
-  0x75: "CURLIN",     // Current line low
-  0x76: "CURLIN+1",
-  0xAF: "HIMEM",      // High memory low
-  0xB0: "HIMEM+1",
+  0x00: sym("LOMEM", "Start of BASIC program pointer", SYMBOL_CATEGORY.ZEROPAGE),
+  0x01: sym("LOMEM+1", "Start of BASIC program pointer (high)", SYMBOL_CATEGORY.ZEROPAGE),
+  0x20: sym("WNDLFT", "Text window left edge column", SYMBOL_CATEGORY.ZEROPAGE),
+  0x21: sym("WNDWDTH", "Text window width", SYMBOL_CATEGORY.ZEROPAGE),
+  0x22: sym("WNDTOP", "Text window top row", SYMBOL_CATEGORY.ZEROPAGE),
+  0x23: sym("WNDBTM", "Text window bottom row", SYMBOL_CATEGORY.ZEROPAGE),
+  0x24: sym("CH", "Cursor horizontal position (0-39/79)", SYMBOL_CATEGORY.ZEROPAGE),
+  0x25: sym("CV", "Cursor vertical position (0-23)", SYMBOL_CATEGORY.ZEROPAGE),
+  0x26: sym("GPTS", "General purpose temp storage", SYMBOL_CATEGORY.ZEROPAGE),
+  0x27: sym("GBPTS", "General purpose temp storage", SYMBOL_CATEGORY.ZEROPAGE),
+  0x28: sym("BASL", "Text screen base address low", SYMBOL_CATEGORY.ZEROPAGE),
+  0x29: sym("BASH", "Text screen base address high", SYMBOL_CATEGORY.ZEROPAGE),
+  0x2A: sym("BAS2L", "Secondary screen base low", SYMBOL_CATEGORY.ZEROPAGE),
+  0x2B: sym("BAS2H", "Secondary screen base high", SYMBOL_CATEGORY.ZEROPAGE),
+  0x2C: sym("H2", "Right end of horizontal line", SYMBOL_CATEGORY.ZEROPAGE),
+  0x2D: sym("V2", "Bottom of vertical line", SYMBOL_CATEGORY.ZEROPAGE),
+  0x2E: sym("MASK", "Bit mask for plotting", SYMBOL_CATEGORY.ZEROPAGE),
+  0x30: sym("COLOR", "Lo-res color value (0-15)", SYMBOL_CATEGORY.ZEROPAGE),
+  0x32: sym("INVFLG", "Inverse flag ($FF=normal, $3F=inverse, $7F=flash)", SYMBOL_CATEGORY.ZEROPAGE),
+  0x33: sym("PROMPT", "Prompt character for input", SYMBOL_CATEGORY.ZEROPAGE),
+  0x36: sym("CSWL", "Character output hook vector low", SYMBOL_CATEGORY.ZEROPAGE),
+  0x37: sym("CSWH", "Character output hook vector high", SYMBOL_CATEGORY.ZEROPAGE),
+  0x38: sym("KSWL", "Character input hook vector low", SYMBOL_CATEGORY.ZEROPAGE),
+  0x39: sym("KSWH", "Character input hook vector high", SYMBOL_CATEGORY.ZEROPAGE),
+  0x3C: sym("A1L", "Monitor general purpose pointer low", SYMBOL_CATEGORY.ZEROPAGE),
+  0x3D: sym("A1H", "Monitor general purpose pointer high", SYMBOL_CATEGORY.ZEROPAGE),
+  0x3E: sym("A2L", "Monitor general purpose pointer low", SYMBOL_CATEGORY.ZEROPAGE),
+  0x3F: sym("A2H", "Monitor general purpose pointer high", SYMBOL_CATEGORY.ZEROPAGE),
+  0x40: sym("A3L", "Monitor general purpose pointer low", SYMBOL_CATEGORY.ZEROPAGE),
+  0x41: sym("A3H", "Monitor general purpose pointer high", SYMBOL_CATEGORY.ZEROPAGE),
+  0x42: sym("A4L", "Monitor general purpose pointer low", SYMBOL_CATEGORY.ZEROPAGE),
+  0x43: sym("A4H", "Monitor general purpose pointer high", SYMBOL_CATEGORY.ZEROPAGE),
+  0x45: sym("ACC", "Accumulator save area", SYMBOL_CATEGORY.ZEROPAGE),
+  0x46: sym("XREG", "X register save area", SYMBOL_CATEGORY.ZEROPAGE),
+  0x47: sym("YREG", "Y register save area", SYMBOL_CATEGORY.ZEROPAGE),
+  0x48: sym("STATUS", "Status register save area", SYMBOL_CATEGORY.ZEROPAGE),
+  0x4E: sym("RNDL", "Random number seed low", SYMBOL_CATEGORY.ZEROPAGE),
+  0x4F: sym("RNDH", "Random number seed high", SYMBOL_CATEGORY.ZEROPAGE),
+  0x50: sym("LINNUM", "Current BASIC line number low", SYMBOL_CATEGORY.ZEROPAGE),
+  0x51: sym("LINNUM+1", "Current BASIC line number high", SYMBOL_CATEGORY.ZEROPAGE),
+  0x67: sym("TXTTAB", "Pointer to start of BASIC program low", SYMBOL_CATEGORY.ZEROPAGE),
+  0x68: sym("TXTTAB+1", "Pointer to start of BASIC program high", SYMBOL_CATEGORY.ZEROPAGE),
+  0x69: sym("VARTAB", "Pointer to start of variables low", SYMBOL_CATEGORY.ZEROPAGE),
+  0x6A: sym("VARTAB+1", "Pointer to start of variables high", SYMBOL_CATEGORY.ZEROPAGE),
+  0x6B: sym("ARYTAB", "Pointer to start of arrays low", SYMBOL_CATEGORY.ZEROPAGE),
+  0x6C: sym("ARYTAB+1", "Pointer to start of arrays high", SYMBOL_CATEGORY.ZEROPAGE),
+  0x6D: sym("STREND", "Pointer to end of arrays low", SYMBOL_CATEGORY.ZEROPAGE),
+  0x6E: sym("STREND+1", "Pointer to end of arrays high", SYMBOL_CATEGORY.ZEROPAGE),
+  0x6F: sym("FRETOP", "Pointer to bottom of string storage low", SYMBOL_CATEGORY.ZEROPAGE),
+  0x70: sym("FRETOP+1", "Pointer to bottom of string storage high", SYMBOL_CATEGORY.ZEROPAGE),
+  0x73: sym("MEMSIZ", "Pointer to top of BASIC memory low", SYMBOL_CATEGORY.ZEROPAGE),
+  0x74: sym("MEMSIZ+1", "Pointer to top of BASIC memory high", SYMBOL_CATEGORY.ZEROPAGE),
+  0x75: sym("CURLIN", "Current line being executed low", SYMBOL_CATEGORY.ZEROPAGE),
+  0x76: sym("CURLIN+1", "Current line being executed high", SYMBOL_CATEGORY.ZEROPAGE),
+  0xAF: sym("HIMEM", "Highest address available to BASIC low", SYMBOL_CATEGORY.ZEROPAGE),
+  0xB0: sym("HIMEM+1", "Highest address available to BASIC high", SYMBOL_CATEGORY.ZEROPAGE),
 };
 
 // Soft Switches ($C000-$C0FF)
 export const SOFTSWITCH_SYMBOLS = {
-  0xC000: "KBD",          // Keyboard data
-  0xC001: "80STOREON",    // Use PAGE2 for aux mem
-  0xC002: "RDMAINRAM",    // Read main RAM
-  0xC003: "RDAUXRAM",     // Read aux RAM
-  0xC004: "WRMAINRAM",    // Write main RAM
-  0xC005: "WRAUXRAM",     // Write aux RAM
-  0xC006: "SETSLOTCXROM", // Slot ROM enabled
-  0xC007: "SETINTCXROM",  // Internal ROM enabled
-  0xC008: "SETSTDZP",     // Main zero page/stack
-  0xC009: "SETALTZP",     // Aux zero page/stack
-  0xC00A: "SETINTC3ROM",  // Internal slot 3 ROM
-  0xC00B: "SETSLOTC3ROM", // Slot 3 ROM enabled
-  0xC00C: "80COLOFF",     // 40-column mode
-  0xC00D: "80COLON",      // 80-column mode
-  0xC00E: "ALTCHAROFF",   // Primary char set
-  0xC00F: "ALTCHARON",    // Alternate char set
-  0xC010: "KBDSTRB",      // Keyboard strobe clear
-  0xC011: "RDLCBNK2",     // LC bank 2 status
-  0xC012: "RDLCRAM",      // LC RAM status
-  0xC013: "RDRAMRD",      // RAMRD status
-  0xC014: "RDRAMWRT",     // RAMWRT status
-  0xC015: "RDCXROM",      // INTCXROM status
-  0xC016: "RDALTZP",      // ALTZP status
-  0xC017: "RDC3ROM",      // SLOTC3ROM status
-  0xC018: "RD80STORE",    // 80STORE status
-  0xC019: "RDVBL",        // Vertical blank status
-  0xC01A: "RDTEXT",       // TEXT status
-  0xC01B: "RDMIXED",      // MIXED status
-  0xC01C: "RDPAGE2",      // PAGE2 status
-  0xC01D: "RDHIRES",      // HIRES status
-  0xC01E: "RDALTCHAR",    // ALTCHAR status
-  0xC01F: "RD80COL",      // 80COL status
-  0xC020: "TAPEOUT",      // Cassette output toggle
-  0xC030: "SPKR",         // Speaker toggle
-  0xC040: "STROBE",       // Utility strobe
-  0xC050: "TXTCLR",       // Graphics mode
-  0xC051: "TXTSET",       // Text mode
-  0xC052: "MIXCLR",       // Full screen
-  0xC053: "MIXSET",       // Mixed mode
-  0xC054: "LOWSCR",       // Page 1
-  0xC055: "HISCR",        // Page 2
-  0xC056: "LORES",        // Lo-res mode
-  0xC057: "HIRES",        // Hi-res mode
-  0xC058: "AN0OFF",       // Annunciator 0 off
-  0xC059: "AN0ON",        // Annunciator 0 on
-  0xC05A: "AN1OFF",       // Annunciator 1 off
-  0xC05B: "AN1ON",        // Annunciator 1 on
-  0xC05C: "AN2OFF",       // Annunciator 2 off
-  0xC05D: "AN2ON",        // Annunciator 2 on
-  0xC05E: "AN3OFF",       // Annunciator 3 off (DHIRES on)
-  0xC05F: "AN3ON",        // Annunciator 3 on (DHIRES off)
-  0xC060: "TAPEIN",       // Cassette input
-  0xC061: "PB0",          // Pushbutton 0 (Open Apple)
-  0xC062: "PB1",          // Pushbutton 1 (Closed Apple)
-  0xC063: "PB2",          // Pushbutton 2
-  0xC064: "PDL0",         // Paddle 0
-  0xC065: "PDL1",         // Paddle 1
-  0xC066: "PDL2",         // Paddle 2
-  0xC067: "PDL3",         // Paddle 3
-  0xC070: "PTRIG",        // Paddle trigger
-  0xC07F: "IOUDIS",       // IOU disable
-  0xC080: "LCRAMRD2",     // LC RAM bank 2, read RAM
-  0xC081: "LCROMRD2",     // LC ROM bank 2, write enable
-  0xC082: "LCROMRD2",     // LC ROM bank 2, read ROM
-  0xC083: "LCRAMRD2",     // LC RAM bank 2, read/write RAM
-  0xC088: "LCRAMRD1",     // LC RAM bank 1, read RAM
-  0xC089: "LCROMRD1",     // LC ROM bank 1, write enable
-  0xC08A: "LCROMRD1",     // LC ROM bank 1, read ROM
-  0xC08B: "LCRAMRD1",     // LC RAM bank 1, read/write RAM
+  0xC000: sym("KBD", "Read keyboard data (bit 7 = key available)", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC001: sym("80STOREON", "Enable PAGE2 to switch main/aux memory", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC002: sym("RDMAINRAM", "Read from main 48K RAM", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC003: sym("RDAUXRAM", "Read from auxiliary 48K RAM", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC004: sym("WRMAINRAM", "Write to main 48K RAM", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC005: sym("WRAUXRAM", "Write to auxiliary 48K RAM", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC006: sym("SETSLOTCXROM", "Enable peripheral card ROM in $C100-$CFFF", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC007: sym("SETINTCXROM", "Enable internal ROM in $C100-$CFFF", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC008: sym("SETSTDZP", "Use main zero page and stack", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC009: sym("SETALTZP", "Use auxiliary zero page and stack", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC00A: sym("SETINTC3ROM", "Enable internal ROM at $C300", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC00B: sym("SETSLOTC3ROM", "Enable slot 3 ROM at $C300", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC00C: sym("80COLOFF", "Disable 80-column display (40-column)", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC00D: sym("80COLON", "Enable 80-column display", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC00E: sym("ALTCHAROFF", "Use primary character set", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC00F: sym("ALTCHARON", "Use alternate character set (MouseText)", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC010: sym("KBDSTRB", "Clear keyboard strobe (bit 7 of KBD)", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC011: sym("RDLCBNK2", "Read LC bank 2 status (bit 7)", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC012: sym("RDLCRAM", "Read LC RAM enabled status (bit 7)", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC013: sym("RDRAMRD", "Read RAMRD status (bit 7)", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC014: sym("RDRAMWRT", "Read RAMWRT status (bit 7)", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC015: sym("RDCXROM", "Read INTCXROM status (bit 7)", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC016: sym("RDALTZP", "Read ALTZP status (bit 7)", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC017: sym("RDC3ROM", "Read SLOTC3ROM status (bit 7)", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC018: sym("RD80STORE", "Read 80STORE status (bit 7)", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC019: sym("RDVBL", "Read vertical blank status (bit 7, 0=VBL)", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC01A: sym("RDTEXT", "Read TEXT mode status (bit 7)", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC01B: sym("RDMIXED", "Read MIXED mode status (bit 7)", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC01C: sym("RDPAGE2", "Read PAGE2 status (bit 7)", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC01D: sym("RDHIRES", "Read HIRES mode status (bit 7)", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC01E: sym("RDALTCHAR", "Read ALTCHAR status (bit 7)", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC01F: sym("RD80COL", "Read 80COL status (bit 7)", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC020: sym("TAPEOUT", "Toggle cassette output", SYMBOL_CATEGORY.IO),
+  0xC030: sym("SPKR", "Toggle speaker (click)", SYMBOL_CATEGORY.IO),
+  0xC040: sym("STROBE", "Utility strobe output", SYMBOL_CATEGORY.IO),
+  0xC050: sym("TXTCLR", "Switch to graphics mode", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC051: sym("TXTSET", "Switch to text mode", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC052: sym("MIXCLR", "Full-screen graphics (no text window)", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC053: sym("MIXSET", "Mixed graphics+text (4 lines text)", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC054: sym("LOWSCR", "Display page 1", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC055: sym("HISCR", "Display page 2", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC056: sym("LORES", "Select lo-res graphics mode", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC057: sym("HIRES", "Select hi-res graphics mode", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC058: sym("AN0OFF", "Annunciator 0 off", SYMBOL_CATEGORY.IO),
+  0xC059: sym("AN0ON", "Annunciator 0 on", SYMBOL_CATEGORY.IO),
+  0xC05A: sym("AN1OFF", "Annunciator 1 off", SYMBOL_CATEGORY.IO),
+  0xC05B: sym("AN1ON", "Annunciator 1 on", SYMBOL_CATEGORY.IO),
+  0xC05C: sym("AN2OFF", "Annunciator 2 off", SYMBOL_CATEGORY.IO),
+  0xC05D: sym("AN2ON", "Annunciator 2 on", SYMBOL_CATEGORY.IO),
+  0xC05E: sym("AN3OFF", "Annunciator 3 off / Enable double hi-res", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC05F: sym("AN3ON", "Annunciator 3 on / Disable double hi-res", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC060: sym("TAPEIN", "Read cassette input (bit 7)", SYMBOL_CATEGORY.IO),
+  0xC061: sym("PB0", "Read pushbutton 0 / Open Apple (bit 7)", SYMBOL_CATEGORY.IO),
+  0xC062: sym("PB1", "Read pushbutton 1 / Closed Apple (bit 7)", SYMBOL_CATEGORY.IO),
+  0xC063: sym("PB2", "Read pushbutton 2 / Shift key (bit 7)", SYMBOL_CATEGORY.IO),
+  0xC064: sym("PDL0", "Read paddle 0 / Joystick X", SYMBOL_CATEGORY.IO),
+  0xC065: sym("PDL1", "Read paddle 1 / Joystick Y", SYMBOL_CATEGORY.IO),
+  0xC066: sym("PDL2", "Read paddle 2", SYMBOL_CATEGORY.IO),
+  0xC067: sym("PDL3", "Read paddle 3", SYMBOL_CATEGORY.IO),
+  0xC070: sym("PTRIG", "Trigger paddle timers", SYMBOL_CATEGORY.IO),
+  0xC07E: sym("IOUDISON", "Enable IOU access", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC07F: sym("IOUDISOFF", "Disable IOU access", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC080: sym("LCRAMRD2", "LC bank 2: read RAM, no write", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC081: sym("ROMIN2", "LC bank 2: read ROM, write RAM", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC082: sym("ROMIN2", "LC bank 2: read ROM, no write", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC083: sym("LCRAMRW2", "LC bank 2: read RAM, write RAM", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC084: sym("LCRAMRD2", "LC bank 2: read RAM, no write (mirror)", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC085: sym("ROMIN2", "LC bank 2: read ROM, write RAM (mirror)", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC086: sym("ROMIN2", "LC bank 2: read ROM, no write (mirror)", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC087: sym("LCRAMRW2", "LC bank 2: read RAM, write RAM (mirror)", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC088: sym("LCRAMRD1", "LC bank 1: read RAM, no write", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC089: sym("ROMIN1", "LC bank 1: read ROM, write RAM", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC08A: sym("ROMIN1", "LC bank 1: read ROM, no write", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC08B: sym("LCRAMRW1", "LC bank 1: read RAM, write RAM", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC08C: sym("LCRAMRD1", "LC bank 1: read RAM, no write (mirror)", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC08D: sym("ROMIN1", "LC bank 1: read ROM, write RAM (mirror)", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC08E: sym("ROMIN1", "LC bank 1: read ROM, no write (mirror)", SYMBOL_CATEGORY.SOFTSWITCH),
+  0xC08F: sym("LCRAMRW1", "LC bank 1: read RAM, write RAM (mirror)", SYMBOL_CATEGORY.SOFTSWITCH),
 };
 
-// Disk II Controller ($C0E0-$C0EF)
+// Disk II Controller ($C0E0-$C0EF) - Slot 6
 export const DISK_SYMBOLS = {
-  0xC0E0: "PHASE0OFF",
-  0xC0E1: "PHASE0ON",
-  0xC0E2: "PHASE1OFF",
-  0xC0E3: "PHASE1ON",
-  0xC0E4: "PHASE2OFF",
-  0xC0E5: "PHASE2ON",
-  0xC0E6: "PHASE3OFF",
-  0xC0E7: "PHASE3ON",
-  0xC0E8: "MOTOROFF",
-  0xC0E9: "MOTORON",
-  0xC0EA: "DRV0EN",
-  0xC0EB: "DRV1EN",
-  0xC0EC: "Q6L",
-  0xC0ED: "Q6H",
-  0xC0EE: "Q7L",
-  0xC0EF: "Q7H",
+  0xC0E0: sym("PHASE0OFF", "Disk II phase 0 motor off", SYMBOL_CATEGORY.DISK),
+  0xC0E1: sym("PHASE0ON", "Disk II phase 0 motor on", SYMBOL_CATEGORY.DISK),
+  0xC0E2: sym("PHASE1OFF", "Disk II phase 1 motor off", SYMBOL_CATEGORY.DISK),
+  0xC0E3: sym("PHASE1ON", "Disk II phase 1 motor on", SYMBOL_CATEGORY.DISK),
+  0xC0E4: sym("PHASE2OFF", "Disk II phase 2 motor off", SYMBOL_CATEGORY.DISK),
+  0xC0E5: sym("PHASE2ON", "Disk II phase 2 motor on", SYMBOL_CATEGORY.DISK),
+  0xC0E6: sym("PHASE3OFF", "Disk II phase 3 motor off", SYMBOL_CATEGORY.DISK),
+  0xC0E7: sym("PHASE3ON", "Disk II phase 3 motor on", SYMBOL_CATEGORY.DISK),
+  0xC0E8: sym("MOTOROFF", "Disk II drive motor off", SYMBOL_CATEGORY.DISK),
+  0xC0E9: sym("MOTORON", "Disk II drive motor on", SYMBOL_CATEGORY.DISK),
+  0xC0EA: sym("DRV0EN", "Disk II select drive 1", SYMBOL_CATEGORY.DISK),
+  0xC0EB: sym("DRV1EN", "Disk II select drive 2", SYMBOL_CATEGORY.DISK),
+  0xC0EC: sym("Q6L", "Disk II strobe data latch (read)", SYMBOL_CATEGORY.DISK),
+  0xC0ED: sym("Q6H", "Disk II load data latch (write)", SYMBOL_CATEGORY.DISK),
+  0xC0EE: sym("Q7L", "Disk II read mode (data in)", SYMBOL_CATEGORY.DISK),
+  0xC0EF: sym("Q7H", "Disk II write mode (data out)", SYMBOL_CATEGORY.DISK),
 };
 
 // Monitor ROM routines
 export const ROM_SYMBOLS = {
-  0xF800: "PLOT",       // Plot lo-res point
-  0xF819: "HLINE",      // Horizontal line
-  0xF828: "VLINE",      // Vertical line
-  0xF832: "CLRSCR",     // Clear lo-res screen
-  0xF836: "CLRTOP",     // Clear top of screen
-  0xF847: "GBASCALC",   // Calculate graphics base
-  0xF856: "NXTCOL",     // Next color
-  0xF85F: "SETCOL",     // Set color
-  0xF864: "SCRN",       // Read lo-res pixel
-  0xF871: "INSDS1",     // Disassembler
-  0xF882: "INSDS2",     // Disassembler
-  0xF88E: "INSTDSP",    // Instruction display
-  0xF8D0: "MPTS",       // Mini-assembler
-  0xF940: "PRNTYX",     // Print Y,X as hex
-  0xF941: "PRNTAX",     // Print A,X as hex
-  0xF944: "PRNTX",      // Print X as hex
-  0xF948: "PRBLNK",     // Print 3 blanks
-  0xF94A: "PRBL2",      // Print X blanks
-  0xF953: "PCADJ",      // PC adjust
-  0xFA40: "PWRUP",      // Power-up
-  0xFA62: "SLOOP",      // Sound loop
-  0xFAA6: "REGDSP",     // Register display
-  0xFAD7: "RTBL",       // Register table
-  0xFADA: "PREAD",      // Read paddle
-  0xFB1E: "PREAD4",     // Read paddle done
-  0xFB19: "PREAD3",     // Read paddle wait
-  0xFB2F: "INIT",       // Initialize machine
-  0xFB39: "SETTXT",     // Set text mode
-  0xFB40: "SETGR",      // Set graphics mode
-  0xFB4B: "SETWND",     // Set window
-  0xFB5B: "TABV",       // Tab vertical
-  0xFB60: "APPLEII",    // Apple II logo
-  0xFBC1: "BASCALC",    // Text base calculate
-  0xFBD0: "BELL1",      // Bell routine
-  0xFBD9: "BELL2",      // Beep once
-  0xFBDD: "STORADV",    // Store and advance
-  0xFBE4: "ADVANCE",    // Advance cursor
-  0xFBF4: "VIDOUT",     // Video output
-  0xFC10: "BS",         // Backspace
-  0xFC1A: "UP",         // Cursor up
-  0xFC22: "VTAB",       // Vertical tab
-  0xFC24: "VTABZ",      // Vertical tab (alt)
-  0xFC2C: "ESC",        // Escape
-  0xFC42: "CLREOP",     // Clear to end of page
-  0xFC58: "HOME",       // Clear screen/home
-  0xFC62: "CR",         // Carriage return
-  0xFC66: "LF",         // Line feed
-  0xFC70: "SCROLL",     // Scroll screen
-  0xFC9C: "CLREOL",     // Clear to end of line
-  0xFC95: "CLEOL1",     // Clear to EOL (alt)
-  0xFCA8: "WAIT",       // Wait routine
-  0xFCB4: "NXTA4",      // Next A4
-  0xFCBA: "NXTA1",      // Next A1
-  0xFCC9: "HEADR",      // Write cassette header
-  0xFCEC: "RDBYTE",     // Read cassette byte
-  0xFCFA: "RDBYT2",     // Read cassette byte 2
-  0xFD0C: "RDKEY",      // Read key
-  0xFD18: "KEYIN",      // Key input
-  0xFD1B: "KEYIN2",     // Key input loop
-  0xFD35: "RDCHAR",     // Read character
-  0xFD3D: "NOTCR",      // Not carriage return
-  0xFD5A: "NOTCR1",     // Not CR continue
-  0xFD5C: "CAPTST",     // Caps test
-  0xFD62: "ADTEFN",     // Add to buffer
-  0xFD67: "NXTCHAR",    // Next character
-  0xFD6A: "TOSUB",      // To subroutine
-  0xFD6F: "ZMODE",      // Zero mode
-  0xFD75: "SETMDP",     // Set mode positive
-  0xFD7E: "SETMD",      // Set mode
-  0xFD8B: "LT",         // Less than
-  0xFD8E: "GETLN",      // Get line
-  0xFD92: "GETLNZ",     // Get line (zero)
-  0xFD9A: "BCKSPC",     // Backspace
-  0xFDA3: "NXTCHR",     // Next char in buffer
-  0xFDB3: "CANCEL",     // Cancel line
-  0xFDC6: "GETNUM",     // Get number
-  0xFDDA: "CROUT1",     // CR out
-  0xFDED: "COUT",       // Character output
-  0xFDF0: "COUT1",      // Char out to screen
-  0xFDF6: "COUTZ",      // Char out (zero)
-  0xFE00: "BLANK",      // Print blank
-  0xFE04: "BL1",        // Print blank 1
-  0xFE18: "PAUSE",      // Pause
-  0xFE1F: "HOME2",      // Home 2
-  0xFE22: "VIDWRT",     // Video write
-  0xFE2C: "SCRCOMP",    // Screen complete
-  0xFE5E: "OLDBRK",     // Old break
-  0xFE63: "BREAK",      // Break
-  0xFE67: "OLDREST",    // Old restore
-  0xFE6C: "RESTART",    // Restart
-  0xFE80: "DRAWPNT",    // Draw point
-  0xFE84: "HIRES1",     // Hi-res 1
-  0xFE89: "HIRES2",     // Hi-res 2
-  0xFE93: "HCLR",       // Hi-res clear
-  0xFEA9: "BKGND",      // Background
-  0xFEB0: "SETHCOL",    // Set hi-res color
-  0xFEB3: "HCOLOR1",    // Hi-res color 1
-  0xFEC2: "COLORTBL",   // Color table
-  0xFECA: "GETCOL",     // Get color
-  0xFED4: "HCOUNT",     // Hi-res count
-  0xFEE3: "HPOSN",      // Hi-res position
-  0xFEF6: "HBARONE",    // Hi-res bar one
-  0xFEFB: "HBARONE1",   // Hi-res bar one 1
-  0xFF02: "HFIND",      // Hi-res find
-  0xFF12: "HGLIN",      // Hi-res get line
-  0xFF3A: "HPLOT",      // Hi-res plot (official)
-  0xFF3F: "MOVEX",      // Move X
-  0xFF44: "MOVEX2",     // Move X 2
-  0xFF50: "LFTRT",      // Left/right
-  0xFF58: "MONZ",       // Monitor (warm start)
-  0xFF59: "MON",        // Monitor entry
-  0xFF65: "NXTITM",     // Next item
-  0xFF69: "GETNUM2",    // Get number 2
-  0xFF73: "NXTBIT",     // Next bit
-  0xFF7A: "GETLNZ2",    // Get line z 2
-  0xFF8A: "CROUT",      // Carriage return out
-  0xFF90: "PRBYTE",     // Print byte as hex
-  0xFFA7: "PRHEX",      // Print nibble as hex
-  0xFFAD: "PRNTYX2",    // Print Y,X
-  0xFFB4: "OLDRST",     // Old reset
-  0xFFBE: "NEWRST",     // New reset
-  0xFFC7: "SPTS",       // Set points
-  0xFFCC: "INPORT",     // Input port
-  0xFFCF: "OUTPORT",    // Output port
-  0xFFE3: "GO",         // Go (execute)
-  0xFFE7: "REGZ",       // Register Z
-  0xFFFA: "NMI",        // NMI vector
-  0xFFFC: "RESET",      // Reset vector
-  0xFFFE: "IRQ",        // IRQ/BRK vector
+  0xF800: sym("PLOT", "Plot a lo-res point at (Y,A)", SYMBOL_CATEGORY.ROM),
+  0xF819: sym("HLINE", "Draw horizontal line (Y to H2 at V)", SYMBOL_CATEGORY.ROM),
+  0xF828: sym("VLINE", "Draw vertical line (A to V2 at Y)", SYMBOL_CATEGORY.ROM),
+  0xF832: sym("CLRSCR", "Clear lo-res screen to black", SYMBOL_CATEGORY.ROM),
+  0xF836: sym("CLRTOP", "Clear top 40 lines of lo-res screen", SYMBOL_CATEGORY.ROM),
+  0xF847: sym("GBASCALC", "Calculate graphics base address", SYMBOL_CATEGORY.ROM),
+  0xF856: sym("NXTCOL", "Increment color and mask", SYMBOL_CATEGORY.ROM),
+  0xF85F: sym("SETCOL", "Set lo-res color from A", SYMBOL_CATEGORY.ROM),
+  0xF864: sym("SCRN", "Read lo-res pixel at (Y,A)", SYMBOL_CATEGORY.ROM),
+  0xF871: sym("INSDS1", "Disassembler subroutine", SYMBOL_CATEGORY.ROM),
+  0xF882: sym("INSDS2", "Disassembler subroutine", SYMBOL_CATEGORY.ROM),
+  0xF88E: sym("INSTDSP", "Display disassembled instruction", SYMBOL_CATEGORY.ROM),
+  0xF8D0: sym("MPTS", "Mini-assembler entry", SYMBOL_CATEGORY.ROM),
+  0xF940: sym("PRNTYX", "Print Y and X as 4 hex digits", SYMBOL_CATEGORY.ROM),
+  0xF941: sym("PRNTAX", "Print A and X as 4 hex digits", SYMBOL_CATEGORY.ROM),
+  0xF944: sym("PRNTX", "Print X as 2 hex digits", SYMBOL_CATEGORY.ROM),
+  0xF948: sym("PRBLNK", "Print 3 spaces", SYMBOL_CATEGORY.ROM),
+  0xF94A: sym("PRBL2", "Print X spaces", SYMBOL_CATEGORY.ROM),
+  0xF953: sym("PCADJ", "Adjust PC for instruction length", SYMBOL_CATEGORY.ROM),
+  0xFA40: sym("PWRUP", "Power-up initialization", SYMBOL_CATEGORY.ROM),
+  0xFA62: sym("SLOOP", "Beep loop subroutine", SYMBOL_CATEGORY.ROM),
+  0xFAA6: sym("REGDSP", "Display CPU registers", SYMBOL_CATEGORY.ROM),
+  0xFAD7: sym("RTBL", "Register name table", SYMBOL_CATEGORY.ROM),
+  0xFADA: sym("PREAD", "Read paddle specified in X", SYMBOL_CATEGORY.ROM),
+  0xFB1E: sym("PREAD4", "Paddle read completion", SYMBOL_CATEGORY.ROM),
+  0xFB19: sym("PREAD3", "Paddle read wait loop", SYMBOL_CATEGORY.ROM),
+  0xFB2F: sym("INIT", "Initialize text screen and vectors", SYMBOL_CATEGORY.ROM),
+  0xFB39: sym("SETTXT", "Set text mode and clear screen", SYMBOL_CATEGORY.ROM),
+  0xFB40: sym("SETGR", "Set lo-res graphics mode", SYMBOL_CATEGORY.ROM),
+  0xFB4B: sym("SETWND", "Set standard text window", SYMBOL_CATEGORY.ROM),
+  0xFB5B: sym("TABV", "Move cursor to line in A", SYMBOL_CATEGORY.ROM),
+  0xFB60: sym("APPLEII", "Display Apple ][ logo", SYMBOL_CATEGORY.ROM),
+  0xFBC1: sym("BASCALC", "Calculate text base address for line in A", SYMBOL_CATEGORY.ROM),
+  0xFBD0: sym("BELL1", "Sound bell through COUT", SYMBOL_CATEGORY.ROM),
+  0xFBD9: sym("BELL2", "Sound bell directly (1/10 sec beep)", SYMBOL_CATEGORY.ROM),
+  0xFBDD: sym("STORADV", "Store char and advance cursor", SYMBOL_CATEGORY.ROM),
+  0xFBE4: sym("ADVANCE", "Advance cursor position", SYMBOL_CATEGORY.ROM),
+  0xFBF4: sym("VIDOUT", "Output char in A to screen", SYMBOL_CATEGORY.ROM),
+  0xFC10: sym("BS", "Process backspace", SYMBOL_CATEGORY.ROM),
+  0xFC1A: sym("UP", "Move cursor up one line", SYMBOL_CATEGORY.ROM),
+  0xFC22: sym("VTAB", "Move cursor to line in CV", SYMBOL_CATEGORY.ROM),
+  0xFC24: sym("VTABZ", "Move cursor to line in A", SYMBOL_CATEGORY.ROM),
+  0xFC2C: sym("ESC", "Process escape sequence", SYMBOL_CATEGORY.ROM),
+  0xFC42: sym("CLREOP", "Clear from cursor to end of page", SYMBOL_CATEGORY.ROM),
+  0xFC58: sym("HOME", "Clear screen and home cursor", SYMBOL_CATEGORY.ROM),
+  0xFC62: sym("CR", "Process carriage return", SYMBOL_CATEGORY.ROM),
+  0xFC66: sym("LF", "Process line feed", SYMBOL_CATEGORY.ROM),
+  0xFC70: sym("SCROLL", "Scroll text screen up one line", SYMBOL_CATEGORY.ROM),
+  0xFC95: sym("CLEOL1", "Clear to end of line (alternate)", SYMBOL_CATEGORY.ROM),
+  0xFC9C: sym("CLREOL", "Clear from cursor to end of line", SYMBOL_CATEGORY.ROM),
+  0xFCA8: sym("WAIT", "Delay: (26 + 27*A + 5*A*A)/2 cycles", SYMBOL_CATEGORY.ROM),
+  0xFCB4: sym("NXTA4", "Increment A4 pointer", SYMBOL_CATEGORY.ROM),
+  0xFCBA: sym("NXTA1", "Increment A1 pointer", SYMBOL_CATEGORY.ROM),
+  0xFCC9: sym("HEADR", "Write cassette header", SYMBOL_CATEGORY.ROM),
+  0xFCEC: sym("RDBYTE", "Read byte from cassette", SYMBOL_CATEGORY.ROM),
+  0xFCFA: sym("RDBYT2", "Read cassette byte (alternate)", SYMBOL_CATEGORY.ROM),
+  0xFD0C: sym("RDKEY", "Read key with cursor flash", SYMBOL_CATEGORY.ROM),
+  0xFD18: sym("KEYIN", "Read key without cursor", SYMBOL_CATEGORY.ROM),
+  0xFD1B: sym("KEYIN2", "Key input wait loop", SYMBOL_CATEGORY.ROM),
+  0xFD35: sym("RDCHAR", "Read char with escape processing", SYMBOL_CATEGORY.ROM),
+  0xFD3D: sym("NOTCR", "Process non-CR character", SYMBOL_CATEGORY.ROM),
+  0xFD5A: sym("NOTCR1", "Continue non-CR processing", SYMBOL_CATEGORY.ROM),
+  0xFD5C: sym("CAPTST", "Test for uppercase letter", SYMBOL_CATEGORY.ROM),
+  0xFD62: sym("ADTEFN", "Add character to input buffer", SYMBOL_CATEGORY.ROM),
+  0xFD67: sym("NXTCHAR", "Get next character from buffer", SYMBOL_CATEGORY.ROM),
+  0xFD6A: sym("TOSUB", "Go to subroutine via CSW", SYMBOL_CATEGORY.ROM),
+  0xFD6F: sym("ZMODE", "Zero A and set text mode", SYMBOL_CATEGORY.ROM),
+  0xFD75: sym("SETMDP", "Set inverse/normal mode", SYMBOL_CATEGORY.ROM),
+  0xFD7E: sym("SETMD", "Set output mode from A", SYMBOL_CATEGORY.ROM),
+  0xFD8B: sym("LT", "Process left-arrow key", SYMBOL_CATEGORY.ROM),
+  0xFD8E: sym("GETLN", "Get a line of input", SYMBOL_CATEGORY.ROM),
+  0xFD92: sym("GETLNZ", "Get line with initial CR", SYMBOL_CATEGORY.ROM),
+  0xFD9A: sym("BCKSPC", "Process backspace in input", SYMBOL_CATEGORY.ROM),
+  0xFDA3: sym("NXTCHR", "Get next char from keyboard", SYMBOL_CATEGORY.ROM),
+  0xFDB3: sym("CANCEL", "Cancel current input line", SYMBOL_CATEGORY.ROM),
+  0xFDC6: sym("GETNUM", "Get hex number from input", SYMBOL_CATEGORY.ROM),
+  0xFDDA: sym("CROUT1", "Output CR to screen", SYMBOL_CATEGORY.ROM),
+  0xFDED: sym("COUT", "Output char via CSW vector", SYMBOL_CATEGORY.ROM),
+  0xFDF0: sym("COUT1", "Output char directly to screen", SYMBOL_CATEGORY.ROM),
+  0xFDF6: sym("COUTZ", "Output char and zero A", SYMBOL_CATEGORY.ROM),
+  0xFE00: sym("BLANK", "Output a space character", SYMBOL_CATEGORY.ROM),
+  0xFE04: sym("BL1", "Output space (alternate)", SYMBOL_CATEGORY.ROM),
+  0xFE18: sym("PAUSE", "Wait for keypress", SYMBOL_CATEGORY.ROM),
+  0xFE1F: sym("HOME2", "Home cursor (alternate)", SYMBOL_CATEGORY.ROM),
+  0xFE22: sym("VIDWRT", "Write char to video", SYMBOL_CATEGORY.ROM),
+  0xFE2C: sym("SCRCOMP", "Screen completion", SYMBOL_CATEGORY.ROM),
+  0xFE5E: sym("OLDBRK", "Old break handler", SYMBOL_CATEGORY.ROM),
+  0xFE63: sym("BREAK", "Break handler", SYMBOL_CATEGORY.ROM),
+  0xFE67: sym("OLDREST", "Old restore handler", SYMBOL_CATEGORY.ROM),
+  0xFE6C: sym("RESTART", "Restart system", SYMBOL_CATEGORY.ROM),
+  0xFE80: sym("DRAWPNT", "Draw hi-res point", SYMBOL_CATEGORY.ROM),
+  0xFE84: sym("HIRES1", "Hi-res page 1 subroutine", SYMBOL_CATEGORY.ROM),
+  0xFE89: sym("HIRES2", "Hi-res page 2 subroutine", SYMBOL_CATEGORY.ROM),
+  0xFE93: sym("HCLR", "Clear hi-res screen", SYMBOL_CATEGORY.ROM),
+  0xFEA9: sym("BKGND", "Fill background", SYMBOL_CATEGORY.ROM),
+  0xFEB0: sym("SETHCOL", "Set hi-res color", SYMBOL_CATEGORY.ROM),
+  0xFEB3: sym("HCOLOR1", "Hi-res color subroutine", SYMBOL_CATEGORY.ROM),
+  0xFEC2: sym("COLORTBL", "Hi-res color table", SYMBOL_CATEGORY.ROM),
+  0xFECA: sym("GETCOL", "Get current hi-res color", SYMBOL_CATEGORY.ROM),
+  0xFED4: sym("HCOUNT", "Hi-res point counter", SYMBOL_CATEGORY.ROM),
+  0xFEE3: sym("HPOSN", "Position hi-res cursor", SYMBOL_CATEGORY.ROM),
+  0xFEF6: sym("HBARONE", "Draw hi-res horizontal bar", SYMBOL_CATEGORY.ROM),
+  0xFEFB: sym("HBARONE1", "Hi-res bar subroutine", SYMBOL_CATEGORY.ROM),
+  0xFF02: sym("HFIND", "Find hi-res byte", SYMBOL_CATEGORY.ROM),
+  0xFF12: sym("HGLIN", "Draw hi-res line", SYMBOL_CATEGORY.ROM),
+  0xFF3A: sym("HPLOT", "Plot hi-res point (official entry)", SYMBOL_CATEGORY.ROM),
+  0xFF3F: sym("MOVEX", "Move hi-res X coordinate", SYMBOL_CATEGORY.ROM),
+  0xFF44: sym("MOVEX2", "Move X subroutine", SYMBOL_CATEGORY.ROM),
+  0xFF50: sym("LFTRT", "Move cursor left/right", SYMBOL_CATEGORY.ROM),
+  0xFF58: sym("MONZ", "Enter monitor (warm start)", SYMBOL_CATEGORY.ROM),
+  0xFF59: sym("MON", "Monitor entry point", SYMBOL_CATEGORY.ROM),
+  0xFF65: sym("NXTITM", "Get next monitor command", SYMBOL_CATEGORY.ROM),
+  0xFF69: sym("GETNUM2", "Get hex number (monitor)", SYMBOL_CATEGORY.ROM),
+  0xFF73: sym("NXTBIT", "Get next bit", SYMBOL_CATEGORY.ROM),
+  0xFF7A: sym("GETLNZ2", "Get line (monitor)", SYMBOL_CATEGORY.ROM),
+  0xFF8A: sym("CROUT", "Output CR (official entry)", SYMBOL_CATEGORY.ROM),
+  0xFF90: sym("PRBYTE", "Print A as 2 hex digits", SYMBOL_CATEGORY.ROM),
+  0xFFA7: sym("PRHEX", "Print low nibble of A as hex", SYMBOL_CATEGORY.ROM),
+  0xFFAD: sym("PRNTYX2", "Print Y,X as hex", SYMBOL_CATEGORY.ROM),
+  0xFFB4: sym("OLDRST", "Old reset vector", SYMBOL_CATEGORY.ROM),
+  0xFFBE: sym("NEWRST", "New reset handler", SYMBOL_CATEGORY.ROM),
+  0xFFC7: sym("SPTS", "Set screen points", SYMBOL_CATEGORY.ROM),
+  0xFFCC: sym("INPORT", "Set input port in A", SYMBOL_CATEGORY.ROM),
+  0xFFCF: sym("OUTPORT", "Set output port in A", SYMBOL_CATEGORY.ROM),
+  0xFFE3: sym("GO", "Execute at address in A1", SYMBOL_CATEGORY.ROM),
+  0xFFE7: sym("REGZ", "Register display", SYMBOL_CATEGORY.ROM),
+  0xFFFA: sym("NMI", "NMI vector location", SYMBOL_CATEGORY.VECTOR),
+  0xFFFC: sym("RESET", "Reset vector location", SYMBOL_CATEGORY.VECTOR),
+  0xFFFE: sym("IRQ", "IRQ/BRK vector location", SYMBOL_CATEGORY.VECTOR),
 };
 
 // Applesoft BASIC ROM routines
 export const BASIC_SYMBOLS = {
-  0xD365: "NEWSTT",     // New statement
-  0xD39E: "GONE",       // Gone (execute)
-  0xD4F2: "CHRGOT",     // Get current char
-  0xD559: "FNDLIN",     // Find line
-  0xD61A: "CHKCOM",     // Check for comma
-  0xD665: "FRMNUM",     // Get numeric expression
-  0xD7D2: "PTRGET",     // Get pointer to variable
-  0xDB3A: "CHRGET",     // Get next char
-  0xDD67: "FPWR",       // Power function
-  0xDDCD: "NEGOP",      // Negate
-  0xDDCF: "LOG",        // LOG function
-  0xDE5E: "FMULT",      // Multiply
-  0xDF7E: "CONUPK",     // Unpack constant
-  0xDFE3: "FINLOG",     // Finish LOG
-  0xE07A: "FSUB",       // Subtract
-  0xE082: "FADD",       // Add
-  0xE0F6: "OVERR",      // Overflow error
-  0xE10C: "HALF",       // 0.5 constant
-  0xE10F: "LOG2",       // LOG(2) constant
-  0xE113: "SQRT2",      // SQRT(2) constant
-  0xE11E: "NEGHLF",     // -0.5 constant
-  0xE120: "LOGCON",     // LOG constant
-  0xE131: "SQR",        // SQR function
-  0xE941: "COS",        // COS function
-  0xE94B: "SIN",        // SIN function
-  0xE97E: "TAN",        // TAN function
-  0xEA14: "ATN",        // ATN function
+  0xD365: sym("NEWSTT", "Execute next BASIC statement", SYMBOL_CATEGORY.BASIC),
+  0xD39E: sym("GONE", "Execute BASIC token", SYMBOL_CATEGORY.BASIC),
+  0xD4F2: sym("CHRGOT", "Get current character", SYMBOL_CATEGORY.BASIC),
+  0xD559: sym("FNDLIN", "Find BASIC line number", SYMBOL_CATEGORY.BASIC),
+  0xD61A: sym("CHKCOM", "Require comma, syntax error if not", SYMBOL_CATEGORY.BASIC),
+  0xD665: sym("FRMNUM", "Evaluate numeric expression", SYMBOL_CATEGORY.BASIC),
+  0xD7D2: sym("PTRGET", "Get pointer to variable", SYMBOL_CATEGORY.BASIC),
+  0xDB3A: sym("CHRGET", "Get next character, skip spaces", SYMBOL_CATEGORY.BASIC),
+  0xDD67: sym("FPWR", "Floating-point power function", SYMBOL_CATEGORY.BASIC),
+  0xDDCD: sym("NEGOP", "Negate floating-point number", SYMBOL_CATEGORY.BASIC),
+  0xDDCF: sym("LOG", "Natural logarithm function", SYMBOL_CATEGORY.BASIC),
+  0xDE5E: sym("FMULT", "Floating-point multiply", SYMBOL_CATEGORY.BASIC),
+  0xDF7E: sym("CONUPK", "Unpack constant to FAC", SYMBOL_CATEGORY.BASIC),
+  0xDFE3: sym("FINLOG", "Finish LOG calculation", SYMBOL_CATEGORY.BASIC),
+  0xE07A: sym("FSUB", "Floating-point subtract", SYMBOL_CATEGORY.BASIC),
+  0xE082: sym("FADD", "Floating-point add", SYMBOL_CATEGORY.BASIC),
+  0xE0F6: sym("OVERR", "Overflow error handler", SYMBOL_CATEGORY.BASIC),
+  0xE10C: sym("HALF", "Constant: 0.5", SYMBOL_CATEGORY.BASIC),
+  0xE10F: sym("LOG2", "Constant: LOG(2)", SYMBOL_CATEGORY.BASIC),
+  0xE113: sym("SQRT2", "Constant: SQRT(2)", SYMBOL_CATEGORY.BASIC),
+  0xE11E: sym("NEGHLF", "Constant: -0.5", SYMBOL_CATEGORY.BASIC),
+  0xE120: sym("LOGCON", "LOG constant table", SYMBOL_CATEGORY.BASIC),
+  0xE131: sym("SQR", "Square root function", SYMBOL_CATEGORY.BASIC),
+  0xE941: sym("COS", "Cosine function", SYMBOL_CATEGORY.BASIC),
+  0xE94B: sym("SIN", "Sine function", SYMBOL_CATEGORY.BASIC),
+  0xE97E: sym("TAN", "Tangent function", SYMBOL_CATEGORY.BASIC),
+  0xEA14: sym("ATN", "Arctangent function", SYMBOL_CATEGORY.BASIC),
+};
+
+// Important memory locations
+export const MEMORY_SYMBOLS = {
+  0x0400: sym("TXTPG1", "Text/Lo-res page 1 start", SYMBOL_CATEGORY.ZEROPAGE),
+  0x0800: sym("TXTPG2", "Text/Lo-res page 2 start", SYMBOL_CATEGORY.ZEROPAGE),
+  0x2000: sym("HIRPG1", "Hi-res page 1 start", SYMBOL_CATEGORY.ZEROPAGE),
+  0x4000: sym("HIRPG2", "Hi-res page 2 start", SYMBOL_CATEGORY.ZEROPAGE),
+  0xC100: sym("SLOT1ROM", "Slot 1 ROM space", SYMBOL_CATEGORY.IO),
+  0xC200: sym("SLOT2ROM", "Slot 2 ROM space", SYMBOL_CATEGORY.IO),
+  0xC300: sym("SLOT3ROM", "Slot 3 ROM space (80-col)", SYMBOL_CATEGORY.IO),
+  0xC400: sym("SLOT4ROM", "Slot 4 ROM space", SYMBOL_CATEGORY.IO),
+  0xC500: sym("SLOT5ROM", "Slot 5 ROM space", SYMBOL_CATEGORY.IO),
+  0xC600: sym("SLOT6ROM", "Slot 6 ROM space (Disk II)", SYMBOL_CATEGORY.IO),
+  0xC700: sym("SLOT7ROM", "Slot 7 ROM space", SYMBOL_CATEGORY.IO),
+  0xC800: sym("SHAREDROM", "Shared slot ROM space ($C800-$CFFF)", SYMBOL_CATEGORY.IO),
+  0xD000: sym("BASICROM", "BASIC ROM / LC RAM bank 1/2 $D000", SYMBOL_CATEGORY.ROM),
+  0xE000: sym("BASICROM2", "BASIC ROM / LC RAM $E000", SYMBOL_CATEGORY.ROM),
+  0xF800: sym("MONROM", "Monitor ROM start", SYMBOL_CATEGORY.ROM),
 };
 
 // Combine all symbols into a single lookup
@@ -327,14 +373,42 @@ export const ALL_SYMBOLS = {
   ...DISK_SYMBOLS,
   ...ROM_SYMBOLS,
   ...BASIC_SYMBOLS,
+  ...MEMORY_SYMBOLS,
 };
 
 /**
- * Look up a symbolic name for an address
+ * Look up symbol information for an address
+ * @param {number} addr - The address to look up
+ * @returns {{name: string, desc: string, category: string}|null} - Symbol info or null
+ */
+export function getSymbolInfo(addr) {
+  return ALL_SYMBOLS[addr] || null;
+}
+
+/**
+ * Look up just the symbolic name for an address (backwards compatible)
  * @param {number} addr - The address to look up
  * @returns {string|null} - The symbolic name or null if not found
  */
 export function getSymbol(addr) {
-  return ALL_SYMBOLS[addr] || null;
+  const info = ALL_SYMBOLS[addr];
+  return info ? info.name : null;
 }
 
+/**
+ * Get the CSS class for a symbol category
+ * @param {string} category - The symbol category
+ * @returns {string} - CSS class name
+ */
+export function getCategoryClass(category) {
+  const classMap = {
+    [SYMBOL_CATEGORY.ZEROPAGE]: 'sym-zp',
+    [SYMBOL_CATEGORY.SOFTSWITCH]: 'sym-sw',
+    [SYMBOL_CATEGORY.DISK]: 'sym-disk',
+    [SYMBOL_CATEGORY.ROM]: 'sym-rom',
+    [SYMBOL_CATEGORY.BASIC]: 'sym-basic',
+    [SYMBOL_CATEGORY.VECTOR]: 'sym-vec',
+    [SYMBOL_CATEGORY.IO]: 'sym-io',
+  };
+  return classMap[category] || 'sym-default';
+}

@@ -396,17 +396,88 @@
     color: #f0a0f0;  /* Pink/magenta for constants */
 }
 
-/* Symbolic names (ROM routines, soft switches) */
+/* Symbolic names with category-based colors */
 .cpu-disasm-symbol {
-    color: #7ec8e3;  /* Cyan/light blue for symbols */
+    cursor: help;
+    border-bottom: 1px dotted currentColor;
+    padding-bottom: 1px;
+}
+
+/* Zero page symbols - green */
+.cpu-disasm-symbol.sym-zp {
+    color: #7ddc7d;
+}
+
+/* Soft switch symbols - orange/amber */
+.cpu-disasm-symbol.sym-sw {
+    color: #f0a040;
+}
+
+/* Disk II symbols - yellow */
+.cpu-disasm-symbol.sym-disk {
+    color: #e0d060;
+}
+
+/* ROM routine symbols - cyan */
+.cpu-disasm-symbol.sym-rom {
+    color: #7ec8e3;
+}
+
+/* BASIC ROM symbols - light purple */
+.cpu-disasm-symbol.sym-basic {
+    color: #c0a0f0;
+}
+
+/* Vector symbols - red */
+.cpu-disasm-symbol.sym-vec {
+    color: #f08080;
+}
+
+/* I/O symbols - teal */
+.cpu-disasm-symbol.sym-io {
+    color: #60d0c0;
+}
+
+/* Default symbol color */
+.cpu-disasm-symbol.sym-default {
+    color: #7ec8e3;
 }
 
 .cpu-disasm-line.current .cpu-disasm-const {
     color: #ffb0ff;  /* Brighter pink when current */
 }
 
-.cpu-disasm-line.current .cpu-disasm-symbol {
-    color: #9ee0f8;  /* Brighter cyan when current */
+/* Brighter symbol colors when on current line */
+.cpu-disasm-line.current .cpu-disasm-symbol.sym-zp {
+    color: #a0ffa0;
+}
+
+.cpu-disasm-line.current .cpu-disasm-symbol.sym-sw {
+    color: #ffc060;
+}
+
+.cpu-disasm-line.current .cpu-disasm-symbol.sym-disk {
+    color: #ffec80;
+}
+
+.cpu-disasm-line.current .cpu-disasm-symbol.sym-rom {
+    color: #9ee0f8;
+}
+
+.cpu-disasm-line.current .cpu-disasm-symbol.sym-basic {
+    color: #d8c0ff;
+}
+
+.cpu-disasm-line.current .cpu-disasm-symbol.sym-vec {
+    color: #ffa0a0;
+}
+
+.cpu-disasm-line.current .cpu-disasm-symbol.sym-io {
+    color: #80f0e0;
+}
+
+.cpu-disasm-line.current .cpu-disasm-symbol.sym-default {
+    color: #9ee0f8;
 }
 
 /* Breakpoints */
