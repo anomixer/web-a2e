@@ -354,61 +354,10 @@
     margin-left: var(--space-xs);
 }
 
+
+/* Debug button - slightly wider to accommodate icon + dropdown arrow */
 .debugger-btn {
-    width: auto;
-    padding: 0 var(--space-md);
-    font-size: 0.8125rem;
-    font-weight: 500;
-}
-
-.debugger-btn span {
-    margin-left: var(--space-xs);
-}
-
-/* Help button */
-.help-btn {
-    width: auto;
-    padding: 0 var(--space-md);
-    font-size: 0.8125rem;
-    font-weight: 500;
-}
-
-.help-btn span {
-    margin-left: var(--space-xs);
-}
-
-.help-btn:hover {
-    color: var(--accent-blue);
-    border-color: var(--accent-blue);
-}
-
-/* Update button styling */
-.update-btn {
-    width: auto;
-    padding: 0 var(--space-md);
-    font-size: 0.8125rem;
-    font-weight: 500;
-}
-
-.update-btn span {
-    margin-left: var(--space-xs);
-}
-
-.update-btn:hover {
-    color: var(--accent-green);
-    border-color: var(--accent-green);
-}
-
-/* Display button styling */
-.display-btn {
-    width: auto;
-    padding: 0 var(--space-md);
-    font-size: 0.8125rem;
-    font-weight: 500;
-}
-
-.display-btn span {
-    margin-left: var(--space-xs);
+    width: 52px;
 }
 
 /* Debug dropdown menu */
