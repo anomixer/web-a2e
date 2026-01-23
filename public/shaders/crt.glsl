@@ -541,9 +541,9 @@ void main() {
     // Calculate corner alpha using curved coordinates so corners follow the curvature
     float cornerAlpha = roundedRectAlpha(curvedUV, u_cornerRadius);
 
-    // Outside rounded corners - fully transparent
+    // Outside rounded corners - black
     if (cornerAlpha < 0.001) {
-        gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
+        gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);
         return;
     }
 
@@ -554,7 +554,7 @@ void main() {
     contentUV = applyScreenMargin(contentUV);
 
     // Dark bezel color for areas outside content
-    vec3 darkBezelColor = vec3(0.165, 0.149, 0.133); // #2a2622
+    vec3 darkBezelColor = vec3(0.0); // Black
 
     // Calculate edge factor for curvature effects
     float edgeFactor = smoothEdge(curvedUV);
@@ -656,16 +656,19 @@ void main() {
 
     // Apply edge highlight - lighter color around the screen edge
     float edgeGlow = edgeHighlightIntensity(curvedUV, u_cornerRadius);
-    vec3 highlightColor = vec3(0.4, 0.4, 0.35); // Slightly warm light gray
+    vec3 highlightColor = vec3(0.55, 0.55, 0.5); // Light gray edge highlight
     color = mix(color, highlightColor, edgeGlow);
 
     // Blend with bezel
-    vec3 bezelColor = vec3(0.01);
+    vec3 bezelColor = vec3(0.0);
     color = mix(bezelColor, color, edgeFactor);
 
     // Clamp final color
     color = clamp(color, 0.0, 1.0);
 
-    // Apply corner alpha for rounded corners
-    gl_FragColor = vec4(color, cornerAlpha);
+    // Blend with black at corners (anti-aliased edge)
+    color = mix(vec3(0.0), color, cornerAlpha);
+
+    // Output fully opaque
+    gl_FragColor = vec4(color, 1.0);
 }

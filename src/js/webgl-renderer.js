@@ -384,7 +384,7 @@ export class WebGLRenderer {
     // Update burn-in accumulation
     this.updateBurnIn();
 
-    gl.clearColor(0.165, 0.149, 0.133, 1); // #2a2622 dark bezel color
+    gl.clearColor(0, 0, 0, 1); // Black background
     gl.clear(gl.COLOR_BUFFER_BIT);
 
     gl.useProgram(this.program);
@@ -486,7 +486,7 @@ export class WebGLRenderer {
     }
 
     // Clear and redraw
-    gl.clearColor(0.165, 0.149, 0.133, 1); // #2a2622 dark bezel color
+    gl.clearColor(0, 0, 0, 1); // Black background
     gl.clear(gl.COLOR_BUFFER_BIT);
     this.draw();
   }
