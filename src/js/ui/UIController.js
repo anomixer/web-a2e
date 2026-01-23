@@ -319,6 +319,7 @@ export class UIController {
       cpu: "cpu-debugger",
       drives: "drive-detail",
       switches: "soft-switches",
+      memmap: "memory-map",
       memory: "memory-browser",
       heatmap: "memory-heatmap",
       stack: "stack-viewer",

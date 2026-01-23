@@ -7,5 +7,6 @@ export { SoftSwitchWindow } from "./SoftSwitchWindow.js";
 export { DisplaySettingsWindow } from "./DisplaySettingsWindow.js";
 export { MemoryBrowserWindow } from "./MemoryBrowserWindow.js";
 export { MemoryHeatMapWindow } from "./MemoryHeatMapWindow.js";
+export { MemoryMapWindow } from "./MemoryMapWindow.js";
 export { StackViewerWindow } from "./StackViewerWindow.js";
 export { ZeroPageWatchWindow } from "./ZeroPageWatchWindow.js";

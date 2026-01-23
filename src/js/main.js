@@ -20,6 +20,7 @@ import {
   DisplaySettingsWindow,
   MemoryBrowserWindow,
   MemoryHeatMapWindow,
+  MemoryMapWindow,
   StackViewerWindow,
   ZeroPageWatchWindow,
 } from "./debug/index.js";
@@ -122,6 +123,10 @@ class AppleIIeEmulator {
         memBrowserWindow.jumpToAddress(addr);
         this.windowManager.showWindow("memory-browser");
       });
+
+      const memMapWindow = new MemoryMapWindow(this.wasmModule);
+      memMapWindow.create();
+      this.windowManager.register(memMapWindow);
 
       const stackWindow = new StackViewerWindow(this.wasmModule);
       stackWindow.create();

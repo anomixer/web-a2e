@@ -252,12 +252,11 @@ export class MemoryHeatMapWindow extends DebugWindow {
    * Render the memory heat map for main RAM and system ROM.
    *
    * Color encoding scheme:
-   * - Background brightness: Based on memory content value (0-255 → 0-15 gray level).
-   *   This shows a dim representation of the actual memory contents.
-   * - Read activity: Blue channel. Higher read count = brighter blue.
-   * - Write activity: Red channel. Higher write count = brighter red.
-   * - Combined read+write: Purple (red + blue), with green tint for addresses
-   *   that have both reads and writes (green = min(read, write) / 2).
+   * - Background brightness: Based on memory content value (0-255 → visible gray level).
+   *   This shows the actual memory contents.
+   * - Read activity: Blue/cyan channel. Higher read count = brighter blue.
+   * - Write activity: Red/orange channel. Higher write count = brighter red.
+   * - Combined read+write: Purple/magenta blend.
    *
    * Each pixel represents one memory address. The canvas is 256x256 = 65536 pixels,
    * covering the entire 64KB address space. Addresses are laid out left-to-right,
@@ -285,25 +284,51 @@ export class MemoryHeatMapWindow extends DebugWindow {
       }
 
       const pixelIndex = addr * 4;
-      const bgLevel = memValue >> 4; // 0-15 background level
 
-      let r = bgLevel,
-        g = bgLevel,
-        b = bgLevel;
+      // Base background: visible gray based on memory content (20-60 range)
+      const bgLevel = 20 + Math.floor(memValue * 0.16);
+
+      let r, g, b;
+
+      // Scale activity to be more visible (multiply by 3, cap at 200)
+      const readIntensity = Math.min(200, readCount * 3);
+      const writeIntensity = Math.min(200, writeCount * 3);
 
       switch (this.viewMode) {
         case "reads":
-          b = Math.min(255, bgLevel + readCount);
+          // Cyan/blue for reads
+          r = bgLevel;
+          g = Math.min(255, bgLevel + Math.floor(readIntensity * 0.7));
+          b = Math.min(255, bgLevel + readIntensity);
           break;
         case "writes":
-          r = Math.min(255, bgLevel + writeCount);
+          // Orange/red for writes
+          r = Math.min(255, bgLevel + writeIntensity);
+          g = Math.min(255, bgLevel + Math.floor(writeIntensity * 0.4));
+          b = bgLevel;
           break;
         case "combined":
         default:
-          r = Math.min(255, bgLevel + writeCount);
-          b = Math.min(255, bgLevel + readCount);
           if (readCount > 0 && writeCount > 0) {
-            g = Math.min(255, bgLevel + (Math.min(readCount, writeCount) >> 1));
+            // Purple/magenta for both
+            r = Math.min(255, bgLevel + writeIntensity);
+            g = Math.min(255, bgLevel + Math.floor(Math.min(readIntensity, writeIntensity) * 0.3));
+            b = Math.min(255, bgLevel + readIntensity);
+          } else if (readCount > 0) {
+            // Cyan/blue for reads only
+            r = bgLevel;
+            g = Math.min(255, bgLevel + Math.floor(readIntensity * 0.7));
+            b = Math.min(255, bgLevel + readIntensity);
+          } else if (writeCount > 0) {
+            // Orange/red for writes only
+            r = Math.min(255, bgLevel + writeIntensity);
+            g = Math.min(255, bgLevel + Math.floor(writeIntensity * 0.4));
+            b = bgLevel;
+          } else {
+            // No activity - gray background
+            r = bgLevel;
+            g = bgLevel;
+            b = bgLevel;
           }
           break;
       }
@@ -335,26 +360,51 @@ export class MemoryHeatMapWindow extends DebugWindow {
       }
 
       const pixelIndex = addr * 4;
-      const bgLevel = memValue >> 4;
 
-      let r = bgLevel,
-        g = bgLevel,
-        b = bgLevel;
+      // Base background: visible gray based on memory content (20-60 range)
+      const bgLevel = 20 + Math.floor(memValue * 0.16);
 
-      // Apply tracking overlay (dimmed since tracking is address-based, not bank-specific)
+      let r, g, b;
+
+      // Scale activity (dimmed for aux since tracking is address-based)
+      const readIntensity = Math.min(200, readCount * 2);
+      const writeIntensity = Math.min(200, writeCount * 2);
+
       switch (this.viewMode) {
         case "reads":
-          b = Math.min(255, bgLevel + (readCount >> 1));
+          // Cyan/blue for reads
+          r = bgLevel;
+          g = Math.min(255, bgLevel + Math.floor(readIntensity * 0.7));
+          b = Math.min(255, bgLevel + readIntensity);
           break;
         case "writes":
-          r = Math.min(255, bgLevel + (writeCount >> 1));
+          // Orange/red for writes
+          r = Math.min(255, bgLevel + writeIntensity);
+          g = Math.min(255, bgLevel + Math.floor(writeIntensity * 0.4));
+          b = bgLevel;
           break;
         case "combined":
         default:
-          r = Math.min(255, bgLevel + (writeCount >> 1));
-          b = Math.min(255, bgLevel + (readCount >> 1));
           if (readCount > 0 && writeCount > 0) {
-            g = Math.min(255, bgLevel + (Math.min(readCount, writeCount) >> 2));
+            // Purple/magenta for both
+            r = Math.min(255, bgLevel + writeIntensity);
+            g = Math.min(255, bgLevel + Math.floor(Math.min(readIntensity, writeIntensity) * 0.3));
+            b = Math.min(255, bgLevel + readIntensity);
+          } else if (readCount > 0) {
+            // Cyan/blue for reads only
+            r = bgLevel;
+            g = Math.min(255, bgLevel + Math.floor(readIntensity * 0.7));
+            b = Math.min(255, bgLevel + readIntensity);
+          } else if (writeCount > 0) {
+            // Orange/red for writes only
+            r = Math.min(255, bgLevel + writeIntensity);
+            g = Math.min(255, bgLevel + Math.floor(writeIntensity * 0.4));
+            b = bgLevel;
+          } else {
+            // No activity - gray background
+            r = bgLevel;
+            g = bgLevel;
+            b = bgLevel;
           }
           break;
       }

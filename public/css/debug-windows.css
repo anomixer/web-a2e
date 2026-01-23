@@ -1370,15 +1370,15 @@
 }
 
 .legend-color.reads {
-    background: #0044ff;
+    background: #00ccff;
 }
 
 .legend-color.writes {
-    background: #ff4400;
+    background: #ff6622;
 }
 
 .legend-color.both {
-    background: #8844ff;
+    background: #cc44ff;
 }
 
 .heatmap-info {
@@ -1679,8 +1679,14 @@
 }
 
 /* ============================================
-   MEMORY BANK MAP (in Soft Switches Window)
+   MEMORY MAP WINDOW
    ============================================ */
+
+.memory-map-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
 
 .bank-map {
     display: flex;
@@ -1744,6 +1750,12 @@
     color: var(--accent-red);
 }
 
+.bank-io {
+    background: rgba(139, 148, 158, 0.2);
+    border: 1px solid rgba(139, 148, 158, 0.4);
+    color: var(--text-secondary);
+}
+
 .bank-legend {
     display: flex;
     justify-content: center;
@@ -1765,4 +1777,32 @@
     width: 12px;
     height: 12px;
     border-radius: 2px;
+}
+
+.bank-status {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: var(--radius-sm);
+    margin-top: 4px;
+}
+
+.bank-status-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 10px;
+}
+
+.bank-status-label {
+    color: var(--text-muted);
+    min-width: 40px;
+}
+
+.bank-status-value {
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-weight: 500;
 }
