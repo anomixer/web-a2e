@@ -117,6 +117,21 @@ void setButton(int button, bool pressed) {
 }
 
 EMSCRIPTEN_KEEPALIVE
+void setPaddleValue(int paddle, int value) {
+  if (g_emulator) {
+    g_emulator->setPaddleValue(paddle, value);
+  }
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getPaddleValue(int paddle) {
+  if (g_emulator) {
+    return g_emulator->getPaddleValue(paddle);
+  }
+  return 128;
+}
+
+EMSCRIPTEN_KEEPALIVE
 bool isKeyboardReady() {
   if (g_emulator) {
     return g_emulator->isKeyboardReady();

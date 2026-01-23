@@ -10,3 +10,4 @@ export { MemoryHeatMapWindow } from "./MemoryHeatMapWindow.js";
 export { MemoryMapWindow } from "./MemoryMapWindow.js";
 export { StackViewerWindow } from "./StackViewerWindow.js";
 export { ZeroPageWatchWindow } from "./ZeroPageWatchWindow.js";
+export { JoystickWindow } from "./JoystickWindow.js";

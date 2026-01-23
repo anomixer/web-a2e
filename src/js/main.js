@@ -23,6 +23,7 @@ import {
   MemoryMapWindow,
   StackViewerWindow,
   ZeroPageWatchWindow,
+  JoystickWindow,
 } from "./debug/index.js";
 import { ReleaseNotesWindow } from "./ReleaseNotesWindow.js";
 
@@ -136,6 +137,10 @@ class AppleIIeEmulator {
       const zpWatchWindow = new ZeroPageWatchWindow(this.wasmModule);
       zpWatchWindow.create();
       this.windowManager.register(zpWatchWindow);
+
+      const joystickWindow = new JoystickWindow(this.wasmModule);
+      joystickWindow.create();
+      this.windowManager.register(joystickWindow);
 
       // Release notes window
       this.releaseNotesWindow = new ReleaseNotesWindow();

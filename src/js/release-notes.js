@@ -4,6 +4,7 @@
  */
 
 export const RELEASE_NOTES = [
+  { hash: "178f7ca", date: "2026-01-23", message: "Add floating joystick window for paddle/joystick input" },
   { hash: "44405e3", date: "2026-01-23", message: "Convert help to moveable window with comprehensive documentation and PWA install guide" },
   { hash: "4861d6c", date: "2026-01-23", message: "Add release notes page and automatic update checking" },
   { hash: "702d9e7", date: "2026-01-23", message: "Fix keyboard, debugger, and DHGR rendering issues" },

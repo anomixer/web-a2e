@@ -376,6 +376,15 @@ export class UIController {
       });
     }
 
+    // Joystick button
+    const joystickBtn = document.getElementById("btn-joystick");
+    if (joystickBtn) {
+      joystickBtn.addEventListener("click", () => {
+        this.windowManager.toggleWindow("joystick");
+        this.refocusCanvas();
+      });
+    }
+
     // Update/refresh button - force service worker update
     const updateBtn = document.getElementById("btn-update");
     if (updateBtn) {
