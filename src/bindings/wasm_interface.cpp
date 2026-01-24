@@ -659,4 +659,123 @@ uint32_t disassembleWithFlowAnalysisMultiEntry(const uint8_t *data, size_t size,
   return static_cast<uint32_t>(g_disasmResult.instructions.size());
 }
 
+// ============================================================================
+// Mockingboard Debug State
+// ============================================================================
+
+EMSCRIPTEN_KEEPALIVE
+bool isMockingboardEnabled() {
+  if (g_emulator) {
+    return g_emulator->getMockingboard().isEnabled();
+  }
+  return false;
+}
+
+EMSCRIPTEN_KEEPALIVE
+uint8_t getMockingboardPSGRegister(int psg, int reg) {
+  if (g_emulator && reg >= 0 && reg < 16) {
+    if (psg == 0) {
+      return g_emulator->getMockingboard().getPSG1().getRegister(reg);
+    } else if (psg == 1) {
+      return g_emulator->getMockingboard().getPSG2().getRegister(reg);
+    }
+  }
+  return 0;
+}
+
+// Get all 16 PSG registers as a packed structure for efficiency
+// Returns pointer to static buffer with 16 bytes
+static uint8_t g_psgRegisters[16];
+
+EMSCRIPTEN_KEEPALIVE
+const uint8_t* getMockingboardPSGRegisters(int psg) {
+  if (g_emulator) {
+    const auto& psgChip = (psg == 0)
+      ? g_emulator->getMockingboard().getPSG1()
+      : g_emulator->getMockingboard().getPSG2();
+    for (int i = 0; i < 16; i++) {
+      g_psgRegisters[i] = psgChip.getRegister(i);
+    }
+    return g_psgRegisters;
+  }
+  return nullptr;
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool getMockingboardVIAIRQ(int via) {
+  if (g_emulator) {
+    if (via == 0) {
+      return g_emulator->getMockingboard().getVIA1().isIRQActive();
+    } else if (via == 1) {
+      return g_emulator->getMockingboard().getVIA2().isIRQActive();
+    }
+  }
+  return false;
+}
+
+// Get VIA port registers for debugging
+// reg: 0=ORA, 1=ORB, 2=DDRA, 3=DDRB
+EMSCRIPTEN_KEEPALIVE
+uint8_t getMockingboardVIAPort(int via, int reg) {
+  if (g_emulator) {
+    const auto& viaChip = (via == 0)
+        ? g_emulator->getMockingboard().getVIA1()
+        : g_emulator->getMockingboard().getVIA2();
+    switch (reg) {
+      case 0: return viaChip.getORA();
+      case 1: return viaChip.getORB();
+      case 2: return viaChip.getDDRA();
+      case 3: return viaChip.getDDRB();
+    }
+  }
+  return 0;
+}
+
+// Get PSG write debug info
+// info: 0=writeCount, 1=lastWriteReg, 2=lastWriteVal, 3=currentRegister
+EMSCRIPTEN_KEEPALIVE
+uint32_t getMockingboardPSGWriteInfo(int psg, int info) {
+  if (g_emulator) {
+    const auto& psgChip = (psg == 0)
+        ? g_emulator->getMockingboard().getPSG1()
+        : g_emulator->getMockingboard().getPSG2();
+    switch (info) {
+      case 0: return psgChip.getWriteCount();
+      case 1: return psgChip.getLastWriteReg();
+      case 2: return psgChip.getLastWriteVal();
+      case 3: return psgChip.getCurrentRegister();
+    }
+  }
+  return 0;
+}
+
+// Get VIA timer debug info
+// info: 0=T1Counter, 1=T1Latch, 2=T1Running, 3=T1Fired, 4=ACR, 5=IFR, 6=IER
+EMSCRIPTEN_KEEPALIVE
+uint32_t getMockingboardVIATimerInfo(int via, int info) {
+  if (g_emulator) {
+    const auto& viaChip = (via == 0)
+        ? g_emulator->getMockingboard().getVIA1()
+        : g_emulator->getMockingboard().getVIA2();
+    switch (info) {
+      case 0: return viaChip.getT1Counter();
+      case 1: return viaChip.getT1Latch();
+      case 2: return viaChip.isT1Running() ? 1 : 0;
+      case 3: return viaChip.hasT1Fired() ? 1 : 0;
+      case 4: return viaChip.getACR();
+      case 5: return viaChip.getIFR();
+      case 6: return viaChip.getIER();
+    }
+  }
+  return 0;
+}
+
+// Enable/disable console debug logging for Mockingboard PSG writes
+EMSCRIPTEN_KEEPALIVE
+void setMockingboardDebugLogging(bool enabled) {
+  if (g_emulator) {
+    g_emulator->getMockingboard().setDebugLogging(enabled);
+  }
+}
+
 } // extern "C"

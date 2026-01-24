@@ -24,6 +24,7 @@ import {
   StackViewerWindow,
   ZeroPageWatchWindow,
   JoystickWindow,
+  MockingboardWindow,
 } from "./debug/index.js";
 import { ReleaseNotesWindow } from "./ReleaseNotesWindow.js";
 
@@ -141,6 +142,10 @@ class AppleIIeEmulator {
       const joystickWindow = new JoystickWindow(this.wasmModule);
       joystickWindow.create();
       this.windowManager.register(joystickWindow);
+
+      const mockingboardWindow = new MockingboardWindow(this.wasmModule);
+      mockingboardWindow.create();
+      this.windowManager.register(mockingboardWindow);
 
       // Release notes window
       this.releaseNotesWindow = new ReleaseNotesWindow();
@@ -450,4 +455,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Make emulator accessible globally for debugging
   window.a2e = emulator;
+
+  // Helper to toggle Mockingboard debug logging from console
+  window.mbDebug = (enabled = true) => {
+    if (emulator.wasmModule && emulator.wasmModule._setMockingboardDebugLogging) {
+      emulator.wasmModule._setMockingboardDebugLogging(enabled);
+      console.log(`Mockingboard debug logging ${enabled ? "enabled" : "disabled"}`);
+    } else {
+      console.log("Mockingboard debug logging not available");
+    }
+  };
 });
