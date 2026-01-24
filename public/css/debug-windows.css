@@ -2196,3 +2196,210 @@
     background: rgba(48, 54, 61, 0.6);
     border-color: rgba(48, 54, 61, 0.8);
 }
+
+/* ============================================
+   BASIC Program Window
+   ============================================ */
+
+.basic-program-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    gap: 8px;
+}
+
+.basic-status {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 8px;
+    background: rgba(0, 0, 0, 0.2);
+    border-radius: var(--radius-sm);
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+/* Editor container - overlay technique for syntax highlighting */
+.basic-editor-container {
+    flex: 1;
+    position: relative;
+    min-height: 150px;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(48, 54, 61, 0.6);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.basic-editor-container:focus-within {
+    border-color: rgba(63, 185, 80, 0.6);
+    box-shadow: 0 0 0 2px rgba(63, 185, 80, 0.15);
+}
+
+/* Shared styles for textarea and highlight overlay */
+.basic-textarea,
+.basic-highlight {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    padding: 8px;
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    box-sizing: border-box;
+}
+
+/* Highlight layer - shows colored syntax */
+.basic-highlight {
+    pointer-events: none;
+    overflow: auto;
+    color: transparent;
+    background: transparent;
+}
+
+/* Textarea - transparent text, receives input */
+.basic-textarea {
+    color: transparent;
+    caret-color: #33ff33;
+    background: transparent;
+    border: none;
+    resize: none;
+    outline: none;
+    z-index: 1;
+    overflow: auto;
+}
+
+.basic-textarea::placeholder {
+    color: rgba(51, 255, 51, 0.4);
+}
+
+/* Syntax highlighting colors */
+.basic-highlight .bas-linenum {
+    color: #6e7681;
+}
+
+.basic-highlight .bas-flow {
+    color: #ff7b72;
+    font-weight: 500;
+}
+
+.basic-highlight .bas-loop {
+    color: #d2a8ff;
+    font-weight: 500;
+}
+
+.basic-highlight .bas-io {
+    color: #79c0ff;
+    font-weight: 500;
+}
+
+.basic-highlight .bas-graphics {
+    color: #7ee787;
+}
+
+.basic-highlight .bas-memory {
+    color: #ffa657;
+}
+
+.basic-highlight .bas-func {
+    color: #a5d6ff;
+}
+
+.basic-highlight .bas-var {
+    color: #ff9492;
+}
+
+.basic-highlight .bas-misc {
+    color: #8b949e;
+}
+
+.basic-highlight .bas-keyword {
+    color: #ff7b72;
+}
+
+.basic-highlight .bas-string {
+    color: #a5d6ff;
+}
+
+.basic-highlight .bas-number {
+    color: #79c0ff;
+}
+
+.basic-highlight .bas-variable {
+    color: #ffa657;
+}
+
+.basic-highlight .bas-operator {
+    color: #ff7b72;
+}
+
+.basic-highlight .bas-punct {
+    color: #8b949e;
+}
+
+.basic-highlight .bas-comment {
+    color: #8b949e;
+    font-style: italic;
+}
+
+.basic-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.basic-btn {
+    flex: 1;
+    padding: 8px 12px;
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 500;
+    background: rgba(33, 38, 45, 0.6);
+    border: 1px solid rgba(48, 54, 61, 0.4);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.basic-btn:hover {
+    background: rgba(48, 54, 61, 0.6);
+    color: var(--text-primary);
+}
+
+.basic-insert-btn:hover {
+    background: rgba(63, 185, 80, 0.2);
+    border-color: rgba(63, 185, 80, 0.4);
+    color: var(--accent-green);
+}
+
+.basic-btn-success {
+    background: rgba(63, 185, 80, 0.3) !important;
+    border-color: rgba(63, 185, 80, 0.6) !important;
+    color: var(--accent-green) !important;
+    animation: basic-load-pulse 0.3s ease-out;
+}
+
+@keyframes basic-load-pulse {
+    0% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(63, 185, 80, 0.4);
+    }
+    50% {
+        transform: scale(1.02);
+        box-shadow: 0 0 12px 4px rgba(63, 185, 80, 0.3);
+    }
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 0 0 rgba(63, 185, 80, 0);
+    }
+}
+
+.basic-clear-btn:hover {
+    background: rgba(248, 81, 73, 0.2);
+    border-color: rgba(248, 81, 73, 0.4);
+    color: var(--accent-red);
+}

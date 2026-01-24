@@ -25,6 +25,7 @@ import {
   ZeroPageWatchWindow,
   JoystickWindow,
   MockingboardWindow,
+  BasicProgramWindow,
 } from "./debug/index.js";
 import { ReleaseNotesWindow } from "./ReleaseNotesWindow.js";
 
@@ -146,6 +147,13 @@ class AppleIIeEmulator {
       const mockingboardWindow = new MockingboardWindow(this.wasmModule);
       mockingboardWindow.create();
       this.windowManager.register(mockingboardWindow);
+
+      const basicProgramWindow = new BasicProgramWindow(
+        this.wasmModule,
+        this.inputHandler,
+      );
+      basicProgramWindow.create();
+      this.windowManager.register(basicProgramWindow);
 
       // Release notes window
       this.releaseNotesWindow = new ReleaseNotesWindow();

@@ -12,3 +12,4 @@ export { StackViewerWindow } from "./StackViewerWindow.js";
 export { ZeroPageWatchWindow } from "./ZeroPageWatchWindow.js";
 export { JoystickWindow } from "./JoystickWindow.js";
 export { MockingboardWindow } from "./MockingboardWindow.js";
+export { BasicProgramWindow } from "./BasicProgramWindow.js";

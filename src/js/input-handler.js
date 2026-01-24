@@ -240,6 +240,21 @@ export class InputHandler {
     this.pasteQueue = [];
   }
 
+  // Queue text for programmatic input (used by BasicProgramWindow)
+  queueTextInput(text) {
+    for (const char of text) {
+      const appleKey = this.charToAppleKey(char);
+      if (appleKey !== null) {
+        this.pasteQueue.push(appleKey);
+      }
+    }
+
+    // Start processing queue if not already running
+    if (!this.pasteTimer && this.pasteQueue.length > 0) {
+      this.processPasteQueue();
+    }
+  }
+
   // Detect if we're on a mobile/touch device
   detectMobile() {
     // Check for touch capability and mobile user agent

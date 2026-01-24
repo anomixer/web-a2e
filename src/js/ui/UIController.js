@@ -325,6 +325,7 @@ export class UIController {
       stack: "stack-viewer",
       zeropage: "zeropage-watch",
       mockingboard: "mockingboard-debug",
+      basic: "basic-program",
     };
 
     debugMenuBtn.addEventListener("click", (e) => {
