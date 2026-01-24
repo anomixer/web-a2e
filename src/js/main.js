@@ -8,6 +8,7 @@ import { DiskManager } from "./disk-manager/index.js";
 import { FileExplorerWindow } from "./file-explorer/index.js";
 import { TextSelection } from "./TextSelection.js";
 import { MonitorResizer } from "./ui/MonitorResizer.js";
+import { DiskDrivePositioner } from "./ui/DiskDrivePositioner.js";
 import { ReminderController } from "./ui/ReminderController.js";
 import { DocumentationWindow } from "./ui/DocumentationWindow.js";
 import { UIController } from "./ui/UIController.js";
@@ -210,6 +211,10 @@ class AppleIIeEmulator {
         onResizeComplete: () => {},
       });
       this.monitorResizer.init();
+
+      // Set up disk drive positioner
+      this.diskDrivePositioner = new DiskDrivePositioner();
+      this.diskDrivePositioner.init();
 
       // Set up UI controller
       this.uiController = new UIController({

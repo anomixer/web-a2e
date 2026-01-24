@@ -7,6 +7,71 @@
     width: 100%;
     max-width: 576px;
     flex-shrink: 0;
+    cursor: grab;
+    position: relative;
+}
+
+.disk-drives-container.dragging {
+    cursor: grabbing;
+    user-select: none;
+}
+
+/* Free position mode - allows absolute positioning */
+.disk-drives-container.free-position {
+    position: fixed;
+    z-index: 100;
+    width: auto;
+}
+
+/* Disable free position in full-page mode and fullscreen */
+body.full-page-mode .disk-drives-container.free-position,
+:fullscreen .disk-drives-container.free-position {
+    position: static;
+    left: auto !important;
+    top: auto !important;
+}
+
+/* Position indicator for disk drives */
+.drives-position-indicator {
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    width: 18px;
+    height: 18px;
+    padding: 3px;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid var(--accent-green);
+    border-radius: var(--radius-sm);
+    color: var(--accent-green);
+    cursor: pointer;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.drives-position-indicator:hover {
+    background: rgba(0, 0, 0, 0.8);
+    border-color: var(--accent-green-bright);
+    color: var(--accent-green-bright);
+    transform: scale(1.1);
+}
+
+.drives-position-indicator svg {
+    width: 10px;
+    height: 10px;
+}
+
+.drives-position-indicator.hidden {
+    display: none;
+}
+
+/* Restore default cursor on interactive elements */
+.disk-drives-container button,
+.disk-drives-container input {
+    cursor: pointer;
 }
 
 .disk-drives-container.collapsed {
