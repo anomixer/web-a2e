@@ -1,7 +1,7 @@
 /**
  * MemoryBrowserWindow - Scrollable 64KB memory viewer
  */
-import { DebugWindow } from "./DebugWindow.js";
+import { BaseWindow } from "../ui/BaseWindow.js";
 
 // Memory region definitions for Apple II
 const MEMORY_REGIONS = [
@@ -35,7 +35,7 @@ const QUICK_JUMPS = [
   { label: "DOS", addr: 0x9600, title: "DOS 3.3 ($9600)" },
 ];
 
-export class MemoryBrowserWindow extends DebugWindow {
+export class MemoryBrowserWindow extends BaseWindow {
   constructor(wasmModule) {
     super({
       id: "memory-browser",

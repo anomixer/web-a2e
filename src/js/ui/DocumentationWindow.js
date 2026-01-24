@@ -1,11 +1,11 @@
 /**
  * DocumentationWindow - Moveable help & documentation window
- * Extends DebugWindow for drag/resize functionality
+ * Extends BaseWindow for drag/resize functionality
  */
 
-import { DebugWindow } from "../debug/DebugWindow.js";
+import { BaseWindow } from "./BaseWindow.js";
 
-export class DocumentationWindow extends DebugWindow {
+export class DocumentationWindow extends BaseWindow {
   constructor() {
     super({
       id: "documentation-window",

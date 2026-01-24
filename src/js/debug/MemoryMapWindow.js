@@ -1,10 +1,10 @@
-import { DebugWindow } from './DebugWindow.js';
+import { BaseWindow } from '../ui/BaseWindow.js';
 
 /**
  * MemoryMapWindow - Visual representation of memory bank configuration
  * Shows which memory banks are currently active based on soft switch states
  */
-export class MemoryMapWindow extends DebugWindow {
+export class MemoryMapWindow extends BaseWindow {
   constructor(wasmModule) {
     super({
       id: 'memory-map',

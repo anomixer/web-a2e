@@ -1,12 +1,12 @@
 /**
  * BasicProgramWindow - Window for loading BASIC programs directly into memory
  */
-import { DebugWindow } from "./DebugWindow.js";
+import { BaseWindow } from "../ui/BaseWindow.js";
 import { tokenizeLine, BASIC_POINTERS } from "../utils/basic-tokens.js";
 import { highlightBasicSource } from "../utils/basic-highlighting.js";
 import { BasicAutocomplete } from "../utils/basic-autocomplete.js";
 
-export class BasicProgramWindow extends DebugWindow {
+export class BasicProgramWindow extends BaseWindow {
   constructor(wasmModule, inputHandler) {
     super({
       id: "basic-program",

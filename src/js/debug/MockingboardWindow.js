@@ -1,9 +1,9 @@
-import { DebugWindow } from "./DebugWindow.js";
+import { BaseWindow } from "../ui/BaseWindow.js";
 
 /**
  * MockingboardWindow - Display Mockingboard PSG and VIA state for debugging
  */
-export class MockingboardWindow extends DebugWindow {
+export class MockingboardWindow extends BaseWindow {
   constructor(wasmModule) {
     super({
       id: "mockingboard-debug",

@@ -1,7 +1,7 @@
 /**
- * DebugWindow - Base class for draggable/resizable debug windows
+ * BaseWindow - Base class for draggable/resizable windows
  */
-export class DebugWindow {
+export class BaseWindow {
   constructor(config) {
     this.id = config.id;
     this.title = config.title;

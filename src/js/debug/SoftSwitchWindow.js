@@ -1,9 +1,9 @@
-import { DebugWindow } from './DebugWindow.js';
+import { BaseWindow } from '../ui/BaseWindow.js';
 
 /**
  * SoftSwitchWindow - Display all soft switches with descriptions and addresses
  */
-export class SoftSwitchWindow extends DebugWindow {
+export class SoftSwitchWindow extends BaseWindow {
   constructor(wasmModule) {
     super({
       id: 'soft-switches',

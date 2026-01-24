@@ -1,9 +1,9 @@
-import { DebugWindow } from './DebugWindow.js';
+import { BaseWindow } from './BaseWindow.js';
 
 /**
  * DisplaySettingsWindow - CRT display effects and settings
  */
-export class DisplaySettingsWindow extends DebugWindow {
+export class DisplaySettingsWindow extends BaseWindow {
   constructor(renderer, wasmModule) {
     super({
       id: 'display-settings',

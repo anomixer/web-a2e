@@ -28,7 +28,7 @@ import {
   MockingboardWindow,
   BasicProgramWindow,
 } from "./debug/index.js";
-import { ReleaseNotesWindow } from "./ReleaseNotesWindow.js";
+import { ReleaseNotesWindow } from "./ui/ReleaseNotesWindow.js";
 
 // Display constants
 const MONITOR_ASPECT_RATIO = 4 / 3;

@@ -1,10 +1,10 @@
-import { DebugWindow } from './DebugWindow.js';
+import { BaseWindow } from '../ui/BaseWindow.js';
 import { getSymbolInfo, getCategoryClass } from './symbols.js';
 
 /**
  * CPUDebuggerWindow - CPU registers, disassembly, and breakpoints
  */
-export class CPUDebuggerWindow extends DebugWindow {
+export class CPUDebuggerWindow extends BaseWindow {
   constructor(wasmModule) {
     super({
       id: 'cpu-debugger',

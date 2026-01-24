@@ -1,9 +1,9 @@
 /**
  * JoystickWindow - Virtual joystick/paddle control
  */
-import { DebugWindow } from "./DebugWindow.js";
+import { BaseWindow } from "./BaseWindow.js";
 
-export class JoystickWindow extends DebugWindow {
+export class JoystickWindow extends BaseWindow {
   constructor(wasmModule) {
     super({
       id: "joystick",

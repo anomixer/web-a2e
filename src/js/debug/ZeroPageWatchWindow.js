@@ -1,7 +1,7 @@
 /**
  * ZeroPageWatchWindow - Monitor important zero page locations
  */
-import { DebugWindow } from "./DebugWindow.js";
+import { BaseWindow } from "../ui/BaseWindow.js";
 
 // Predefined watches for common Apple II zero page locations
 const PREDEFINED_WATCHES = {
@@ -52,7 +52,7 @@ const PREDEFINED_WATCHES = {
   ],
 };
 
-export class ZeroPageWatchWindow extends DebugWindow {
+export class ZeroPageWatchWindow extends BaseWindow {
   constructor(wasmModule) {
     super({
       id: "zeropage-watch",

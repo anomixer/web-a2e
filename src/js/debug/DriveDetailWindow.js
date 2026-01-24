@@ -1,9 +1,9 @@
-import { DebugWindow } from './DebugWindow.js';
+import { BaseWindow } from '../ui/BaseWindow.js';
 
 /**
  * DriveDetailWindow - Disk drive status and details
  */
-export class DriveDetailWindow extends DebugWindow {
+export class DriveDetailWindow extends BaseWindow {
   constructor(wasmModule) {
     super({
       id: 'drive-detail',

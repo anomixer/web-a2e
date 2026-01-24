@@ -1,10 +1,10 @@
-import { DebugWindow } from './debug/DebugWindow.js';
-import { RELEASE_NOTES, groupByDate, formatDate } from './release-notes.js';
+import { BaseWindow } from './BaseWindow.js';
+import { RELEASE_NOTES, groupByDate, formatDate } from '../release-notes.js';
 
 /**
  * ReleaseNotesWindow - Displays git commit history as release notes
  */
-export class ReleaseNotesWindow extends DebugWindow {
+export class ReleaseNotesWindow extends BaseWindow {
   constructor() {
     super({
       id: 'release-notes',

@@ -2,7 +2,7 @@
  * MemoryHeatMapWindow - Dual 256x256 visualization of memory access patterns
  * Left: Main RAM + ROM, Right: Auxiliary RAM (banked memory)
  */
-import { DebugWindow } from "./DebugWindow.js";
+import { BaseWindow } from "../ui/BaseWindow.js";
 
 // Memory region labels for main memory
 const MAIN_MEMORY_REGIONS = [
@@ -36,7 +36,7 @@ const AUX_MEMORY_REGIONS = [
   { name: "Aux $C000-$FFFF", start: 0xc000, end: 0xffff },
 ];
 
-export class MemoryHeatMapWindow extends DebugWindow {
+export class MemoryHeatMapWindow extends BaseWindow {
   constructor(wasmModule) {
     super({
       id: "memory-heatmap",
