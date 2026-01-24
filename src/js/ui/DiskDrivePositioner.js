@@ -158,10 +158,9 @@ export class DiskDrivePositioner {
     const headerHeight = header ? header.offsetHeight : 0;
     const footerHeight = footer ? footer.offsetHeight : 0;
 
-    // Constrain to viewport
-    const minVisible = 50;
-    newX = Math.max(-rect.width + minVisible, Math.min(window.innerWidth - minVisible, newX));
-    newY = Math.max(headerHeight, Math.min(window.innerHeight - footerHeight - minVisible, newY));
+    // Constrain to viewport (keep entire element on screen)
+    newX = Math.max(0, Math.min(window.innerWidth - rect.width, newX));
+    newY = Math.max(headerHeight, Math.min(window.innerHeight - footerHeight - rect.height, newY));
 
     this.customPosition = { x: newX, y: newY };
     this.applyPosition();

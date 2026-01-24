@@ -216,10 +216,9 @@ export class MonitorResizer {
     const headerHeight = header ? header.offsetHeight : 0;
     const footerHeight = footer ? footer.offsetHeight : 0;
 
-    // Constrain to viewport (leaving some of the monitor visible)
-    const minVisible = 50;
-    newX = Math.max(-bezelRect.width + minVisible, Math.min(window.innerWidth - minVisible, newX));
-    newY = Math.max(headerHeight, Math.min(window.innerHeight - footerHeight - minVisible, newY));
+    // Constrain to viewport (keep entire element on screen)
+    newX = Math.max(0, Math.min(window.innerWidth - bezelRect.width, newX));
+    newY = Math.max(headerHeight, Math.min(window.innerHeight - footerHeight - bezelRect.height, newY));
 
     this.customPosition = { x: newX, y: newY };
     this.applyPosition();
