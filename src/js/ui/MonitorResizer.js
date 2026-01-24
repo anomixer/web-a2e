@@ -121,10 +121,12 @@ export class MonitorResizer {
     const monitorBezel = document.querySelector(".monitor-bezel");
     if (!monitorBezel) return;
 
-    // Drag on the bezel itself (not on resize handles)
+    // Drag on the bezel itself (not on screen or controls)
     monitorBezel.addEventListener("mousedown", (e) => {
-      // Don't start drag if clicking on a resize handle or control
+      // Don't start drag if clicking on the screen, resize handles, or controls
       if (
+        e.target.closest(".monitor-screen-wrapper") ||
+        e.target.closest("#screen") ||
         e.target.classList.contains("monitor-resize-handle") ||
         e.target.closest(".size-lock-indicator") ||
         e.target.closest(".position-indicator") ||
@@ -139,8 +141,10 @@ export class MonitorResizer {
 
     // Double-click to re-center
     monitorBezel.addEventListener("dblclick", (e) => {
-      // Don't re-center if clicking on controls
+      // Don't re-center if clicking on the screen or controls
       if (
+        e.target.closest(".monitor-screen-wrapper") ||
+        e.target.closest("#screen") ||
         e.target.classList.contains("monitor-resize-handle") ||
         e.target.closest(".size-lock-indicator") ||
         e.target.closest(".position-indicator") ||

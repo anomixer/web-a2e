@@ -241,9 +241,17 @@
     cursor: grab;
 }
 
+.monitor-bezel .monitor-screen-wrapper {
+    cursor: default;
+}
+
 .monitor-bezel.dragging {
     cursor: grabbing;
     user-select: none;
+}
+
+.monitor-bezel.dragging .monitor-screen-wrapper {
+    cursor: grabbing;
 }
 
 /* Free position mode - allows absolute positioning */
