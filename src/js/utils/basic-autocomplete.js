@@ -1,9 +1,237 @@
 /**
  * Applesoft BASIC Autocomplete
  * Provides IntelliSense-like autocomplete for the BASIC editor
+ * with context-aware suggestions for variables, line numbers, etc.
  */
 
 import { APPLESOFT_TOKENS } from "./basic-tokens.js";
+
+/**
+ * ProgramContext - Parses BASIC code to extract variables, line numbers, etc.
+ */
+class ProgramContext {
+  constructor() {
+    this.variables = new Map(); // name -> { type: 'numeric'|'string', isArray: boolean }
+    this.lineNumbers = new Set();
+    this.functions = new Map(); // name -> { param: string }
+  }
+
+  /**
+   * Parse the entire program text
+   */
+  parse(text) {
+    this.variables.clear();
+    this.lineNumbers.clear();
+    this.functions.clear();
+
+    const lines = text.split(/\r?\n/);
+    for (const line of lines) {
+      this.parseLine(line.trim().toUpperCase());
+    }
+  }
+
+  /**
+   * Parse a single line of BASIC
+   */
+  parseLine(line) {
+    if (!line) return;
+
+    // Extract line number
+    const lineMatch = line.match(/^(\d+)\s*(.*)/);
+    if (lineMatch) {
+      const lineNum = parseInt(lineMatch[1], 10);
+      if (lineNum >= 0 && lineNum <= 63999) {
+        this.lineNumbers.add(lineNum);
+      }
+      line = lineMatch[2];
+    }
+
+    // Extract DEF FN functions: DEF FN NAME(VAR) = expr
+    const fnMatch = line.match(/DEF\s+FN\s*([A-Z][A-Z0-9]*)\s*\(\s*([A-Z][A-Z0-9]*)\s*\)/);
+    if (fnMatch) {
+      this.functions.set(fnMatch[1], { param: fnMatch[2] });
+      // The parameter is a numeric variable
+      this.addVariable(fnMatch[2], "numeric", false);
+    }
+
+    // Extract DIM arrays: DIM A(10), B$(5,3), ...
+    const dimMatch = line.match(/DIM\s+(.*)/);
+    if (dimMatch) {
+      const dimPart = dimMatch[1];
+      const arrayPattern = /([A-Z][A-Z0-9]*\$?)\s*\(/g;
+      let match;
+      while ((match = arrayPattern.exec(dimPart)) !== null) {
+        const name = match[1];
+        const isString = name.endsWith("$");
+        this.addVariable(name, isString ? "string" : "numeric", true);
+      }
+    }
+
+    // Extract FOR loop variables: FOR I = 1 TO 10
+    const forMatch = line.match(/FOR\s+([A-Z][A-Z0-9]*)\s*=/);
+    if (forMatch) {
+      this.addVariable(forMatch[1], "numeric", false);
+    }
+
+    // Extract INPUT variables: INPUT A, B$, C
+    const inputMatch = line.match(/INPUT\s+(?:"[^"]*"\s*[;,])?\s*(.*)/);
+    if (inputMatch) {
+      this.extractVariableList(inputMatch[1]);
+    }
+
+    // Extract READ variables: READ A, B$, C
+    const readMatch = line.match(/READ\s+(.*)/);
+    if (readMatch) {
+      this.extractVariableList(readMatch[1]);
+    }
+
+    // Extract GET variable: GET A$
+    const getMatch = line.match(/GET\s+([A-Z][A-Z0-9]*\$?)/);
+    if (getMatch) {
+      const name = getMatch[1];
+      this.addVariable(name, name.endsWith("$") ? "string" : "numeric", false);
+    }
+
+    // Extract LET assignments: LET A = 5 or A = 5
+    // Also handles A$ = "HELLO"
+    const letMatch = line.match(/(?:LET\s+)?([A-Z][A-Z0-9]*\$?)\s*=/);
+    if (letMatch) {
+      const name = letMatch[1];
+      // Don't add if it looks like part of FOR statement (already handled)
+      if (!line.match(/FOR\s+/)) {
+        this.addVariable(name, name.endsWith("$") ? "string" : "numeric", false);
+      }
+    }
+  }
+
+  /**
+   * Extract variables from a comma-separated list
+   */
+  extractVariableList(text) {
+    // Remove anything after a colon (next statement)
+    text = text.split(":")[0];
+
+    const varPattern = /([A-Z][A-Z0-9]*\$?)(?:\s*\([^)]*\))?/g;
+    let match;
+    while ((match = varPattern.exec(text)) !== null) {
+      const name = match[1];
+      // Skip keywords
+      if (APPLESOFT_TOKENS.includes(name)) continue;
+      this.addVariable(name, name.endsWith("$") ? "string" : "numeric", false);
+    }
+  }
+
+  /**
+   * Add a variable to the context
+   */
+  addVariable(name, type, isArray) {
+    // Skip single-letter tokens that are keywords
+    if (APPLESOFT_TOKENS.includes(name)) return;
+
+    // Store with array info (arrays can be accessed both ways)
+    const existing = this.variables.get(name);
+    if (existing) {
+      // If we see it as array somewhere, mark it as array
+      if (isArray) existing.isArray = true;
+    } else {
+      this.variables.set(name, { type, isArray });
+    }
+  }
+
+  /**
+   * Get variables as autocomplete items
+   */
+  getVariableItems(filter = null) {
+    const items = [];
+    for (const [name, info] of this.variables) {
+      if (filter === "string" && info.type !== "string") continue;
+      if (filter === "numeric" && info.type !== "numeric") continue;
+
+      items.push({
+        keyword: name,
+        syntax: info.isArray ? `${name}(...)` : name,
+        category: "program",
+        categoryName: info.type === "string" ? "String Var" : "Variable",
+        desc: info.isArray ? "Array variable" : "Variable",
+        isVariable: true,
+      });
+    }
+    return items.sort((a, b) => a.keyword.localeCompare(b.keyword));
+  }
+
+  /**
+   * Get line numbers as autocomplete items
+   */
+  getLineNumberItems() {
+    return Array.from(this.lineNumbers)
+      .sort((a, b) => a - b)
+      .map(num => ({
+        keyword: String(num),
+        syntax: `Line ${num}`,
+        category: "program",
+        categoryName: "Line",
+        desc: "Program line",
+        isLineNumber: true,
+      }));
+  }
+
+  /**
+   * Get user functions as autocomplete items
+   */
+  getFunctionItems() {
+    const items = [];
+    for (const [name, info] of this.functions) {
+      items.push({
+        keyword: name,
+        syntax: `FN ${name}(${info.param})`,
+        category: "program",
+        categoryName: "Function",
+        desc: "User-defined function",
+        isFunction: true,
+      });
+    }
+    return items.sort((a, b) => a.keyword.localeCompare(b.keyword));
+  }
+}
+
+/**
+ * Detect what context we're in based on what precedes the cursor
+ */
+function detectContext(text, position) {
+  // Get text from start of line to cursor
+  const lineStart = text.lastIndexOf("\n", position - 1) + 1;
+  const lineToCursor = text.substring(lineStart, position).toUpperCase();
+
+  // Check if we're after GOTO, GOSUB, or THEN (expecting line number)
+  if (/(?:GOTO|GOSUB|THEN)\s*$/.test(lineToCursor)) {
+    return { type: "lineNumber" };
+  }
+
+  // Check if we're in ON ... GOTO/GOSUB line list
+  if (/ON\s+.*(?:GOTO|GOSUB)\s+[\d,\s]*$/.test(lineToCursor)) {
+    return { type: "lineNumber" };
+  }
+
+  // Check if we're after ONERR GOTO
+  if (/ONERR\s+GOTO\s*$/.test(lineToCursor)) {
+    return { type: "lineNumber" };
+  }
+
+  // Check if we're after FN (expecting function name)
+  if (/FN\s*$/.test(lineToCursor)) {
+    return { type: "function" };
+  }
+
+  // Check if we're in a string context (after quotes)
+  const beforeCursor = lineToCursor.substring(0, lineToCursor.length);
+  const quoteCount = (beforeCursor.match(/"/g) || []).length;
+  if (quoteCount % 2 !== 0) {
+    return { type: "string" }; // Inside a string - no suggestions
+  }
+
+  // Default: general context (keywords + variables)
+  return { type: "general" };
+}
 
 // Keywords with their syntax hints and categories
 const KEYWORD_INFO = {
@@ -175,9 +403,32 @@ export class BasicAutocomplete {
     this.currentWord = "";
     this.wordStart = 0;
     this.isInserting = false; // Flag to prevent re-triggering on insert
+    this.context = new ProgramContext();
+    this.parseDebounceTimer = null;
 
     this.createDropdown();
     this.bindEvents();
+    // Initial parse
+    this.parseProgram();
+  }
+
+  /**
+   * Parse the program (debounced)
+   */
+  parseProgram() {
+    this.context.parse(this.textarea.value);
+  }
+
+  /**
+   * Schedule a program parse (debounced to avoid parsing on every keystroke)
+   */
+  scheduleParse() {
+    if (this.parseDebounceTimer) {
+      clearTimeout(this.parseDebounceTimer);
+    }
+    this.parseDebounceTimer = setTimeout(() => {
+      this.parseProgram();
+    }, 300);
   }
 
   /**
@@ -203,6 +454,7 @@ export class BasicAutocomplete {
     // Handle input changes - use a named function so we can identify it
     this.boundOnInput = () => {
       if (this.isInserting) return; // Skip if we're inserting
+      this.scheduleParse(); // Update program context
       this.onInput();
     };
     this.textarea.addEventListener("input", this.boundOnInput);
@@ -302,16 +554,56 @@ export class BasicAutocomplete {
   }
 
   /**
-   * Update matches based on typed word
+   * Update matches based on typed word and context
    */
   updateMatches(word) {
     const upperWord = word.toUpperCase();
+    const pos = this.textarea.selectionStart;
+    const ctx = detectContext(this.textarea.value, this.wordStart);
 
-    // Filter keywords that start with the typed text
-    this.matches = AUTOCOMPLETE_KEYWORDS.filter(item =>
-      item.keyword.startsWith(upperWord)
-    ).slice(0, 10); // Limit to 10 matches
+    let items = [];
 
+    if (ctx.type === "lineNumber") {
+      // Only suggest line numbers
+      items = this.context.getLineNumberItems().filter(item =>
+        item.keyword.startsWith(upperWord)
+      );
+    } else if (ctx.type === "function") {
+      // Only suggest user-defined functions
+      items = this.context.getFunctionItems().filter(item =>
+        item.keyword.startsWith(upperWord)
+      );
+    } else if (ctx.type === "string") {
+      // Inside a string - no suggestions
+      items = [];
+    } else {
+      // General context: keywords + variables
+      // Get matching keywords
+      const keywords = AUTOCOMPLETE_KEYWORDS.filter(item =>
+        item.keyword.startsWith(upperWord)
+      );
+
+      // Get matching variables
+      const variables = this.context.getVariableItems().filter(item =>
+        item.keyword.startsWith(upperWord)
+      );
+
+      // Get matching functions (for when typing FN prefix isn't there)
+      const functions = this.context.getFunctionItems().filter(item =>
+        item.keyword.startsWith(upperWord)
+      );
+
+      // Combine: variables first (they're more specific), then keywords
+      // But if the word matches a keyword exactly at the start, prioritize keywords
+      if (upperWord.length >= 2 && keywords.some(k => k.keyword.startsWith(upperWord))) {
+        // Interleave: variables, then keywords
+        items = [...variables, ...functions, ...keywords];
+      } else {
+        items = [...variables, ...functions, ...keywords];
+      }
+    }
+
+    this.matches = items.slice(0, 12); // Limit to 12 matches
     this.selectedIndex = 0;
   }
 
@@ -410,16 +702,29 @@ export class BasicAutocomplete {
   }
 
   /**
+   * Get the item type for styling
+   */
+  getItemType(item) {
+    if (item.isVariable) return "variable";
+    if (item.isLineNumber) return "line";
+    if (item.isFunction) return "function";
+    return "keyword";
+  }
+
+  /**
    * Render the dropdown
    */
   render() {
     // Render list items
-    this.listEl.innerHTML = this.matches.map((item, index) => `
-      <div class="autocomplete-item${index === this.selectedIndex ? " selected" : ""}" data-index="${index}">
+    this.listEl.innerHTML = this.matches.map((item, index) => {
+      const itemType = this.getItemType(item);
+      return `
+      <div class="autocomplete-item${index === this.selectedIndex ? " selected" : ""}" data-index="${index}" data-type="${itemType}">
         <span class="autocomplete-keyword">${this.highlightMatch(item.keyword)}</span>
         <span class="autocomplete-category">${item.categoryName}</span>
       </div>
-    `).join("");
+    `;
+    }).join("");
 
     // Render hint for selected item
     if (this.matches.length > 0) {
@@ -516,6 +821,9 @@ export class BasicAutocomplete {
    * Clean up
    */
   destroy() {
+    if (this.parseDebounceTimer) {
+      clearTimeout(this.parseDebounceTimer);
+    }
     if (this.boundOnInput) {
       this.textarea.removeEventListener("input", this.boundOnInput);
     }

@@ -2468,6 +2468,31 @@
     opacity: 0.7;
 }
 
+/* Program-specific item categories */
+.autocomplete-item[data-type="variable"] .autocomplete-keyword {
+    color: #ffa657;
+}
+
+.autocomplete-item[data-type="variable"] .autocomplete-category {
+    color: #ffa657;
+}
+
+.autocomplete-item[data-type="line"] .autocomplete-keyword {
+    color: #a5d6ff;
+}
+
+.autocomplete-item[data-type="line"] .autocomplete-category {
+    color: #a5d6ff;
+}
+
+.autocomplete-item[data-type="function"] .autocomplete-keyword {
+    color: #d2a8ff;
+}
+
+.autocomplete-item[data-type="function"] .autocomplete-category {
+    color: #d2a8ff;
+}
+
 .autocomplete-hint {
     padding: 6px 10px;
     background: rgba(33, 38, 45, 0.8);
