@@ -324,6 +324,7 @@ export class UIController {
       heatmap: "memory-heatmap",
       stack: "stack-viewer",
       zeropage: "zeropage-watch",
+      mockingboard: "mockingboard-debug",
     };
 
     debugMenuBtn.addEventListener("click", (e) => {
