@@ -71,6 +71,13 @@ export class TextSelection {
 
   /**
    * Get soft switch state once and extract all mode flags
+   * Soft switch bits from emulator (see emulator.cpp getSoftSwitchState):
+   *   Bit 0: TEXT mode
+   *   Bit 1: MIXED mode
+   *   Bit 2: PAGE2
+   *   Bit 3: HIRES
+   *   Bit 4: 80COL
+   *   Bit 5: ALTCHARSET
    * @returns {{textMode: boolean, col80: boolean, page2: boolean}}
    */
   getDisplayMode() {
@@ -82,7 +89,7 @@ export class TextSelection {
     return {
       textMode: (state & 0x01) !== 0,  // Bit 0: TEXT mode
       col80: (state & 0x10) !== 0,     // Bit 4: 80COL mode
-      page2: (state & 0x08) !== 0      // Bit 3: PAGE2
+      page2: (state & 0x04) !== 0      // Bit 2: PAGE2 (NOT bit 3 which is HIRES!)
     };
   }
 
