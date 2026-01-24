@@ -4,6 +4,7 @@
 import { DebugWindow } from "./DebugWindow.js";
 import { tokenizeLine, BASIC_POINTERS } from "../utils/basic-tokens.js";
 import { highlightBasicSource } from "../utils/basic-highlighting.js";
+import { BasicAutocomplete } from "../utils/basic-autocomplete.js";
 
 export class BasicProgramWindow extends DebugWindow {
   constructor(wasmModule, inputHandler) {
@@ -74,6 +75,10 @@ Example:
       this.updateHighlighting();
       this.updateStats();
     });
+
+    // Initialize autocomplete
+    const editorContainer = this.contentElement.querySelector(".basic-editor-container");
+    this.autocomplete = new BasicAutocomplete(this.textarea, editorContainer);
 
     this.updateHighlighting();
     this.updateStats();

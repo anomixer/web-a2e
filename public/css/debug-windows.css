@@ -2403,3 +2403,100 @@
     border-color: rgba(248, 81, 73, 0.4);
     color: var(--accent-red);
 }
+
+/* BASIC Autocomplete Dropdown */
+.basic-autocomplete-dropdown {
+    position: absolute;
+    z-index: 100;
+    display: none;
+    width: 280px;
+    max-height: 300px;
+    background: rgba(22, 27, 34, 0.98);
+    border: 1px solid rgba(48, 54, 61, 0.8);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+}
+
+.basic-autocomplete-dropdown.visible {
+    display: block;
+}
+
+.autocomplete-list {
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.autocomplete-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 10px;
+    cursor: pointer;
+    border-bottom: 1px solid rgba(48, 54, 61, 0.3);
+}
+
+.autocomplete-item:last-child {
+    border-bottom: none;
+}
+
+.autocomplete-item:hover,
+.autocomplete-item.selected {
+    background: rgba(63, 185, 80, 0.15);
+}
+
+.autocomplete-item.selected {
+    background: rgba(63, 185, 80, 0.25);
+}
+
+.autocomplete-keyword {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: #33ff33;
+}
+
+.autocomplete-category {
+    font-family: var(--font-sans);
+    font-size: 9px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.autocomplete-hint {
+    padding: 8px 10px;
+    background: rgba(33, 38, 45, 0.6);
+    border-top: 1px solid rgba(48, 54, 61, 0.5);
+}
+
+.hint-syntax {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: #79c0ff;
+    margin-bottom: 4px;
+}
+
+.hint-desc {
+    font-family: var(--font-sans);
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+/* Scrollbar for autocomplete list */
+.autocomplete-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.autocomplete-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.autocomplete-list::-webkit-scrollbar-thumb {
+    background: rgba(48, 54, 61, 0.6);
+    border-radius: 3px;
+}
+
+.autocomplete-list::-webkit-scrollbar-thumb:hover {
+    background: rgba(63, 185, 80, 0.4);
+}
