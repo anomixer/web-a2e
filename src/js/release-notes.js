@@ -4,6 +4,7 @@
  */
 
 export const RELEASE_NOTES = [
+  { hash: "7cd6baa", date: "2026-01-24", message: "Add context-aware IntelliSense with variable/line number suggestions" },
   { hash: "7ae1a55", date: "2026-01-24", message: "Fix text selection character conversion for Apple II screen codes" },
   { hash: "24a855d", date: "2026-01-24", message: "Fix arrow key navigation in autocomplete dropdown" },
   { hash: "5aabc28", date: "2026-01-24", message: "Fix BASIC autocomplete dropdown issues" },
