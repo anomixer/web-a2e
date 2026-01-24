@@ -137,7 +137,7 @@
     width: 16px;
     height: 16px;
     background: transparent;
-    z-index: 10;
+    z-index: 11;
 }
 
 .monitor-resize-handle.nw {
@@ -234,6 +234,67 @@
 
 .monitor-bezel.resizing {
     user-select: none;
+}
+
+/* Drag-to-move functionality */
+.monitor-bezel {
+    cursor: grab;
+}
+
+.monitor-bezel.dragging {
+    cursor: grabbing;
+    user-select: none;
+}
+
+/* Free position mode - allows absolute positioning */
+#monitor-frame.free-position {
+    position: fixed;
+    z-index: 100;
+}
+
+/* Disable free position in full-page mode and fullscreen */
+body.full-page-mode #monitor-frame.free-position,
+:fullscreen #monitor-frame.free-position {
+    position: static;
+    left: auto !important;
+    top: auto !important;
+}
+
+/* Position indicator (shows when monitor is moved from center) */
+.position-indicator {
+    position: absolute;
+    top: 5px;
+    left: 6px;
+    width: 18px;
+    height: 18px;
+    padding: 3px;
+    background: rgba(0, 0, 0, 0.6);
+    border: 1px solid var(--accent-green);
+    border-radius: var(--radius-sm);
+    color: var(--accent-green);
+    cursor: pointer;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.position-indicator:hover {
+    background: rgba(0, 0, 0, 0.8);
+    border-color: var(--accent-green-bright);
+    color: var(--accent-green-bright);
+    transform: scale(1.1);
+}
+
+.position-indicator svg {
+    width: 10px;
+    height: 10px;
+}
+
+.position-indicator.hidden {
+    display: none;
 }
 
 /* Size lock indicator */

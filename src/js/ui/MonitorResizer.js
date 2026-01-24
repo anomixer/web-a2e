@@ -1,6 +1,7 @@
 /**
  * MonitorResizer - Handles monitor/canvas resizing with aspect ratio lock
  * Supports both automatic window-based sizing and manual drag-to-resize
+ * Also supports dragging to reposition and double-click to re-center
  */
 
 export class MonitorResizer {
@@ -15,16 +16,25 @@ export class MonitorResizer {
     // Custom screen size (user-defined via mouse resize)
     this.customCanvasWidth = null;
 
+    // Custom position (user-defined via drag)
+    this.customPosition = null; // { x, y } or null for centered
+
     // Resize state
     this.isResizingMonitor = false;
     this.resizeDirection = null;
     this.resizeStart = null;
     this.resizeObserver = null;
 
+    // Drag state
+    this.isDragging = false;
+    this.dragStart = null;
+
     // Bind methods for event listeners
     this.handleResize = this.handleResize.bind(this);
     this.handleMonitorMouseMove = this.handleMonitorMouseMove.bind(this);
     this.handleMonitorMouseUp = this.handleMonitorMouseUp.bind(this);
+    this.handleDragMove = this.handleDragMove.bind(this);
+    this.handleDragEnd = this.handleDragEnd.bind(this);
   }
 
   /**
@@ -34,17 +44,29 @@ export class MonitorResizer {
     this.loadSavedSize();
     this.setupResizeHandling();
     this.setupMonitorResize();
+    this.setupMonitorDrag();
     this.handleResize();
     this.updateSizeLockIndicator();
+    this.updatePositionIndicator();
+    this.applyPosition();
   }
 
   /**
-   * Load saved custom screen size from localStorage
+   * Load saved custom screen size and position from localStorage
    */
   loadSavedSize() {
     const savedWidth = localStorage.getItem("a2e-screen-width");
     if (savedWidth) {
       this.customCanvasWidth = parseInt(savedWidth, 10);
+    }
+
+    const savedPosition = localStorage.getItem("a2e-screen-position");
+    if (savedPosition) {
+      try {
+        this.customPosition = JSON.parse(savedPosition);
+      } catch (e) {
+        this.customPosition = null;
+      }
     }
   }
 
@@ -89,6 +111,175 @@ export class MonitorResizer {
       sizeLockIndicator.addEventListener("click", () => {
         this.resetToAutoSize();
       });
+    }
+  }
+
+  /**
+   * Set up monitor drag-to-move functionality
+   */
+  setupMonitorDrag() {
+    const monitorBezel = document.querySelector(".monitor-bezel");
+    if (!monitorBezel) return;
+
+    // Drag on the bezel itself (not on resize handles)
+    monitorBezel.addEventListener("mousedown", (e) => {
+      // Don't start drag if clicking on a resize handle or control
+      if (
+        e.target.classList.contains("monitor-resize-handle") ||
+        e.target.closest(".size-lock-indicator") ||
+        e.target.closest(".position-indicator") ||
+        e.target.closest(".charset-switch")
+      ) {
+        return;
+      }
+
+      e.preventDefault();
+      this.startDrag(e);
+    });
+
+    // Double-click to re-center
+    monitorBezel.addEventListener("dblclick", (e) => {
+      // Don't re-center if clicking on controls
+      if (
+        e.target.classList.contains("monitor-resize-handle") ||
+        e.target.closest(".size-lock-indicator") ||
+        e.target.closest(".position-indicator") ||
+        e.target.closest(".charset-switch")
+      ) {
+        return;
+      }
+
+      this.resetToCenter();
+    });
+
+    document.addEventListener("mousemove", this.handleDragMove);
+    document.addEventListener("mouseup", this.handleDragEnd);
+
+    // Position indicator click to re-center
+    const positionIndicator = document.getElementById("position-indicator");
+    if (positionIndicator) {
+      positionIndicator.addEventListener("click", () => {
+        this.resetToCenter();
+      });
+    }
+  }
+
+  /**
+   * Start dragging the monitor
+   */
+  startDrag(e) {
+    // Don't allow dragging in full-page mode or fullscreen
+    if (document.body.classList.contains("full-page-mode") || document.fullscreenElement) {
+      return;
+    }
+
+    const monitorBezel = document.querySelector(".monitor-bezel");
+    if (!monitorBezel) return;
+
+    this.isDragging = true;
+    monitorBezel.classList.add("dragging");
+
+    const rect = monitorBezel.getBoundingClientRect();
+    this.dragStart = {
+      mouseX: e.clientX,
+      mouseY: e.clientY,
+      bezelX: rect.left,
+      bezelY: rect.top,
+    };
+  }
+
+  /**
+   * Handle mouse move during drag
+   */
+  handleDragMove(e) {
+    if (!this.isDragging) return;
+
+    const dx = e.clientX - this.dragStart.mouseX;
+    const dy = e.clientY - this.dragStart.mouseY;
+
+    // Calculate new position
+    let newX = this.dragStart.bezelX + dx;
+    let newY = this.dragStart.bezelY + dy;
+
+    // Get bounds
+    const monitorBezel = document.querySelector(".monitor-bezel");
+    if (!monitorBezel) return;
+
+    const bezelRect = monitorBezel.getBoundingClientRect();
+    const header = document.querySelector("header");
+    const footer = document.querySelector("footer");
+
+    const headerHeight = header ? header.offsetHeight : 0;
+    const footerHeight = footer ? footer.offsetHeight : 0;
+
+    // Constrain to viewport (leaving some of the monitor visible)
+    const minVisible = 50;
+    newX = Math.max(-bezelRect.width + minVisible, Math.min(window.innerWidth - minVisible, newX));
+    newY = Math.max(headerHeight, Math.min(window.innerHeight - footerHeight - minVisible, newY));
+
+    this.customPosition = { x: newX, y: newY };
+    this.applyPosition();
+  }
+
+  /**
+   * Handle mouse up to complete drag
+   */
+  handleDragEnd() {
+    if (!this.isDragging) return;
+
+    const monitorBezel = document.querySelector(".monitor-bezel");
+    if (monitorBezel) {
+      monitorBezel.classList.remove("dragging");
+    }
+
+    this.isDragging = false;
+    this.dragStart = null;
+
+    if (this.customPosition) {
+      localStorage.setItem("a2e-screen-position", JSON.stringify(this.customPosition));
+      this.updatePositionIndicator();
+    }
+  }
+
+  /**
+   * Apply the current position to the monitor
+   */
+  applyPosition() {
+    const monitorFrame = document.getElementById("monitor-frame");
+    if (!monitorFrame) return;
+
+    if (this.customPosition) {
+      monitorFrame.classList.add("free-position");
+      monitorFrame.style.left = this.customPosition.x + "px";
+      monitorFrame.style.top = this.customPosition.y + "px";
+    } else {
+      monitorFrame.classList.remove("free-position");
+      monitorFrame.style.left = "";
+      monitorFrame.style.top = "";
+    }
+  }
+
+  /**
+   * Reset to centered position
+   */
+  resetToCenter() {
+    this.customPosition = null;
+    localStorage.removeItem("a2e-screen-position");
+    this.applyPosition();
+    this.updatePositionIndicator();
+  }
+
+  /**
+   * Update the position indicator visibility
+   */
+  updatePositionIndicator() {
+    const indicator = document.getElementById("position-indicator");
+    if (!indicator) return;
+
+    if (this.customPosition) {
+      indicator.classList.remove("hidden");
+    } else {
+      indicator.classList.add("hidden");
     }
   }
 
@@ -314,6 +505,8 @@ export class MonitorResizer {
     window.removeEventListener("resize", this.handleResize);
     document.removeEventListener("mousemove", this.handleMonitorMouseMove);
     document.removeEventListener("mouseup", this.handleMonitorMouseUp);
+    document.removeEventListener("mousemove", this.handleDragMove);
+    document.removeEventListener("mouseup", this.handleDragEnd);
 
     if (this.resizeObserver) {
       this.resizeObserver.disconnect();
