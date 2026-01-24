@@ -207,8 +207,9 @@ export class BasicAutocomplete {
     };
     this.textarea.addEventListener("input", this.boundOnInput);
 
-    // Handle keyboard navigation
-    this.textarea.addEventListener("keydown", (e) => this.onKeyDown(e));
+    // Handle keyboard navigation - use capture phase to intercept before other handlers
+    this.boundOnKeyDown = (e) => this.onKeyDown(e);
+    this.textarea.addEventListener("keydown", this.boundOnKeyDown, true);
 
     // Hide on blur (with delay to allow click on dropdown)
     this.textarea.addEventListener("blur", () => {
@@ -517,6 +518,9 @@ export class BasicAutocomplete {
   destroy() {
     if (this.boundOnInput) {
       this.textarea.removeEventListener("input", this.boundOnInput);
+    }
+    if (this.boundOnKeyDown) {
+      this.textarea.removeEventListener("keydown", this.boundOnKeyDown, true);
     }
     if (this.dropdown && this.dropdown.parentNode) {
       this.dropdown.parentNode.removeChild(this.dropdown);
