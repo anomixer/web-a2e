@@ -160,12 +160,13 @@ export class TextSelection {
    */
   readScreenChar(row, col, mode) {
     if (mode.col80) {
-      // 80-column mode: even columns in aux, odd in main
+      // 80-column mode: even screen columns in aux, odd in main
+      // Both share the same address within their memory bank
       const memCol = Math.floor(col / 2);
       const isAux = (col % 2) === 0;
       const addr = this.getScreenAddress(row, memCol, mode.page2);
 
-      if (isAux) {
+      if (isAux && this.wasmModule._peekAuxMemory) {
         return this.wasmModule._peekAuxMemory(addr);
       } else {
         return this.wasmModule._peekMemory(addr);
@@ -178,24 +179,46 @@ export class TextSelection {
 
   /**
    * Convert Apple II character code to ASCII/Unicode
+   *
+   * Apple II screen codes:
+   * $00-$1F: Inverse uppercase @ A-Z [ \ ] ^ _
+   * $20-$3F: Inverse space ! " # $ % & ' ( ) * + , - . / 0-9 : ; < = > ?
+   * $40-$5F: Flash uppercase (same as inverse)
+   * $60-$7F: Flash symbols (same as inverse symbols)
+   * $80-$9F: Normal uppercase @ A-Z [ \ ] ^ _
+   * $A0-$BF: Normal space ! " # $ % & ' ( ) * + , - . / 0-9 : ; < = > ?
+   * $C0-$DF: Normal uppercase (MouseText on IIe, same as $80-$9F on II+)
+   * $E0-$FF: Normal lowercase ` a-z { | } ~
    */
   charToAscii(code) {
-    if (code < 0x20) {
-      return code + 0x40;  // Inverse uppercase
-    } else if (code < 0x40) {
-      return code;         // Inverse symbols/digits
-    } else if (code < 0x60) {
-      return code;         // Flash uppercase
-    } else if (code < 0x80) {
-      return code - 0x40;  // Flash symbols
-    } else if (code < 0xA0) {
-      return code - 0x40;  // Normal uppercase
-    } else if (code < 0xC0) {
-      return code - 0x80;  // Normal symbols
-    } else if (code < 0xE0) {
-      return code - 0x80;  // Normal uppercase (alternate)
+    // Mask to 7 bits for the base character
+    const base = code & 0x7F;
+
+    // Handle different ranges
+    if (code >= 0xE0) {
+      // $E0-$FF: Normal lowercase - maps to ASCII $60-$7F
+      return code - 0x80;
+    } else if (code >= 0xC0) {
+      // $C0-$DF: Normal uppercase (or MouseText) - treat as uppercase
+      return code - 0x80;
+    } else if (code >= 0xA0) {
+      // $A0-$BF: Normal symbols/digits - maps to ASCII $20-$3F
+      return code - 0x80;
+    } else if (code >= 0x80) {
+      // $80-$9F: Normal uppercase - maps to ASCII $40-$5F
+      return code - 0x40;
+    } else if (code >= 0x60) {
+      // $60-$7F: Flash symbols - maps to ASCII $20-$3F
+      return code - 0x40;
+    } else if (code >= 0x40) {
+      // $40-$5F: Flash uppercase - maps to ASCII $40-$5F
+      return code;
+    } else if (code >= 0x20) {
+      // $20-$3F: Inverse symbols - maps to ASCII $20-$3F
+      return code;
     } else {
-      return code - 0x80;  // Normal lowercase
+      // $00-$1F: Inverse uppercase - maps to ASCII $40-$5F
+      return code + 0x40;
     }
   }
 
