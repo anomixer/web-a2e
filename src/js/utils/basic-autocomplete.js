@@ -131,17 +131,17 @@ const KEYWORD_INFO = {
 
 // Category display names and order
 const CATEGORIES = {
-  control: "Control Flow",
-  io: "Input/Output",
-  lores: "Lo-Res Graphics",
-  hires: "Hi-Res Graphics",
-  vars: "Variables & Data",
+  control: "Control",
+  io: "I/O",
+  lores: "Lo-Res",
+  hires: "Hi-Res",
+  vars: "Variables",
   math: "Math",
   string: "Strings",
   system: "System",
-  file: "File I/O",
+  file: "File",
   other: "Other",
-  operator: "Operators",
+  operator: "Operator",
 };
 
 // Build list of autocomplete keywords (exclude single-char operators)
@@ -174,6 +174,7 @@ export class BasicAutocomplete {
     this.isVisible = false;
     this.currentWord = "";
     this.wordStart = 0;
+    this.isInserting = false; // Flag to prevent re-triggering on insert
 
     this.createDropdown();
     this.bindEvents();
@@ -199,23 +200,29 @@ export class BasicAutocomplete {
    * Bind event listeners
    */
   bindEvents() {
-    // Handle input changes
-    this.textarea.addEventListener("input", () => this.onInput());
+    // Handle input changes - use a named function so we can identify it
+    this.boundOnInput = () => {
+      if (this.isInserting) return; // Skip if we're inserting
+      this.onInput();
+    };
+    this.textarea.addEventListener("input", this.boundOnInput);
 
     // Handle keyboard navigation
     this.textarea.addEventListener("keydown", (e) => this.onKeyDown(e));
 
     // Hide on blur (with delay to allow click on dropdown)
     this.textarea.addEventListener("blur", () => {
-      setTimeout(() => this.hide(), 150);
+      setTimeout(() => this.hide(), 200);
     });
 
     // Handle click on dropdown item
-    this.listEl.addEventListener("click", (e) => {
+    this.listEl.addEventListener("mousedown", (e) => {
+      // Use mousedown instead of click to fire before blur
+      e.preventDefault(); // Prevent blur
       const item = e.target.closest(".autocomplete-item");
       if (item) {
         const index = parseInt(item.dataset.index, 10);
-        this.selectItem(index);
+        this.selectedIndex = index;
         this.insertSelected();
       }
     });
@@ -234,9 +241,9 @@ export class BasicAutocomplete {
    * Handle input changes
    */
   onInput() {
-    const { word, start } = this.getCurrentWord();
+    const { word, start, valid } = this.getCurrentWord();
 
-    if (word.length >= 1) {
+    if (valid && word.length >= 2) {
       this.currentWord = word;
       this.wordStart = start;
       this.updateMatches(word);
@@ -271,20 +278,26 @@ export class BasicAutocomplete {
       }
     }
 
-    // Check if we're in a valid position for autocomplete
-    // (after space, colon, line number, or at start)
-    if (start > 0) {
+    // Check if we're inside a string (don't autocomplete)
+    const lineStart = text.lastIndexOf('\n', start - 1) + 1;
+    const lineToStart = text.substring(lineStart, start);
+    const quoteCount = (lineToStart.match(/"/g) || []).length;
+    if (quoteCount % 2 !== 0) {
+      return { word: "", start: pos, valid: false };
+    }
+
+    // Check if the character before the word is valid for starting autocomplete
+    // (space, colon, operator, or start of line)
+    if (start > 0 && start > lineStart) {
       const prevChar = text[start - 1];
-      // Don't autocomplete inside strings
-      const beforeCursor = text.substring(0, start);
-      const quoteCount = (beforeCursor.match(/"/g) || []).length;
-      if (quoteCount % 2 !== 0) {
-        return { word: "", start: pos };
+      if (/[A-Za-z0-9$]/.test(prevChar)) {
+        // Previous char is alphanumeric - we're in the middle of something
+        return { word: "", start: pos, valid: false };
       }
     }
 
     const word = text.substring(start, pos).toUpperCase();
-    return { word, start };
+    return { word, start, valid: true };
   }
 
   /**
@@ -296,7 +309,7 @@ export class BasicAutocomplete {
     // Filter keywords that start with the typed text
     this.matches = AUTOCOMPLETE_KEYWORDS.filter(item =>
       item.keyword.startsWith(upperWord)
-    ).slice(0, 12); // Limit to 12 matches
+    ).slice(0, 10); // Limit to 10 matches
 
     this.selectedIndex = 0;
   }
@@ -310,24 +323,35 @@ export class BasicAutocomplete {
     switch (e.key) {
       case "ArrowDown":
         e.preventDefault();
+        e.stopPropagation();
         this.selectItem(this.selectedIndex + 1);
         break;
 
       case "ArrowUp":
         e.preventDefault();
+        e.stopPropagation();
         this.selectItem(this.selectedIndex - 1);
         break;
 
       case "Tab":
+        if (this.matches.length > 0) {
+          e.preventDefault();
+          e.stopPropagation();
+          this.insertSelected();
+        }
+        break;
+
       case "Enter":
         if (this.matches.length > 0) {
           e.preventDefault();
+          e.stopPropagation();
           this.insertSelected();
         }
         break;
 
       case "Escape":
         e.preventDefault();
+        e.stopPropagation();
         this.hide();
         break;
     }
@@ -361,6 +385,9 @@ export class BasicAutocomplete {
     const before = text.substring(0, this.wordStart);
     const after = text.substring(pos);
 
+    // Set flag to prevent re-triggering autocomplete
+    this.isInserting = true;
+
     this.textarea.value = before + selected.keyword + after;
 
     // Position cursor after inserted keyword
@@ -368,10 +395,16 @@ export class BasicAutocomplete {
     this.textarea.selectionStart = newPos;
     this.textarea.selectionEnd = newPos;
 
+    this.hide();
+
     // Trigger input event for highlighting update
     this.textarea.dispatchEvent(new Event("input", { bubbles: true }));
 
-    this.hide();
+    // Clear flag after a small delay
+    setTimeout(() => {
+      this.isInserting = false;
+    }, 10);
+
     this.textarea.focus();
   }
 
@@ -381,8 +414,8 @@ export class BasicAutocomplete {
   render() {
     // Render list items
     this.listEl.innerHTML = this.matches.map((item, index) => `
-      <div class="autocomplete-item ${index === this.selectedIndex ? "selected" : ""}" data-index="${index}">
-        <span class="autocomplete-keyword">${item.keyword}</span>
+      <div class="autocomplete-item${index === this.selectedIndex ? " selected" : ""}" data-index="${index}">
+        <span class="autocomplete-keyword">${this.highlightMatch(item.keyword)}</span>
         <span class="autocomplete-category">${item.categoryName}</span>
       </div>
     `).join("");
@@ -394,6 +427,9 @@ export class BasicAutocomplete {
         <div class="hint-syntax">${selected.syntax}</div>
         <div class="hint-desc">${selected.desc}</div>
       `;
+      this.hintEl.style.display = "block";
+    } else {
+      this.hintEl.style.display = "none";
     }
 
     // Scroll selected item into view
@@ -401,6 +437,16 @@ export class BasicAutocomplete {
     if (selectedEl) {
       selectedEl.scrollIntoView({ block: "nearest" });
     }
+  }
+
+  /**
+   * Highlight the matching part of the keyword
+   */
+  highlightMatch(keyword) {
+    const matchLen = this.currentWord.length;
+    const matched = keyword.substring(0, matchLen);
+    const rest = keyword.substring(matchLen);
+    return `<span class="match">${matched}</span>${rest}`;
   }
 
   /**
@@ -418,54 +464,48 @@ export class BasicAutocomplete {
    * Hide the dropdown
    */
   hide() {
+    if (!this.isVisible) return;
     this.isVisible = false;
     this.dropdown.classList.remove("visible");
-    this.matches = [];
   }
 
   /**
    * Position the dropdown near the cursor
+   * Uses a simpler approach - position at bottom of textarea, aligned left
    */
   positionDropdown() {
-    // Get cursor position in textarea
-    const pos = this.textarea.selectionStart;
-    const text = this.textarea.value.substring(0, pos);
-
-    // Create a temporary element to measure cursor position
-    const mirror = document.createElement("div");
-    mirror.style.cssText = window.getComputedStyle(this.textarea).cssText;
-    mirror.style.position = "absolute";
-    mirror.style.visibility = "hidden";
-    mirror.style.whiteSpace = "pre-wrap";
-    mirror.style.wordWrap = "break-word";
-    mirror.style.height = "auto";
-    mirror.style.width = this.textarea.clientWidth + "px";
-
-    // Add text up to cursor with a marker
-    mirror.textContent = text;
-    const marker = document.createElement("span");
-    marker.textContent = "|";
-    mirror.appendChild(marker);
-
-    document.body.appendChild(mirror);
-
+    // Simple positioning: below the textarea at the left
+    // This avoids complex cursor position calculations
     const textareaRect = this.textarea.getBoundingClientRect();
-    const markerRect = marker.getBoundingClientRect();
-
-    document.body.removeChild(mirror);
-
-    // Calculate position relative to container
     const containerRect = this.container.getBoundingClientRect();
 
-    let left = markerRect.left - containerRect.left;
-    let top = markerRect.top - containerRect.top + 20 - this.textarea.scrollTop;
+    // Calculate approximate cursor position based on text
+    const text = this.textarea.value.substring(0, this.textarea.selectionStart);
+    const lines = text.split('\n');
+    const currentLine = lines.length - 1;
+    const currentCol = lines[lines.length - 1].length;
 
-    // Keep within bounds
-    const dropdownWidth = 280;
-    if (left + dropdownWidth > this.container.clientWidth) {
+    // Approximate character dimensions (monospace font)
+    const charWidth = 7.2; // Approximate for 12px monospace
+    const lineHeight = 18; // Approximate line height
+
+    // Calculate position
+    let left = currentCol * charWidth;
+    let top = (currentLine + 1) * lineHeight - this.textarea.scrollTop;
+
+    // Constrain to container bounds
+    const dropdownWidth = 260;
+    const dropdownHeight = 280;
+
+    if (left + dropdownWidth > this.container.clientWidth - 10) {
       left = this.container.clientWidth - dropdownWidth - 10;
     }
-    left = Math.max(0, left);
+    left = Math.max(5, left);
+
+    // If dropdown would go below container, show it above the cursor
+    if (top + dropdownHeight > this.container.clientHeight) {
+      top = Math.max(5, top - dropdownHeight - lineHeight);
+    }
 
     this.dropdown.style.left = left + "px";
     this.dropdown.style.top = top + "px";
@@ -475,6 +515,9 @@ export class BasicAutocomplete {
    * Clean up
    */
   destroy() {
+    if (this.boundOnInput) {
+      this.textarea.removeEventListener("input", this.boundOnInput);
+    }
     if (this.dropdown && this.dropdown.parentNode) {
       this.dropdown.parentNode.removeChild(this.dropdown);
     }

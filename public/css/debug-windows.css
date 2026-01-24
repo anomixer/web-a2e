@@ -2407,14 +2407,13 @@
 /* BASIC Autocomplete Dropdown */
 .basic-autocomplete-dropdown {
     position: absolute;
-    z-index: 100;
+    z-index: 1000;
     display: none;
-    width: 280px;
-    max-height: 300px;
+    width: 260px;
     background: rgba(22, 27, 34, 0.98);
-    border: 1px solid rgba(48, 54, 61, 0.8);
+    border: 1px solid rgba(63, 185, 80, 0.4);
     border-radius: var(--radius-sm);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(0, 0, 0, 0.3);
     overflow: hidden;
 }
 
@@ -2423,7 +2422,7 @@
 }
 
 .autocomplete-list {
-    max-height: 200px;
+    max-height: 180px;
     overflow-y: auto;
 }
 
@@ -2431,7 +2430,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 6px 10px;
+    padding: 5px 10px;
     cursor: pointer;
     border-bottom: 1px solid rgba(48, 54, 61, 0.3);
 }
@@ -2440,8 +2439,7 @@
     border-bottom: none;
 }
 
-.autocomplete-item:hover,
-.autocomplete-item.selected {
+.autocomplete-item:hover {
     background: rgba(63, 185, 80, 0.15);
 }
 
@@ -2451,9 +2449,14 @@
 
 .autocomplete-keyword {
     font-family: var(--font-mono);
-    font-size: 12px;
-    font-weight: 600;
+    font-size: 11px;
+    font-weight: 500;
+    color: #8b949e;
+}
+
+.autocomplete-keyword .match {
     color: #33ff33;
+    font-weight: 700;
 }
 
 .autocomplete-category {
@@ -2461,25 +2464,26 @@
     font-size: 9px;
     color: var(--text-muted);
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0.3px;
+    opacity: 0.7;
 }
 
 .autocomplete-hint {
-    padding: 8px 10px;
-    background: rgba(33, 38, 45, 0.6);
+    padding: 6px 10px;
+    background: rgba(33, 38, 45, 0.8);
     border-top: 1px solid rgba(48, 54, 61, 0.5);
 }
 
 .hint-syntax {
     font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: 10px;
     color: #79c0ff;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
 }
 
 .hint-desc {
     font-family: var(--font-sans);
-    font-size: 10px;
+    font-size: 9px;
     color: var(--text-muted);
 }
 
