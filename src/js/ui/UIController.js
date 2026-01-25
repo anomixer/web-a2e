@@ -219,6 +219,7 @@ export class UIController {
     const volumeValue = document.getElementById("volume-value");
     const muteToggle = document.getElementById("mute-toggle");
     const driveSoundsToggle = document.getElementById("drive-sounds-toggle");
+    const stereoToggle = document.getElementById("stereo-toggle");
     const charsetToggle = document.getElementById("charset-toggle");
 
     if (!soundBtn || !soundPopup) return;
@@ -283,6 +284,14 @@ export class UIController {
         this.diskManager.setSeekSoundEnabled(enabled);
         this.diskManager.setMotorSoundEnabled(enabled);
         localStorage.setItem("a2e-drive-sounds", enabled);
+      });
+    }
+
+    // Stereo toggle (PSG1 left, PSG2 right vs mixed mono)
+    if (stereoToggle) {
+      stereoToggle.checked = this.audioDriver.isStereo();
+      stereoToggle.addEventListener("change", (e) => {
+        this.audioDriver.setStereo(e.target.checked);
       });
     }
 

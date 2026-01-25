@@ -19,6 +19,7 @@ export class AudioDriver {
     this.muted = false;
     this.volume = this.loadVolume(); // Load saved volume or default to 0.5
     this.speed = 1;
+    this.stereo = this.loadStereo(); // Load saved stereo setting
 
     // Fallback to ScriptProcessorNode if AudioWorklet not available
     this.useWorklet = typeof AudioWorkletNode !== "undefined";
@@ -109,14 +110,14 @@ export class AudioDriver {
       : "/audio-worklet.js";
     await this.audioContext.audioWorklet.addModule(workletPath);
 
-    // Create worklet node
+    // Create worklet node (stereo output)
     this.workletNode = new AudioWorkletNode(
       this.audioContext,
       "apple-audio-processor",
       {
         numberOfInputs: 0,
         numberOfOutputs: 1,
-        outputChannelCount: [1],
+        outputChannelCount: [2],
       },
     );
 
@@ -144,13 +145,18 @@ export class AudioDriver {
   }
 
   startWithScriptProcessor() {
-    // Fallback for browsers without AudioWorklet support
-    this.scriptProcessor = this.audioContext.createScriptProcessor(4096, 0, 1);
+    // Fallback for browsers without AudioWorklet support (stereo)
+    this.scriptProcessor = this.audioContext.createScriptProcessor(4096, 0, 2);
 
     this.scriptProcessor.onaudioprocess = (event) => {
-      const output = event.outputBuffer.getChannelData(0);
-      const samples = this.generateSamples(output.length);
-      output.set(samples);
+      const leftChannel = event.outputBuffer.getChannelData(0);
+      const rightChannel = event.outputBuffer.getChannelData(1);
+      const samples = this.generateSamples(leftChannel.length);
+      // Deinterleave stereo samples
+      for (let i = 0; i < leftChannel.length; i++) {
+        leftChannel[i] = samples[i * 2];
+        rightChannel[i] = samples[i * 2 + 1];
+      }
     };
 
     this.scriptProcessor.connect(this.gainNode);
@@ -210,20 +216,32 @@ export class AudioDriver {
    * @returns {Float32Array} Generated audio samples in range [-1, 1]
    */
   generateSamples(count) {
-    // Allocate buffer in WASM memory
-    const bufferPtr = this.wasmModule._malloc(count * 4); // float = 4 bytes
+    // Always output stereo (interleaved L/R) for the audio worklet
+    const samples = new Float32Array(count * 2);
 
-    // Generate samples (this runs the emulator for the required cycles)
-    const generated = this.wasmModule._generateAudioSamples(bufferPtr, count);
+    if (this.stereo) {
+      // Stereo mode: PSG1 on left, PSG2 on right
+      const bufferPtr = this.wasmModule._malloc(count * 2 * 4); // stereo: count * 2 floats * 4 bytes
+      this.wasmModule._generateStereoAudioSamples(bufferPtr, count);
 
-    // Copy samples from WASM memory to JavaScript
-    const samples = new Float32Array(count);
-    for (let i = 0; i < count; i++) {
-      samples[i] = this.wasmModule.HEAPF32[(bufferPtr >> 2) + i];
+      // Copy interleaved stereo samples from WASM memory
+      for (let i = 0; i < count * 2; i++) {
+        samples[i] = this.wasmModule.HEAPF32[(bufferPtr >> 2) + i];
+      }
+      this.wasmModule._free(bufferPtr);
+    } else {
+      // Mono mode: PSG1 + PSG2 mixed, same on both channels
+      const bufferPtr = this.wasmModule._malloc(count * 4); // mono: count floats * 4 bytes
+      this.wasmModule._generateAudioSamples(bufferPtr, count);
+
+      // Copy mono samples and duplicate to both channels
+      for (let i = 0; i < count; i++) {
+        const sample = this.wasmModule.HEAPF32[(bufferPtr >> 2) + i];
+        samples[i * 2] = sample;     // Left
+        samples[i * 2 + 1] = sample; // Right
+      }
+      this.wasmModule._free(bufferPtr);
     }
-
-    // Free buffer
-    this.wasmModule._free(bufferPtr);
 
     // Check if we've accumulated enough samples for one or more frames
     const framesReady = this.wasmModule._consumeFrameSamples();
@@ -340,6 +358,34 @@ export class AudioDriver {
   saveVolume() {
     try {
       localStorage.setItem('a2e-volume', this.volume.toString());
+    } catch (e) {
+      // Ignore localStorage errors
+    }
+  }
+
+  isStereo() {
+    return this.stereo;
+  }
+
+  setStereo(enabled) {
+    this.stereo = enabled;
+    this.saveStereo();
+  }
+
+  loadStereo() {
+    try {
+      const saved = localStorage.getItem('a2e-stereo');
+      // Default to stereo enabled if not set
+      return saved !== 'false';
+    } catch (e) {
+      // Ignore localStorage errors
+    }
+    return true;
+  }
+
+  saveStereo() {
+    try {
+      localStorage.setItem('a2e-stereo', this.stereo.toString());
     } catch (e) {
       // Ignore localStorage errors
     }

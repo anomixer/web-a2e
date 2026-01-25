@@ -47,6 +47,14 @@ int generateAudioSamples(float *buffer, int sampleCount) {
 }
 
 EMSCRIPTEN_KEEPALIVE
+int generateStereoAudioSamples(float *buffer, int sampleCount) {
+  if (g_emulator) {
+    return g_emulator->generateStereoAudioSamples(buffer, sampleCount);
+  }
+  return 0;
+}
+
+EMSCRIPTEN_KEEPALIVE
 int consumeFrameSamples() {
   if (g_emulator) {
     return g_emulator->consumeFrameSamples();
