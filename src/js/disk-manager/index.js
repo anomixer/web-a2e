@@ -18,37 +18,30 @@ import {
   clearRecentDisks,
 } from "./disk-persistence.js";
 
+/**
+ * Create a new drive state object with default values
+ * @returns {Object} Drive state object
+ */
+function createDriveState() {
+  return {
+    input: null,
+    insertBtn: null,
+    blankBtn: null,
+    ejectBtn: null,
+    recentBtn: null,
+    recentDropdown: null,
+    image: null,
+    nameLabel: null,
+    trackLabel: null,
+    filename: null,
+    lastTrack: -1,
+  };
+}
+
 export class DiskManager {
   constructor(wasmModule) {
     this.wasmModule = wasmModule;
-    this.drives = [
-      {
-        input: null,
-        insertBtn: null,
-        blankBtn: null,
-        ejectBtn: null,
-        recentBtn: null,
-        recentDropdown: null,
-        image: null,
-        nameLabel: null,
-        trackLabel: null,
-        filename: null,
-        lastTrack: -1,
-      },
-      {
-        input: null,
-        insertBtn: null,
-        blankBtn: null,
-        ejectBtn: null,
-        recentBtn: null,
-        recentDropdown: null,
-        image: null,
-        nameLabel: null,
-        trackLabel: null,
-        filename: null,
-        lastTrack: -1,
-      },
-    ];
+    this.drives = [createDriveState(), createDriveState()];
 
     // Save modal state
     this.pendingEjectDrive = null;

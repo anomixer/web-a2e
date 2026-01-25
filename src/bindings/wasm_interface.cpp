@@ -7,6 +7,10 @@
 // Global emulator instance
 static a2e::Emulator *g_emulator = nullptr;
 
+// Helper macros to reduce repetitive null checks
+#define REQUIRE_EMULATOR() do { if (!g_emulator) return; } while(0)
+#define REQUIRE_EMULATOR_OR(default_val) do { if (!g_emulator) return (default_val); } while(0)
+
 extern "C" {
 
 EMSCRIPTEN_KEEPALIVE
@@ -19,55 +23,44 @@ void init() {
 
 EMSCRIPTEN_KEEPALIVE
 void reset() {
-  if (g_emulator) {
-    g_emulator->reset();
-  }
+  REQUIRE_EMULATOR();
+  g_emulator->reset();
 }
 
 EMSCRIPTEN_KEEPALIVE
 void warmReset() {
-  if (g_emulator) {
-    g_emulator->warmReset();
-  }
+  REQUIRE_EMULATOR();
+  g_emulator->warmReset();
 }
 
 EMSCRIPTEN_KEEPALIVE
 void runCycles(int cycles) {
-  if (g_emulator) {
-    g_emulator->runCycles(cycles);
-  }
+  REQUIRE_EMULATOR();
+  g_emulator->runCycles(cycles);
 }
 
 EMSCRIPTEN_KEEPALIVE
 int generateAudioSamples(float *buffer, int sampleCount) {
-  if (g_emulator) {
-    return g_emulator->generateAudioSamples(buffer, sampleCount);
-  }
-  return 0;
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->generateAudioSamples(buffer, sampleCount);
 }
 
 EMSCRIPTEN_KEEPALIVE
 int generateStereoAudioSamples(float *buffer, int sampleCount) {
-  if (g_emulator) {
-    return g_emulator->generateStereoAudioSamples(buffer, sampleCount);
-  }
-  return 0;
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->generateStereoAudioSamples(buffer, sampleCount);
 }
 
 EMSCRIPTEN_KEEPALIVE
 int consumeFrameSamples() {
-  if (g_emulator) {
-    return g_emulator->consumeFrameSamples();
-  }
-  return 0;
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->consumeFrameSamples();
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint8_t *getFramebuffer() {
-  if (g_emulator) {
-    return const_cast<uint8_t *>(g_emulator->getFramebuffer());
-  }
-  return nullptr;
+  REQUIRE_EMULATOR_OR(nullptr);
+  return const_cast<uint8_t *>(g_emulator->getFramebuffer());
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -75,292 +68,230 @@ int getFramebufferSize() { return a2e::FRAMEBUFFER_SIZE; }
 
 EMSCRIPTEN_KEEPALIVE
 bool isFrameReady() {
-  if (g_emulator) {
-    bool ready = g_emulator->isFrameReady();
-    if (ready) {
-      g_emulator->clearFrameReady();
-    }
-    return ready;
+  REQUIRE_EMULATOR_OR(false);
+  bool ready = g_emulator->isFrameReady();
+  if (ready) {
+    g_emulator->clearFrameReady();
   }
-  return false;
+  return ready;
 }
 
 EMSCRIPTEN_KEEPALIVE
 void keyDown(int keycode) {
-  if (g_emulator) {
-    g_emulator->keyDown(keycode);
-  }
+  REQUIRE_EMULATOR();
+  g_emulator->keyDown(keycode);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void keyUp(int keycode) {
-  if (g_emulator) {
-    g_emulator->keyUp(keycode);
-  }
+  REQUIRE_EMULATOR();
+  g_emulator->keyUp(keycode);
 }
 
 EMSCRIPTEN_KEEPALIVE
 int handleRawKeyDown(int browserKeycode, bool shift, bool ctrl, bool alt,
                      bool meta, bool capsLock) {
-  if (g_emulator) {
-    return g_emulator->handleRawKeyDown(browserKeycode, shift, ctrl, alt, meta,
-                                        capsLock);
-  }
-  return -1;
+  REQUIRE_EMULATOR_OR(-1);
+  return g_emulator->handleRawKeyDown(browserKeycode, shift, ctrl, alt, meta,
+                                      capsLock);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void handleRawKeyUp(int browserKeycode, bool shift, bool ctrl, bool alt,
                     bool meta) {
-  if (g_emulator) {
-    g_emulator->handleRawKeyUp(browserKeycode, shift, ctrl, alt, meta);
-  }
+  REQUIRE_EMULATOR();
+  g_emulator->handleRawKeyUp(browserKeycode, shift, ctrl, alt, meta);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void setButton(int button, bool pressed) {
-  if (g_emulator) {
-    g_emulator->setButton(button, pressed);
-  }
+  REQUIRE_EMULATOR();
+  g_emulator->setButton(button, pressed);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void setPaddleValue(int paddle, int value) {
-  if (g_emulator) {
-    g_emulator->setPaddleValue(paddle, value);
-  }
+  REQUIRE_EMULATOR();
+  g_emulator->setPaddleValue(paddle, value);
 }
 
 EMSCRIPTEN_KEEPALIVE
 int getPaddleValue(int paddle) {
-  if (g_emulator) {
-    return g_emulator->getPaddleValue(paddle);
-  }
-  return 128;
+  REQUIRE_EMULATOR_OR(128);
+  return g_emulator->getPaddleValue(paddle);
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool isKeyboardReady() {
-  if (g_emulator) {
-    return g_emulator->isKeyboardReady();
-  }
-  return true;
+  REQUIRE_EMULATOR_OR(true);
+  return g_emulator->isKeyboardReady();
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool insertDisk(int drive, uint8_t *data, int size, const char *filename) {
-  if (g_emulator) {
-    return g_emulator->insertDisk(drive, data, size, filename);
-  }
-  return false;
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->insertDisk(drive, data, size, filename);
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool insertBlankDisk(int drive) {
-  if (g_emulator) {
-    return g_emulator->insertBlankDisk(drive);
-  }
-  return false;
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->insertBlankDisk(drive);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void ejectDisk(int drive) {
-  if (g_emulator) {
-    g_emulator->ejectDisk(drive);
-  }
+  REQUIRE_EMULATOR();
+  g_emulator->ejectDisk(drive);
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint8_t *getDiskData(int drive, size_t *size) {
-  if (g_emulator) {
-    return const_cast<uint8_t *>(g_emulator->exportDiskData(drive, size));
-  }
-  *size = 0;
-  return nullptr;
+  if (!g_emulator) { *size = 0; return nullptr; }
+  return const_cast<uint8_t *>(g_emulator->exportDiskData(drive, size));
 }
 
 EMSCRIPTEN_KEEPALIVE
 const uint8_t *getDiskSectorData(int drive, size_t *size) {
-  if (g_emulator) {
-    return g_emulator->getDiskData(drive, size);
-  }
-  *size = 0;
-  return nullptr;
+  if (!g_emulator) { *size = 0; return nullptr; }
+  return g_emulator->getDiskData(drive, size);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void addBreakpoint(uint16_t address) {
-  if (g_emulator) {
-    g_emulator->addBreakpoint(address);
-  }
+  REQUIRE_EMULATOR();
+  g_emulator->addBreakpoint(address);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void removeBreakpoint(uint16_t address) {
-  if (g_emulator) {
-    g_emulator->removeBreakpoint(address);
-  }
+  REQUIRE_EMULATOR();
+  g_emulator->removeBreakpoint(address);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void enableBreakpoint(uint16_t address, bool enabled) {
-  if (g_emulator) {
-    g_emulator->enableBreakpoint(address, enabled);
-  }
+  REQUIRE_EMULATOR();
+  g_emulator->enableBreakpoint(address, enabled);
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool isBreakpointHit() {
-  if (g_emulator) {
-    return g_emulator->isBreakpointHit();
-  }
-  return false;
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->isBreakpointHit();
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint16_t getBreakpointAddress() {
-  if (g_emulator) {
-    return g_emulator->getBreakpointAddress();
-  }
-  return 0;
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->getBreakpointAddress();
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint16_t getPC() {
-  if (g_emulator) {
-    return g_emulator->getPC();
-  }
-  return 0;
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->getPC();
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint8_t getSP() {
-  if (g_emulator) {
-    return g_emulator->getSP();
-  }
-  return 0;
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->getSP();
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint8_t getA() {
-  if (g_emulator) {
-    return g_emulator->getA();
-  }
-  return 0;
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->getA();
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint8_t getX() {
-  if (g_emulator) {
-    return g_emulator->getX();
-  }
-  return 0;
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->getX();
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint8_t getY() {
-  if (g_emulator) {
-    return g_emulator->getY();
-  }
-  return 0;
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->getY();
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint8_t getP() {
-  if (g_emulator) {
-    return g_emulator->getP();
-  }
-  return 0;
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->getP();
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint64_t getTotalCycles() {
-  if (g_emulator) {
-    return g_emulator->getTotalCycles();
-  }
-  return 0;
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->getTotalCycles();
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool isPaused() {
-  if (g_emulator) {
-    return g_emulator->isPaused();
-  }
-  return false;
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->isPaused();
 }
 
 EMSCRIPTEN_KEEPALIVE
 void setPaused(bool paused) {
-  if (g_emulator) {
-    g_emulator->setPaused(paused);
-  }
+  REQUIRE_EMULATOR();
+  g_emulator->setPaused(paused);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void stepInstruction() {
-  if (g_emulator) {
-    g_emulator->stepInstruction();
-  }
+  REQUIRE_EMULATOR();
+  g_emulator->stepInstruction();
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint8_t readMemory(uint16_t address) {
-  if (g_emulator) {
-    return g_emulator->readMemory(address);
-  }
-  return 0;
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->readMemory(address);
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint8_t peekMemory(uint16_t address) {
-  if (g_emulator) {
-    return g_emulator->peekMemory(address);
-  }
-  return 0;
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->peekMemory(address);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void writeMemory(uint16_t address, uint8_t value) {
-  if (g_emulator) {
-    g_emulator->writeMemory(address, value);
-  }
+  REQUIRE_EMULATOR();
+  g_emulator->writeMemory(address, value);
 }
 
 EMSCRIPTEN_KEEPALIVE
 const char *disassembleAt(uint16_t address) {
-  if (g_emulator) {
-    return g_emulator->disassembleAt(address);
-  }
-  return "";
+  REQUIRE_EMULATOR_OR("");
+  return g_emulator->disassembleAt(address);
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint32_t getSoftSwitchState() {
-  if (g_emulator) {
-    return static_cast<uint32_t>(g_emulator->getSoftSwitchState() & 0xFFFFFFFF);
-  }
-  return 0;
+  REQUIRE_EMULATOR_OR(0);
+  return static_cast<uint32_t>(g_emulator->getSoftSwitchState() & 0xFFFFFFFF);
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint32_t getSoftSwitchStateHigh() {
-  if (g_emulator) {
-    return static_cast<uint32_t>(g_emulator->getSoftSwitchState() >> 32);
-  }
-  return 0;
+  REQUIRE_EMULATOR_OR(0);
+  return static_cast<uint32_t>(g_emulator->getSoftSwitchState() >> 32);
 }
 
 // Disk controller state for debugging
 EMSCRIPTEN_KEEPALIVE
 int getDiskTrack(int drive) {
-  if (g_emulator) {
-    // Return track for the specified drive (or selected drive if drive matches)
-    auto &disk = g_emulator->getDisk();
-    if (disk.hasDisk(drive)) {
-      const auto *image = disk.getDiskImage(drive);
-      if (image) {
-        return image->getTrack();
-      }
+  REQUIRE_EMULATOR_OR(0);
+  auto &disk = g_emulator->getDisk();
+  if (disk.hasDisk(drive)) {
+    const auto *image = disk.getDiskImage(drive);
+    if (image) {
+      return image->getTrack();
     }
   }
   return 0;
@@ -368,51 +299,39 @@ int getDiskTrack(int drive) {
 
 EMSCRIPTEN_KEEPALIVE
 int getDiskPhase(int drive) {
-  if (g_emulator) {
-    // Return phase states (bitmask of active phases)
-    (void)drive; // Phase states are controller-wide
-    return g_emulator->getDisk().getPhaseStates();
-  }
-  return 0;
+  REQUIRE_EMULATOR_OR(0);
+  (void)drive; // Phase states are controller-wide
+  return g_emulator->getDisk().getPhaseStates();
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool getDiskMotorOn(int drive) {
-  if (g_emulator) {
-    // Motor state is controller-wide, not per-drive
-    (void)drive;
-    return g_emulator->getDisk().isMotorOn();
-  }
-  return false;
+  REQUIRE_EMULATOR_OR(false);
+  (void)drive; // Motor state is controller-wide
+  return g_emulator->getDisk().isMotorOn();
 }
 
 EMSCRIPTEN_KEEPALIVE
 void stopDiskMotor() {
-  if (g_emulator) {
-    g_emulator->getDisk().stopMotor();
-  }
+  REQUIRE_EMULATOR();
+  g_emulator->getDisk().stopMotor();
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool getDiskWriteMode(int drive) {
-  if (g_emulator) {
-    // Write mode (Q7) is controller-wide
-    (void)drive;
-    return g_emulator->getDisk().getQ7();
-  }
-  return false;
+  REQUIRE_EMULATOR_OR(false);
+  (void)drive; // Write mode (Q7) is controller-wide
+  return g_emulator->getDisk().getQ7();
 }
 
 EMSCRIPTEN_KEEPALIVE
 int getDiskHeadPosition(int drive) {
-  if (g_emulator) {
-    // Return quarter-track position
-    auto &disk = g_emulator->getDisk();
-    if (disk.hasDisk(drive)) {
-      const auto *image = disk.getDiskImage(drive);
-      if (image) {
-        return image->getQuarterTrack();
-      }
+  REQUIRE_EMULATOR_OR(0);
+  auto &disk = g_emulator->getDisk();
+  if (disk.hasDisk(drive)) {
+    const auto *image = disk.getDiskImage(drive);
+    if (image) {
+      return image->getQuarterTrack();
     }
   }
   return 0;
@@ -420,33 +339,26 @@ int getDiskHeadPosition(int drive) {
 
 EMSCRIPTEN_KEEPALIVE
 int getSelectedDrive() {
-  if (g_emulator) {
-    return g_emulator->getDisk().getSelectedDrive();
-  }
-  return 0;
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->getDisk().getSelectedDrive();
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool isDiskInserted(int drive) {
-  if (g_emulator) {
-    return g_emulator->getDisk().hasDisk(drive);
-  }
-  return false;
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->getDisk().hasDisk(drive);
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint8_t getLastDiskByte() {
-  // Return data latch directly without side effects
-  if (g_emulator) {
-    return g_emulator->getDisk().getDataLatch();
-  }
-  return 0;
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->getDisk().getDataLatch();
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint8_t getTrackNibble(int drive, int track, int position) {
-  // Debug function to read raw nibble from track data
-  if (g_emulator && g_emulator->getDisk().hasDisk(drive)) {
+  REQUIRE_EMULATOR_OR(0);
+  if (g_emulator->getDisk().hasDisk(drive)) {
     const auto *image = g_emulator->getDisk().getDiskImage(drive);
     if (image) {
       return image->getNibbleAt(track, position);
@@ -457,8 +369,8 @@ uint8_t getTrackNibble(int drive, int track, int position) {
 
 EMSCRIPTEN_KEEPALIVE
 int getTrackNibbleCount(int drive, int track) {
-  // Debug function to get nibble count for a track
-  if (g_emulator && g_emulator->getDisk().hasDisk(drive)) {
+  REQUIRE_EMULATOR_OR(0);
+  if (g_emulator->getDisk().hasDisk(drive)) {
     const auto *image = g_emulator->getDisk().getDiskImage(drive);
     if (image) {
       return image->getTrackNibbleCount(track);
@@ -469,8 +381,8 @@ int getTrackNibbleCount(int drive, int track) {
 
 EMSCRIPTEN_KEEPALIVE
 size_t getCurrentNibblePosition(int drive) {
-  // Debug function to get current nibble position within track
-  if (g_emulator && g_emulator->getDisk().hasDisk(drive)) {
+  REQUIRE_EMULATOR_OR(0);
+  if (g_emulator->getDisk().hasDisk(drive)) {
     const auto *image = g_emulator->getDisk().getDiskImage(drive);
     if (image) {
       return image->getCurrentNibblePosition();
@@ -481,7 +393,8 @@ size_t getCurrentNibblePosition(int drive) {
 
 EMSCRIPTEN_KEEPALIVE
 bool isDiskModified(int drive) {
-  if (g_emulator && g_emulator->getDisk().hasDisk(drive)) {
+  REQUIRE_EMULATOR_OR(false);
+  if (g_emulator->getDisk().hasDisk(drive)) {
     const auto *image = g_emulator->getDisk().getDiskImage(drive);
     if (image) {
       return image->isModified();
@@ -492,114 +405,91 @@ bool isDiskModified(int drive) {
 
 EMSCRIPTEN_KEEPALIVE
 const char *getDiskFilename(int drive) {
-  if (g_emulator) {
-    return g_emulator->getDiskFilename(drive);
-  }
-  return nullptr;
+  REQUIRE_EMULATOR_OR(nullptr);
+  return g_emulator->getDiskFilename(drive);
 }
 
 // Memory tracking for debugger heat map
 EMSCRIPTEN_KEEPALIVE
 void enableMemoryTracking(bool enable) {
-  if (g_emulator) {
-    g_emulator->getMMU().enableTracking(enable);
-  }
+  REQUIRE_EMULATOR();
+  g_emulator->getMMU().enableTracking(enable);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void clearMemoryTracking() {
-  if (g_emulator) {
-    g_emulator->getMMU().clearTracking();
-  }
+  REQUIRE_EMULATOR();
+  g_emulator->getMMU().clearTracking();
 }
 
 EMSCRIPTEN_KEEPALIVE
 void decayMemoryTracking(uint8_t amount) {
-  if (g_emulator) {
-    g_emulator->getMMU().decayTracking(amount);
-  }
+  REQUIRE_EMULATOR();
+  g_emulator->getMMU().decayTracking(amount);
 }
 
 EMSCRIPTEN_KEEPALIVE
 const uint8_t* getMemoryReadCounts() {
-  if (g_emulator) {
-    return g_emulator->getMMU().getReadCounts();
-  }
-  return nullptr;
+  REQUIRE_EMULATOR_OR(nullptr);
+  return g_emulator->getMMU().getReadCounts();
 }
 
 EMSCRIPTEN_KEEPALIVE
 const uint8_t* getMemoryWriteCounts() {
-  if (g_emulator) {
-    return g_emulator->getMMU().getWriteCounts();
-  }
-  return nullptr;
+  REQUIRE_EMULATOR_OR(nullptr);
+  return g_emulator->getMMU().getWriteCounts();
 }
 
 // Direct memory array access for heat map visualization
 EMSCRIPTEN_KEEPALIVE
 const uint8_t* getMainRAM() {
-  if (g_emulator) {
-    return g_emulator->getMMU().getMainRAM();
-  }
-  return nullptr;
+  REQUIRE_EMULATOR_OR(nullptr);
+  return g_emulator->getMMU().getMainRAM();
 }
 
 EMSCRIPTEN_KEEPALIVE
 const uint8_t* getAuxRAM() {
-  if (g_emulator) {
-    return g_emulator->getMMU().getAuxRAM();
-  }
-  return nullptr;
+  REQUIRE_EMULATOR_OR(nullptr);
+  return g_emulator->getMMU().getAuxRAM();
 }
 
 EMSCRIPTEN_KEEPALIVE
 const uint8_t* getSystemROM() {
-  if (g_emulator) {
-    return g_emulator->getMMU().getSystemROM();
-  }
-  return nullptr;
+  REQUIRE_EMULATOR_OR(nullptr);
+  return g_emulator->getMMU().getSystemROM();
 }
 
 // Read auxiliary memory directly (for 80-column text selection)
 EMSCRIPTEN_KEEPALIVE
 uint8_t peekAuxMemory(uint16_t address) {
-  if (g_emulator) {
-    return g_emulator->getMMU().peekAux(address);
-  }
-  return 0;
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->getMMU().peekAux(address);
 }
 
 // UK/US character set switch (like the physical switch on UK Apple IIe)
 EMSCRIPTEN_KEEPALIVE
 void setUKCharacterSet(bool uk) {
-  if (g_emulator) {
-    g_emulator->getVideo().setUKCharacterSet(uk);
-  }
+  REQUIRE_EMULATOR();
+  g_emulator->getVideo().setUKCharacterSet(uk);
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool isUKCharacterSet() {
-  if (g_emulator) {
-    return g_emulator->getVideo().isUKCharacterSet();
-  }
-  return false;
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->getVideo().isUKCharacterSet();
 }
 
 // Monochrome display mode (bypasses NTSC artifact coloring)
 EMSCRIPTEN_KEEPALIVE
 void setMonochrome(bool mono) {
-  if (g_emulator) {
-    g_emulator->getVideo().setMonochrome(mono);
-  }
+  REQUIRE_EMULATOR();
+  g_emulator->getVideo().setMonochrome(mono);
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool isMonochrome() {
-  if (g_emulator) {
-    return g_emulator->getVideo().isMonochrome();
-  }
-  return false;
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->getVideo().isMonochrome();
 }
 
 // ============================================================================
@@ -608,19 +498,14 @@ bool isMonochrome() {
 
 EMSCRIPTEN_KEEPALIVE
 uint8_t *exportState(size_t *size) {
-  if (g_emulator) {
-    return const_cast<uint8_t *>(g_emulator->exportState(size));
-  }
-  *size = 0;
-  return nullptr;
+  if (!g_emulator) { *size = 0; return nullptr; }
+  return const_cast<uint8_t *>(g_emulator->exportState(size));
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool importState(const uint8_t *data, size_t size) {
-  if (g_emulator) {
-    return g_emulator->importState(data, size);
-  }
-  return false;
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->importState(data, size);
 }
 
 // ============================================================================
@@ -673,20 +558,18 @@ uint32_t disassembleWithFlowAnalysisMultiEntry(const uint8_t *data, size_t size,
 
 EMSCRIPTEN_KEEPALIVE
 bool isMockingboardEnabled() {
-  if (g_emulator) {
-    return g_emulator->getMockingboard().isEnabled();
-  }
-  return false;
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->getMockingboard().isEnabled();
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint8_t getMockingboardPSGRegister(int psg, int reg) {
-  if (g_emulator && reg >= 0 && reg < 16) {
-    if (psg == 0) {
-      return g_emulator->getMockingboard().getPSG1().getRegister(reg);
-    } else if (psg == 1) {
-      return g_emulator->getMockingboard().getPSG2().getRegister(reg);
-    }
+  REQUIRE_EMULATOR_OR(0);
+  if (reg < 0 || reg >= 16) return 0;
+  if (psg == 0) {
+    return g_emulator->getMockingboard().getPSG1().getRegister(reg);
+  } else if (psg == 1) {
+    return g_emulator->getMockingboard().getPSG2().getRegister(reg);
   }
   return 0;
 }
@@ -697,26 +580,23 @@ static uint8_t g_psgRegisters[16];
 
 EMSCRIPTEN_KEEPALIVE
 const uint8_t* getMockingboardPSGRegisters(int psg) {
-  if (g_emulator) {
-    const auto& psgChip = (psg == 0)
-      ? g_emulator->getMockingboard().getPSG1()
-      : g_emulator->getMockingboard().getPSG2();
-    for (int i = 0; i < 16; i++) {
-      g_psgRegisters[i] = psgChip.getRegister(i);
-    }
-    return g_psgRegisters;
+  REQUIRE_EMULATOR_OR(nullptr);
+  const auto& psgChip = (psg == 0)
+    ? g_emulator->getMockingboard().getPSG1()
+    : g_emulator->getMockingboard().getPSG2();
+  for (int i = 0; i < 16; i++) {
+    g_psgRegisters[i] = psgChip.getRegister(i);
   }
-  return nullptr;
+  return g_psgRegisters;
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool getMockingboardVIAIRQ(int via) {
-  if (g_emulator) {
-    if (via == 0) {
-      return g_emulator->getMockingboard().getVIA1().isIRQActive();
-    } else if (via == 1) {
-      return g_emulator->getMockingboard().getVIA2().isIRQActive();
-    }
+  REQUIRE_EMULATOR_OR(false);
+  if (via == 0) {
+    return g_emulator->getMockingboard().getVIA1().isIRQActive();
+  } else if (via == 1) {
+    return g_emulator->getMockingboard().getVIA2().isIRQActive();
   }
   return false;
 }
@@ -725,16 +605,15 @@ bool getMockingboardVIAIRQ(int via) {
 // reg: 0=ORA, 1=ORB, 2=DDRA, 3=DDRB
 EMSCRIPTEN_KEEPALIVE
 uint8_t getMockingboardVIAPort(int via, int reg) {
-  if (g_emulator) {
-    const auto& viaChip = (via == 0)
-        ? g_emulator->getMockingboard().getVIA1()
-        : g_emulator->getMockingboard().getVIA2();
-    switch (reg) {
-      case 0: return viaChip.getORA();
-      case 1: return viaChip.getORB();
-      case 2: return viaChip.getDDRA();
-      case 3: return viaChip.getDDRB();
-    }
+  REQUIRE_EMULATOR_OR(0);
+  const auto& viaChip = (via == 0)
+      ? g_emulator->getMockingboard().getVIA1()
+      : g_emulator->getMockingboard().getVIA2();
+  switch (reg) {
+    case 0: return viaChip.getORA();
+    case 1: return viaChip.getORB();
+    case 2: return viaChip.getDDRA();
+    case 3: return viaChip.getDDRB();
   }
   return 0;
 }
@@ -743,16 +622,15 @@ uint8_t getMockingboardVIAPort(int via, int reg) {
 // info: 0=writeCount, 1=lastWriteReg, 2=lastWriteVal, 3=currentRegister
 EMSCRIPTEN_KEEPALIVE
 uint32_t getMockingboardPSGWriteInfo(int psg, int info) {
-  if (g_emulator) {
-    const auto& psgChip = (psg == 0)
-        ? g_emulator->getMockingboard().getPSG1()
-        : g_emulator->getMockingboard().getPSG2();
-    switch (info) {
-      case 0: return psgChip.getWriteCount();
-      case 1: return psgChip.getLastWriteReg();
-      case 2: return psgChip.getLastWriteVal();
-      case 3: return psgChip.getCurrentRegister();
-    }
+  REQUIRE_EMULATOR_OR(0);
+  const auto& psgChip = (psg == 0)
+      ? g_emulator->getMockingboard().getPSG1()
+      : g_emulator->getMockingboard().getPSG2();
+  switch (info) {
+    case 0: return psgChip.getWriteCount();
+    case 1: return psgChip.getLastWriteReg();
+    case 2: return psgChip.getLastWriteVal();
+    case 3: return psgChip.getCurrentRegister();
   }
   return 0;
 }
@@ -761,19 +639,18 @@ uint32_t getMockingboardPSGWriteInfo(int psg, int info) {
 // info: 0=T1Counter, 1=T1Latch, 2=T1Running, 3=T1Fired, 4=ACR, 5=IFR, 6=IER
 EMSCRIPTEN_KEEPALIVE
 uint32_t getMockingboardVIATimerInfo(int via, int info) {
-  if (g_emulator) {
-    const auto& viaChip = (via == 0)
-        ? g_emulator->getMockingboard().getVIA1()
-        : g_emulator->getMockingboard().getVIA2();
-    switch (info) {
-      case 0: return viaChip.getT1Counter();
-      case 1: return viaChip.getT1Latch();
-      case 2: return viaChip.isT1Running() ? 1 : 0;
-      case 3: return viaChip.hasT1Fired() ? 1 : 0;
-      case 4: return viaChip.getACR();
-      case 5: return viaChip.getIFR();
-      case 6: return viaChip.getIER();
-    }
+  REQUIRE_EMULATOR_OR(0);
+  const auto& viaChip = (via == 0)
+      ? g_emulator->getMockingboard().getVIA1()
+      : g_emulator->getMockingboard().getVIA2();
+  switch (info) {
+    case 0: return viaChip.getT1Counter();
+    case 1: return viaChip.getT1Latch();
+    case 2: return viaChip.isT1Running() ? 1 : 0;
+    case 3: return viaChip.hasT1Fired() ? 1 : 0;
+    case 4: return viaChip.getACR();
+    case 5: return viaChip.getIFR();
+    case 6: return viaChip.getIER();
   }
   return 0;
 }
@@ -781,9 +658,8 @@ uint32_t getMockingboardVIATimerInfo(int via, int info) {
 // Enable/disable console debug logging for Mockingboard PSG writes
 EMSCRIPTEN_KEEPALIVE
 void setMockingboardDebugLogging(bool enabled) {
-  if (g_emulator) {
-    g_emulator->getMockingboard().setDebugLogging(enabled);
-  }
+  REQUIRE_EMULATOR();
+  g_emulator->getMockingboard().setDebugLogging(enabled);
 }
 
 // ============================================================================

@@ -1,36 +1,44 @@
 /**
  * FileExplorerWindow - Browse and view contents of Apple II disk images
+ * Extends BaseWindow to inherit drag/resize/show/hide functionality
  */
 
+import { BaseWindow } from '../ui/BaseWindow.js';
 import { isDOS33, readCatalog, readFile, parseVTOC, getBinaryFileInfo } from './dos33.js';
 import { isProDOS, readCatalog as readProDOSCatalog, readFile as readProDOSFile, parseVolumeInfo, mapFileTypeForViewer, getBinaryFileInfo as getProDOSBinaryInfo } from './prodos.js';
 import { formatFileContents, formatFileSize, formatHexDump } from './file-viewer.js';
 import { disassemble, setWasmModule } from './disassembler.js';
 import { escapeHtml } from '../utils/string-utils.js';
 
-export class FileExplorerWindow {
+export class FileExplorerWindow extends BaseWindow {
   constructor(wasmModule) {
+    // Configure BaseWindow with file explorer specific settings
+    super({
+      id: 'file-explorer-window',
+      title: 'File Explorer',
+      minWidth: 400,
+      minHeight: 300,
+      defaultWidth: 700,
+      defaultHeight: 500,
+      defaultPosition: { x: 150, y: 100 },
+      storageKey: 'a2e-file-explorer',
+      // Use file explorer CSS classes
+      cssClasses: {
+        window: 'file-explorer-window',
+        header: 'fe-header',
+        title: 'fe-title',
+        close: 'fe-close',
+        content: 'fe-body', // We'll handle content differently
+        resizeHandle: 'fe-resize-handle',
+      },
+      // Only SE, E, S resize handles
+      resizeDirections: ['se', 'e', 's'],
+    });
+
     this.wasmModule = wasmModule;
-    this.element = null;
-    this.isVisible = false;
 
     // Initialize the disassembler with the WASM module
     setWasmModule(wasmModule);
-
-    // Window state
-    this.currentX = 150;
-    this.currentY = 100;
-    this.currentWidth = 700;
-    this.currentHeight = 500;
-
-    // Drag state
-    this.isDragging = false;
-    this.dragOffset = { x: 0, y: 0 };
-
-    // Resize state
-    this.isResizing = false;
-    this.resizeStart = { x: 0, y: 0, width: 0, height: 0, left: 0, top: 0 };
-    this.resizeDirection = null;
 
     // Content state
     this.selectedDrive = 0;
@@ -45,26 +53,14 @@ export class FileExplorerWindow {
     this.basicOriginalHtml = null; // Original unhighlighted BASIC content
 
     // Bind handlers
-    this.handleMouseDown = this.handleMouseDown.bind(this);
-    this.handleMouseMove = this.handleMouseMove.bind(this);
-    this.handleMouseUp = this.handleMouseUp.bind(this);
     this.handleBasicLineClick = this.handleBasicLineClick.bind(this);
   }
 
-  create() {
-    this.element = document.createElement('div');
-    this.element.id = 'file-explorer-window';
-    this.element.className = 'file-explorer-window hidden';
-    this.element.style.width = `${this.currentWidth}px`;
-    this.element.style.height = `${this.currentHeight}px`;
-    this.element.style.left = `${this.currentX}px`;
-    this.element.style.top = `${this.currentY}px`;
-
-    this.element.innerHTML = `
-      <div class="fe-header">
-        <span class="fe-title">File Explorer</span>
-        <button class="fe-close" title="Close">&times;</button>
-      </div>
+  /**
+   * Override renderContent to provide file explorer specific content
+   */
+  renderContent() {
+    return `
       <div class="fe-toolbar">
         <div class="fe-drive-selector">
           <label>Drive:</label>
@@ -101,27 +97,15 @@ export class FileExplorerWindow {
           <div class="fe-file-content"></div>
         </div>
       </div>
-      <div class="fe-resize-handle se" data-direction="se"></div>
-      <div class="fe-resize-handle e" data-direction="e"></div>
-      <div class="fe-resize-handle s" data-direction="s"></div>
     `;
-
-    document.body.appendChild(this.element);
-    this.setupEventListeners();
-    this.loadSettings();
   }
 
-  setupEventListeners() {
-    // Close button
-    const closeBtn = this.element.querySelector('.fe-close');
-    closeBtn.addEventListener('click', () => this.hide());
-
-    // Header drag
-    const header = this.element.querySelector('.fe-header');
-    header.addEventListener('mousedown', (e) => {
-      if (e.target.closest('.fe-close')) return;
-      this.startDrag(e);
-    });
+  /**
+   * Called after the window is created - set up file explorer specific event listeners
+   */
+  onContentRendered() {
+    // Load saved settings
+    this.loadSettings();
 
     // Drive selector
     const driveBtns = this.element.querySelectorAll('.fe-drive-btn');
@@ -167,19 +151,6 @@ export class FileExplorerWindow {
       }
     });
 
-    // Resize handles
-    const resizeHandles = this.element.querySelectorAll('.fe-resize-handle');
-    resizeHandles.forEach(handle => {
-      handle.addEventListener('mousedown', (e) => this.startResize(e, handle.dataset.direction));
-    });
-
-    // Global mouse events for drag/resize
-    document.addEventListener('mousemove', this.handleMouseMove);
-    document.addEventListener('mouseup', this.handleMouseUp);
-
-    // Bring to front on click
-    this.element.addEventListener('mousedown', () => this.bringToFront());
-
     // View toggle for binary files
     const viewToggle = this.element.querySelector('.fe-view-toggle');
     viewToggle.addEventListener('click', (e) => {
@@ -196,115 +167,19 @@ export class FileExplorerWindow {
     });
   }
 
-  startDrag(e) {
-    this.isDragging = true;
-    this.dragOffset = {
-      x: e.clientX - this.currentX,
-      y: e.clientY - this.currentY,
-    };
-    this.element.classList.add('dragging');
-    e.preventDefault();
-  }
-
-  startResize(e, direction) {
-    this.isResizing = true;
-    this.resizeDirection = direction;
-    this.resizeStart = {
-      x: e.clientX,
-      y: e.clientY,
-      width: this.currentWidth,
-      height: this.currentHeight,
-      left: this.currentX,
-      top: this.currentY,
-    };
-    this.element.classList.add('resizing');
-    e.preventDefault();
-    e.stopPropagation();
-  }
-
-  handleMouseDown(e) {
-    // Handled by specific listeners
-  }
-
-  handleMouseMove(e) {
-    if (this.isDragging) {
-      this.currentX = e.clientX - this.dragOffset.x;
-      this.currentY = e.clientY - this.dragOffset.y;
-
-      // Keep in viewport
-      this.currentX = Math.max(0, Math.min(this.currentX, window.innerWidth - 100));
-      this.currentY = Math.max(0, Math.min(this.currentY, window.innerHeight - 50));
-
-      this.element.style.left = `${this.currentX}px`;
-      this.element.style.top = `${this.currentY}px`;
-    }
-
-    if (this.isResizing) {
-      const dx = e.clientX - this.resizeStart.x;
-      const dy = e.clientY - this.resizeStart.y;
-      const dir = this.resizeDirection;
-
-      let newWidth = this.resizeStart.width;
-      let newHeight = this.resizeStart.height;
-      let newLeft = this.resizeStart.left;
-      let newTop = this.resizeStart.top;
-
-      if (dir.includes('e')) newWidth = Math.max(400, this.resizeStart.width + dx);
-      if (dir.includes('s')) newHeight = Math.max(300, this.resizeStart.height + dy);
-      if (dir.includes('w')) {
-        newWidth = Math.max(400, this.resizeStart.width - dx);
-        newLeft = this.resizeStart.left + (this.resizeStart.width - newWidth);
-      }
-      if (dir.includes('n')) {
-        newHeight = Math.max(300, this.resizeStart.height - dy);
-        newTop = this.resizeStart.top + (this.resizeStart.height - newHeight);
-      }
-
-      this.currentWidth = newWidth;
-      this.currentHeight = newHeight;
-      this.currentX = newLeft;
-      this.currentY = newTop;
-
-      this.element.style.width = `${newWidth}px`;
-      this.element.style.height = `${newHeight}px`;
-      this.element.style.left = `${newLeft}px`;
-      this.element.style.top = `${newTop}px`;
-    }
-  }
-
-  handleMouseUp() {
-    if (this.isDragging || this.isResizing) {
-      this.isDragging = false;
-      this.isResizing = false;
-      this.element.classList.remove('dragging', 'resizing');
-      this.saveSettings();
-    }
-  }
-
-  bringToFront() {
-    // Simple z-index bump
-    this.element.style.zIndex = '10001';
-  }
-
+  /**
+   * Override show to also load the disk
+   */
   show() {
-    this.isVisible = true;
-    this.element.classList.remove('hidden');
-    this.bringToFront();
+    super.show();
     this.loadDisk();
   }
 
-  hide() {
-    this.isVisible = false;
-    this.element.classList.add('hidden');
-    this.saveSettings();
-  }
-
-  toggle() {
-    if (this.isVisible) {
-      this.hide();
-    } else {
-      this.show();
-    }
+  /**
+   * Bring window to front (simple z-index bump)
+   */
+  bringToFront() {
+    this.element.style.zIndex = '10001';
   }
 
   loadDisk() {
@@ -348,17 +223,6 @@ export class FileExplorerWindow {
     // Get filename
     const filenamePtr = this.wasmModule._getDiskFilename(this.selectedDrive);
     const filename = filenamePtr ? this.wasmModule.UTF8ToString(filenamePtr) : 'Unknown';
-
-    // Debug: Log disk info
-    console.log('File Explorer - Disk data:', {
-      filename,
-      size,
-      expectedSize: 143360,
-      firstBytes: Array.from(this.diskData.slice(0, 16)).map(b => b.toString(16).padStart(2, '0')).join(' '),
-      // VTOC is at track 17, sector 0 = offset (17 * 16 + 0) * 256 = 69632
-      vtocOffset: 17 * 16 * 256,
-      vtocBytes: Array.from(this.diskData.slice(17 * 16 * 256, 17 * 16 * 256 + 16)).map(b => b.toString(16).padStart(2, '0')).join(' '),
-    });
 
     // Check disk format - try ProDOS first, then DOS 3.3
     if (isProDOS(this.diskData)) {
@@ -720,47 +584,5 @@ export class FileExplorerWindow {
     this.currentFileData = null;
     this.basicLineNumToIndex = null;
     this.basicOriginalHtml = null;
-  }
-
-  saveSettings() {
-    try {
-      localStorage.setItem('a2e-file-explorer', JSON.stringify({
-        x: this.currentX,
-        y: this.currentY,
-        width: this.currentWidth,
-        height: this.currentHeight,
-        visible: this.isVisible,
-      }));
-    } catch (e) {
-      console.warn('Failed to save file explorer settings:', e.message);
-    }
-  }
-
-  loadSettings() {
-    try {
-      const saved = localStorage.getItem('a2e-file-explorer');
-      if (saved) {
-        const state = JSON.parse(saved);
-        this.currentX = state.x || this.currentX;
-        this.currentY = state.y || this.currentY;
-        this.currentWidth = state.width || this.currentWidth;
-        this.currentHeight = state.height || this.currentHeight;
-
-        this.element.style.left = `${this.currentX}px`;
-        this.element.style.top = `${this.currentY}px`;
-        this.element.style.width = `${this.currentWidth}px`;
-        this.element.style.height = `${this.currentHeight}px`;
-      }
-    } catch (e) {
-      console.warn('Failed to load file explorer settings:', e.message);
-    }
-  }
-
-  destroy() {
-    document.removeEventListener('mousemove', this.handleMouseMove);
-    document.removeEventListener('mouseup', this.handleMouseUp);
-    if (this.element && this.element.parentNode) {
-      this.element.parentNode.removeChild(this.element);
-    }
   }
 }

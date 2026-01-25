@@ -54,9 +54,6 @@ const DISK_140K_SIZE = 143360;
 // ProDOS sector numbers to DOS sector numbers to find the right file offset
 const PRODOS_TO_DOS_SECTOR = [0, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 15];
 
-// Track whether current disk uses DOS sector ordering
-let useDOSSectorOrder = false;
-
 /**
  * Read a 512-byte block from disk data (internal)
  * @param {Uint8Array} diskData - Raw disk image data
@@ -109,13 +106,14 @@ function readBlockInternal(diskData, blockNum, dosOrder) {
 }
 
 /**
- * Read a 512-byte block from disk data using detected sector ordering
+ * Read a 512-byte block from disk data using specified sector ordering
  * @param {Uint8Array} diskData - Raw disk image data
  * @param {number} blockNum - Block number
+ * @param {boolean} dosOrder - If true, use DOS sector ordering
  * @returns {Uint8Array} 512-byte block data
  */
-function readBlock(diskData, blockNum) {
-  return readBlockInternal(diskData, blockNum, useDOSSectorOrder);
+function readBlock(diskData, blockNum, dosOrder) {
+  return readBlockInternal(diskData, blockNum, dosOrder);
 }
 
 /**
@@ -162,7 +160,7 @@ export function parseVolumeInfo(diskData) {
 
   // Try ProDOS sector order first (for .PO files)
   let block2 = readBlockInternal(diskData, 2, false);
-  let foundWithDOSOrder = false;
+  let useDOSSectorOrder = false;
 
   if (!isValidVolumeHeader(block2)) {
     // Try DOS sector order (for .DO/.DSK files)
@@ -170,11 +168,8 @@ export function parseVolumeInfo(diskData) {
     if (!isValidVolumeHeader(block2)) {
       return null;
     }
-    foundWithDOSOrder = true;
+    useDOSSectorOrder = true;
   }
-
-  // Set the sector ordering for subsequent reads
-  useDOSSectorOrder = foundWithDOSOrder;
 
   const storageTypeAndNameLength = block2[0x04];
   const nameLength = storageTypeAndNameLength & 0x0F;
@@ -216,6 +211,7 @@ export function parseVolumeInfo(diskData) {
     fileCount,
     bitmapPointer,
     totalBlocks,
+    useDOSSectorOrder, // Include sector ordering for subsequent reads
   };
 }
 
@@ -305,9 +301,10 @@ function parseDirectoryEntry(entry) {
  * @param {Uint8Array} diskData - Raw disk image data
  * @param {number} startBlock - Starting block of directory
  * @param {string} pathPrefix - Path prefix for entries
+ * @param {boolean} dosOrder - If true, use DOS sector ordering
  * @returns {Array} Array of directory entries
  */
-function readDirectory(diskData, startBlock, pathPrefix = '') {
+function readDirectory(diskData, startBlock, pathPrefix = '', dosOrder = false) {
   const entries = [];
   let blockNum = startBlock;
   const visited = new Set();
@@ -316,7 +313,7 @@ function readDirectory(diskData, startBlock, pathPrefix = '') {
     if (visited.has(blockNum)) break;
     visited.add(blockNum);
 
-    const block = readBlock(diskData, blockNum);
+    const block = readBlock(diskData, blockNum, dosOrder);
 
     // Get prev/next block pointers (first 4 bytes of block)
     const nextBlock = block[0x02] | (block[0x03] << 8);
@@ -348,7 +345,7 @@ function readDirectory(diskData, startBlock, pathPrefix = '') {
 /**
  * Read the disk catalog (volume directory and all subdirectories)
  * @param {Uint8Array} diskData - Raw disk image data
- * @returns {Array} Array of all file entries with full paths
+ * @returns {Array} Array of all file entries with full paths (includes _dosOrder property for readFile)
  */
 export function readCatalog(diskData) {
   const volumeInfo = parseVolumeInfo(diskData);
@@ -356,14 +353,17 @@ export function readCatalog(diskData) {
     return [];
   }
 
+  const dosOrder = volumeInfo.useDOSSectorOrder;
   const allEntries = [];
   const dirsToProcess = [{ block: VOLUME_DIRECTORY_BLOCK, path: '' }];
 
   while (dirsToProcess.length > 0) {
     const { block, path } = dirsToProcess.shift();
-    const entries = readDirectory(diskData, block, path);
+    const entries = readDirectory(diskData, block, path, dosOrder);
 
     for (const entry of entries) {
+      // Attach sector ordering to each entry for use by readFile
+      entry._dosOrder = dosOrder;
       if (entry.isDirectory) {
         // Queue subdirectory for processing
         dirsToProcess.push({
@@ -381,7 +381,7 @@ export function readCatalog(diskData) {
 /**
  * Read file contents using appropriate storage type
  * @param {Uint8Array} diskData - Raw disk image data
- * @param {Object} entry - Catalog entry for the file
+ * @param {Object} entry - Catalog entry for the file (includes _dosOrder from readCatalog)
  * @returns {Uint8Array} File contents
  */
 export function readFile(diskData, entry) {
@@ -390,17 +390,18 @@ export function readFile(diskData, entry) {
   }
 
   const eof = entry.eof;
+  const dosOrder = entry._dosOrder || false;
   let data;
 
   switch (entry.storageType) {
     case STORAGE_TYPE_SEEDLING:
-      data = readSeedlingFile(diskData, entry.keyPointer, eof);
+      data = readSeedlingFile(diskData, entry.keyPointer, eof, dosOrder);
       break;
     case STORAGE_TYPE_SAPLING:
-      data = readSaplingFile(diskData, entry.keyPointer, eof);
+      data = readSaplingFile(diskData, entry.keyPointer, eof, dosOrder);
       break;
     case STORAGE_TYPE_TREE:
-      data = readTreeFile(diskData, entry.keyPointer, eof);
+      data = readTreeFile(diskData, entry.keyPointer, eof, dosOrder);
       break;
     default:
       data = new Uint8Array(0);
@@ -414,10 +415,11 @@ export function readFile(diskData, entry) {
  * @param {Uint8Array} diskData - Raw disk image data
  * @param {number} blockNum - Block number containing file data
  * @param {number} eof - File size
+ * @param {boolean} dosOrder - If true, use DOS sector ordering
  * @returns {Uint8Array} File contents
  */
-function readSeedlingFile(diskData, blockNum, eof) {
-  const block = readBlock(diskData, blockNum);
+function readSeedlingFile(diskData, blockNum, eof, dosOrder) {
+  const block = readBlock(diskData, blockNum, dosOrder);
   return block.slice(0, eof);
 }
 
@@ -426,10 +428,11 @@ function readSeedlingFile(diskData, blockNum, eof) {
  * @param {Uint8Array} diskData - Raw disk image data
  * @param {number} indexBlock - Block number of index block
  * @param {number} eof - File size
+ * @param {boolean} dosOrder - If true, use DOS sector ordering
  * @returns {Uint8Array} File contents
  */
-function readSaplingFile(diskData, indexBlock, eof) {
-  const index = readBlock(diskData, indexBlock);
+function readSaplingFile(diskData, indexBlock, eof, dosOrder) {
+  const index = readBlock(diskData, indexBlock, dosOrder);
   const result = new Uint8Array(eof);
   let bytesRead = 0;
 
@@ -442,7 +445,7 @@ function readSaplingFile(diskData, indexBlock, eof) {
       continue;
     }
 
-    const dataBlock = readBlock(diskData, dataBlockNum);
+    const dataBlock = readBlock(diskData, dataBlockNum, dosOrder);
     const bytesToCopy = Math.min(BLOCK_SIZE, eof - bytesRead);
     result.set(dataBlock.slice(0, bytesToCopy), bytesRead);
     bytesRead += bytesToCopy;
@@ -456,10 +459,11 @@ function readSaplingFile(diskData, indexBlock, eof) {
  * @param {Uint8Array} diskData - Raw disk image data
  * @param {number} masterBlock - Block number of master index block
  * @param {number} eof - File size
+ * @param {boolean} dosOrder - If true, use DOS sector ordering
  * @returns {Uint8Array} File contents
  */
-function readTreeFile(diskData, masterBlock, eof) {
-  const master = readBlock(diskData, masterBlock);
+function readTreeFile(diskData, masterBlock, eof, dosOrder) {
+  const master = readBlock(diskData, masterBlock, dosOrder);
   const result = new Uint8Array(eof);
   let bytesRead = 0;
 
@@ -472,7 +476,7 @@ function readTreeFile(diskData, masterBlock, eof) {
       continue;
     }
 
-    const index = readBlock(diskData, indexBlockNum);
+    const index = readBlock(diskData, indexBlockNum, dosOrder);
 
     for (let j = 0; j < 256 && bytesRead < eof; j++) {
       const dataBlockNum = index[j] | (index[j + 256] << 8);
@@ -482,7 +486,7 @@ function readTreeFile(diskData, masterBlock, eof) {
         continue;
       }
 
-      const dataBlock = readBlock(diskData, dataBlockNum);
+      const dataBlock = readBlock(diskData, dataBlockNum, dosOrder);
       const bytesToCopy = Math.min(BLOCK_SIZE, eof - bytesRead);
       result.set(dataBlock.slice(0, bytesToCopy), bytesRead);
       bytesRead += bytesToCopy;

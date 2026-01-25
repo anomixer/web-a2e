@@ -11,6 +11,22 @@ export class BaseWindow {
     this.defaultHeight = config.defaultHeight || 300;
     this.defaultPosition = config.defaultPosition || { x: 100, y: 100 };
 
+    // Customizable CSS class names (defaults to debug-window style)
+    this.cssClasses = {
+      window: config.cssClasses?.window || 'debug-window',
+      header: config.cssClasses?.header || 'debug-window-header',
+      title: config.cssClasses?.title || 'debug-window-title',
+      close: config.cssClasses?.close || 'debug-window-close',
+      content: config.cssClasses?.content || 'debug-window-content',
+      resizeHandle: config.cssClasses?.resizeHandle || 'debug-resize-handle',
+    };
+
+    // Resize directions to create handles for
+    this.resizeDirections = config.resizeDirections || ['n', 'e', 's', 'w', 'ne', 'nw', 'se', 'sw'];
+
+    // Optional localStorage key for persisting window state
+    this.storageKey = config.storageKey || null;
+
     this.element = null;
     this.headerElement = null;
     this.contentElement = null;
@@ -46,7 +62,7 @@ export class BaseWindow {
     // Create main window element
     this.element = document.createElement("div");
     this.element.id = this.id;
-    this.element.className = "debug-window hidden";
+    this.element.className = `${this.cssClasses.window} hidden`;
     this.element.style.width = `${this.defaultWidth}px`;
     this.element.style.height = `${this.defaultHeight}px`;
     this.element.style.left = `${this.defaultPosition.x}px`;
@@ -54,22 +70,21 @@ export class BaseWindow {
 
     // Header (draggable area)
     this.headerElement = document.createElement("div");
-    this.headerElement.className = "debug-window-header";
+    this.headerElement.className = this.cssClasses.header;
     this.headerElement.innerHTML = `
-      <span class="debug-window-title">${this.title}</span>
-      <button class="debug-window-close" title="Close">&times;</button>
+      <span class="${this.cssClasses.title}">${this.title}</span>
+      <button class="${this.cssClasses.close}" title="Close">&times;</button>
     `;
 
     // Content area
     this.contentElement = document.createElement("div");
-    this.contentElement.className = "debug-window-content";
+    this.contentElement.className = this.cssClasses.content;
     this.contentElement.innerHTML = this.renderContent();
 
     // Resize handles
-    const resizeHandles = ["n", "e", "s", "w", "ne", "nw", "se", "sw"];
-    resizeHandles.forEach((dir) => {
+    this.resizeDirections.forEach((dir) => {
       const handle = document.createElement("div");
-      handle.className = `debug-resize-handle ${dir}`;
+      handle.className = `${this.cssClasses.resizeHandle} ${dir}`;
       handle.dataset.direction = dir;
       this.element.appendChild(handle);
     });
@@ -93,17 +108,17 @@ export class BaseWindow {
    */
   setupEventListeners() {
     // Close button
-    const closeBtn = this.headerElement.querySelector(".debug-window-close");
+    const closeBtn = this.headerElement.querySelector(`.${this.cssClasses.close}`);
     closeBtn.addEventListener("click", () => this.hide());
 
     // Drag start on header
     this.headerElement.addEventListener("mousedown", (e) => {
-      if (e.target.classList.contains("debug-window-close")) return;
+      if (e.target.classList.contains(this.cssClasses.close)) return;
       this.startDrag(e);
     });
 
     // Resize start on handles
-    this.element.querySelectorAll(".debug-resize-handle").forEach((handle) => {
+    this.element.querySelectorAll(`.${this.cssClasses.resizeHandle}`).forEach((handle) => {
       handle.addEventListener("mousedown", (e) => {
         this.startResize(e, handle.dataset.direction);
       });
@@ -146,6 +161,7 @@ export class BaseWindow {
       this.isResizing = false;
       this.element.classList.remove("dragging", "resizing");
       if (this.onStateChange) this.onStateChange();
+      this.saveSettings();
     }
   }
 
@@ -312,6 +328,7 @@ export class BaseWindow {
     this.isVisible = false;
     // Save state BEFORE adding hidden class, since getBoundingClientRect returns zeros for display:none
     if (this.onStateChange) this.onStateChange();
+    this.saveSettings();
     this.element.classList.add("hidden");
     // Refocus canvas for keyboard input
     const canvas = document.getElementById("screen");
@@ -493,5 +510,58 @@ export class BaseWindow {
    */
   formatAddr(value) {
     return "$" + this.formatHex(value, 4);
+  }
+
+  /**
+   * Save window state to localStorage (if storageKey is configured)
+   */
+  saveSettings() {
+    if (!this.storageKey) return;
+    try {
+      localStorage.setItem(this.storageKey, JSON.stringify({
+        x: this.currentX,
+        y: this.currentY,
+        width: this.currentWidth,
+        height: this.currentHeight,
+        visible: this.isVisible,
+      }));
+    } catch (e) {
+      console.warn(`Failed to save ${this.storageKey} settings:`, e.message);
+    }
+  }
+
+  /**
+   * Load window state from localStorage (if storageKey is configured)
+   */
+  loadSettings() {
+    if (!this.storageKey) return;
+    try {
+      const saved = localStorage.getItem(this.storageKey);
+      if (saved) {
+        const state = JSON.parse(saved);
+        if (state.x !== undefined) this.currentX = state.x;
+        if (state.y !== undefined) this.currentY = state.y;
+        if (state.width !== undefined) this.currentWidth = Math.max(state.width, this.minWidth);
+        if (state.height !== undefined) this.currentHeight = Math.max(state.height, this.minHeight);
+
+        this.element.style.left = `${this.currentX}px`;
+        this.element.style.top = `${this.currentY}px`;
+        this.element.style.width = `${this.currentWidth}px`;
+        this.element.style.height = `${this.currentHeight}px`;
+      }
+    } catch (e) {
+      console.warn(`Failed to load ${this.storageKey} settings:`, e.message);
+    }
+  }
+
+  /**
+   * Clean up event listeners and remove element from DOM
+   */
+  destroy() {
+    document.removeEventListener('mousemove', this.handleMouseMove);
+    document.removeEventListener('mouseup', this.handleMouseUp);
+    if (this.element && this.element.parentNode) {
+      this.element.parentNode.removeChild(this.element);
+    }
   }
 }
