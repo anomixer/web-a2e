@@ -23,6 +23,7 @@ export class SlotConfigurationWindow extends BaseWindow {
       { id: "empty", name: "Empty" },
       { id: "disk2", name: "Disk II Controller" },
       { id: "mockingboard", name: "Mockingboard" },
+      { id: "thunderclock", name: "Thunderclock Plus" },
     ];
 
     // Slot metadata
@@ -52,14 +53,14 @@ export class SlotConfigurationWindow extends BaseWindow {
         available: ["empty", "mockingboard"],
         note: "Sound cards",
       },
-      { slot: 5, label: "Slot 5", available: ["empty"], note: "Hard drive" },
+      { slot: 5, label: "Slot 5", available: ["empty", "thunderclock"], note: "Clock / Hard drive" },
       {
         slot: 6,
         label: "Slot 6",
         available: ["empty", "disk2"],
         note: "Disk drives",
       },
-      { slot: 7, label: "Slot 7", available: ["empty"], note: "RAM disk" },
+      { slot: 7, label: "Slot 7", available: ["empty", "thunderclock"], note: "RAM disk / Clock" },
     ];
 
     // Track pending changes

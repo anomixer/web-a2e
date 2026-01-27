@@ -376,6 +376,9 @@ export class BaseWindow {
       this.currentHeight = height;
     }
 
+    // Ensure window is within current viewport bounds
+    this.constrainToViewport();
+
     // Calculate edge distances based on restored position
     this.updateEdgeDistances();
 

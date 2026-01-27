@@ -15,6 +15,7 @@ export class DiskDrivePositioner {
     // Bind methods for event listeners
     this.handleDragMove = this.handleDragMove.bind(this);
     this.handleDragEnd = this.handleDragEnd.bind(this);
+    this.handleWindowResize = this.handleWindowResize.bind(this);
   }
 
   /**
@@ -22,9 +23,13 @@ export class DiskDrivePositioner {
    */
   init() {
     this.loadSavedPosition();
+    this.constrainToViewport();
     this.setupDrag();
     this.applyPosition();
     this.updatePositionIndicator();
+
+    // Listen for window resize to keep drives in view
+    window.addEventListener("resize", this.handleWindowResize);
   }
 
   /**
@@ -39,6 +44,72 @@ export class DiskDrivePositioner {
         this.customPosition = null;
       }
     }
+  }
+
+  /**
+   * Ensure the saved position is within the current viewport bounds.
+   * If the window is outside the visible area, bring it back on screen.
+   */
+  constrainToViewport() {
+    if (!this.customPosition) return;
+
+    const container = document.querySelector(".disk-drives-container");
+    if (!container) return;
+
+    // Temporarily apply position to measure the element
+    container.classList.add("free-position");
+    container.style.left = this.customPosition.x + "px";
+    container.style.top = this.customPosition.y + "px";
+
+    const rect = container.getBoundingClientRect();
+    const header = document.querySelector("header");
+    const footer = document.querySelector("footer");
+
+    const headerHeight = header ? header.offsetHeight : 0;
+    const footerHeight = footer ? footer.offsetHeight : 0;
+
+    // Check if the element is significantly off-screen
+    // Allow some tolerance (at least 50px must be visible)
+    const minVisible = 50;
+    let needsAdjustment = false;
+    let newX = this.customPosition.x;
+    let newY = this.customPosition.y;
+
+    // Check horizontal bounds
+    if (rect.right < minVisible) {
+      // Too far left - bring right edge into view
+      newX = minVisible - rect.width;
+      needsAdjustment = true;
+    } else if (rect.left > window.innerWidth - minVisible) {
+      // Too far right - bring left edge into view
+      newX = window.innerWidth - minVisible;
+      needsAdjustment = true;
+    }
+
+    // Check vertical bounds
+    if (rect.bottom < headerHeight + minVisible) {
+      // Too far up - bring bottom edge into view
+      newY = headerHeight + minVisible - rect.height;
+      needsAdjustment = true;
+    } else if (rect.top > window.innerHeight - footerHeight - minVisible) {
+      // Too far down - bring top edge into view
+      newY = window.innerHeight - footerHeight - minVisible;
+      needsAdjustment = true;
+    }
+
+    // Fully constrain to keep entire element on screen
+    newX = Math.max(0, Math.min(window.innerWidth - rect.width, newX));
+    newY = Math.max(headerHeight, Math.min(window.innerHeight - footerHeight - rect.height, newY));
+
+    if (needsAdjustment || newX !== this.customPosition.x || newY !== this.customPosition.y) {
+      this.customPosition = { x: newX, y: newY };
+      localStorage.setItem("a2e-drives-position", JSON.stringify(this.customPosition));
+    }
+
+    // Reset styles - applyPosition will set them properly
+    container.classList.remove("free-position");
+    container.style.left = "";
+    container.style.top = "";
   }
 
   /**
@@ -229,10 +300,41 @@ export class DiskDrivePositioner {
   }
 
   /**
+   * Handle window resize - keep drives within viewport
+   */
+  handleWindowResize() {
+    if (!this.customPosition) return;
+
+    const container = document.querySelector(".disk-drives-container");
+    if (!container) return;
+
+    const rect = container.getBoundingClientRect();
+    const header = document.querySelector("header");
+    const footer = document.querySelector("footer");
+
+    const headerHeight = header ? header.offsetHeight : 0;
+    const footerHeight = footer ? footer.offsetHeight : 0;
+
+    let newX = this.customPosition.x;
+    let newY = this.customPosition.y;
+
+    // Constrain to new viewport size
+    newX = Math.max(0, Math.min(window.innerWidth - rect.width, newX));
+    newY = Math.max(headerHeight, Math.min(window.innerHeight - footerHeight - rect.height, newY));
+
+    if (newX !== this.customPosition.x || newY !== this.customPosition.y) {
+      this.customPosition = { x: newX, y: newY };
+      this.applyPosition();
+      localStorage.setItem("a2e-drives-position", JSON.stringify(this.customPosition));
+    }
+  }
+
+  /**
    * Clean up resources
    */
   destroy() {
     document.removeEventListener("mousemove", this.handleDragMove);
     document.removeEventListener("mouseup", this.handleDragEnd);
+    window.removeEventListener("resize", this.handleWindowResize);
   }
 }

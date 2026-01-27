@@ -399,7 +399,10 @@ export class MonitorResizer {
 
     const headerHeight = header ? header.offsetHeight : 0;
     const footerHeight = footer ? footer.offsetHeight : 0;
-    const drivesHeight = drivesContainer
+
+    // Only account for drives height if they're in docked position (not free-floating)
+    const drivesAreFreePosition = drivesContainer?.classList.contains("free-position");
+    const drivesHeight = (drivesContainer && !drivesAreFreePosition)
       ? drivesContainer.offsetHeight + 16
       : 0;
 
@@ -452,7 +455,10 @@ export class MonitorResizer {
 
     const headerHeight = header ? header.offsetHeight : 0;
     const footerHeight = footer ? footer.offsetHeight : 0;
-    const drivesHeight = drivesContainer
+
+    // Only account for drives height if they're in docked position (not free-floating)
+    const drivesAreFreePosition = drivesContainer?.classList.contains("free-position");
+    const drivesHeight = (drivesContainer && !drivesAreFreePosition)
       ? drivesContainer.offsetHeight + 16
       : 0;
 
