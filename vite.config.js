@@ -8,7 +8,7 @@ const copyAudioWorklet = () => ({
   writeBundle() {
     mkdirSync(resolve(__dirname, "dist"), { recursive: true });
     copyFileSync(
-      resolve(__dirname, "src/js/audio-worklet.js"),
+      resolve(__dirname, "src/js/audio/audio-worklet.js"),
       resolve(__dirname, "dist/audio-worklet.js"),
     );
   },

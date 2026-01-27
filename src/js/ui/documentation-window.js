@@ -3,7 +3,7 @@
  * Extends BaseWindow for drag/resize functionality
  */
 
-import { BaseWindow } from "./BaseWindow.js";
+import { BaseWindow } from "../windows/base-window.js";
 
 export class DocumentationWindow extends BaseWindow {
   constructor() {

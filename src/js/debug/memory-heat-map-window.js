@@ -2,7 +2,7 @@
  * MemoryHeatMapWindow - Dual 256x256 visualization of memory access patterns
  * Left: Main RAM + ROM, Right: Auxiliary RAM (banked memory)
  */
-import { BaseWindow } from "../ui/BaseWindow.js";
+import { BaseWindow } from "../windows/base-window.js";
 
 // Memory region labels for main memory
 const MAIN_MEMORY_REGIONS = [

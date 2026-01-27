@@ -8,7 +8,7 @@ import {
   loadStateFromStorage,
   hasSavedState,
   getSavedStateTimestamp,
-} from "../state-persistence.js";
+} from "./state-persistence.js";
 
 // Constants
 const AUTO_SAVE_INTERVAL_MS = 5000;

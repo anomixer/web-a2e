@@ -1,7 +1,7 @@
 /**
  * ZeroPageWatchWindow - Monitor important zero page locations
  */
-import { BaseWindow } from "../ui/BaseWindow.js";
+import { BaseWindow } from "../windows/base-window.js";
 
 // Predefined watches for common Apple II zero page locations
 const PREDEFINED_WATCHES = {

@@ -18,7 +18,9 @@ npm run clean         # Clean build artifacts
 
 ## Testing
 
-CPU accuracy tests use Klaus Dormann's 6502/65C02 functional test suites:
+### CPU Compliance Tests
+
+Klaus Dormann's 6502/65C02 functional test suites (`tests/klaus/`):
 
 ```bash
 mkdir -p build-native && cd build-native
@@ -28,6 +30,18 @@ ctest --verbose
 ```
 
 Test executables: `klaus_6502_test` (6502), `klaus_65c02_test` (65C02 extended opcodes)
+
+### Integration Tests
+
+Ad-hoc JavaScript tests for disk, memory, and boot debugging (`tests/integration/`). Run with Node.js:
+
+```bash
+node tests/integration/disk-boot-test.js
+```
+
+### GCR Encoding Tests
+
+GCR (Group Code Recording) encoding tests (`tests/gcr/`). Native C++ tests for disk encoding logic.
 
 ## Architecture
 
@@ -88,13 +102,28 @@ src/
 ├── core/           # C++ emulator (namespace a2e::)
 ├── bindings/       # wasm_interface.cpp - WASM export glue
 └── js/             # ES6 modules, no framework
-    ├── disk-manager/
-    ├── file-explorer/
-    ├── debug/
-    └── ui/
+    ├── main.js         # Entry point, AppleIIeEmulator class
+    ├── audio/          # Web Audio API driver and worklet
+    ├── config/         # Version and release notes
+    ├── debug/          # Debug window implementations
+    ├── disk-manager/   # Disk drive operations and persistence
+    ├── display/        # WebGL renderer with CRT effects
+    ├── file-explorer/  # DOS 3.3 and ProDOS file browser
+    ├── input/          # Keyboard input and text selection
+    ├── state/          # State serialization and persistence
+    ├── ui/             # UI controls and non-debug windows
+    ├── utils/          # Shared utilities (storage, string, BASIC)
+    └── windows/        # Base window class and window manager
 public/             # Static assets, built WASM files
-tests/              # Klaus Dormann CPU tests
+tests/
+├── klaus/          # Klaus Dormann CPU compliance tests
+├── integration/    # JS integration/debug tests
+└── gcr/            # GCR encoding tests
 ```
+
+### File Naming Convention
+
+All JavaScript files use **kebab-case** (e.g., `audio-driver.js`, `cpu-debugger-window.js`). Class names remain PascalCase in the code.
 
 ## State Serialization
 

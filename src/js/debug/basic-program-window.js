@@ -1,7 +1,7 @@
 /**
  * BasicProgramWindow - Window for loading BASIC programs directly into memory
  */
-import { BaseWindow } from "../ui/BaseWindow.js";
+import { BaseWindow } from "../windows/base-window.js";
 import { tokenizeLine, BASIC_POINTERS } from "../utils/basic-tokens.js";
 import { highlightBasicSource } from "../utils/basic-highlighting.js";
 import { BasicAutocomplete } from "../utils/basic-autocomplete.js";

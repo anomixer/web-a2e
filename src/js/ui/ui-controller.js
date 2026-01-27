@@ -3,7 +3,7 @@
  * Handles button clicks, popups, and UI state updates
  */
 
-import { clearStateFromStorage } from "../state-persistence.js";
+import { clearStateFromStorage } from "../state/state-persistence.js";
 
 // Timing constants
 const REMINDER_DISMISS_DELAY_MS = 2000;

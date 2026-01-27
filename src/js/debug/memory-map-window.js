@@ -1,4 +1,4 @@
-import { BaseWindow } from '../ui/BaseWindow.js';
+import { BaseWindow } from '../windows/base-window.js';
 
 /**
  * MemoryMapWindow - Visual representation of memory bank configuration

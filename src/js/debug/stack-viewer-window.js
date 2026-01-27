@@ -1,7 +1,7 @@
 /**
  * StackViewerWindow - Dedicated stack visualization
  */
-import { BaseWindow } from "../ui/BaseWindow.js";
+import { BaseWindow } from "../windows/base-window.js";
 
 export class StackViewerWindow extends BaseWindow {
   constructor(wasmModule) {

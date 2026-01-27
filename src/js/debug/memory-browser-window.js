@@ -1,7 +1,7 @@
 /**
  * MemoryBrowserWindow - Scrollable 64KB memory viewer
  */
-import { BaseWindow } from "../ui/BaseWindow.js";
+import { BaseWindow } from "../windows/base-window.js";
 
 // Memory region definitions for Apple II
 const MEMORY_REGIONS = [

@@ -1,4 +1,4 @@
-import { BaseWindow } from './BaseWindow.js';
+import { BaseWindow } from '../windows/base-window.js';
 
 /**
  * DisplaySettingsWindow - CRT display effects and settings

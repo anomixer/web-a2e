@@ -1,18 +1,17 @@
 // Apple //e Emulator - Main Entry Point
 
-import { VERSION } from "./version.js";
-import { WebGLRenderer } from "./webgl-renderer.js";
-import { AudioDriver } from "./audio-driver.js";
-import { InputHandler } from "./input-handler.js";
+import { VERSION } from "./config/version.js";
+import { WebGLRenderer } from "./display/webgl-renderer.js";
+import { AudioDriver } from "./audio/audio-driver.js";
+import { InputHandler, TextSelection } from "./input/index.js";
 import { DiskManager } from "./disk-manager/index.js";
 import { FileExplorerWindow } from "./file-explorer/index.js";
-import { TextSelection } from "./TextSelection.js";
-import { MonitorResizer } from "./ui/MonitorResizer.js";
-import { DiskDrivePositioner } from "./ui/DiskDrivePositioner.js";
-import { ReminderController } from "./ui/ReminderController.js";
-import { DocumentationWindow } from "./ui/DocumentationWindow.js";
-import { UIController } from "./ui/UIController.js";
-import { StateManager } from "./ui/StateManager.js";
+import { MonitorResizer } from "./ui/monitor-resizer.js";
+import { DiskDrivePositioner } from "./ui/disk-drive-positioner.js";
+import { ReminderController } from "./ui/reminder-controller.js";
+import { DocumentationWindow } from "./ui/documentation-window.js";
+import { UIController } from "./ui/ui-controller.js";
+import { StateManager } from "./state/state-manager.js";
 import {
   WindowManager,
   CPUDebuggerWindow,
@@ -28,7 +27,7 @@ import {
   MockingboardWindow,
   BasicProgramWindow,
 } from "./debug/index.js";
-import { ReleaseNotesWindow } from "./ui/ReleaseNotesWindow.js";
+import { ReleaseNotesWindow } from "./ui/release-notes-window.js";
 
 // Display constants
 const MONITOR_ASPECT_RATIO = 4 / 3;

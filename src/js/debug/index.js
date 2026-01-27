@@ -1,17 +1,17 @@
 // Debug window module exports
-export { BaseWindow } from "../ui/BaseWindow.js";
-export { WindowManager } from "./WindowManager.js";
-export { CPUDebuggerWindow } from "./CPUDebuggerWindow.js";
-export { DriveDetailWindow } from "./DriveDetailWindow.js";
-export { SoftSwitchWindow } from "./SoftSwitchWindow.js";
-export { MemoryBrowserWindow } from "./MemoryBrowserWindow.js";
-export { MemoryHeatMapWindow } from "./MemoryHeatMapWindow.js";
-export { MemoryMapWindow } from "./MemoryMapWindow.js";
-export { StackViewerWindow } from "./StackViewerWindow.js";
-export { ZeroPageWatchWindow } from "./ZeroPageWatchWindow.js";
-export { MockingboardWindow } from "./MockingboardWindow.js";
-export { BasicProgramWindow } from "./BasicProgramWindow.js";
+export { BaseWindow } from "../windows/base-window.js";
+export { WindowManager } from "../windows/window-manager.js";
+export { CPUDebuggerWindow } from "./cpu-debugger-window.js";
+export { DriveDetailWindow } from "./drive-detail-window.js";
+export { SoftSwitchWindow } from "./soft-switch-window.js";
+export { MemoryBrowserWindow } from "./memory-browser-window.js";
+export { MemoryHeatMapWindow } from "./memory-heat-map-window.js";
+export { MemoryMapWindow } from "./memory-map-window.js";
+export { StackViewerWindow } from "./stack-viewer-window.js";
+export { ZeroPageWatchWindow } from "./zero-page-watch-window.js";
+export { MockingboardWindow } from "./mockingboard-window.js";
+export { BasicProgramWindow } from "./basic-program-window.js";
 
 // Re-export UI windows for backwards compatibility
-export { DisplaySettingsWindow } from "../ui/DisplaySettingsWindow.js";
-export { JoystickWindow } from "../ui/JoystickWindow.js";
+export { DisplaySettingsWindow } from "../ui/display-settings-window.js";
+export { JoystickWindow } from "../ui/joystick-window.js";

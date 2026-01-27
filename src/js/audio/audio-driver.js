@@ -106,7 +106,7 @@ export class AudioDriver {
     // Register the audio worklet
     // In dev mode, load from src; in production, load from root
     const workletPath = import.meta.env.DEV
-      ? "/src/js/audio-worklet.js"
+      ? "/src/js/audio/audio-worklet.js"
       : "/audio-worklet.js";
     await this.audioContext.audioWorklet.addModule(workletPath);
 

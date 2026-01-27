@@ -1,7 +1,7 @@
 // State Persistence - Save and restore emulator state using IndexedDB
 // Allows machine state to persist across browser sessions
 
-import { createDatabaseManager } from "./utils/indexeddb-helper.js";
+import { createDatabaseManager } from "../utils/indexeddb-helper.js";
 
 const DB_NAME = "a2e-state-persistence";
 const DB_VERSION = 1;

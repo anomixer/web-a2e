@@ -1,4 +1,4 @@
-import { BaseWindow } from "../ui/BaseWindow.js";
+import { BaseWindow } from "../windows/base-window.js";
 
 /**
  * MockingboardWindow - Display Mockingboard PSG and VIA state for debugging
