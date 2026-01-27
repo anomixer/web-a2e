@@ -786,4 +786,32 @@ void setMockingboardDebugLogging(bool enabled) {
   }
 }
 
+// ============================================================================
+// Expansion Slot Management
+// ============================================================================
+
+EMSCRIPTEN_KEEPALIVE
+const char* getSlotCard(int slot) {
+  if (g_emulator) {
+    return g_emulator->getSlotCardName(static_cast<uint8_t>(slot));
+  }
+  return "invalid";
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool setSlotCard(int slot, const char* cardId) {
+  if (g_emulator) {
+    return g_emulator->setSlotCard(static_cast<uint8_t>(slot), cardId);
+  }
+  return false;
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool isSlotEmpty(int slot) {
+  if (g_emulator) {
+    return g_emulator->isSlotEmpty(static_cast<uint8_t>(slot));
+  }
+  return true;
+}
+
 } // extern "C"

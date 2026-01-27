@@ -396,6 +396,15 @@ export class UIController {
       });
     }
 
+    // Expansion slots button
+    const slotsBtn = document.getElementById("btn-slots");
+    if (slotsBtn) {
+      slotsBtn.addEventListener("click", () => {
+        this.windowManager.toggleWindow("slot-configuration");
+        this.refocusCanvas();
+      });
+    }
+
     // Update/refresh button - force service worker update
     const updateBtn = document.getElementById("btn-update");
     if (updateBtn) {

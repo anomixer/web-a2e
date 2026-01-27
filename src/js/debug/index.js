@@ -15,3 +15,4 @@ export { BasicProgramWindow } from "./basic-program-window.js";
 // Re-export UI windows for backwards compatibility
 export { DisplaySettingsWindow } from "../ui/display-settings-window.js";
 export { JoystickWindow } from "../ui/joystick-window.js";
+export { SlotConfigurationWindow } from "../ui/slot-configuration-window.js";

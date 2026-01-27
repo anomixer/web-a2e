@@ -26,6 +26,7 @@ import {
   JoystickWindow,
   MockingboardWindow,
   BasicProgramWindow,
+  SlotConfigurationWindow,
 } from "./debug/index.js";
 import { ReleaseNotesWindow } from "./ui/release-notes-window.js";
 
@@ -154,6 +155,14 @@ class AppleIIeEmulator {
       );
       basicProgramWindow.create();
       this.windowManager.register(basicProgramWindow);
+
+      // Slot configuration window
+      const slotConfigWindow = new SlotConfigurationWindow(
+        this.wasmModule,
+        () => this.wasmModule._reset(),
+      );
+      slotConfigWindow.create();
+      this.windowManager.register(slotConfigWindow);
 
       // Release notes window
       this.releaseNotesWindow = new ReleaseNotesWindow();
