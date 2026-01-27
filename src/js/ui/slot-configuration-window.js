@@ -9,7 +9,7 @@ export class SlotConfigurationWindow extends BaseWindow {
       id: 'slot-configuration',
       title: 'Expansion Slots',
       minWidth: 300,
-      minHeight: 350,
+      minHeight: 420,
       defaultWidth: 340,
       defaultHeight: 420,
       defaultPosition: { x: 100, y: 100 }
