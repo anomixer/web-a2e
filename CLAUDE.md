@@ -49,11 +49,12 @@ GCR (Group Code Recording) encoding tests (`tests/gcr/`). Native C++ tests for d
 
 **C++ Core (src/core/)** - Pure emulation logic compiled to WebAssembly:
 - `cpu/cpu6502.cpp` - Cycle-accurate 65C02 processor
-- `mmu/mmu.cpp` - 128KB memory management, soft switches ($C000-$CFFF)
+- `mmu/mmu.cpp` - 128KB memory management, soft switches ($C000-$CFFF), expansion slots
 - `video/video.cpp` - TEXT/LORES/HIRES/DHIRES rendering
 - `audio/audio.cpp` - Speaker emulation from $C030 toggles
 - `disk/disk2.cpp` - Disk II controller (DSK/DO/PO/NIB/WOZ formats)
 - `mockingboard/` - AY-3-8910 sound card + VIA 6522 timer
+- `cards/` - Pluggable expansion card system (ExpansionCard interface)
 - `emulator.cpp` - Core coordinator, state serialization
 
 **JavaScript Layer (src/js/)** - Browser integration:
@@ -124,6 +125,51 @@ tests/
 ### File Naming Convention
 
 All JavaScript files use **kebab-case** (e.g., `audio-driver.js`, `cpu-debugger-window.js`). Class names remain PascalCase in the code.
+
+## Expansion Card Architecture
+
+The MMU supports pluggable expansion cards matching real Apple IIe hardware. Cards implement the `ExpansionCard` interface (`src/core/cards/expansion_card.hpp`).
+
+### Slot Memory Map
+
+| Slot | I/O Space | ROM Space | Typical Card |
+|------|-----------|-----------|--------------|
+| 1 | $C090-$C09F | $C100-$C1FF | Printer |
+| 2 | $C0A0-$C0AF | $C200-$C2FF | Serial |
+| 3 | $C0B0-$C0BF | $C300-$C3FF | 80-column (built-in) |
+| 4 | $C0C0-$C0CF | $C400-$C4FF | Mockingboard |
+| 5 | $C0D0-$C0DF | $C500-$C5FF | Hard drive |
+| 6 | $C0E0-$C0EF | $C600-$C6FF | Disk II |
+| 7 | $C0F0-$C0FF | $C700-$C7FF | ProDOS RAM disk |
+
+### Card Interface Methods
+
+```cpp
+class ExpansionCard {
+    virtual uint8_t readIO(uint8_t offset);      // I/O space ($C0x0-$C0xF)
+    virtual void writeIO(uint8_t offset, uint8_t value);
+    virtual uint8_t readROM(uint8_t offset);     // ROM space ($Cx00-$CxFF)
+    virtual void writeROM(uint8_t offset, uint8_t value);
+    virtual void reset();
+    virtual void update(int cycles);
+    // ... serialization, IRQ callbacks, etc.
+};
+```
+
+### Available Cards
+
+- `Disk2Card` - Wraps Disk2Controller (slot 6)
+- `MockingboardCard` - Wraps Mockingboard (slot 4)
+
+### Legacy Mode
+
+The emulator currently uses direct peripheral connections for backward compatibility:
+```cpp
+mmu_->setDiskController(disk_.get());
+mmu_->setMockingboard(mockingboard_.get());
+```
+
+To migrate to the card system, use `mmu_->insertCard(slot, card)` instead.
 
 ## State Serialization
 
