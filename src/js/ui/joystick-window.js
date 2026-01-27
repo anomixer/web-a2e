@@ -11,7 +11,7 @@ export class JoystickWindow extends BaseWindow {
       defaultWidth: 240,
       defaultHeight: 280,
       minWidth: 200,
-      minHeight: 240,
+      minHeight: 300,
       defaultPosition: { x: 100, y: 150 },
     });
     this.wasmModule = wasmModule;
@@ -80,7 +80,10 @@ export class JoystickWindow extends BaseWindow {
 
     // Also start drag when clicking anywhere in the joystick area
     this.joystickArea.addEventListener("mousedown", (e) => {
-      if (e.target === this.joystickArea || e.target.classList.contains("joystick-crosshair")) {
+      if (
+        e.target === this.joystickArea ||
+        e.target.classList.contains("joystick-crosshair")
+      ) {
         this.isDraggingKnob = true;
         this.updateKnobFromMouse(e);
         e.preventDefault();
@@ -153,8 +156,10 @@ export class JoystickWindow extends BaseWindow {
     const padding = 4;
 
     // Calculate position within the area, accounting for knob radius
-    let x = (e.clientX - rect.left - knobRadius) / (rect.width - knobRadius * 2);
-    let y = (e.clientY - rect.top - knobRadius) / (rect.height - knobRadius * 2);
+    let x =
+      (e.clientX - rect.left - knobRadius) / (rect.width - knobRadius * 2);
+    let y =
+      (e.clientY - rect.top - knobRadius) / (rect.height - knobRadius * 2);
 
     // Clamp to 0-1 range
     this.knobX = Math.max(0, Math.min(1, x));

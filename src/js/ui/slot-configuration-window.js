@@ -70,6 +70,12 @@ export class SlotConfigurationWindow extends BaseWindow {
   renderContent() {
     let html = '<div class="slot-config-content">';
 
+    // Slot section
+    html += `
+      <div class="slot-section">
+        <div class="slot-section-title">Expansion Slots</div>
+        <div class="slot-list">`;
+
     // Slot rows
     for (const slotInfo of this.slots) {
       const currentCard = this.getCurrentSlotCard(slotInfo.slot);
@@ -107,12 +113,16 @@ export class SlotConfigurationWindow extends BaseWindow {
       }
     }
 
+    html += `
+        </div>
+      </div>`;
+
     // Warning message and apply button
     html += `
       <div class="slot-footer">
         <div class="slot-warning hidden" id="slot-warning">
           <span class="warning-icon">&#9888;</span>
-          <span>Changes require reset to take effect</span>
+          <span>Changes require reset</span>
         </div>
         <button id="slot-apply-btn" class="slot-apply-btn" disabled>Apply &amp; Reset</button>
       </div>
