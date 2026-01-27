@@ -1,4 +1,4 @@
-import { BaseWindow } from '../windows/base-window.js';
+import { BaseWindow } from "../windows/base-window.js";
 
 /**
  * SlotConfigurationWindow - Configure Apple IIe expansion slots
@@ -6,13 +6,13 @@ import { BaseWindow } from '../windows/base-window.js';
 export class SlotConfigurationWindow extends BaseWindow {
   constructor(wasmModule, onResetCallback) {
     super({
-      id: 'slot-configuration',
-      title: 'Expansion Slots',
+      id: "slot-configuration",
+      title: "Expansion Slots",
       minWidth: 300,
-      minHeight: 420,
+      minHeight: 480,
       defaultWidth: 340,
-      defaultHeight: 420,
-      defaultPosition: { x: 100, y: 100 }
+      defaultHeight: 480,
+      defaultPosition: { x: 100, y: 100 },
     });
 
     this.wasmModule = wasmModule;
@@ -20,20 +20,46 @@ export class SlotConfigurationWindow extends BaseWindow {
 
     // Available card types
     this.cards = [
-      { id: 'empty', name: 'Empty' },
-      { id: 'disk2', name: 'Disk II Controller' },
-      { id: 'mockingboard', name: 'Mockingboard' },
+      { id: "empty", name: "Empty" },
+      { id: "disk2", name: "Disk II Controller" },
+      { id: "mockingboard", name: "Mockingboard" },
     ];
 
     // Slot metadata
     this.slots = [
-      { slot: 1, label: 'Slot 1', available: ['empty'], note: 'Printer / Serial' },
-      { slot: 2, label: 'Slot 2', available: ['empty'], note: 'Serial / Modem' },
-      { slot: 3, label: 'Slot 3', available: [], note: '80-Column (Built-in)', fixed: true },
-      { slot: 4, label: 'Slot 4', available: ['empty', 'mockingboard'], note: 'Sound cards' },
-      { slot: 5, label: 'Slot 5', available: ['empty'], note: 'Hard drive' },
-      { slot: 6, label: 'Slot 6', available: ['empty', 'disk2'], note: 'Disk drives' },
-      { slot: 7, label: 'Slot 7', available: ['empty'], note: 'RAM disk' },
+      {
+        slot: 1,
+        label: "Slot 1",
+        available: ["empty"],
+        note: "Printer / Serial",
+      },
+      {
+        slot: 2,
+        label: "Slot 2",
+        available: ["empty"],
+        note: "Serial / Modem",
+      },
+      {
+        slot: 3,
+        label: "Slot 3",
+        available: [],
+        note: "80-Column (Built-in)",
+        fixed: true,
+      },
+      {
+        slot: 4,
+        label: "Slot 4",
+        available: ["empty", "mockingboard"],
+        note: "Sound cards",
+      },
+      { slot: 5, label: "Slot 5", available: ["empty"], note: "Hard drive" },
+      {
+        slot: 6,
+        label: "Slot 6",
+        available: ["empty", "disk2"],
+        note: "Disk drives",
+      },
+      { slot: 7, label: "Slot 7", available: ["empty"], note: "RAM disk" },
     ];
 
     // Track pending changes
@@ -60,11 +86,13 @@ export class SlotConfigurationWindow extends BaseWindow {
           </div>`;
       } else {
         // Configurable slot with dropdown
-        const options = slotInfo.available.map(cardId => {
-          const card = this.cards.find(c => c.id === cardId);
-          const selected = cardId === currentCard ? 'selected' : '';
-          return `<option value="${cardId}" ${selected}>${card ? card.name : cardId}</option>`;
-        }).join('');
+        const options = slotInfo.available
+          .map((cardId) => {
+            const card = this.cards.find((c) => c.id === cardId);
+            const selected = cardId === currentCard ? "selected" : "";
+            return `<option value="${cardId}" ${selected}>${card ? card.name : cardId}</option>`;
+          })
+          .join("");
 
         html += `
           <div class="slot-row">
@@ -95,9 +123,9 @@ export class SlotConfigurationWindow extends BaseWindow {
 
   setupContentEventListeners() {
     // Add event listeners to all selects
-    const selects = this.contentElement.querySelectorAll('.slot-select');
-    selects.forEach(select => {
-      select.addEventListener('change', (e) => {
+    const selects = this.contentElement.querySelectorAll(".slot-select");
+    selects.forEach((select) => {
+      select.addEventListener("change", (e) => {
         const slot = parseInt(e.target.dataset.slot, 10);
         const cardId = e.target.value;
         this.handleSlotChange(slot, cardId);
@@ -105,9 +133,9 @@ export class SlotConfigurationWindow extends BaseWindow {
     });
 
     // Apply button
-    const applyBtn = this.contentElement.querySelector('#slot-apply-btn');
+    const applyBtn = this.contentElement.querySelector("#slot-apply-btn");
     if (applyBtn) {
-      applyBtn.addEventListener('click', () => {
+      applyBtn.addEventListener("click", () => {
         this.applyChanges();
       });
     }
@@ -136,10 +164,10 @@ export class SlotConfigurationWindow extends BaseWindow {
 
     // Fallback to defaults
     const defaults = {
-      4: 'mockingboard',
-      6: 'disk2',
+      4: "mockingboard",
+      6: "disk2",
     };
-    return defaults[slot] || 'empty';
+    return defaults[slot] || "empty";
   }
 
   handleSlotChange(slot, cardId) {
@@ -159,14 +187,14 @@ export class SlotConfigurationWindow extends BaseWindow {
 
   updateUI() {
     // Show/hide warning
-    const warning = this.contentElement.querySelector('#slot-warning');
-    const applyBtn = this.contentElement.querySelector('#slot-apply-btn');
+    const warning = this.contentElement.querySelector("#slot-warning");
+    const applyBtn = this.contentElement.querySelector("#slot-apply-btn");
 
     if (this.hasChanges) {
-      warning?.classList.remove('hidden');
+      warning?.classList.remove("hidden");
       if (applyBtn) applyBtn.disabled = false;
     } else {
-      warning?.classList.add('hidden');
+      warning?.classList.add("hidden");
       if (applyBtn) applyBtn.disabled = true;
     }
   }
@@ -227,15 +255,17 @@ export class SlotConfigurationWindow extends BaseWindow {
       const config = {};
       for (const slotInfo of this.slots) {
         if (!slotInfo.fixed) {
-          const select = this.contentElement.querySelector(`[data-slot="${slotInfo.slot}"]`);
+          const select = this.contentElement.querySelector(
+            `[data-slot="${slotInfo.slot}"]`,
+          );
           if (select) {
             config[slotInfo.slot] = select.value;
           }
         }
       }
-      localStorage.setItem('a2e-slot-config', JSON.stringify(config));
+      localStorage.setItem("a2e-slot-config", JSON.stringify(config));
     } catch (e) {
-      console.warn('Could not save slot configuration:', e);
+      console.warn("Could not save slot configuration:", e);
     }
   }
 
@@ -245,25 +275,27 @@ export class SlotConfigurationWindow extends BaseWindow {
       if (saved) {
         // Update selects to match saved config
         for (const [slot, cardId] of Object.entries(saved)) {
-          const select = this.contentElement?.querySelector(`[data-slot="${slot}"]`);
+          const select = this.contentElement?.querySelector(
+            `[data-slot="${slot}"]`,
+          );
           if (select) {
             select.value = cardId;
           }
         }
       }
     } catch (e) {
-      console.warn('Could not load slot configuration:', e);
+      console.warn("Could not load slot configuration:", e);
     }
   }
 
   loadSettingsFromStorage() {
     try {
-      const saved = localStorage.getItem('a2e-slot-config');
+      const saved = localStorage.getItem("a2e-slot-config");
       if (saved) {
         return JSON.parse(saved);
       }
     } catch (e) {
-      console.warn('Could not parse slot configuration:', e);
+      console.warn("Could not parse slot configuration:", e);
     }
     return null;
   }
