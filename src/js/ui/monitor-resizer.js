@@ -464,18 +464,11 @@ export class MonitorResizer {
    * Calculate the maximum canvas width based on available space
    */
   getMaxCanvasWidth() {
-    const drivesContainer = document.querySelector(".disk-drives-container");
     const header = document.querySelector("header");
     const footer = document.querySelector("footer");
 
     const headerHeight = header ? header.offsetHeight : 0;
     const footerHeight = footer ? footer.offsetHeight : 0;
-
-    // Only account for drives height if they're in docked position (not free-floating)
-    const drivesAreFreePosition = drivesContainer?.classList.contains("free-position");
-    const drivesHeight = (drivesContainer && !drivesAreFreePosition)
-      ? drivesContainer.offsetHeight + 16
-      : 0;
 
     const padding = 32;
     // In borderless mode, only account for the title bar (28px height) and border (2px)
@@ -488,7 +481,6 @@ export class MonitorResizer {
       window.innerHeight -
       headerHeight -
       footerHeight -
-      drivesHeight -
       padding -
       bezelPaddingY;
 
@@ -522,18 +514,11 @@ export class MonitorResizer {
     const canvas = document.getElementById("screen");
     if (!canvas) return;
 
-    const drivesContainer = document.querySelector(".disk-drives-container");
     const header = document.querySelector("header");
     const footer = document.querySelector("footer");
 
     const headerHeight = header ? header.offsetHeight : 0;
     const footerHeight = footer ? footer.offsetHeight : 0;
-
-    // Only account for drives height if they're in docked position (not free-floating)
-    const drivesAreFreePosition = drivesContainer?.classList.contains("free-position");
-    const drivesHeight = (drivesContainer && !drivesAreFreePosition)
-      ? drivesContainer.offsetHeight + 16
-      : 0;
 
     const windowWidth = window.innerWidth;
     const windowHeight = window.innerHeight;
@@ -541,7 +526,7 @@ export class MonitorResizer {
     const padding = 32;
     const availableWidth = windowWidth - padding;
     const availableHeight =
-      windowHeight - headerHeight - footerHeight - drivesHeight - padding;
+      windowHeight - headerHeight - footerHeight - padding;
 
     // In borderless mode, only account for the title bar (28px height) and border (2px)
     const borderless = this.isBorderlessMode();

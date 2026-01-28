@@ -470,7 +470,6 @@ body.full-page-mode #monitor-frame.free-position,
 
 :fullscreen header,
 :fullscreen footer,
-:fullscreen .disk-drives-container,
 :fullscreen #debugger-panel {
     display: none;
 }
@@ -506,7 +505,6 @@ body.full-page-mode {
 
 body.full-page-mode header,
 body.full-page-mode footer,
-body.full-page-mode .disk-drives-container,
 body.full-page-mode .debug-window,
 body.full-page-mode .charset-switch {
     display: none !important;

@@ -2,6 +2,7 @@
 // Main orchestrator for disk drive operations
 
 import { DriveSounds } from "./drive-sounds.js";
+import { DiskSurfaceRenderer } from "./disk-surface-renderer.js";
 import {
   loadDisk,
   loadDiskFromData,
@@ -30,11 +31,15 @@ function createDriveState() {
     ejectBtn: null,
     recentBtn: null,
     recentDropdown: null,
-    image: null,
     nameLabel: null,
     trackLabel: null,
     filename: null,
     lastTrack: -1,
+    surfaceRenderer: null,
+    trackAccessCounts: null,
+    lastHeadPosition: -1,
+    maxAccessCount: 0,
+    lastDecayTime: 0,
   };
 }
 
@@ -107,7 +112,11 @@ export class DiskManager {
               this.setDiskName(driveNum, filename);
               if (this.onDiskLoaded) this.onDiskLoaded(driveNum, filename);
             },
-            onError: (error) => console.error(`Failed to restore disk in drive ${driveNum + 1}:`, error),
+            onError: (error) =>
+              console.error(
+                `Failed to restore disk in drive ${driveNum + 1}:`,
+                error,
+              ),
           });
         }
       } catch (error) {
@@ -133,9 +142,13 @@ export class DiskManager {
     drive.ejectBtn = container.querySelector(".disk-eject");
     drive.recentBtn = container.querySelector(".disk-recent");
     drive.recentDropdown = container.querySelector(".recent-dropdown");
-    drive.image = container.querySelector(".drive-image");
     drive.nameLabel = container.querySelector(".disk-name");
     drive.trackLabel = container.querySelector(".disk-track");
+    const surfaceCanvas = container.querySelector(".disk-surface");
+    if (surfaceCanvas) {
+      drive.surfaceRenderer = new DiskSurfaceRenderer(surfaceCanvas);
+      drive.trackAccessCounts = new Uint32Array(35);
+    }
 
     // Insert button click
     if (drive.insertBtn) {
@@ -407,7 +420,10 @@ export class DiskManager {
       wasmModule: this.wasmModule,
       drive,
       driveNum,
-      onEject: () => this.setDiskName(driveNum, "No Disk"),
+      onEject: () => {
+        this.setDiskName(driveNum, "No Disk");
+        this._resetDriveVisuals(driveNum);
+      },
     });
   }
 
@@ -417,7 +433,10 @@ export class DiskManager {
       wasmModule: this.wasmModule,
       drive,
       driveNum,
-      onEject: () => this.setDiskName(driveNum, "No Disk"),
+      onEject: () => {
+        this.setDiskName(driveNum, "No Disk");
+        this._resetDriveVisuals(driveNum);
+      },
     });
   }
 
@@ -446,30 +465,13 @@ export class DiskManager {
       const isActive = motorOn && driveNum === selectedDrive;
       const hasDisk = drive.filename !== null;
 
-      // Update drive image based on state
-      if (drive.image) {
-        let imageSrc;
-        if (hasDisk) {
-          imageSrc = isActive
-            ? "assets/drive-closed-light-on.png"
-            : "assets/drive-closed.png";
-        } else {
-          imageSrc = isActive
-            ? "assets/drive-open-light-on.png"
-            : "assets/drive-open.png";
-        }
-        if (
-          drive.image.src !== imageSrc &&
-          !drive.image.src.endsWith(imageSrc)
-        ) {
-          drive.image.src = imageSrc;
-        }
-      }
-
       // Update track display and check for seek
+      let track = 0;
+      let quarterTrack = 0;
+      let isWriteMode = false;
       if (drive.trackLabel) {
         if (hasDisk && this.wasmModule._getDiskTrack) {
-          const track = this.wasmModule._getDiskTrack(driveNum);
+          track = this.wasmModule._getDiskTrack(driveNum);
           drive.trackLabel.textContent = `T${track.toString().padStart(2, "0")}`;
 
           // Check for track change and play seek sound (only on whole track changes)
@@ -484,11 +486,69 @@ export class DiskManager {
           } else {
             drive.trackLabel.classList.remove("active");
           }
+
+          // Update heatmap tracking
+          if (isActive && drive.trackAccessCounts) {
+            const clampedTrack = Math.min(track, 34);
+            drive.trackAccessCounts[clampedTrack]++;
+            if (drive.trackAccessCounts[clampedTrack] > drive.maxAccessCount) {
+              drive.maxAccessCount = drive.trackAccessCounts[clampedTrack];
+            }
+          }
+
+          // Decay track highlights every 200ms
+          const now = performance.now();
+          if (drive.trackAccessCounts && now - drive.lastDecayTime > 100) {
+            drive.lastDecayTime = now;
+            let newMax = 0;
+            for (let t = 0; t < 35; t++) {
+              if (drive.trackAccessCounts[t] > 0) {
+                drive.trackAccessCounts[t] = Math.floor(
+                  drive.trackAccessCounts[t] * 0.8,
+                );
+                if (drive.trackAccessCounts[t] > newMax) {
+                  newMax = drive.trackAccessCounts[t];
+                }
+              }
+            }
+            drive.maxAccessCount = newMax;
+          }
+
+          // Get head position
+          if (this.wasmModule._getDiskHeadPosition) {
+            quarterTrack = this.wasmModule._getDiskHeadPosition(driveNum);
+            drive.lastHeadPosition = quarterTrack;
+          }
+
+          // Get write mode
+          if (this.wasmModule._getDiskWriteMode) {
+            isWriteMode = this.wasmModule._getDiskWriteMode(driveNum);
+          }
         } else {
           drive.trackLabel.textContent = "T--";
           drive.trackLabel.classList.remove("active");
           drive.lastTrack = -1;
         }
+      }
+
+      // Update surface renderer
+      if (drive.surfaceRenderer) {
+        const diskColor =
+          hasDisk && drive.filename
+            ? this._getStickerColor(drive.filename)
+            : null;
+
+        drive.surfaceRenderer.update({
+          hasDisk,
+          isActive,
+          isWriteMode,
+          quarterTrack,
+          track,
+          trackAccessCounts: drive.trackAccessCounts,
+          maxAccessCount: drive.maxAccessCount,
+          diskColor,
+          timestamp: performance.now(),
+        });
       }
     }
   }
@@ -650,5 +710,48 @@ export class DiskManager {
         this.setDiskName(driveNum, "No Disk");
       }
     }
+  }
+
+  // Visual enhancement methods
+
+  /**
+   * Reset visual enhancements for a drive on eject
+   */
+  _resetDriveVisuals(driveNum) {
+    const drive = this.drives[driveNum];
+
+    // Reset track access data
+    if (drive.trackAccessCounts) {
+      drive.trackAccessCounts.fill(0);
+      drive.maxAccessCount = 0;
+      drive.lastHeadPosition = -1;
+    }
+
+    // Reset surface renderer
+    if (drive.surfaceRenderer) {
+      drive.surfaceRenderer.reset();
+    }
+  }
+
+  /**
+   * Derive a sticker color from a filename hash
+   * Returns one of 8 vintage label colors
+   */
+  _getStickerColor(filename) {
+    const colors = [
+      "#f5f0d0", // cream
+      "#e8d8a0", // manila
+      "#c8e6c0", // pale green
+      "#b8d4e8", // pale blue
+      "#f0c0c8", // pink
+      "#f0e8a0", // yellow
+      "#d0c8e8", // lavender
+      "#f0ece8", // white
+    ];
+    let hash = 0;
+    for (let i = 0; i < filename.length; i++) {
+      hash = ((hash << 5) - hash + filename.charCodeAt(i)) | 0;
+    }
+    return colors[Math.abs(hash) % colors.length];
   }
 }

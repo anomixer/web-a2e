@@ -9,7 +9,6 @@ import { clearStateFromStorage } from "../state/state-persistence.js";
 const REMINDER_DISMISS_DELAY_MS = 2000;
 const NOTIFICATION_DISPLAY_MS = 3000;
 const STATE_BUTTON_FLASH_MS = 600;
-const DRIVE_ANIMATION_DURATION_MS = 280;
 
 /**
  * @typedef {Object} UIControllerDeps
@@ -166,44 +165,10 @@ export class UIController {
    */
   setupDrivesToggle() {
     const drivesBtn = document.getElementById("btn-drives");
-    const drivesContainer = document.querySelector(".disk-drives-container");
-
-    if (!drivesBtn || !drivesContainer) {
-      console.warn("Disk drive UI elements not found");
-      return;
-    }
-
-    // Load saved drives visibility setting (default to visible)
-    const savedDrivesVisible = localStorage.getItem("a2e-show-drives");
-    if (savedDrivesVisible === "false") {
-      // Skip animation on initial load
-      drivesContainer.classList.add("no-transition");
-      drivesContainer.classList.add("collapsed");
-      drivesBtn.classList.add("off");
-      drivesContainer.offsetHeight; // Force reflow
-      requestAnimationFrame(() => {
-        drivesContainer.classList.remove("no-transition");
-        this.monitorResizer.handleResize();
-      });
-    }
+    if (!drivesBtn) return;
 
     drivesBtn.addEventListener("click", () => {
-      const isCurrentlyCollapsed = drivesContainer.classList.contains("collapsed");
-
-      drivesContainer.classList.toggle("collapsed");
-      drivesBtn.classList.toggle("off", !isCurrentlyCollapsed);
-      localStorage.setItem("a2e-show-drives", isCurrentlyCollapsed);
-
-      // Resize monitor continuously during animation
-      const startTime = performance.now();
-      const animateResize = () => {
-        this.monitorResizer.handleResize();
-        if (performance.now() - startTime < DRIVE_ANIMATION_DURATION_MS) {
-          requestAnimationFrame(animateResize);
-        }
-      };
-      requestAnimationFrame(animateResize);
-
+      this.windowManager.toggleWindow("disk-drives");
       this.reminderController.dismissDrivesReminder();
       this.refocusCanvas();
     });
@@ -340,7 +305,6 @@ export class UIController {
 
     const windowMap = {
       cpu: "cpu-debugger",
-      drives: "drive-detail",
       switches: "soft-switches",
       memmap: "memory-map",
       memory: "memory-browser",

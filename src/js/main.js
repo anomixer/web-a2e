@@ -5,9 +5,9 @@ import { WebGLRenderer } from "./display/webgl-renderer.js";
 import { AudioDriver } from "./audio/audio-driver.js";
 import { InputHandler, TextSelection } from "./input/index.js";
 import { DiskManager } from "./disk-manager/index.js";
+import { DiskDrivesWindow } from "./disk-manager/disk-drives-window.js";
 import { FileExplorerWindow } from "./file-explorer/index.js";
 import { MonitorResizer } from "./ui/monitor-resizer.js";
-import { DiskDrivePositioner } from "./ui/disk-drive-positioner.js";
 import { ReminderController } from "./ui/reminder-controller.js";
 import { DocumentationWindow } from "./ui/documentation-window.js";
 import { UIController } from "./ui/ui-controller.js";
@@ -15,7 +15,6 @@ import { StateManager } from "./state/state-manager.js";
 import {
   WindowManager,
   CPUDebuggerWindow,
-  DriveDetailWindow,
   SoftSwitchWindow,
   DisplaySettingsWindow,
   MemoryBrowserWindow,
@@ -80,27 +79,28 @@ class AppleIIeEmulator {
       this.inputHandler = new InputHandler(this.wasmModule);
       this.inputHandler.init();
 
-      // Set up disk manager
+      // Set up file explorer
+      this.fileExplorer = new FileExplorerWindow(this.wasmModule);
+      this.fileExplorer.create();
+
+      // Set up window manager
+      this.windowManager = new WindowManager();
+
+      // Create disk drives window first so DiskManager can find its DOM elements
+      const diskDrivesWindow = new DiskDrivesWindow();
+      diskDrivesWindow.create();
+      this.windowManager.register(diskDrivesWindow);
+
+      // Set up disk manager (must be after disk drives window is created)
       this.diskManager = new DiskManager(this.wasmModule);
       this.diskManager.init();
       this.diskManager.onDiskLoaded = () => {
         this.reminderController.dismissBasicReminder();
       };
 
-      // Set up file explorer
-      this.fileExplorer = new FileExplorerWindow(this.wasmModule);
-      this.fileExplorer.create();
-
-      // Set up debug windows
-      this.windowManager = new WindowManager();
-
       const cpuWindow = new CPUDebuggerWindow(this.wasmModule);
       cpuWindow.create();
       this.windowManager.register(cpuWindow);
-
-      const driveWindow = new DriveDetailWindow(this.wasmModule);
-      driveWindow.create();
-      this.windowManager.register(driveWindow);
 
       const switchWindow = new SoftSwitchWindow(this.wasmModule);
       switchWindow.create();
@@ -180,6 +180,14 @@ class AppleIIeEmulator {
       // Load saved window states
       this.windowManager.loadState();
 
+      // Show disk drives window by default if no saved state exists for it
+      if (!this.windowManager.isWindowVisible('disk-drives')) {
+        const savedState = localStorage.getItem('a2e-debug-windows');
+        if (!savedState || !JSON.parse(savedState)['disk-drives']) {
+          this.windowManager.showWindow('disk-drives');
+        }
+      }
+
       // Save window states when page is closed
       window.addEventListener("beforeunload", () => {
         if (this.windowManager) {
@@ -219,10 +227,6 @@ class AppleIIeEmulator {
         onResizeComplete: () => {},
       });
       this.monitorResizer.init();
-
-      // Set up disk drive positioner
-      this.diskDrivePositioner = new DiskDrivePositioner();
-      this.diskDrivePositioner.init();
 
       // Set up UI controller
       this.uiController = new UIController({

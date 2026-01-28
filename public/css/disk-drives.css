@@ -2,90 +2,18 @@
    Disk drive UI components
 */
 
-/* Container for disk drives - simple show/hide */
-.disk-drives-container {
-    width: 100%;
-    max-width: 576px;
+/* Content area: don't shrink or clip — window height follows content */
+#disk-drives.debug-window .debug-window-content {
+    overflow: visible;
     flex-shrink: 0;
-    cursor: grab;
-    position: relative;
 }
 
-.disk-drives-container.dragging {
-    cursor: grabbing;
-    user-select: none;
-}
-
-/* Free position mode - allows absolute positioning */
-.disk-drives-container.free-position {
-    position: fixed;
-    z-index: 100;
-    width: auto;
-}
-
-/* Disable free position in full-page mode and fullscreen */
-body.full-page-mode .disk-drives-container.free-position,
-:fullscreen .disk-drives-container.free-position {
-    position: static;
-    left: auto !important;
-    top: auto !important;
-}
-
-/* Position indicator for disk drives */
-.drives-position-indicator {
-    position: absolute;
-    top: -8px;
-    right: -8px;
-    width: 18px;
-    height: 18px;
-    padding: 3px;
-    background: rgba(0, 0, 0, 0.6);
-    border: 1px solid var(--accent-green);
-    border-radius: var(--radius-sm);
-    color: var(--accent-green);
-    cursor: pointer;
-    z-index: 10;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-    animation: pulse-glow 2s ease-in-out infinite;
-}
-
-.drives-position-indicator:hover {
-    background: rgba(0, 0, 0, 0.8);
-    border-color: var(--accent-green-bright);
-    color: var(--accent-green-bright);
-    transform: scale(1.1);
-}
-
-.drives-position-indicator svg {
-    width: 10px;
-    height: 10px;
-}
-
-.drives-position-indicator.hidden {
-    display: none;
-}
-
-/* Restore default cursor on interactive elements */
-.disk-drives-container button,
-.disk-drives-container input {
-    cursor: pointer;
-}
-
-.disk-drives-container.collapsed {
-    display: none;
-}
-
-.disk-drives-inner {
-    /* No overflow hidden - allows dropdowns to render above */
-}
-
-#disk-drives {
+/* Disk drives row inside window content */
+.disk-drives-row {
     display: flex;
     gap: var(--space-md);
     width: 100%;
+    padding: var(--space-sm);
 }
 
 .disk-drive {
@@ -93,53 +21,47 @@ body.full-page-mode .disk-drives-container.free-position,
     display: flex;
     flex-direction: column;
     gap: var(--space-sm);
-    max-width: 280px;
     min-width: 0;
 }
 
 .drive-image-container {
     width: 100%;
-    max-width: 280px;
     position: relative;
 }
 
-.drive-number {
-    position: absolute;
-    top: 8.1%;
-    left: 15%;
-    font-family: "Helvetica Neue", Arial, sans-serif;
-    font-size: 1.1em;
-    font-weight: 400;
-    color: #ffffff;
-    pointer-events: none;
-    user-select: none;
-    letter-spacing: 0.1em;
-}
-
-.drive-image {
+.disk-surface {
+    display: block;
     width: 100%;
     height: auto;
-    display: block;
+    aspect-ratio: 280 / 240;
+    border-radius: var(--radius-sm);
 }
 
 .drive-info {
     display: flex;
     align-items: center;
     gap: var(--space-sm);
-    padding: var(--space-xs) 0;
+    padding: var(--space-xs) 6px;
     min-width: 0;
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: var(--radius-sm);
 }
 
 .drive-label {
-    font-size: 0.6875rem;
-    font-weight: 600;
-    color: var(--text-secondary);
-    flex-shrink: 0;
+    position: absolute;
+    top: 6px;
+    left: 8px;
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: rgba(255, 255, 255, 0.45);
+    pointer-events: none;
+    z-index: 1;
 }
 
 .disk-name {
     font-size: 0.6875rem;
-    color: #5a5347;
+    color: var(--text-primary);
     font-family: var(--font-mono);
     white-space: nowrap;
     overflow: hidden;
@@ -170,10 +92,10 @@ body.full-page-mode .disk-drives-container.free-position,
 
 .disk-track {
     font-size: 0.6875rem;
-    color: #5a5347;
+    color: var(--text-primary);
     font-family: var(--font-mono);
     font-weight: 600;
-    background: rgba(0, 0, 0, 0.15);
+    background: rgba(255, 255, 255, 0.1);
     padding: 1px 4px;
     border-radius: 3px;
     min-width: 28px;
@@ -198,32 +120,33 @@ body.full-page-mode .disk-drives-container.free-position,
 .disk-recent {
     flex: 1;
     padding: var(--space-xs) var(--space-sm);
-    background: var(--bg-light);
-    border: 1px solid var(--border-default);
+    background: rgba(33, 38, 45, 0.6);
+    border: 1px solid rgba(48, 54, 61, 0.4);
     border-radius: var(--radius-sm);
     color: var(--text-secondary);
     font-family: var(--font-sans);
     font-size: 0.6875rem;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.2s;
+    transition: all 0.1s;
 }
 
 .disk-insert:hover,
 .disk-blank:hover,
 .disk-eject:hover:not(:disabled) {
-    background: var(--bg-panel);
-    border-color: var(--text-muted);
+    background: rgba(48, 54, 61, 0.6);
     color: var(--text-primary);
 }
 
 .disk-blank:hover {
-    border-color: var(--accent-blue);
+    background: rgba(88, 166, 255, 0.2);
+    border-color: rgba(88, 166, 255, 0.5);
     color: var(--accent-blue);
 }
 
 .disk-eject:hover:not(:disabled) {
-    border-color: var(--accent-orange);
+    background: rgba(210, 153, 34, 0.2);
+    border-color: rgba(210, 153, 34, 0.5);
     color: var(--accent-orange);
 }
 
@@ -240,8 +163,8 @@ body.full-page-mode .disk-drives-container.free-position,
 }
 
 .disk-recent:hover {
-    background: var(--bg-panel);
-    border-color: var(--accent-green);
+    background: rgba(48, 54, 61, 0.6);
+    border-color: rgba(63, 185, 80, 0.5);
     color: var(--accent-green);
 }
 
@@ -324,3 +247,69 @@ body.full-page-mode .disk-drives-container.free-position,
 .recent-dropdown::-webkit-scrollbar-thumb:hover {
     background: var(--text-muted);
 }
+
+/* Detail toggle bar */
+.drive-detail-toggle-bar {
+    display: flex;
+    justify-content: center;
+    padding: 0 var(--space-sm) var(--space-sm);
+}
+
+.drive-detail-toggle {
+    background: rgba(33, 38, 45, 0.6);
+    border: 1px solid rgba(48, 54, 61, 0.4);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    font-family: var(--font-sans);
+    font-size: 0.625rem;
+    font-weight: 500;
+    padding: 2px 12px;
+    cursor: pointer;
+    transition: all 0.1s;
+}
+
+.drive-detail-toggle:hover {
+    background: rgba(48, 54, 61, 0.6);
+    color: var(--text-primary);
+}
+
+/* Detail panels — hidden by default */
+.drive-detail-panel {
+    display: none;
+}
+
+.show-details .drive-detail-panel {
+    display: block;
+}
+
+.drive-detail-grid {
+    display: grid;
+    grid-template-columns: auto 1fr auto 1fr;
+    gap: 2px 6px;
+    padding: var(--space-xs) 6px;
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: var(--radius-sm);
+    font-size: 0.625rem;
+    font-family: var(--font-mono);
+}
+
+.dd-label {
+    color: var(--text-muted);
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+.dd-val {
+    color: var(--text-secondary);
+    font-weight: 500;
+    text-align: right;
+}
+
+.dd-val.on {
+    color: var(--accent-green);
+}
+
+.dd-val.write {
+    color: var(--accent-orange);
+}
+

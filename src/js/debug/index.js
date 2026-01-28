@@ -2,7 +2,6 @@
 export { BaseWindow } from "../windows/base-window.js";
 export { WindowManager } from "../windows/window-manager.js";
 export { CPUDebuggerWindow } from "./cpu-debugger-window.js";
-export { DriveDetailWindow } from "./drive-detail-window.js";
 export { SoftSwitchWindow } from "./soft-switch-window.js";
 export { MemoryBrowserWindow } from "./memory-browser-window.js";
 export { MemoryHeatMapWindow } from "./memory-heat-map-window.js";
