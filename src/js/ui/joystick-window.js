@@ -97,7 +97,14 @@ export class JoystickWindow extends BaseWindow {
     });
 
     document.addEventListener("mouseup", () => {
-      this.isDraggingKnob = false;
+      if (this.isDraggingKnob) {
+        this.isDraggingKnob = false;
+        // Snap back to center when released
+        this.knobX = 0.5;
+        this.knobY = 0.5;
+        this.updateKnobPosition();
+        this.updatePaddleValues();
+      }
     });
 
     // Button handling with mousedown/mouseup for proper hold behavior
