@@ -662,6 +662,58 @@ void setMockingboardDebugLogging(bool enabled) {
   g_emulator->getMockingboard().setDebugLogging(enabled);
 }
 
+// Mute/unmute a specific channel on a PSG
+// psg: 0 or 1 (PSG1 or PSG2)
+// channel: 0, 1, or 2 (A, B, C)
+// muted: true to mute, false to unmute
+EMSCRIPTEN_KEEPALIVE
+void setMockingboardChannelMute(int psg, int channel, bool muted) {
+  REQUIRE_EMULATOR();
+  auto& psgChip = (psg == 0)
+      ? g_emulator->getMockingboard().getPSG1()
+      : g_emulator->getMockingboard().getPSG2();
+  psgChip.setChannelMute(channel, muted);
+}
+
+// Check if a channel is muted
+EMSCRIPTEN_KEEPALIVE
+bool getMockingboardChannelMute(int psg, int channel) {
+  REQUIRE_EMULATOR_OR(false);
+  const auto& psgChip = (psg == 0)
+      ? g_emulator->getMockingboard().getPSG1()
+      : g_emulator->getMockingboard().getPSG2();
+  return psgChip.isChannelMuted(channel);
+}
+
+// Generate waveform samples from a PSG channel for visualization
+// psg: 0 or 1 (PSG1 or PSG2)
+// channel: 0, 1, or 2 (A, B, C) - use -1 for combined output
+// buffer: float array to fill with samples
+// count: number of samples to generate
+// Returns actual number of samples generated
+EMSCRIPTEN_KEEPALIVE
+int getMockingboardWaveform(int psg, int channel, float* buffer, int count) {
+  REQUIRE_EMULATOR_OR(0);
+  if (!buffer || count <= 0 || count > 1024) return 0;
+
+  const int SAMPLE_RATE = 48000;
+  auto& psgChip = (psg == 0)
+      ? g_emulator->getMockingboard().getPSG1()
+      : g_emulator->getMockingboard().getPSG2();
+
+  // Create a copy of the PSG to generate visualization samples
+  // without affecting the actual audio state
+  a2e::AY8910 psgCopy = psgChip;
+
+  if (channel >= 0 && channel < 3) {
+    psgCopy.generateChannelSamples(buffer, count, SAMPLE_RATE, channel);
+  } else {
+    psgCopy.generateSamples(buffer, count, SAMPLE_RATE);
+  }
+
+  return count;
+}
+
 // ============================================================================
 // Expansion Slot Management
 // ============================================================================

@@ -8,14 +8,15 @@ export class MockingboardWindow extends BaseWindow {
     super({
       id: "mockingboard-debug",
       title: "Mockingboard",
-      minWidth: 720,
-      minHeight: 750,
-      defaultWidth: 780,
-      defaultHeight: 640,
-      defaultPosition: { x: window.innerWidth - 800, y: 100 },
+      minWidth: 760,
+      minHeight: 780,
+      defaultWidth: 820,
+      defaultHeight: 720,
+      defaultPosition: { x: window.innerWidth - 840, y: 100 },
     });
 
     this.wasmModule = wasmModule;
+    this.muteHandlerAttached = false;
 
     // PSG register names
     this.psgRegisterNames = [
@@ -130,20 +131,102 @@ export class MockingboardWindow extends BaseWindow {
           </div>
         </div>
 
-        <div class="mb-section">
+        <div class="mb-section mb-output-section">
           <div class="mb-section-title">Channel Output</div>
-          <div class="mb-channels">
-            <div class="mb-channel-row">
-              <span class="mb-ch-label">PSG1:</span>
-              <div class="mb-ch-meter" id="psg1-ch-a"><div class="mb-ch-bar"></div><span>A</span></div>
-              <div class="mb-ch-meter" id="psg1-ch-b"><div class="mb-ch-bar"></div><span>B</span></div>
-              <div class="mb-ch-meter" id="psg1-ch-c"><div class="mb-ch-bar"></div><span>C</span></div>
+          <div class="mb-output-grid">
+            <div class="mb-psg-output" id="psg1-output">
+              <div class="mb-psg-header">PSG 1</div>
+              <div class="mb-channels-grid">
+                <div class="mb-channel" data-channel="a" data-psg="1">
+                  <button class="mb-mute-btn" data-psg="1" data-ch="0" title="Mute/Unmute Channel A">
+                    <span class="mb-mute-icon"></span>
+                  </button>
+                  <div class="mb-channel-label">A</div>
+                  <div class="mb-meter-container">
+                    <div class="mb-meter" id="psg1-ch-a">
+                      <div class="mb-meter-fill"></div>
+                      <div class="mb-meter-peak"></div>
+                      <div class="mb-meter-glow"></div>
+                    </div>
+                  </div>
+                  <canvas id="psg1-ch-a-waveform" class="mb-waveform" width="220" height="50"></canvas>
+                </div>
+                <div class="mb-channel" data-channel="b" data-psg="1">
+                  <button class="mb-mute-btn" data-psg="1" data-ch="1" title="Mute/Unmute Channel B">
+                    <span class="mb-mute-icon"></span>
+                  </button>
+                  <div class="mb-channel-label">B</div>
+                  <div class="mb-meter-container">
+                    <div class="mb-meter" id="psg1-ch-b">
+                      <div class="mb-meter-fill"></div>
+                      <div class="mb-meter-peak"></div>
+                      <div class="mb-meter-glow"></div>
+                    </div>
+                  </div>
+                  <canvas id="psg1-ch-b-waveform" class="mb-waveform" width="220" height="50"></canvas>
+                </div>
+                <div class="mb-channel" data-channel="c" data-psg="1">
+                  <button class="mb-mute-btn" data-psg="1" data-ch="2" title="Mute/Unmute Channel C">
+                    <span class="mb-mute-icon"></span>
+                  </button>
+                  <div class="mb-channel-label">C</div>
+                  <div class="mb-meter-container">
+                    <div class="mb-meter" id="psg1-ch-c">
+                      <div class="mb-meter-fill"></div>
+                      <div class="mb-meter-peak"></div>
+                      <div class="mb-meter-glow"></div>
+                    </div>
+                  </div>
+                  <canvas id="psg1-ch-c-waveform" class="mb-waveform" width="220" height="50"></canvas>
+                </div>
+              </div>
             </div>
-            <div class="mb-channel-row">
-              <span class="mb-ch-label">PSG2:</span>
-              <div class="mb-ch-meter" id="psg2-ch-a"><div class="mb-ch-bar"></div><span>A</span></div>
-              <div class="mb-ch-meter" id="psg2-ch-b"><div class="mb-ch-bar"></div><span>B</span></div>
-              <div class="mb-ch-meter" id="psg2-ch-c"><div class="mb-ch-bar"></div><span>C</span></div>
+            <div class="mb-psg-output" id="psg2-output">
+              <div class="mb-psg-header">PSG 2</div>
+              <div class="mb-channels-grid">
+                <div class="mb-channel" data-channel="a" data-psg="2">
+                  <button class="mb-mute-btn" data-psg="2" data-ch="0" title="Mute/Unmute Channel A">
+                    <span class="mb-mute-icon"></span>
+                  </button>
+                  <div class="mb-channel-label">A</div>
+                  <div class="mb-meter-container">
+                    <div class="mb-meter" id="psg2-ch-a">
+                      <div class="mb-meter-fill"></div>
+                      <div class="mb-meter-peak"></div>
+                      <div class="mb-meter-glow"></div>
+                    </div>
+                  </div>
+                  <canvas id="psg2-ch-a-waveform" class="mb-waveform" width="220" height="50"></canvas>
+                </div>
+                <div class="mb-channel" data-channel="b" data-psg="2">
+                  <button class="mb-mute-btn" data-psg="2" data-ch="1" title="Mute/Unmute Channel B">
+                    <span class="mb-mute-icon"></span>
+                  </button>
+                  <div class="mb-channel-label">B</div>
+                  <div class="mb-meter-container">
+                    <div class="mb-meter" id="psg2-ch-b">
+                      <div class="mb-meter-fill"></div>
+                      <div class="mb-meter-peak"></div>
+                      <div class="mb-meter-glow"></div>
+                    </div>
+                  </div>
+                  <canvas id="psg2-ch-b-waveform" class="mb-waveform" width="220" height="50"></canvas>
+                </div>
+                <div class="mb-channel" data-channel="c" data-psg="2">
+                  <button class="mb-mute-btn" data-psg="2" data-ch="2" title="Mute/Unmute Channel C">
+                    <span class="mb-mute-icon"></span>
+                  </button>
+                  <div class="mb-channel-label">C</div>
+                  <div class="mb-meter-container">
+                    <div class="mb-meter" id="psg2-ch-c">
+                      <div class="mb-meter-fill"></div>
+                      <div class="mb-meter-peak"></div>
+                      <div class="mb-meter-glow"></div>
+                    </div>
+                  </div>
+                  <canvas id="psg2-ch-c-waveform" class="mb-waveform" width="220" height="50"></canvas>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -283,49 +366,244 @@ export class MockingboardWindow extends BaseWindow {
           background: #3a3a2a;
           color: #ff7;
         }
-        .mb-channels {
+        /* === Channel Output Section === */
+        .mb-output-section {
+          background: linear-gradient(180deg, #12121f 0%, #0a0a14 100%);
+          border: 1px solid #2a2a4a;
+        }
+        .mb-output-grid {
+          display: flex;
+          gap: 12px;
           margin-top: 8px;
         }
-        .mb-channel-row {
+        .mb-psg-output {
+          flex: 1;
+          background: linear-gradient(180deg, #0d0d18 0%, #080810 100%);
+          border-radius: 8px;
+          padding: 10px;
+          border: 1px solid #1a1a30;
+          box-shadow: inset 0 1px 0 rgba(255,255,255,0.03), 0 4px 12px rgba(0,0,0,0.4);
+        }
+        .mb-psg-header {
+          text-align: center;
+          color: #6688cc;
+          font-size: 11px;
+          font-weight: bold;
+          text-transform: uppercase;
+          letter-spacing: 2px;
+          margin-bottom: 10px;
+          padding-bottom: 6px;
+          border-bottom: 1px solid #1a1a30;
+          text-shadow: 0 0 10px rgba(102,136,204,0.5);
+        }
+        .mb-channels-grid {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .mb-channel {
           display: flex;
           align-items: center;
-          margin-bottom: 6px;
+          gap: 8px;
+          padding: 6px 8px;
+          background: linear-gradient(180deg, rgba(255,255,255,0.02) 0%, rgba(0,0,0,0.1) 100%);
+          border-radius: 6px;
+          border: 1px solid rgba(255,255,255,0.03);
         }
-        .mb-ch-label {
-          color: #888;
-          width: 45px;
+        .mb-channel-label {
+          width: 18px;
+          height: 18px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 10px;
+          font-weight: bold;
+          border-radius: 4px;
+          color: #fff;
+          text-shadow: 0 1px 2px rgba(0,0,0,0.5);
         }
-        .mb-ch-meter {
-          width: 80px;
-          height: 16px;
-          background: #222;
+        .mb-channel[data-channel="a"] .mb-channel-label {
+          background: linear-gradient(180deg, #00b4d8 0%, #0077b6 100%);
+          box-shadow: 0 0 8px rgba(0,180,216,0.4);
+        }
+        .mb-channel[data-channel="b"] .mb-channel-label {
+          background: linear-gradient(180deg, #4ade80 0%, #22c55e 100%);
+          box-shadow: 0 0 8px rgba(74,222,128,0.4);
+        }
+        .mb-channel[data-channel="c"] .mb-channel-label {
+          background: linear-gradient(180deg, #f472b6 0%, #ec4899 100%);
+          box-shadow: 0 0 8px rgba(244,114,182,0.4);
+        }
+
+        /* Meter styles */
+        .mb-meter-container {
+          width: 60px;
+          flex-shrink: 0;
+        }
+        .mb-meter {
+          height: 12px;
+          background: #0a0a12;
           border-radius: 3px;
-          margin-right: 8px;
           position: relative;
           overflow: hidden;
+          border: 1px solid #1a1a2a;
+          box-shadow: inset 0 2px 4px rgba(0,0,0,0.5);
         }
-        .mb-ch-meter span {
-          position: absolute;
-          right: 4px;
-          top: 1px;
-          color: #666;
-          font-size: 10px;
-          z-index: 1;
-        }
-        .mb-ch-bar {
+        .mb-meter-fill {
           position: absolute;
           left: 0;
           top: 0;
           height: 100%;
-          background: linear-gradient(90deg, #2a5a2a, #4a8a4a);
-          transition: width 0.05s;
           width: 0%;
+          transition: width 0.05s ease-out;
+          border-radius: 2px;
         }
-        .mb-ch-meter.tone-off .mb-ch-bar {
-          background: linear-gradient(90deg, #5a5a2a, #8a8a4a);
+        .mb-meter-peak {
+          position: absolute;
+          top: 0;
+          width: 2px;
+          height: 100%;
+          background: #fff;
+          opacity: 0.8;
+          transition: left 0.05s ease-out, opacity 0.3s;
+          left: 0%;
         }
-        .mb-ch-meter.noise-on .mb-ch-bar {
-          background: linear-gradient(90deg, #5a2a5a, #8a4a8a);
+        .mb-meter-glow {
+          position: absolute;
+          left: 0;
+          top: 0;
+          height: 100%;
+          width: 0%;
+          border-radius: 2px;
+          filter: blur(4px);
+          opacity: 0.5;
+          transition: width 0.05s ease-out;
+        }
+        .mb-channel[data-channel="a"] .mb-meter-fill {
+          background: linear-gradient(90deg, #0077b6 0%, #00b4d8 50%, #48cae4 100%);
+        }
+        .mb-channel[data-channel="a"] .mb-meter-glow {
+          background: #00b4d8;
+        }
+        .mb-channel[data-channel="b"] .mb-meter-fill {
+          background: linear-gradient(90deg, #166534 0%, #22c55e 50%, #4ade80 100%);
+        }
+        .mb-channel[data-channel="b"] .mb-meter-glow {
+          background: #22c55e;
+        }
+        .mb-channel[data-channel="c"] .mb-meter-fill {
+          background: linear-gradient(90deg, #9d174d 0%, #ec4899 50%, #f472b6 100%);
+        }
+        .mb-channel[data-channel="c"] .mb-meter-glow {
+          background: #ec4899;
+        }
+        .mb-meter.tone-off .mb-meter-fill {
+          opacity: 0.4;
+          filter: saturate(0.3);
+        }
+        .mb-meter.noise-on .mb-meter-fill {
+          animation: noise-flicker 0.1s infinite;
+        }
+        @keyframes noise-flicker {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.7; }
+        }
+
+        /* Mute button styles */
+        .mb-mute-btn {
+          width: 20px;
+          height: 20px;
+          border: none;
+          border-radius: 4px;
+          background: linear-gradient(180deg, #2a2a3a 0%, #1a1a2a 100%);
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0;
+          transition: all 0.15s ease;
+          box-shadow: 0 2px 4px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1);
+          flex-shrink: 0;
+        }
+        .mb-mute-btn:hover {
+          background: linear-gradient(180deg, #3a3a4a 0%, #2a2a3a 100%);
+        }
+        .mb-mute-btn:active {
+          transform: scale(0.95);
+        }
+        .mb-mute-icon {
+          width: 12px;
+          height: 12px;
+          position: relative;
+        }
+        .mb-mute-icon::before {
+          content: "";
+          position: absolute;
+          left: 1px;
+          top: 3px;
+          width: 4px;
+          height: 6px;
+          background: #8a8aaa;
+          border-radius: 1px;
+        }
+        .mb-mute-icon::after {
+          content: "";
+          position: absolute;
+          left: 5px;
+          top: 1px;
+          width: 0;
+          height: 0;
+          border-top: 5px solid transparent;
+          border-bottom: 5px solid transparent;
+          border-left: 6px solid #8a8aaa;
+        }
+        .mb-mute-btn.muted {
+          background: linear-gradient(180deg, #4a2a2a 0%, #3a1a1a 100%);
+          box-shadow: 0 2px 4px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,100,100,0.1), 0 0 8px rgba(255,80,80,0.2);
+        }
+        .mb-mute-btn.muted .mb-mute-icon::before,
+        .mb-mute-btn.muted .mb-mute-icon::after {
+          background: #ff6666;
+          border-left-color: #ff6666;
+        }
+        .mb-mute-btn.muted .mb-mute-icon::before {
+          content: "";
+          position: absolute;
+          left: 8px;
+          top: 0;
+          width: 2px;
+          height: 12px;
+          background: #ff6666;
+          transform: rotate(45deg);
+          border-radius: 1px;
+        }
+
+        /* Muted channel styles */
+        .mb-channel.muted {
+          opacity: 0.5;
+        }
+        .mb-channel.muted .mb-channel-label {
+          filter: grayscale(0.8);
+          box-shadow: none;
+        }
+        .mb-channel.muted .mb-waveform {
+          filter: grayscale(0.6);
+        }
+        .mb-channel.muted .mb-meter-fill,
+        .mb-channel.muted .mb-meter-glow {
+          filter: grayscale(0.8);
+          opacity: 0.4;
+        }
+
+        /* Waveform styles */
+        .mb-waveform {
+          flex: 1;
+          min-width: 0;
+          height: 50px;
+          background: linear-gradient(180deg, #0a0a14 0%, #05050a 100%);
+          border-radius: 4px;
+          border: 1px solid #1a1a2a;
+          box-shadow: inset 0 2px 8px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.02);
         }
       </style>
     `;
@@ -363,6 +641,21 @@ export class MockingboardWindow extends BaseWindow {
     if (!wasmModule) return;
     this.wasmModule = wasmModule;
 
+    // Set up mute button click handlers (once, after content is rendered)
+    if (!this.muteHandlerAttached && this.contentElement) {
+      this.muteHandlerAttached = true;
+      this.contentElement.addEventListener("click", (e) => {
+        const muteBtn = e.target.closest(".mb-mute-btn");
+        if (muteBtn && this.wasmModule?._setMockingboardChannelMute) {
+          const psg = parseInt(muteBtn.dataset.psg, 10) - 1; // 0 or 1
+          const ch = parseInt(muteBtn.dataset.ch, 10); // 0, 1, or 2
+          const currentlyMuted = this.wasmModule._getMockingboardChannelMute(psg, ch);
+          this.wasmModule._setMockingboardChannelMute(psg, ch, !currentlyMuted);
+          this.updateMuteState();
+        }
+      });
+    }
+
     // Check if Mockingboard is enabled
     const enabled = wasmModule._isMockingboardEnabled
       ? wasmModule._isMockingboardEnabled()
@@ -382,6 +675,41 @@ export class MockingboardWindow extends BaseWindow {
 
     // Update channel meters
     this.updateChannelMeters(wasmModule);
+
+    // Update waveform displays
+    this.updateWaveforms(wasmModule);
+
+    // Update mute button states
+    this.updateMuteState();
+  }
+
+  updateMuteState() {
+    if (!this.wasmModule?._getMockingboardChannelMute) return;
+
+    const channelNames = ["a", "b", "c"];
+    for (let psg = 1; psg <= 2; psg++) {
+      const psgIndex = psg - 1;
+      for (let ch = 0; ch < 3; ch++) {
+        const isMuted = this.wasmModule._getMockingboardChannelMute(psgIndex, ch);
+        const chName = channelNames[ch];
+
+        // Update mute button
+        const muteBtn = this.contentElement.querySelector(
+          `.mb-mute-btn[data-psg="${psg}"][data-ch="${ch}"]`
+        );
+        if (muteBtn) {
+          muteBtn.classList.toggle("muted", isMuted);
+        }
+
+        // Update channel row
+        const channelRow = this.contentElement.querySelector(
+          `.mb-channel[data-psg="${psg}"][data-channel="${chName}"]`
+        );
+        if (channelRow) {
+          channelRow.classList.toggle("muted", isMuted);
+        }
+      }
+    }
   }
 
   updatePSG(wasmModule, psgNum) {
@@ -627,6 +955,12 @@ export class MockingboardWindow extends BaseWindow {
   }
 
   updateChannelMeters(wasmModule) {
+    // Initialize peak tracking if not exists
+    if (!this.peakLevels) {
+      this.peakLevels = {};
+      this.peakDecay = {};
+    }
+
     for (let psg = 1; psg <= 2; psg++) {
       const psgIndex = psg - 1;
       let mixer = 0;
@@ -636,6 +970,7 @@ export class MockingboardWindow extends BaseWindow {
 
       for (let ch = 0; ch < 3; ch++) {
         const chLetter = ["a", "b", "c"][ch];
+        const key = `psg${psg}-${chLetter}`;
         let ampReg = 0;
         if (wasmModule._getMockingboardPSGRegister) {
           ampReg = wasmModule._getMockingboardPSGRegister(psgIndex, 8 + ch);
@@ -649,17 +984,150 @@ export class MockingboardWindow extends BaseWindow {
         // Calculate display volume (0-15 -> 0-100%)
         const displayVol = useEnv ? 50 : (vol / 15) * 100;
 
-        const meterEl = this.contentElement.querySelector(
-          `#psg${psg}-ch-${chLetter}`,
-        );
-        if (meterEl) {
-          const barEl = meterEl.querySelector(".mb-ch-bar");
-          if (barEl) {
-            barEl.style.width = `${displayVol}%`;
+        // Peak tracking with decay
+        if (!this.peakLevels[key] || displayVol > this.peakLevels[key]) {
+          this.peakLevels[key] = displayVol;
+          this.peakDecay[key] = 0;
+        } else {
+          this.peakDecay[key]++;
+          if (this.peakDecay[key] > 30) { // Hold for ~0.5 sec at 60fps
+            this.peakLevels[key] = Math.max(displayVol, this.peakLevels[key] - 2);
           }
+        }
+
+        const meterEl = this.contentElement.querySelector(`#psg${psg}-ch-${chLetter}`);
+        if (meterEl) {
+          const fillEl = meterEl.querySelector(".mb-meter-fill");
+          const peakEl = meterEl.querySelector(".mb-meter-peak");
+          const glowEl = meterEl.querySelector(".mb-meter-glow");
+
+          if (fillEl) fillEl.style.width = `${displayVol}%`;
+          if (glowEl) glowEl.style.width = `${displayVol}%`;
+          if (peakEl) {
+            peakEl.style.left = `${Math.max(0, this.peakLevels[key] - 2)}%`;
+            peakEl.style.opacity = this.peakLevels[key] > 5 ? "0.8" : "0";
+          }
+
           meterEl.classList.toggle("tone-off", !toneEnabled);
           meterEl.classList.toggle("noise-on", noiseEnabled);
         }
+      }
+    }
+  }
+
+  updateWaveforms(wasmModule) {
+    if (!wasmModule._getMockingboardWaveform) return;
+
+    const channelNames = ["a", "b", "c"];
+    // Vibrant colors matching the channel labels
+    const channelColors = {
+      a: { main: "#00b4d8", glow: "rgba(0, 180, 216, 0.3)", dark: "#0077b6" },
+      b: { main: "#4ade80", glow: "rgba(74, 222, 128, 0.3)", dark: "#22c55e" },
+      c: { main: "#f472b6", glow: "rgba(244, 114, 182, 0.3)", dark: "#ec4899" }
+    };
+
+    for (let psg = 1; psg <= 2; psg++) {
+      const psgIndex = psg - 1;
+
+      for (let ch = 0; ch < 3; ch++) {
+        const chName = channelNames[ch];
+        const colors = channelColors[chName];
+        const canvas = this.contentElement.querySelector(`#psg${psg}-ch-${chName}-waveform`);
+        if (!canvas) continue;
+
+        const ctx = canvas.getContext("2d");
+        const width = canvas.width;
+        const height = canvas.height;
+        const SAMPLE_COUNT = width;
+
+        // Get waveform samples from WASM for this specific channel
+        const bufferPtr = wasmModule._malloc(SAMPLE_COUNT * 4);
+        wasmModule._getMockingboardWaveform(psgIndex, ch, bufferPtr, SAMPLE_COUNT);
+
+        // Copy samples from WASM memory
+        const samples = new Float32Array(SAMPLE_COUNT);
+        for (let i = 0; i < SAMPLE_COUNT; i++) {
+          samples[i] = wasmModule.HEAPF32[(bufferPtr >> 2) + i];
+        }
+        wasmModule._free(bufferPtr);
+
+        // Clear with gradient background
+        const bgGrad = ctx.createLinearGradient(0, 0, 0, height);
+        bgGrad.addColorStop(0, "#0a0a14");
+        bgGrad.addColorStop(1, "#05050a");
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0, 0, width, height);
+
+        // Draw subtle grid lines
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.03)";
+        ctx.lineWidth = 1;
+        for (let y = height * 0.25; y < height; y += height * 0.25) {
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(width, y);
+          ctx.stroke();
+        }
+
+        // Draw center line
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.08)";
+        ctx.beginPath();
+        ctx.moveTo(0, height / 2);
+        ctx.lineTo(width, height / 2);
+        ctx.stroke();
+
+        // Build the waveform path
+        const path = new Path2D();
+        for (let i = 0; i < SAMPLE_COUNT; i++) {
+          const y = height - samples[i] * (height - 4) - 2;
+          if (i === 0) {
+            path.moveTo(i, y);
+          } else {
+            path.lineTo(i, y);
+          }
+        }
+
+        // Draw glow effect (thicker, blurred line underneath)
+        ctx.save();
+        ctx.strokeStyle = colors.glow;
+        ctx.lineWidth = 6;
+        ctx.filter = "blur(3px)";
+        ctx.stroke(path);
+        ctx.restore();
+
+        // Draw secondary glow
+        ctx.save();
+        ctx.strokeStyle = colors.main;
+        ctx.lineWidth = 3;
+        ctx.globalAlpha = 0.4;
+        ctx.filter = "blur(2px)";
+        ctx.stroke(path);
+        ctx.restore();
+
+        // Draw main waveform line
+        ctx.strokeStyle = colors.main;
+        ctx.lineWidth = 1.5;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+        ctx.stroke(path);
+
+        // Draw filled area under waveform
+        ctx.save();
+        const fillPath = new Path2D();
+        fillPath.moveTo(0, height);
+        for (let i = 0; i < SAMPLE_COUNT; i++) {
+          const y = height - samples[i] * (height - 4) - 2;
+          fillPath.lineTo(i, y);
+        }
+        fillPath.lineTo(width - 1, height);
+        fillPath.closePath();
+
+        const fillGrad = ctx.createLinearGradient(0, 0, 0, height);
+        fillGrad.addColorStop(0, colors.glow);
+        fillGrad.addColorStop(1, "transparent");
+        ctx.fillStyle = fillGrad;
+        ctx.globalAlpha = 0.3;
+        ctx.fill(fillPath);
+        ctx.restore();
       }
     }
   }
