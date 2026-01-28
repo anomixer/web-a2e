@@ -85,8 +85,9 @@ export class WebGLRenderer {
 
   async init() {
     // Get WebGL context
+    const ctxAttrs = { alpha: true, premultipliedAlpha: false };
     this.gl =
-      this.canvas.getContext("webgl2") || this.canvas.getContext("webgl");
+      this.canvas.getContext("webgl2", ctxAttrs) || this.canvas.getContext("webgl", ctxAttrs);
     if (!this.gl) {
       throw new Error("WebGL not supported");
     }
@@ -384,7 +385,7 @@ export class WebGLRenderer {
     // Update burn-in accumulation
     this.updateBurnIn();
 
-    gl.clearColor(0, 0, 0, 1); // Black background
+    gl.clearColor(0, 0, 0, 0); // Black background
     gl.clear(gl.COLOR_BUFFER_BIT);
 
     gl.useProgram(this.program);
@@ -486,7 +487,7 @@ export class WebGLRenderer {
     }
 
     // Clear and redraw
-    gl.clearColor(0, 0, 0, 1); // Black background
+    gl.clearColor(0, 0, 0, 0); // Black background
     gl.clear(gl.COLOR_BUFFER_BIT);
     this.draw();
   }
