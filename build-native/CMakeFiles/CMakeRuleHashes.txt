@@ -1,0 +1,3 @@
+# Hashes of file build rules.
+529f606b2a9991d25c21c8f91dfb10eb CMakeFiles/generate_roms_native
+8e1851138fd0474f6c438cb689007119 generated/roms.cpp
