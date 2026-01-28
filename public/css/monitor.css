@@ -597,276 +597,31 @@ body.full-page-mode .screen-glare {
     border-radius: 0;
 }
 
-body.full-page-mode .screen-window-titlebar,
-body.full-page-mode .borderless-resize-handle {
-    display: none !important;
+
+/* Borderless mode - hide monitor frame, canvas is in ScreenWindow */
+body.borderless-mode #monitor-frame {
+    display: none;
 }
 
-body.full-page-mode.borderless-mode #screen {
-    margin-top: 0;
-}
-
-body.full-page-mode.borderless-mode .monitor-screen-wrapper {
-    border: none;
-    border-radius: 0;
-    box-shadow: none;
-}
-
-/* Borderless mode - hide bezel but keep header/footer */
-body.borderless-mode .monitor-bezel {
+/* Screen window canvas fills content area */
+#screen-window .debug-window-content {
     padding: 0;
-    background: transparent;
-    box-shadow: none;
-    border-radius: 0;
+    overflow: hidden;
+    background: #000;
 }
 
-body.borderless-mode .monitor-bezel::before {
-    display: none;
-}
-
-body.borderless-mode .monitor-base,
-body.borderless-mode .monitor-badge,
-body.borderless-mode .monitor-power,
-body.borderless-mode .charset-switch {
-    display: none;
-}
-
-body.borderless-mode .monitor-screen-wrapper {
-    padding: 0;
-    border-radius: 0;
-    box-shadow: none;
-}
-
-body.borderless-mode .monitor-resize-handle {
-    display: none;
-}
-
-/* Hide the bezel indicators in borderless mode - they're now in the title bar */
-body.borderless-mode .size-lock-indicator,
-body.borderless-mode .position-indicator {
-    display: none !important;
-}
-
-/* Screen window title bar - only visible in borderless mode */
-.screen-window-titlebar {
-    display: none;
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 28px;
-    background: linear-gradient(180deg, #3a3a3a 0%, #2a2a2a 100%);
-    cursor: grab;
-    z-index: 10;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 10px;
-    border-bottom: 1px solid rgba(0, 0, 0, 0.5);
-    border-radius: 6px 6px 0 0;
-    user-select: none;
-}
-
-.screen-window-titlebar:active {
-    cursor: grabbing;
-}
-
-.screen-window-title {
-    font-size: 12px;
-    font-weight: 500;
-    color: rgba(255, 255, 255, 0.8);
-    letter-spacing: 0.02em;
-}
-
-.screen-window-controls {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.titlebar-charset-switch {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.titlebar-charset-switch .charset-label {
-    font-size: 9px;
-    font-weight: 600;
-    color: rgba(255, 255, 255, 0.4);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    transition: color 0.2s;
-}
-
-.titlebar-charset-switch:has(#titlebar-charset-toggle:not(:checked)) .charset-label:first-of-type,
-.titlebar-charset-switch:has(#titlebar-charset-toggle:checked) .charset-label:last-of-type {
-    color: var(--accent-green);
-}
-
-.titlebar-charset-switch .charset-toggle {
+.screen-window-content {
+    width: 100%;
+    height: 100%;
     position: relative;
-    display: inline-block;
-    width: 24px;
-    height: 14px;
-    cursor: pointer;
 }
 
-.titlebar-charset-switch .charset-toggle input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-}
-
-.titlebar-charset-switch .charset-slider {
-    position: absolute;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.4);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 7px;
-    transition: all 0.2s;
-}
-
-.titlebar-charset-switch .charset-slider::before {
-    content: "";
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    width: 8px;
-    height: 8px;
-    background: rgba(255, 255, 255, 0.5);
-    border-radius: 50%;
-    transition: all 0.2s;
-}
-
-.titlebar-charset-switch .charset-toggle input:checked + .charset-slider {
-    border-color: var(--accent-green-dim);
-}
-
-.titlebar-charset-switch .charset-toggle input:checked + .charset-slider::before {
-    transform: translateX(10px);
-    background: var(--accent-green);
-}
-
-.titlebar-icon-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 20px;
-    height: 20px;
-    padding: 0;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--accent-green-dim);
-    border-radius: 4px;
-    color: var(--accent-green);
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.titlebar-icon-btn:hover {
-    background: rgba(0, 0, 0, 0.5);
-    border-color: var(--accent-green);
-    color: var(--accent-green-bright);
-}
-
-.titlebar-icon-btn svg {
-    width: 12px;
-    height: 12px;
-}
-
-.titlebar-icon-btn.hidden {
-    display: none;
-}
-
-body.borderless-mode .screen-window-titlebar {
-    display: flex;
-}
-
-body.borderless-mode .monitor-screen-wrapper {
-    border-radius: 6px;
-    border: 1px solid rgba(80, 80, 80, 0.8);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-}
-
-body.borderless-mode #screen {
-    margin-top: 28px;
-}
-
-/* Borderless mode resize handles - only visible in borderless mode */
-.borderless-resize-handle {
-    display: none;
-    position: absolute;
-    z-index: 11;
-}
-
-/* Corner handles */
-.borderless-resize-handle.nw,
-.borderless-resize-handle.ne,
-.borderless-resize-handle.sw,
-.borderless-resize-handle.se {
-    width: 12px;
-    height: 12px;
-}
-
-.borderless-resize-handle.nw {
-    top: 0;
-    left: 0;
-    cursor: nw-resize;
-}
-
-.borderless-resize-handle.ne {
-    top: 0;
-    right: 0;
-    cursor: ne-resize;
-}
-
-.borderless-resize-handle.sw {
-    bottom: 0;
-    left: 0;
-    cursor: sw-resize;
-}
-
-.borderless-resize-handle.se {
-    bottom: 0;
-    right: 0;
-    cursor: se-resize;
-}
-
-/* Edge handles */
-.borderless-resize-handle.n {
-    top: 0;
-    left: 12px;
-    right: 12px;
-    height: 4px;
-    cursor: n-resize;
-}
-
-.borderless-resize-handle.s {
-    bottom: 0;
-    left: 12px;
-    right: 12px;
-    height: 4px;
-    cursor: s-resize;
-}
-
-.borderless-resize-handle.e {
-    right: 0;
-    top: 12px;
-    bottom: 12px;
-    width: 4px;
-    cursor: e-resize;
-}
-
-.borderless-resize-handle.w {
-    left: 0;
-    top: 12px;
-    bottom: 12px;
-    width: 4px;
-    cursor: w-resize;
-}
-
-body.borderless-mode .borderless-resize-handle {
+.screen-window-content #screen {
     display: block;
+    width: 100%;
+    height: 100%;
 }
+
 
 /* Exit hint overlay */
 .full-page-exit-hint {

@@ -28,6 +28,7 @@ import {
   SlotConfigurationWindow,
 } from "./debug/index.js";
 import { ReleaseNotesWindow } from "./ui/release-notes-window.js";
+import { ScreenWindow } from "./ui/screen-window.js";
 
 // Display constants
 const MONITOR_ASPECT_RATIO = 4 / 3;
@@ -114,6 +115,11 @@ class AppleIIeEmulator {
       this.displaySettings.create();
       this.windowManager.register(this.displaySettings);
 
+      // Set up screen window (hosts canvas when bezel is disabled)
+      this.screenWindow = new ScreenWindow(this.renderer, null); // textSelection set later
+      this.screenWindow.create();
+      this.windowManager.register(this.screenWindow);
+
       // Set up new debug windows
       const memBrowserWindow = new MemoryBrowserWindow(this.wasmModule);
       memBrowserWindow.create();
@@ -188,6 +194,14 @@ class AppleIIeEmulator {
         }
       }
 
+      // Show screen window by default when bezel is disabled
+      if (!this.displaySettings.settings.showBezel && !this.windowManager.isWindowVisible('screen-window')) {
+        const savedState = localStorage.getItem('a2e-debug-windows');
+        if (!savedState || !JSON.parse(savedState)['screen-window']) {
+          this.windowManager.showWindow('screen-window');
+        }
+      }
+
       // Save window states when page is closed
       window.addEventListener("beforeunload", () => {
         if (this.windowManager) {
@@ -200,6 +214,9 @@ class AppleIIeEmulator {
 
       // Set up text selection for copying screen contents
       this.textSelection = new TextSelection(canvas, this.wasmModule);
+
+      // Wire textSelection into screen window
+      this.screenWindow.textSelection = this.textSelection;
 
       // Set up reminder controller
       this.reminderController = new ReminderController();
@@ -228,6 +245,20 @@ class AppleIIeEmulator {
       });
       this.monitorResizer.init();
 
+      // Wire ScreenWindow close → restore bezel
+      this.screenWindow.onBezelRestore = () => {
+        this.displaySettings.settings.showBezel = true;
+        const bezelToggle = this.displaySettings.contentElement.querySelector('#ds-showBezel');
+        if (bezelToggle) bezelToggle.checked = true;
+        this.displaySettings.applyBezelSetting();
+        this.displaySettings.saveSettings();
+      };
+
+      // Wire references into display settings and apply
+      this.displaySettings.setScreenWindow(this.screenWindow);
+      this.displaySettings.setMonitorResizer(this.monitorResizer);
+      this.displaySettings.applyAllSettings();
+
       // Set up UI controller
       this.uiController = new UIController({
         emulator: this,
@@ -239,6 +270,8 @@ class AppleIIeEmulator {
         monitorResizer: this.monitorResizer,
         reminderController: this.reminderController,
       });
+      this.uiController.setScreenWindow(this.screenWindow);
+      this.uiController.setDisplaySettings(this.displaySettings);
       this.uiController.init();
 
       // Set up state manager

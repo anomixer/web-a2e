@@ -328,6 +328,28 @@ export class TextSelection {
   }
 
   /**
+   * Move overlay to the canvas's current parent and re-measure.
+   * Called when the canvas is reparented between bezel and ScreenWindow.
+   */
+  reattach() {
+    if (!this.overlay) return;
+
+    const wrapper = this.canvas.parentElement;
+    if (!wrapper) return;
+
+    // Move overlay to new parent if needed
+    if (this.overlay.parentElement !== wrapper) {
+      if (this.overlay.parentElement) {
+        this.overlay.parentElement.removeChild(this.overlay);
+      }
+      wrapper.style.position = 'relative';
+      wrapper.appendChild(this.overlay);
+    }
+
+    this.resize();
+  }
+
+  /**
    * Clear the selection
    */
   clearSelection() {

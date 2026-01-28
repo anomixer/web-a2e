@@ -29,6 +29,9 @@ export class MonitorResizer {
     this.isDragging = false;
     this.dragStart = null;
 
+    // Enabled flag — disabled when ScreenWindow owns the canvas
+    this.enabled = true;
+
     // Bind methods for event listeners
     this.handleResize = this.handleResize.bind(this);
     this.handleMonitorMouseMove = this.handleMonitorMouseMove.bind(this);
@@ -103,32 +106,14 @@ export class MonitorResizer {
       });
     });
 
-    // Borderless resize handles (for borderless mode)
-    const borderlessHandles = monitorBezel.querySelectorAll(".borderless-resize-handle");
-    borderlessHandles.forEach((handle) => {
-      handle.addEventListener("mousedown", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        this.startMonitorResize(e, handle.dataset.direction);
-      });
-    });
-
     document.addEventListener("mousemove", this.handleMonitorMouseMove);
     document.addEventListener("mouseup", this.handleMonitorMouseUp);
 
-    // Size lock indicators (bezel and title bar versions)
+    // Size lock indicator (bezel)
     const sizeLockIndicator = document.getElementById("size-lock-indicator");
-    const titlebarSizeLockBtn = document.getElementById("titlebar-size-lock-btn");
 
     if (sizeLockIndicator) {
       sizeLockIndicator.addEventListener("click", () => {
-        this.resetToAutoSize();
-      });
-    }
-
-    if (titlebarSizeLockBtn) {
-      titlebarSizeLockBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
         this.resetToAutoSize();
       });
     }
@@ -176,45 +161,14 @@ export class MonitorResizer {
       this.resetToCenter();
     });
 
-    // Screen window title bar (for borderless mode)
-    const titleBar = monitorBezel.querySelector(".screen-window-titlebar");
-    if (titleBar) {
-      titleBar.addEventListener("mousedown", (e) => {
-        // Don't start drag if clicking on controls
-        if (e.target.closest(".screen-window-controls")) {
-          return;
-        }
-        e.preventDefault();
-        e.stopPropagation();
-        this.startDrag(e);
-      });
-
-      titleBar.addEventListener("dblclick", (e) => {
-        // Don't re-center if clicking on controls
-        if (e.target.closest(".screen-window-controls")) {
-          return;
-        }
-        e.stopPropagation();
-        this.resetToCenter();
-      });
-    }
-
     document.addEventListener("mousemove", this.handleDragMove);
     document.addEventListener("mouseup", this.handleDragEnd);
 
-    // Position indicators (bezel and title bar versions)
+    // Position indicator (bezel)
     const positionIndicator = document.getElementById("position-indicator");
-    const titlebarPositionBtn = document.getElementById("titlebar-position-btn");
 
     if (positionIndicator) {
       positionIndicator.addEventListener("click", () => {
-        this.resetToCenter();
-      });
-    }
-
-    if (titlebarPositionBtn) {
-      titlebarPositionBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
         this.resetToCenter();
       });
     }
@@ -224,6 +178,7 @@ export class MonitorResizer {
    * Start dragging the monitor
    */
   startDrag(e) {
+    if (!this.enabled) return;
     // Don't allow dragging in full-page mode or fullscreen
     if (document.body.classList.contains("full-page-mode") || document.fullscreenElement) {
       return;
@@ -329,14 +284,11 @@ export class MonitorResizer {
    */
   updatePositionIndicator() {
     const indicator = document.getElementById("position-indicator");
-    const titlebarBtn = document.getElementById("titlebar-position-btn");
 
     if (this.customPosition) {
       indicator?.classList.remove("hidden");
-      titlebarBtn?.classList.remove("hidden");
     } else {
       indicator?.classList.add("hidden");
-      titlebarBtn?.classList.add("hidden");
     }
   }
 
@@ -355,14 +307,11 @@ export class MonitorResizer {
    */
   updateSizeLockIndicator() {
     const indicator = document.getElementById("size-lock-indicator");
-    const titlebarBtn = document.getElementById("titlebar-size-lock-btn");
 
     if (this.customCanvasWidth) {
       indicator?.classList.remove("hidden");
-      titlebarBtn?.classList.remove("hidden");
     } else {
       indicator?.classList.add("hidden");
-      titlebarBtn?.classList.add("hidden");
     }
   }
 
@@ -370,6 +319,7 @@ export class MonitorResizer {
    * Start a manual resize operation
    */
   startMonitorResize(e, direction) {
+    if (!this.enabled) return;
     const canvas = document.getElementById("screen");
     const monitorBezel = document.querySelector(".monitor-bezel");
     if (!canvas || !monitorBezel) return;
@@ -454,13 +404,6 @@ export class MonitorResizer {
   }
 
   /**
-   * Check if borderless mode is active
-   */
-  isBorderlessMode() {
-    return document.body.classList.contains("borderless-mode");
-  }
-
-  /**
    * Calculate the maximum canvas width based on available space
    */
   getMaxCanvasWidth() {
@@ -471,10 +414,8 @@ export class MonitorResizer {
     const footerHeight = footer ? footer.offsetHeight : 0;
 
     const padding = 32;
-    // In borderless mode, only account for the title bar (28px height) and border (2px)
-    const borderless = this.isBorderlessMode();
-    const bezelPaddingX = borderless ? 2 : 88;
-    const bezelPaddingY = borderless ? 30 : 104;
+    const bezelPaddingX = 88;
+    const bezelPaddingY = 104;
 
     const availableWidth = window.innerWidth - padding - bezelPaddingX;
     const availableHeight =
@@ -494,6 +435,7 @@ export class MonitorResizer {
    * Apply a specific canvas size
    */
   applyCanvasSize(canvasWidth) {
+    if (!this.enabled) return;
     const canvas = document.getElementById("screen");
     if (!canvas) return;
 
@@ -511,6 +453,8 @@ export class MonitorResizer {
    * Handle window/container resize
    */
   handleResize() {
+    if (!this.enabled) return;
+
     const canvas = document.getElementById("screen");
     if (!canvas) return;
 
@@ -528,10 +472,8 @@ export class MonitorResizer {
     const availableHeight =
       windowHeight - headerHeight - footerHeight - padding;
 
-    // In borderless mode, only account for the title bar (28px height) and border (2px)
-    const borderless = this.isBorderlessMode();
-    const bezelPaddingX = borderless ? 2 : 88;
-    const bezelPaddingY = borderless ? 30 : 104;
+    const bezelPaddingX = 88;
+    const bezelPaddingY = 104;
 
     const maxCanvasWidth = availableWidth - bezelPaddingX;
     const maxCanvasHeight = availableHeight - bezelPaddingY;

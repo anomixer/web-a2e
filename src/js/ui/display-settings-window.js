@@ -234,7 +234,21 @@ export class DisplaySettingsWindow extends BaseWindow {
     super.create();
     this.loadSettings();
     this.setupContentEventListeners();
-    this.applyAllSettings();
+    // applyAllSettings() is called by main.js after ScreenWindow and MonitorResizer are wired up
+  }
+
+  /**
+   * Set reference to ScreenWindow (needed for applyBezelSetting)
+   */
+  setScreenWindow(screenWindow) {
+    this.screenWindow = screenWindow;
+  }
+
+  /**
+   * Set reference to MonitorResizer (needed for applyBezelSetting)
+   */
+  setMonitorResizer(monitorResizer) {
+    this.monitorResizer = monitorResizer;
   }
 
   applyToRenderer(param, value) {
@@ -308,11 +322,25 @@ export class DisplaySettingsWindow extends BaseWindow {
   applyBezelSetting() {
     if (this.settings.showBezel) {
       document.body.classList.remove('borderless-mode');
+      if (this.screenWindow) {
+        this.screenWindow.detachCanvas();
+        this.screenWindow.isVisible = false;
+        this.screenWindow.element.classList.add('hidden');
+      }
+      if (this.monitorResizer) {
+        this.monitorResizer.enabled = true;
+        this.monitorResizer.handleResize();
+      }
     } else {
       document.body.classList.add('borderless-mode');
+      if (this.monitorResizer) {
+        this.monitorResizer.enabled = false;
+      }
+      if (this.screenWindow) {
+        this.screenWindow.show();
+        this.screenWindow.attachCanvas();
+      }
     }
-    // Trigger resize to adjust screen to new available space
-    window.dispatchEvent(new Event('resize'));
   }
 
   resetToDefaults() {

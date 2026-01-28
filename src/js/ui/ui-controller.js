@@ -114,19 +114,51 @@ export class UIController {
   }
 
   /**
+   * Set the screen window reference for full-page mode handling
+   */
+  setScreenWindow(screenWindow) {
+    this.screenWindow = screenWindow;
+  }
+
+  /**
+   * Set the display settings reference for full-page mode handling
+   */
+  setDisplaySettings(displaySettings) {
+    this.displaySettings = displaySettings;
+  }
+
+  /**
    * Set up fullscreen/full page mode controls
    */
   setupFullPageModeControls() {
     const fullscreenBtn = document.getElementById("btn-fullscreen");
     if (!fullscreenBtn) return;
 
+    this._wasScreenWindowVisible = false;
+
     const exitFullPageMode = () => {
       document.body.classList.remove("full-page-mode");
       this.isFullPageMode = false;
+
+      // If ScreenWindow was visible before full-page, restore it
+      if (this._wasScreenWindowVisible && this.screenWindow && this.displaySettings && !this.displaySettings.settings.showBezel) {
+        // Hide monitor-frame again (borderless-mode CSS does this)
+        this.screenWindow.show();
+        this.screenWindow.attachCanvas();
+      }
+
       this.refocusCanvas();
     };
 
     const enterFullPageMode = () => {
+      // If ScreenWindow is active, detach canvas back to monitor-frame for full-page rendering
+      this._wasScreenWindowVisible = this.screenWindow && this.screenWindow.isVisible;
+      if (this._wasScreenWindowVisible && this.screenWindow) {
+        this.screenWindow.detachCanvas();
+        this.screenWindow.isVisible = false;
+        this.screenWindow.element.classList.add('hidden');
+      }
+
       this.windowManager.hideAll();
       document.body.classList.add("full-page-mode");
       this.isFullPageMode = true;
@@ -260,15 +292,11 @@ export class UIController {
       });
     }
 
-    // Character set toggle (UK/US) - both bezel and title bar versions
-    const titlebarCharsetToggle = document.getElementById("titlebar-charset-toggle");
-
-    const syncCharsetToggles = (isUK) => {
+    // Character set toggle (UK/US) - bezel version
+    const syncCharsetToggle = (isUK) => {
       this.wasmModule._setUKCharacterSet(isUK);
       localStorage.setItem("a2e-charset", isUK ? "uk" : "us");
-      // Sync both toggles
       if (charsetToggle) charsetToggle.checked = !isUK;
-      if (titlebarCharsetToggle) titlebarCharsetToggle.checked = !isUK;
     };
 
     // Initialize from saved setting
@@ -276,19 +304,11 @@ export class UIController {
     const isUKInitial = savedCharset === "uk";
     this.wasmModule._setUKCharacterSet(isUKInitial);
     if (charsetToggle) charsetToggle.checked = !isUKInitial;
-    if (titlebarCharsetToggle) titlebarCharsetToggle.checked = !isUKInitial;
 
     // Bezel toggle listener
     if (charsetToggle) {
       charsetToggle.addEventListener("change", (e) => {
-        syncCharsetToggles(!e.target.checked);
-      });
-    }
-
-    // Title bar toggle listener
-    if (titlebarCharsetToggle) {
-      titlebarCharsetToggle.addEventListener("change", (e) => {
-        syncCharsetToggles(!e.target.checked);
+        syncCharsetToggle(!e.target.checked);
       });
     }
   }
