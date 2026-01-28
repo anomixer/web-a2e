@@ -3,7 +3,7 @@
  * Extends BaseWindow to inherit drag/resize/show/hide functionality
  */
 
-import { BaseWindow } from '../ui/BaseWindow.js';
+import { BaseWindow } from '../windows/base-window.js';
 import { isDOS33, readCatalog, readFile, parseVTOC, getBinaryFileInfo } from './dos33.js';
 import { isProDOS, readCatalog as readProDOSCatalog, readFile as readProDOSFile, parseVolumeInfo, mapFileTypeForViewer, getBinaryFileInfo as getProDOSBinaryInfo } from './prodos.js';
 import { formatFileContents, formatFileSize, formatHexDump } from './file-viewer.js';
