@@ -3,10 +3,16 @@
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <meta name="description" content="Apple II Enhanced emulator for the browser" />
+        <meta
+            name="description"
+            content="Apple II Enhanced emulator for the browser"
+        />
         <meta name="theme-color" content="#0a0a0b" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        <meta
+            name="apple-mobile-web-app-status-bar-style"
+            content="black-translucent"
+        />
         <meta name="apple-mobile-web-app-title" content="Apple //e" />
         <title>Apple //e Emulator</title>
         <link rel="manifest" href="/manifest.json" />
@@ -122,9 +128,21 @@
                                 stroke-width="2"
                             >
                                 <!-- Disk II drive box -->
-                                <rect x="2" y="6" width="20" height="12" rx="2" />
+                                <rect
+                                    x="2"
+                                    y="6"
+                                    width="20"
+                                    height="12"
+                                    rx="2"
+                                />
                                 <!-- Drive slot -->
-                                <rect x="5" y="9" width="10" height="1.5" rx="0.5" />
+                                <rect
+                                    x="5"
+                                    y="9"
+                                    width="10"
+                                    height="1.5"
+                                    rx="0.5"
+                                />
                                 <!-- LED indicator -->
                                 <circle cx="18" cy="12" r="1.5" />
                                 <!-- Drive door latch -->
@@ -144,7 +162,9 @@
                                 stroke-width="2"
                             >
                                 <!-- Folder icon -->
-                                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+                                <path
+                                    d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
+                                />
                             </svg>
                         </button>
                         <button
@@ -184,7 +204,12 @@
                                 stroke-width="2"
                             >
                                 <circle cx="12" cy="16" r="6" />
-                                <circle cx="12" cy="16" r="2" fill="currentColor" />
+                                <circle
+                                    cx="12"
+                                    cy="16"
+                                    r="2"
+                                    fill="currentColor"
+                                />
                                 <line x1="12" y1="10" x2="12" y2="4" />
                                 <circle cx="12" cy="3" r="2" />
                             </svg>
@@ -202,7 +227,13 @@
                                 stroke-width="2"
                             >
                                 <!-- Expansion card slot icon -->
-                                <rect x="3" y="4" width="18" height="16" rx="2" />
+                                <rect
+                                    x="3"
+                                    y="4"
+                                    width="18"
+                                    height="16"
+                                    rx="2"
+                                />
                                 <line x1="7" y1="8" x2="7" y2="16" />
                                 <line x1="10" y1="8" x2="10" y2="16" />
                                 <line x1="13" y1="8" x2="13" y2="16" />
@@ -222,45 +253,83 @@
                                     stroke="currentColor"
                                     stroke-width="2"
                                 >
-                                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-                                    <polyline points="17 21 17 13 7 13 7 21"/>
-                                    <polyline points="7 3 7 8 15 8"/>
+                                    <path
+                                        d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"
+                                    />
+                                    <polyline points="17 21 17 13 7 13 7 21" />
+                                    <polyline points="7 3 7 8 15 8" />
                                 </svg>
                             </button>
                             <div id="state-popup" class="state-popup hidden">
                                 <div class="state-popup-header">
-                                    <span class="state-popup-title">State Management</span>
-                                    <span id="state-status" class="state-status"></span>
+                                    <span class="state-popup-title"
+                                        >State Management</span
+                                    >
+                                    <span
+                                        id="state-status"
+                                        class="state-status"
+                                    ></span>
                                 </div>
                                 <div class="state-popup-row">
                                     <div class="state-row-label">
                                         <span>Auto-Save</span>
-                                        <span class="state-row-hint">Save every 5 seconds</span>
+                                        <span class="state-row-hint"
+                                            >Save every 5 seconds</span
+                                        >
                                     </div>
                                     <label class="toggle-switch">
-                                        <input type="checkbox" id="autosave-toggle" checked />
+                                        <input
+                                            type="checkbox"
+                                            id="autosave-toggle"
+                                            checked
+                                        />
                                         <span class="toggle-slider"></span>
                                     </label>
                                 </div>
                                 <div class="state-popup-divider"></div>
                                 <div class="state-popup-actions">
-                                    <button id="btn-save-state" class="state-action-btn save-btn">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
-                                            <polyline points="17 21 17 13 7 13 7 21"/>
-                                            <polyline points="7 3 7 8 15 8"/>
+                                    <button
+                                        id="btn-save-state"
+                                        class="state-action-btn save-btn"
+                                    >
+                                        <svg
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                        >
+                                            <path
+                                                d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"
+                                            />
+                                            <polyline
+                                                points="17 21 17 13 7 13 7 21"
+                                            />
+                                            <polyline points="7 3 7 8 15 8" />
                                         </svg>
                                         <span>Save Now</span>
                                     </button>
-                                    <button id="btn-restore-state" class="state-action-btn restore-btn">
-                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                            <polyline points="1 4 1 10 7 10"/>
-                                            <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>
+                                    <button
+                                        id="btn-restore-state"
+                                        class="state-action-btn restore-btn"
+                                    >
+                                        <svg
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="2"
+                                        >
+                                            <polyline points="1 4 1 10 7 10" />
+                                            <path
+                                                d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"
+                                            />
                                         </svg>
                                         <span>Restore</span>
                                     </button>
                                 </div>
-                                <div id="state-last-saved" class="state-last-saved"></div>
+                                <div
+                                    id="state-last-saved"
+                                    class="state-last-saved"
+                                ></div>
                             </div>
                         </div>
                         <div class="sound-control-wrapper">
@@ -330,7 +399,7 @@
                                     </label>
                                 </div>
                                 <div class="sound-popup-row">
-                                    <label>Stereo</label>
+                                    <label>Mono</label>
                                     <label class="toggle-switch">
                                         <input
                                             type="checkbox"
@@ -358,8 +427,12 @@
                                 >
                                     <path d="M8 2l1.88 1.88" />
                                     <path d="M14.12 3.88L16 2" />
-                                    <path d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1" />
-                                    <path d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6" />
+                                    <path
+                                        d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"
+                                    />
+                                    <path
+                                        d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"
+                                    />
                                     <path d="M12 20v-9" />
                                     <path d="M6.53 9C4.6 8.8 3 7.1 3 5" />
                                     <path d="M6 13H2" />
@@ -463,9 +536,9 @@
                                 stroke-linecap="round"
                                 stroke-linejoin="round"
                             >
-                                <circle cx="12" cy="12" r="10"/>
-                                <line x1="12" y1="16" x2="12" y2="12"/>
-                                <line x1="12" y1="8" x2="12.01" y2="8"/>
+                                <circle cx="12" cy="12" r="10" />
+                                <line x1="12" y1="16" x2="12" y2="12" />
+                                <line x1="12" y1="8" x2="12.01" y2="8" />
                             </svg>
                         </button>
                         <button
@@ -480,9 +553,13 @@
                                 stroke="currentColor"
                                 stroke-width="2"
                             >
-                                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                                <path
+                                    d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"
+                                />
                                 <path d="M3 3v5h5" />
-                                <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+                                <path
+                                    d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"
+                                />
                                 <path d="M16 16h5v5" />
                             </svg>
                         </button>
@@ -495,11 +572,116 @@
                     <div id="monitor-frame">
                         <div class="monitor-bezel">
                             <div class="monitor-screen-wrapper">
+                                <div class="screen-window-titlebar">
+                                    <span class="screen-window-title"
+                                        >Apple //e</span
+                                    >
+                                    <div class="screen-window-controls">
+                                        <div
+                                            class="titlebar-charset-switch"
+                                            title="Character Set (US/UK)"
+                                        >
+                                            <span class="charset-label"
+                                                >US</span
+                                            >
+                                            <label class="charset-toggle">
+                                                <input
+                                                    type="checkbox"
+                                                    id="titlebar-charset-toggle"
+                                                />
+                                                <span
+                                                    class="charset-slider"
+                                                ></span>
+                                            </label>
+                                            <span class="charset-label"
+                                                >UK</span
+                                            >
+                                        </div>
+                                        <button
+                                            id="titlebar-position-btn"
+                                            class="titlebar-icon-btn hidden"
+                                            title="Custom position - Click to re-center"
+                                        >
+                                            <svg
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                            >
+                                                <circle
+                                                    cx="12"
+                                                    cy="12"
+                                                    r="3"
+                                                ></circle>
+                                                <path d="M12 2v4"></path>
+                                                <path d="M12 18v4"></path>
+                                                <path d="M2 12h4"></path>
+                                                <path d="M18 12h4"></path>
+                                            </svg>
+                                        </button>
+                                        <button
+                                            id="titlebar-size-lock-btn"
+                                            class="titlebar-icon-btn hidden"
+                                            title="Custom size - Click to reset to auto-fit"
+                                        >
+                                            <svg
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                stroke-width="2"
+                                            >
+                                                <rect
+                                                    x="3"
+                                                    y="11"
+                                                    width="18"
+                                                    height="11"
+                                                    rx="2"
+                                                    ry="2"
+                                                ></rect>
+                                                <path
+                                                    d="M7 11V7a5 5 0 0 1 10 0v4"
+                                                ></path>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                </div>
                                 <canvas id="screen"></canvas>
                                 <div class="scanlines" aria-hidden="true"></div>
                                 <div
                                     class="screen-glare"
                                     aria-hidden="true"
+                                ></div>
+                                <div
+                                    class="borderless-resize-handle n"
+                                    data-direction="n"
+                                ></div>
+                                <div
+                                    class="borderless-resize-handle e"
+                                    data-direction="e"
+                                ></div>
+                                <div
+                                    class="borderless-resize-handle s"
+                                    data-direction="s"
+                                ></div>
+                                <div
+                                    class="borderless-resize-handle w"
+                                    data-direction="w"
+                                ></div>
+                                <div
+                                    class="borderless-resize-handle nw"
+                                    data-direction="nw"
+                                ></div>
+                                <div
+                                    class="borderless-resize-handle ne"
+                                    data-direction="ne"
+                                ></div>
+                                <div
+                                    class="borderless-resize-handle sw"
+                                    data-direction="sw"
+                                ></div>
+                                <div
+                                    class="borderless-resize-handle se"
+                                    data-direction="se"
                                 ></div>
                             </div>
                             <div class="monitor-badge">
@@ -718,7 +900,9 @@
                 <span class="separator">|</span>
                 <span>Press <kbd>F1</kbd> for help</span>
                 <span class="separator">|</span>
-                <button id="btn-release-notes" class="footer-link">Release Notes</button>
+                <button id="btn-release-notes" class="footer-link">
+                    Release Notes
+                </button>
             </footer>
 
             <div id="loading">
@@ -805,7 +989,6 @@
                     </div>
                 </div>
             </dialog>
-
         </div>
 
         <script src="/a2e.js"></script>

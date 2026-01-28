@@ -50,6 +50,8 @@ export class DisplaySettingsWindow extends BaseWindow {
       ntscFringing: 67,
       // Monochrome mode (0=color, 1=green, 2=amber, 3=white)
       monochromeMode: 0,
+      // Show monitor bezel
+      showBezel: false,
     };
 
     // Current values
@@ -102,7 +104,7 @@ export class DisplaySettingsWindow extends BaseWindow {
       html += '</div>';
     }
 
-    // Rendering section with monochrome mode and sharp pixels
+    // Rendering section with monochrome mode, sharp pixels, and bezel toggle
     html += `
       <div class="settings-section">
         <div class="settings-section-title">Rendering</div>
@@ -118,6 +120,13 @@ export class DisplaySettingsWindow extends BaseWindow {
           <label>Sharp Pixels</label>
           <label class="toggle">
             <input type="checkbox" id="ds-sharpPixels" ${this.settings.sharpPixels ? 'checked' : ''}>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="setting-row toggle-row">
+          <label>Show Bezel</label>
+          <label class="toggle">
+            <input type="checkbox" id="ds-showBezel" ${this.settings.showBezel ? 'checked' : ''}>
             <span class="toggle-slider"></span>
           </label>
         </div>
@@ -187,6 +196,16 @@ export class DisplaySettingsWindow extends BaseWindow {
         if (this.renderer) {
           this.renderer.setNearestFilter(this.settings.sharpPixels);
         }
+        this.saveSettings();
+      });
+    }
+
+    // Show bezel toggle
+    const bezelToggle = this.contentElement.querySelector('#ds-showBezel');
+    if (bezelToggle) {
+      bezelToggle.addEventListener('change', (e) => {
+        this.settings.showBezel = e.target.checked;
+        this.applyBezelSetting();
         this.saveSettings();
       });
     }
@@ -275,8 +294,25 @@ export class DisplaySettingsWindow extends BaseWindow {
       this.renderer.setNearestFilter(this.settings.sharpPixels);
     }
 
+    // Apply bezel setting
+    const bezelToggle = this.contentElement.querySelector('#ds-showBezel');
+    if (bezelToggle) {
+      bezelToggle.checked = this.settings.showBezel;
+    }
+    this.applyBezelSetting();
+
     // Apply NTSC fringing settings (shader-based)
     this.applyNTSCSettings();
+  }
+
+  applyBezelSetting() {
+    if (this.settings.showBezel) {
+      document.body.classList.remove('borderless-mode');
+    } else {
+      document.body.classList.add('borderless-mode');
+    }
+    // Trigger resize to adjust screen to new available space
+    window.dispatchEvent(new Event('resize'));
   }
 
   resetToDefaults() {

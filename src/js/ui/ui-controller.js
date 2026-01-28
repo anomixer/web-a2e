@@ -295,21 +295,35 @@ export class UIController {
       });
     }
 
-    // Character set toggle (UK/US)
-    if (charsetToggle) {
-      const savedCharset = localStorage.getItem("a2e-charset");
-      if (savedCharset === "uk") {
-        charsetToggle.checked = false;
-        this.wasmModule._setUKCharacterSet(true);
-      } else {
-        charsetToggle.checked = true;
-        this.wasmModule._setUKCharacterSet(false);
-      }
+    // Character set toggle (UK/US) - both bezel and title bar versions
+    const titlebarCharsetToggle = document.getElementById("titlebar-charset-toggle");
 
+    const syncCharsetToggles = (isUK) => {
+      this.wasmModule._setUKCharacterSet(isUK);
+      localStorage.setItem("a2e-charset", isUK ? "uk" : "us");
+      // Sync both toggles
+      if (charsetToggle) charsetToggle.checked = !isUK;
+      if (titlebarCharsetToggle) titlebarCharsetToggle.checked = !isUK;
+    };
+
+    // Initialize from saved setting
+    const savedCharset = localStorage.getItem("a2e-charset");
+    const isUKInitial = savedCharset === "uk";
+    this.wasmModule._setUKCharacterSet(isUKInitial);
+    if (charsetToggle) charsetToggle.checked = !isUKInitial;
+    if (titlebarCharsetToggle) titlebarCharsetToggle.checked = !isUKInitial;
+
+    // Bezel toggle listener
+    if (charsetToggle) {
       charsetToggle.addEventListener("change", (e) => {
-        const isUK = !e.target.checked;
-        this.wasmModule._setUKCharacterSet(isUK);
-        localStorage.setItem("a2e-charset", isUK ? "uk" : "us");
+        syncCharsetToggles(!e.target.checked);
+      });
+    }
+
+    // Title bar toggle listener
+    if (titlebarCharsetToggle) {
+      titlebarCharsetToggle.addEventListener("change", (e) => {
+        syncCharsetToggles(!e.target.checked);
       });
     }
   }

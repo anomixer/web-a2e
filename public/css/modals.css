@@ -89,7 +89,7 @@
 /* Power reminder */
 .power-reminder {
     position: fixed;
-    z-index: 999;
+    z-index: 10001;
     pointer-events: none;
     animation:
         reminderFloat 3s ease-in-out infinite,
@@ -206,7 +206,7 @@
 /* Floating reminders (resize, drives toggle) */
 .floating-reminder {
     position: fixed;
-    z-index: 999;
+    z-index: 10001;
     pointer-events: none;
     animation:
         reminderFloat 3s ease-in-out infinite,
