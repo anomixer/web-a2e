@@ -622,6 +622,76 @@ body.borderless-mode #monitor-frame {
     height: 100%;
 }
 
+/* Charset switch in screen window header */
+.screen-window-charset-switch {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+    margin-right: 8px;
+}
+
+.screen-window-charset-switch .charset-label {
+    font-size: 9px;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.4);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    transition: color 0.2s;
+}
+
+.screen-window-charset-switch:has(#screen-window-charset-toggle:not(:checked)) .charset-label:first-of-type,
+.screen-window-charset-switch:has(#screen-window-charset-toggle:checked) .charset-label:last-of-type {
+    color: var(--accent-green);
+}
+
+.screen-window-charset-switch .charset-toggle {
+    position: relative;
+    display: inline-block;
+    width: 24px;
+    height: 14px;
+    cursor: pointer;
+}
+
+.screen-window-charset-switch .charset-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.screen-window-charset-switch .charset-slider {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 7px;
+    transition: all 0.2s;
+}
+
+.screen-window-charset-switch .charset-slider::before {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 8px;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 50%;
+    transition: all 0.2s;
+}
+
+.screen-window-charset-switch .charset-toggle input:checked + .charset-slider {
+    border-color: var(--accent-green-dim);
+}
+
+.screen-window-charset-switch .charset-toggle input:checked + .charset-slider::before {
+    transform: translateX(10px);
+    background: var(--accent-green);
+}
+
+.screen-window-charset-switch .charset-toggle:hover .charset-slider {
+    border-color: rgba(255, 255, 255, 0.4);
+}
 
 /* Exit hint overlay */
 .full-page-exit-hint {

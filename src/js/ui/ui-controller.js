@@ -292,11 +292,14 @@ export class UIController {
       });
     }
 
-    // Character set toggle (UK/US) - bezel version
-    const syncCharsetToggle = (isUK) => {
+    // Character set toggle (UK/US) - bezel and screen window header versions
+    const screenWindowCharsetToggle = document.getElementById("screen-window-charset-toggle");
+
+    const syncCharsetToggles = (isUK) => {
       this.wasmModule._setUKCharacterSet(isUK);
       localStorage.setItem("a2e-charset", isUK ? "uk" : "us");
       if (charsetToggle) charsetToggle.checked = !isUK;
+      if (screenWindowCharsetToggle) screenWindowCharsetToggle.checked = !isUK;
     };
 
     // Initialize from saved setting
@@ -304,11 +307,19 @@ export class UIController {
     const isUKInitial = savedCharset === "uk";
     this.wasmModule._setUKCharacterSet(isUKInitial);
     if (charsetToggle) charsetToggle.checked = !isUKInitial;
+    if (screenWindowCharsetToggle) screenWindowCharsetToggle.checked = !isUKInitial;
 
     // Bezel toggle listener
     if (charsetToggle) {
       charsetToggle.addEventListener("change", (e) => {
-        syncCharsetToggle(!e.target.checked);
+        syncCharsetToggles(!e.target.checked);
+      });
+    }
+
+    // Screen window header toggle listener
+    if (screenWindowCharsetToggle) {
+      screenWindowCharsetToggle.addEventListener("change", (e) => {
+        syncCharsetToggles(!e.target.checked);
       });
     }
   }

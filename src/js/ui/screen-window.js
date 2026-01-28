@@ -27,6 +27,34 @@ export class ScreenWindow extends BaseWindow {
   }
 
   /**
+   * After create(), inject the charset toggle into the header.
+   */
+  onContentRendered() {
+    const closeBtn = this.headerElement.querySelector('.debug-window-close');
+    if (!closeBtn) return;
+
+    const charsetSwitch = document.createElement('div');
+    charsetSwitch.className = 'screen-window-charset-switch';
+    charsetSwitch.title = 'Character Set (US/UK)';
+    charsetSwitch.innerHTML = `
+      <span class="charset-label">US</span>
+      <label class="charset-toggle">
+        <input type="checkbox" id="screen-window-charset-toggle" />
+        <span class="charset-slider"></span>
+      </label>
+      <span class="charset-label">UK</span>
+    `;
+
+    // Insert before the close button
+    this.headerElement.insertBefore(charsetSwitch, closeBtn);
+
+    // Prevent charset switch clicks from starting a window drag
+    charsetSwitch.addEventListener('mousedown', (e) => {
+      e.stopPropagation();
+    });
+  }
+
+  /**
    * Move #screen canvas from bezel into this window's content area.
    */
   attachCanvas() {
