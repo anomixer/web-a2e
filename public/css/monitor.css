@@ -542,6 +542,11 @@ body.full-page-mode #monitor-frame {
     justify-content: center;
 }
 
+/* Override borderless-mode hiding of monitor-frame during full-page mode */
+body.full-page-mode.borderless-mode #monitor-frame {
+    display: flex;
+}
+
 body.full-page-mode .monitor-bezel {
     padding: 0;
     border-radius: 0;
