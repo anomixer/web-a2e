@@ -186,13 +186,15 @@ export class BaseWindow {
     let x = e.clientX - this.dragOffset.x;
     let y = e.clientY - this.dragOffset.y;
 
-    // Get header height to prevent dragging under it
+    // Get header and footer heights to prevent dragging under/over them
     const header = document.querySelector('header');
+    const footer = document.querySelector('footer');
     const minY = header ? header.offsetHeight : 0;
+    const footerHeight = footer ? footer.offsetHeight : 0;
 
-    // Keep window on screen and below header
+    // Keep window on screen, below header, and above footer
     const maxX = window.innerWidth - this.element.offsetWidth;
-    const maxY = window.innerHeight - this.element.offsetHeight;
+    const maxY = window.innerHeight - footerHeight - this.element.offsetHeight;
     x = Math.max(0, Math.min(x, maxX));
     y = Math.max(minY, Math.min(y, maxY));
 
@@ -262,6 +264,13 @@ export class BaseWindow {
     const dy = e.clientY - this.resizeStart.y;
     const dir = this.resizeDirection;
 
+    // Get header and footer heights for bounds checking
+    const header = document.querySelector('header');
+    const footer = document.querySelector('footer');
+    const minTop = header ? header.offsetHeight : 0;
+    const footerHeight = footer ? footer.offsetHeight : 0;
+    const maxBottom = window.innerHeight - footerHeight;
+
     let newWidth = this.resizeStart.width;
     let newHeight = this.resizeStart.height;
     let newLeft = this.resizeStart.left;
@@ -289,14 +298,14 @@ export class BaseWindow {
       }
     }
 
-    // Keep on screen
+    // Keep on screen (respect header and footer)
     newLeft = Math.max(0, newLeft);
-    newTop = Math.max(0, newTop);
+    newTop = Math.max(minTop, newTop);
     if (newLeft + newWidth > window.innerWidth) {
       newWidth = window.innerWidth - newLeft;
     }
-    if (newTop + newHeight > window.innerHeight) {
-      newHeight = window.innerHeight - newTop;
+    if (newTop + newHeight > maxBottom) {
+      newHeight = maxBottom - newTop;
     }
 
     this.element.style.width = `${newWidth}px`;
@@ -416,9 +425,12 @@ export class BaseWindow {
     const width = this.currentWidth;
     const height = this.currentHeight;
 
-    // Get header height to prevent windows going under it
+    // Get header and footer heights to prevent windows going under/over them
     const header = document.querySelector('header');
+    const footer = document.querySelector('footer');
     const minTop = header ? header.offsetHeight : 0;
+    const footerHeight = footer ? footer.offsetHeight : 0;
+    const maxBottom = viewportHeight - footerHeight;
 
     let newLeft = this.currentX;
     let newTop = this.currentY;
@@ -435,7 +447,7 @@ export class BaseWindow {
 
     // If window was on the bottom side, maintain distance from bottom edge
     if (this.distanceFromBottom !== null) {
-      const targetTop = viewportHeight - height - this.distanceFromBottom;
+      const targetTop = maxBottom - height - this.distanceFromBottom;
       if (targetTop !== newTop) {
         newTop = targetTop;
         changed = true;
@@ -454,11 +466,11 @@ export class BaseWindow {
       changed = true;
     }
 
-    if (height >= viewportHeight - minTop) {
+    if (height >= maxBottom - minTop) {
       newTop = minTop;
       changed = true;
-    } else if (newTop + height > viewportHeight) {
-      newTop = viewportHeight - height;
+    } else if (newTop + height > maxBottom) {
+      newTop = maxBottom - height;
       changed = true;
     } else if (newTop < minTop) {
       newTop = minTop;

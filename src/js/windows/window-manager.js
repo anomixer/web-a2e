@@ -6,6 +6,17 @@ export class WindowManager {
     this.windows = new Map();
     this.highestZIndex = 1000;
     this.storageKey = 'a2e-debug-windows';
+
+    // Bind and set up window resize listener to keep windows in viewport
+    this.handleWindowResize = this.handleWindowResize.bind(this);
+    window.addEventListener('resize', this.handleWindowResize);
+  }
+
+  /**
+   * Handle browser window resize - constrain all windows to viewport
+   */
+  handleWindowResize() {
+    this.constrainAllToViewport();
   }
 
   /**

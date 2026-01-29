@@ -234,6 +234,13 @@ export class DiskDrivesWindow extends BaseWindow {
     const dy = e.clientY - this.resizeStart.y;
     const dir = this.resizeDirection;
 
+    // Get header and footer heights for bounds checking
+    const header = document.querySelector('header');
+    const footer = document.querySelector('footer');
+    const minTop = header ? header.offsetHeight : 0;
+    const footerHeight = footer ? footer.offsetHeight : 0;
+    const maxBottom = window.innerHeight - footerHeight;
+
     let newWidth = this.resizeStart.width;
     let newLeft = this.resizeStart.left;
     let newTop = this.resizeStart.top;
@@ -276,10 +283,10 @@ export class DiskDrivesWindow extends BaseWindow {
       newTop = this.resizeStart.top + this.resizeStart.height - newHeight;
     }
 
-    // Clamp vertically
-    newTop = Math.max(0, newTop);
-    if (newTop + newHeight > window.innerHeight) {
-      newHeight = window.innerHeight - newTop;
+    // Clamp vertically (respect header and footer)
+    newTop = Math.max(minTop, newTop);
+    if (newTop + newHeight > maxBottom) {
+      newHeight = maxBottom - newTop;
     }
 
     this.element.style.width = `${newWidth}px`;
