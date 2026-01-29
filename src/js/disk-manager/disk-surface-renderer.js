@@ -14,7 +14,7 @@ const TRACK_INNER = HUB_RING_OUTER + 4; // innermost track position (just outsid
 const NUM_TRACKS = 35;
 const NUM_SECTORS = 16;
 const TRACK_RANGE = TRACK_OUTER - TRACK_INNER;
-const INDEX_HOLE_RADIUS = 2;
+const INDEX_HOLE_RADIUS = 4;
 const INDEX_HOLE_DIST = (HUB_RING_INNER + HUB_RING_OUTER) / 2; // centered in hub ring
 const RPM_RAD_PER_MS = Math.PI / 100; // 300 RPM
 const PX_RATIO = 2; // backing store scale for sharper rendering
@@ -264,9 +264,9 @@ export class DiskSurfaceRenderer {
 
     ctx.beginPath();
     ctx.arc(hx, hy, INDEX_HOLE_RADIUS, 0, Math.PI * 2);
-    ctx.fillStyle = '#161b22';
+    ctx.fillStyle = 'rgba(200,30,30,0.9)';
     ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.strokeStyle = 'rgba(120,10,10,0.6)';
     ctx.lineWidth = 0.5;
     ctx.stroke();
   }
