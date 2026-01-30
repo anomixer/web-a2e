@@ -240,6 +240,7 @@ export class BaseWindow {
    * Start resizing the window
    */
   startResize(e, direction) {
+    if (this.onFocus) this.onFocus(this.id);
     this.isResizing = true;
     this.resizeDirection = direction;
     this.element.classList.add("resizing");
