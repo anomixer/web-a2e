@@ -130,10 +130,21 @@ export class UIController {
         this.screenWindow.attachCanvas();
       }
 
+      // Restore windows that were visible before entering full page mode
+      if (this._windowsBeforeFullPage) {
+        for (const id of this._windowsBeforeFullPage) {
+          this.windowManager.showWindow(id);
+        }
+        this._windowsBeforeFullPage = null;
+      }
+
       this.refocusCanvas();
     };
 
     const enterFullPageMode = () => {
+      // Remember which windows are visible before hiding them
+      this._windowsBeforeFullPage = this.windowManager.getVisibleWindowIds();
+
       // Detach canvas from ScreenWindow into monitor-frame for full-page rendering
       if (this.screenWindow && this.screenWindow.isVisible) {
         this.screenWindow.detachCanvas();
