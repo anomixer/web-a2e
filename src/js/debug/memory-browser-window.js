@@ -40,10 +40,11 @@ export class MemoryBrowserWindow extends BaseWindow {
     super({
       id: "memory-browser",
       title: "Memory Browser",
-      defaultWidth: 520,
+      defaultWidth: 600,
       defaultHeight: 520,
-      minWidth: 400,
+      minWidth: 600,
       minHeight: 300,
+      maxWidth: 600,
       defaultPosition: { x: 150, y: 150 },
     });
     this.wasmModule = wasmModule;
@@ -53,7 +54,6 @@ export class MemoryBrowserWindow extends BaseWindow {
     this.previousMemory = new Uint8Array(65536);
     this.changedBytes = new Set();
     this.changeTimestamps = new Map();
-    this.editingAddress = null;
   }
 
   renderContent() {
@@ -62,7 +62,7 @@ export class MemoryBrowserWindow extends BaseWindow {
         <div class="mem-browser-jumps">
           ${QUICK_JUMPS.map(
             (j) =>
-              `<button class="mem-jump-btn" data-addr="${j.addr}" title="${j.title}">${j.label}</button>`
+              `<button class="mem-jump-btn" data-addr="${j.addr}" title="${j.title}">${j.label}</button>`,
           ).join("")}
         </div>
         <div class="mem-browser-nav">
@@ -70,13 +70,17 @@ export class MemoryBrowserWindow extends BaseWindow {
           <button class="mem-go-btn" title="Go to address">Go</button>
           <input type="text" class="mem-search-input" placeholder="Search hex" maxlength="16" />
           <button class="mem-search-btn" title="Search for bytes">Find</button>
+          <button class="mem-refresh-btn" title="Refresh memory view">Refresh</button>
         </div>
       </div>
       <div class="mem-browser-region">Region: <span class="mem-region-name">Zero Page</span></div>
       <div class="mem-browser-header">
         <span class="mem-addr-col">Addr</span>
-        ${Array.from({ length: 16 }, (_, i) => `<span class="mem-hex-hdr">${i.toString(16).toUpperCase()}</span>`).join("")}
+        <span class="mem-hdr-separator">:</span>
+        <span class="mem-hdr-bytes">${Array.from({ length: 16 }, (_, i) => i.toString(16).toUpperCase().padStart(2, "0")).join(" ")} </span>
+        <span class="mem-ascii-sep">&nbsp;</span>
         <span class="mem-ascii-hdr">ASCII</span>
+        <span class="mem-ascii-sep">&nbsp;</span>
       </div>
       <div class="mem-browser-scroll-container">
         <div class="mem-browser-content"></div>
@@ -92,13 +96,12 @@ export class MemoryBrowserWindow extends BaseWindow {
   onContentRendered() {
     this.contentDiv = this.contentElement.querySelector(".mem-browser-content");
     this.scrollContainer = this.contentElement.querySelector(
-      ".mem-browser-scroll-container"
+      ".mem-browser-scroll-container",
     );
     this.scrollbarThumb = this.contentElement.querySelector(
-      ".mem-scrollbar-thumb"
+      ".mem-scrollbar-thumb",
     );
-    this.regionNameSpan =
-      this.contentElement.querySelector(".mem-region-name");
+    this.regionNameSpan = this.contentElement.querySelector(".mem-region-name");
     this.addrInput = this.contentElement.querySelector(".mem-addr-input");
     this.searchInput = this.contentElement.querySelector(".mem-search-input");
 
@@ -108,11 +111,15 @@ export class MemoryBrowserWindow extends BaseWindow {
 
   setupScrolling() {
     // Mouse wheel scrolling - explicitly non-passive since we need preventDefault()
-    this.scrollContainer.addEventListener("wheel", (e) => {
-      e.preventDefault();
-      const delta = Math.sign(e.deltaY) * this.bytesPerRow * 4;
-      this.scrollToAddress(this.baseAddress + delta);
-    }, { passive: false });
+    this.scrollContainer.addEventListener(
+      "wheel",
+      (e) => {
+        e.preventDefault();
+        const delta = Math.sign(e.deltaY) * this.bytesPerRow * 4;
+        this.scrollToAddress(this.baseAddress + delta);
+      },
+      { passive: false },
+    );
 
     // Scrollbar dragging
     let isDragging = false;
@@ -134,7 +141,7 @@ export class MemoryBrowserWindow extends BaseWindow {
       const deltaY = e.clientY - dragStartY;
       const maxAddress = 0x10000 - this.bytesPerRow * this.visibleRows;
       const newAddr = Math.round(
-        dragStartAddr + (deltaY / trackHeight) * maxAddress
+        dragStartAddr + (deltaY / trackHeight) * maxAddress,
       );
       this.scrollToAddress(newAddr);
     });
@@ -192,6 +199,13 @@ export class MemoryBrowserWindow extends BaseWindow {
       }
     });
 
+    // Refresh button
+    this.contentElement
+      .querySelector(".mem-refresh-btn")
+      .addEventListener("click", () => {
+        this.forceRefresh = true;
+      });
+
     // Byte click to edit
     this.contentDiv.addEventListener("click", (e) => {
       const byteSpan = e.target.closest(".mem-byte");
@@ -244,8 +258,14 @@ export class MemoryBrowserWindow extends BaseWindow {
   scrollToAddress(addr) {
     // Align to row boundary and clamp
     addr = Math.floor(addr / this.bytesPerRow) * this.bytesPerRow;
-    addr = Math.max(0, Math.min(addr, 0x10000 - this.bytesPerRow * this.visibleRows));
-    this.baseAddress = addr;
+    addr = Math.max(
+      0,
+      Math.min(addr, 0x10000 - this.bytesPerRow * this.visibleRows),
+    );
+    if (addr !== this.baseAddress) {
+      this.baseAddress = addr;
+      this.forceRefresh = true;
+    }
     this.updateScrollbar();
     this.updateRegionName();
   }
@@ -254,7 +274,7 @@ export class MemoryBrowserWindow extends BaseWindow {
     const maxAddress = 0x10000 - this.bytesPerRow * this.visibleRows;
     const thumbHeight = Math.max(
       20,
-      (this.visibleRows * this.bytesPerRow * 100) / 65536
+      (this.visibleRows * this.bytesPerRow * 100) / 65536,
     );
     const thumbPosition = (this.baseAddress / maxAddress) * (100 - thumbHeight);
     this.scrollbarThumb.style.height = `${thumbHeight}%`;
@@ -276,7 +296,7 @@ export class MemoryBrowserWindow extends BaseWindow {
     const currentValue = this.wasmModule._peekMemory(addr);
     const newValueStr = prompt(
       `Edit $${this.formatHex(addr, 4)}\nCurrent value: $${this.formatHex(currentValue, 2)}`,
-      this.formatHex(currentValue, 2)
+      this.formatHex(currentValue, 2),
     );
     if (newValueStr !== null) {
       const newValue = parseInt(newValueStr, 16);
@@ -297,58 +317,64 @@ export class MemoryBrowserWindow extends BaseWindow {
 
   update(wasmModule) {
     if (!this.isVisible || !this.contentDiv) return;
+    if (!wasmModule._isPaused() && !this.forceRefresh) return;
+    this.forceRefresh = false;
 
     const now = Date.now();
-    const fadeTime = 1000; // Changed bytes highlight fade time
+    const fadeTime = 1000;
 
-    // Build the memory view
     let html = "";
     for (let row = 0; row < this.visibleRows; row++) {
       const rowAddr = this.baseAddress + row * this.bytesPerRow;
       if (rowAddr >= 0x10000) break;
 
-      html += `<div class="mem-row"><span class="mem-addr">${this.formatAddr(rowAddr)}</span>`;
+      html += `<div class="mem-row"><span class="mem-addr">${this.formatAddr(rowAddr)}</span><span class="mem-separator">:</span>`;
 
       // Hex bytes
       for (let col = 0; col < this.bytesPerRow; col++) {
+        if (col === 8) html += " ";
+
         const addr = rowAddr + col;
         if (addr >= 0x10000) break;
 
         const value = wasmModule._peekMemory(addr);
         const prevValue = this.previousMemory[addr];
 
-        // Track changes
         if (value !== prevValue) {
           this.changedBytes.add(addr);
           this.changeTimestamps.set(addr, now);
           this.previousMemory[addr] = value;
         }
 
-        // Check if recently changed
-        let changeClass = "";
+        let byteClass = "mem-byte";
+        if (value === 0x00) {
+          byteClass += " mem-zero";
+        } else if (value >= 0x20 && value < 0x7f) {
+          byteClass += " mem-printable";
+        } else if (value >= 0x80) {
+          byteClass += " mem-highbit";
+        }
+
         if (this.changeTimestamps.has(addr)) {
           const elapsed = now - this.changeTimestamps.get(addr);
           if (elapsed < fadeTime) {
-            changeClass = " changed";
+            byteClass += " changed";
           } else {
             this.changeTimestamps.delete(addr);
           }
         }
 
-        const nonZeroClass = value !== 0 ? " non-zero" : "";
-        html += `<span class="mem-byte${changeClass}${nonZeroClass}" data-addr="${addr}">${this.formatHex(value, 2)}</span>`;
+        html += `<span class="${byteClass}" data-addr="${addr}">${this.formatHex(value, 2)}</span>`;
       }
 
-      // ASCII representation
+      // ASCII
       html += '<span class="mem-ascii">';
       for (let col = 0; col < this.bytesPerRow; col++) {
         const addr = rowAddr + col;
         if (addr >= 0x10000) break;
-
         const value = wasmModule._peekMemory(addr);
-        const char =
-          value >= 0x20 && value < 0x7f ? String.fromCharCode(value) : ".";
-        html += char;
+        const ch = value & 0x7f;
+        html += ch >= 0x20 && ch < 0x7f ? String.fromCharCode(ch) : ".";
       }
       html += "</span></div>";
     }
