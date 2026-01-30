@@ -31,6 +31,10 @@ ctest --verbose
 
 Test executables: `klaus_6502_test` (6502), `klaus_65c02_test` (65C02 extended opcodes)
 
+### Thunderclock Tests
+
+Native C++ tests for Thunderclock card emulation (`tests/thunderclock/`). Built and run via the same native CMake build above.
+
 ### Integration Tests
 
 Ad-hoc JavaScript tests for disk, memory, and boot debugging (`tests/integration/`). Run with Node.js:
@@ -50,20 +54,28 @@ GCR (Group Code Recording) encoding tests (`tests/gcr/`). Native C++ tests for d
 **C++ Core (src/core/)** - Pure emulation logic compiled to WebAssembly:
 - `cpu/cpu6502.cpp` - Cycle-accurate 65C02 processor
 - `mmu/mmu.cpp` - 128KB memory management, soft switches ($C000-$CFFF), expansion slots
-- `video/video.cpp` - TEXT/LORES/HIRES/DHIRES rendering
+- `video/video.cpp` - TEXT/LORES/HIRES/DHIRES per-scanline rendering
 - `audio/audio.cpp` - Speaker emulation from $C030 toggles
-- `disk/disk2.cpp` - Disk II controller (DSK/DO/PO/NIB/WOZ formats)
-- `mockingboard/` - AY-3-8910 sound card + VIA 6522 timer
+- `disk-image/` - Disk image format support (DSK/DO/PO/WOZ) with GCR encoding
+- `disassembler/` - 65C02 instruction disassembler
+- `input/keyboard.cpp` - Keyboard input handling
 - `cards/` - Pluggable expansion card system (ExpansionCard interface)
+- `cards/mockingboard/` - AY-3-8910 sound chip + VIA 6522 timer
 - `emulator.cpp` - Core coordinator, state serialization
 
 **JavaScript Layer (src/js/)** - Browser integration:
 - `main.js` - AppleIIeEmulator class orchestrating all subsystems
-- `webgl-renderer.js` - WebGL display with CRT shader effects
-- `audio-driver.js` - Web Audio API with AudioWorklet timing
-- `disk-manager/` - Disk drive UI, persistence, operations
-- `file-explorer/` - DOS 3.3 and ProDOS disk browser
-- `debug/` - CPU debugger, memory browser, heat map, Mockingboard windows
+- `audio/` - Web Audio API driver and AudioWorklet
+- `display/` - WebGL renderer with CRT shader effects
+- `disk-manager/` - Disk drive UI, persistence, surface rendering, drive sounds
+- `file-explorer/` - DOS 3.3 and ProDOS disk browser with disassembler
+- `debug/` - Debug window implementations (see Debugging section)
+- `ui/` - UI controls, display settings, slot configuration, joystick, screen window
+- `input/` - Keyboard input and text selection
+- `state/` - State serialization and persistence
+- `config/` - Version and release notes
+- `utils/` - Shared utilities (storage, string, BASIC)
+- `windows/` - Base window class and window manager
 
 ### Audio-Driven Timing
 
@@ -93,33 +105,47 @@ Single global `Emulator` instance in C++ (`wasm_interface.cpp`). JS allocates WA
 
 **ROM files** are embedded into WASM at compile time. Place in `roms/` directory before building:
 - `342-0349-B-C0-FF.bin` (16KB system ROM)
-- `342-0273-A-US-UK.bin` (4KB character ROM)
+- `342-0273-A-US-UK.bin` (4KB character ROM, US/UK)
+- `341-0160-A-US-UK.bin` (alternate character ROM variant)
 - `341-0027.bin` (256 bytes Disk II ROM)
+- `Thunderclock Plus ROM.bin` (2KB Thunderclock card ROM)
 
 ## Code Organization
 
 ```
 src/
-├── core/           # C++ emulator (namespace a2e::)
-├── bindings/       # wasm_interface.cpp - WASM export glue
-└── js/             # ES6 modules, no framework
+├── core/               # C++ emulator (namespace a2e::)
+│   ├── cpu/            # 65C02 processor
+│   ├── mmu/            # Memory management and soft switches
+│   ├── video/          # Per-scanline video rendering
+│   ├── audio/          # Speaker audio
+│   ├── disk-image/     # Disk image formats (DSK/WOZ) and GCR encoding
+│   ├── disassembler/   # 65C02 disassembler
+│   ├── input/          # Keyboard handling
+│   ├── cards/          # Expansion card system
+│   │   └── mockingboard/  # AY-3-8910 + VIA 6522
+│   ├── emulator.cpp    # Core coordinator
+│   └── types.hpp       # Shared constants and types
+├── bindings/           # wasm_interface.cpp - WASM export glue
+└── js/                 # ES6 modules, no framework
     ├── main.js         # Entry point, AppleIIeEmulator class
     ├── audio/          # Web Audio API driver and worklet
     ├── config/         # Version and release notes
     ├── debug/          # Debug window implementations
-    ├── disk-manager/   # Disk drive operations and persistence
+    ├── disk-manager/   # Disk drive operations, persistence, surface rendering
     ├── display/        # WebGL renderer with CRT effects
-    ├── file-explorer/  # DOS 3.3 and ProDOS file browser
+    ├── file-explorer/  # DOS 3.3 and ProDOS file browser, disassembler
     ├── input/          # Keyboard input and text selection
     ├── state/          # State serialization and persistence
-    ├── ui/             # UI controls and non-debug windows
+    ├── ui/             # UI controls, display settings, slot config, joystick
     ├── utils/          # Shared utilities (storage, string, BASIC)
     └── windows/        # Base window class and window manager
-public/             # Static assets, built WASM files
+public/                 # Static assets, built WASM files, shaders
 tests/
-├── klaus/          # Klaus Dormann CPU compliance tests
-├── integration/    # JS integration/debug tests
-└── gcr/            # GCR encoding tests
+├── klaus/              # Klaus Dormann CPU compliance tests
+├── thunderclock/       # Thunderclock card tests
+├── integration/        # JS integration/debug tests
+└── gcr/                # GCR encoding tests
 ```
 
 ### File Naming Convention
@@ -138,7 +164,7 @@ The MMU supports pluggable expansion cards matching real Apple IIe hardware. Car
 | 2 | $C0A0-$C0AF | $C200-$C2FF | Serial |
 | 3 | $C0B0-$C0BF | $C300-$C3FF | 80-column (built-in) |
 | 4 | $C0C0-$C0CF | $C400-$C4FF | Mockingboard |
-| 5 | $C0D0-$C0DF | $C500-$C5FF | Hard drive |
+| 5 | $C0D0-$C0DF | $C500-$C5FF | Thunderclock |
 | 6 | $C0E0-$C0EF | $C600-$C6FF | Disk II |
 | 7 | $C0F0-$C0FF | $C700-$C7FF | ProDOS RAM disk |
 
@@ -159,27 +185,27 @@ class ExpansionCard {
 ### Available Cards
 
 - `Disk2Card` - Wraps Disk2Controller (slot 6)
-- `MockingboardCard` - Wraps Mockingboard (slot 4)
-
-### Legacy Mode
-
-The emulator currently uses direct peripheral connections for backward compatibility:
-```cpp
-mmu_->setDiskController(disk_.get());
-mmu_->setMockingboard(mockingboard_.get());
-```
-
-To migrate to the card system, use `mmu_->insertCard(slot, card)` instead.
+- `MockingboardCard` - Wraps Mockingboard AY-3-8910 + VIA 6522 (slot 4)
+- `ThunderclockCard` - ProDOS-compatible real-time clock (slot 5)
 
 ## State Serialization
 
-Binary format with versioned header. Includes CPU state, 128KB RAM, Language Card (16KB), soft switches, disk images with modifications, and filenames. Stored in browser IndexedDB.
+Binary format with versioned header. Includes CPU state, 128KB RAM, Language Card (16KB), soft switches, disk images with modifications, and filenames. Stored in browser IndexedDB. Window option state (toggles, view modes, mute states) is persisted separately via localStorage.
+
+## Git Commits
+
+Do not add `Co-Authored-By` or any other attribution lines for Claude in commit messages.
 
 ## Debugging
 
 Built-in debug windows accessible via Debug menu:
 - CPU Debugger: registers, breakpoints, stepping, disassembly with symbols
 - Memory Browser: hex/ASCII view of 128KB address space
-- Memory Heat Map: real-time memory access visualization
+- Memory Heat Map: real-time memory access visualization (read/write/combined modes)
+- Memory Map: address space layout overview
+- Stack Viewer: live stack contents
+- Zero Page Watch: monitor zero page locations with predefined and custom watches
 - Soft Switch Monitor: Apple II switch states
-- Mockingboard: AY-3-8910 and VIA register inspection
+- Mockingboard Detail: AY-3-8910 and VIA register inspection
+- Mockingboard Scope: per-channel waveforms, level meters, and mute controls
+- BASIC Program Viewer: list BASIC programs from memory

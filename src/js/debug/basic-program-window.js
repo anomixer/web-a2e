@@ -2,7 +2,6 @@
  * BasicProgramWindow - Window for loading BASIC programs directly into memory
  */
 import { BaseWindow } from "../windows/base-window.js";
-import { tokenizeLine, BASIC_POINTERS } from "../utils/basic-tokens.js";
 import { highlightBasicSource } from "../utils/basic-highlighting.js";
 import { BasicAutocomplete } from "../utils/basic-autocomplete.js";
 
@@ -136,72 +135,33 @@ Example:
   }
 
   /**
-   * Load the BASIC program directly into memory
+   * Load the BASIC program by typing it through the emulator's keyboard input.
+   * This uses Applesoft's own ROM routines for tokenization, line insertion,
+   * pointer management, and interpreter state — guaranteeing correctness.
    */
   loadIntoMemory() {
     const text = this.textarea.value;
     if (!text.trim()) return;
 
-    // Parse the program
+    // Parse the program to get valid, sorted lines
     const lines = this.parseProgram(text);
     if (lines.length === 0) {
       console.warn("No valid BASIC lines found");
       return;
     }
 
-    // Get the program start address from TXTTAB (usually $0801)
-    const progStart = this.readWord(BASIC_POINTERS.TXTTAB);
-    let addr = progStart;
-
-    // First pass: calculate all line addresses
-    const lineAddresses = [];
-    let tempAddr = progStart;
+    // Build text to type: NEW clears any existing program, then each line
+    let inputText = "NEW\r";
     for (const line of lines) {
-      lineAddresses.push(tempAddr);
-      const tokenized = tokenizeLine(line.content);
-      // 2 (next-ptr) + 2 (line-num) + content + 1 (terminator)
-      tempAddr += 4 + tokenized.length + 1;
-    }
-    // Address of end marker
-    const endMarkerAddr = tempAddr;
-
-    // Second pass: write the program
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      const tokenized = tokenizeLine(line.content);
-
-      // Next line pointer: points to next line, or to end marker for last line
-      const nextAddr = (i < lines.length - 1) ? lineAddresses[i + 1] : endMarkerAddr;
-      this.writeWord(addr, nextAddr);
-      addr += 2;
-
-      // Write line number
-      this.writeWord(addr, line.lineNumber);
-      addr += 2;
-
-      // Write tokenized content
-      for (const byte of tokenized) {
-        this.wasmModule._writeMemory(addr, byte);
-        addr++;
+      if (line.content) {
+        inputText += `${line.lineNumber} ${line.content}\r`;
       }
-
-      // Write line terminator
-      this.wasmModule._writeMemory(addr, 0x00);
-      addr++;
     }
 
-    // Write end-of-program marker ($0000)
-    this.writeWord(addr, 0x0000);
-    addr += 2;
+    // Type through the emulator's keyboard input system
+    this.inputHandler.queueTextInput(inputText);
 
-    // Update Applesoft pointers - VARTAB points after the end marker
-    this.writeWord(BASIC_POINTERS.VARTAB, addr);
-    this.writeWord(BASIC_POINTERS.ARYTAB, addr);
-    this.writeWord(BASIC_POINTERS.STREND, addr);
-
-    console.log(`BASIC program loaded: ${lines.length} lines, ${addr - progStart} bytes at $${progStart.toString(16).toUpperCase()}`);
-
-    // Visual feedback
+    console.log(`BASIC program queued for input: ${lines.length} lines`);
     this.showLoadedFeedback(lines.length);
   }
 
@@ -217,23 +177,6 @@ Example:
       this.insertBtn.textContent = originalText;
       this.insertBtn.classList.remove("basic-btn-success");
     }, 1500);
-  }
-
-  /**
-   * Read a 16-bit word from memory (little-endian)
-   */
-  readWord(addr) {
-    const lo = this.wasmModule._readMemory(addr);
-    const hi = this.wasmModule._readMemory(addr + 1);
-    return lo | (hi << 8);
-  }
-
-  /**
-   * Write a 16-bit word to memory (little-endian)
-   */
-  writeWord(addr, value) {
-    this.wasmModule._writeMemory(addr, value & 0xFF);
-    this.wasmModule._writeMemory(addr + 1, (value >> 8) & 0xFF);
   }
 
   update(wasmModule) {

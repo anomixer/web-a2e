@@ -157,6 +157,7 @@ export class SlotConfigurationWindow extends BaseWindow {
     this.loadSettings();
     this.setupContentEventListeners();
     this.applyInitialSettings();
+    this.updateDisabledOptions();
   }
 
   getCurrentSlotCard(slot) {
@@ -194,6 +195,29 @@ export class SlotConfigurationWindow extends BaseWindow {
     }
 
     this.updateUI();
+    this.updateDisabledOptions();
+  }
+
+  updateDisabledOptions() {
+    const selects = this.contentElement.querySelectorAll(".slot-select");
+
+    // Collect which non-empty cards are selected in which slot
+    const usedCards = {};
+    selects.forEach((select) => {
+      if (select.value !== "empty") {
+        usedCards[select.value] = parseInt(select.dataset.slot, 10);
+      }
+    });
+
+    // Disable options that are already selected in another slot
+    selects.forEach((select) => {
+      const slot = parseInt(select.dataset.slot, 10);
+      for (const option of select.options) {
+        if (option.value === "empty") continue;
+        const owner = usedCards[option.value];
+        option.disabled = owner !== undefined && owner !== slot;
+      }
+    });
   }
 
   updateUI() {

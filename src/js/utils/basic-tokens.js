@@ -298,10 +298,13 @@ export function tokenizeLine(content) {
 
 // Zero page locations for Applesoft BASIC
 export const BASIC_POINTERS = {
+  TEMPPT: 0x52,    // Next available temp string descriptor slot (1 byte, init $55)
   TXTTAB: 0x67,    // Start of program text (2 bytes)
   VARTAB: 0x69,    // Start of variable storage (2 bytes)
   ARYTAB: 0x6B,    // Start of array storage (2 bytes)
   STREND: 0x6D,    // End of string storage (2 bytes)
   FRETOP: 0x6F,    // Top of string free space (2 bytes)
   MEMSIZ: 0x73,    // Top of memory (2 bytes)
+  CURLIN: 0x75,    // Current line number (2 bytes, $FFFF = direct mode)
+  DATPTR: 0x7D,    // DATA read pointer (2 bytes)
 };
