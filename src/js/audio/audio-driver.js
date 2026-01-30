@@ -16,7 +16,7 @@ export class AudioDriver {
     this.sampleRate = SAMPLE_RATE;
     this.bufferSize = AUDIO_BUFFER_SIZE;
     this.running = false;
-    this.muted = false;
+    this.muted = this.loadMuted();
     this.volume = this.loadVolume(); // Load saved volume or default to 0.5
     this.speed = 1;
     this.stereo = this.loadStereo(); // Load saved stereo setting
@@ -308,6 +308,7 @@ export class AudioDriver {
     if (this.gainNode) {
       this.gainNode.gain.value = this.muted ? 0 : this.volume;
     }
+    this.saveMuted();
   }
 
   isMuted() {
@@ -319,12 +320,31 @@ export class AudioDriver {
     if (this.gainNode) {
       this.gainNode.gain.value = 0;
     }
+    this.saveMuted();
   }
 
   unmute() {
     this.muted = false;
     if (this.gainNode) {
       this.gainNode.gain.value = this.volume;
+    }
+    this.saveMuted();
+  }
+
+  loadMuted() {
+    try {
+      return localStorage.getItem('a2e-muted') === 'true';
+    } catch (e) {
+      // Ignore localStorage errors
+    }
+    return false;
+  }
+
+  saveMuted() {
+    try {
+      localStorage.setItem('a2e-muted', this.muted.toString());
+    } catch (e) {
+      // Ignore localStorage errors
     }
   }
 

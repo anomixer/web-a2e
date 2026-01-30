@@ -265,6 +265,9 @@ export class UIController {
       });
     }
 
+    // Sync sound button icon with persisted mute state
+    this.updateSoundButton();
+
     // Drive sounds toggle
     if (driveSoundsToggle) {
       driveSoundsToggle.addEventListener("change", (e) => {

@@ -92,6 +92,19 @@ export class ZeroPageWatchWindow extends BaseWindow {
     }
   }
 
+  getState() {
+    const base = super.getState();
+    base.expandedGroups = [...this.expandedGroups];
+    return base;
+  }
+
+  restoreState(state) {
+    if (state.expandedGroups) {
+      this.expandedGroups = new Set(state.expandedGroups);
+    }
+    super.restoreState(state);
+  }
+
   renderContent() {
     return `
       <div class="zp-toolbar">
@@ -160,6 +173,7 @@ export class ZeroPageWatchWindow extends BaseWindow {
           this.expandedGroups.add(groupName);
         }
         this.renderGroups();
+        if (this.onStateChange) this.onStateChange();
       });
     });
 

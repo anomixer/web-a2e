@@ -18,6 +18,7 @@ export class MockingboardScopeWindow extends BaseWindow {
 
     this.wasmModule = wasmModule;
     this.muteHandlerAttached = false;
+    this._pendingMuteState = null;
 
     // Cached DOM element references (populated on first update)
     this.elements = null;
@@ -169,6 +170,27 @@ export class MockingboardScopeWindow extends BaseWindow {
     super.destroy();
   }
 
+  getState() {
+    const base = super.getState();
+    if (this.wasmModule?._getMockingboardChannelMute) {
+      const muteState = [];
+      for (let psg = 0; psg < 2; psg++) {
+        for (let ch = 0; ch < 3; ch++) {
+          muteState.push(!!this.wasmModule._getMockingboardChannelMute(psg, ch));
+        }
+      }
+      base.channelMutes = muteState;
+    }
+    return base;
+  }
+
+  restoreState(state) {
+    if (state.channelMutes) {
+      this._pendingMuteState = state.channelMutes;
+    }
+    super.restoreState(state);
+  }
+
   update(wasmModule) {
     if (!wasmModule) return;
     this.wasmModule = wasmModule;
@@ -177,6 +199,19 @@ export class MockingboardScopeWindow extends BaseWindow {
     if (!this.elements) {
       this.cacheElements();
       this.allocateWaveformBuffer();
+    }
+
+    // Apply pending mute state from session restore
+    if (this._pendingMuteState && wasmModule._setMockingboardChannelMute) {
+      const mutes = this._pendingMuteState;
+      this._pendingMuteState = null;
+      for (let psg = 0; psg < 2; psg++) {
+        for (let ch = 0; ch < 3; ch++) {
+          if (mutes[psg * 3 + ch]) {
+            wasmModule._setMockingboardChannelMute(psg, ch, true);
+          }
+        }
+      }
     }
 
     // Sync canvas drawing buffers to CSS layout size
@@ -193,6 +228,7 @@ export class MockingboardScopeWindow extends BaseWindow {
           const currentlyMuted = this.wasmModule._getMockingboardChannelMute(psg, ch);
           this.wasmModule._setMockingboardChannelMute(psg, ch, !currentlyMuted);
           this.updateMuteState();
+          if (this.onStateChange) this.onStateChange();
         }
       });
     }

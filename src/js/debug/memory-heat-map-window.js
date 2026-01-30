@@ -114,6 +114,10 @@ export class MemoryHeatMapWindow extends BaseWindow {
     this.imageDataAux = this.ctxAux.createImageData(256, 256);
 
     this.setupHeatmapEventListeners();
+
+    // Apply restored state to UI elements
+    this.modeSelect.value = this.viewMode;
+    this.decayCheck.checked = this.decayEnabled;
   }
 
   setupHeatmapEventListeners() {
@@ -135,11 +139,13 @@ export class MemoryHeatMapWindow extends BaseWindow {
     // View mode selection
     this.modeSelect.addEventListener("change", (e) => {
       this.viewMode = e.target.value;
+      if (this.onStateChange) this.onStateChange();
     });
 
     // Decay toggle
     this.decayCheck.addEventListener("change", (e) => {
       this.decayEnabled = e.target.checked;
+      if (this.onStateChange) this.onStateChange();
     });
 
     // Canvas hover for main memory
@@ -420,6 +426,23 @@ export class MemoryHeatMapWindow extends BaseWindow {
 
   setJumpCallback(callback) {
     this.onJumpToAddress = callback;
+  }
+
+  getState() {
+    const base = super.getState();
+    base.viewMode = this.viewMode;
+    base.decayEnabled = this.decayEnabled;
+    return base;
+  }
+
+  restoreState(state) {
+    if (state.viewMode) {
+      this.viewMode = state.viewMode;
+    }
+    if (state.decayEnabled !== undefined) {
+      this.decayEnabled = state.decayEnabled;
+    }
+    super.restoreState(state);
   }
 
   hide() {

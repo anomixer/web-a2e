@@ -104,6 +104,7 @@ export class DiskDrivesWindow extends BaseWindow {
     this.minHeight = this._graphicsHidden ? this._minHeightCompact : this._minHeightFull;
     this._layoutMetrics = null;
     this._fitHeight();
+    if (this.onStateChange) this.onStateChange();
   }
 
   _toggleDetails() {
@@ -115,6 +116,7 @@ export class DiskDrivesWindow extends BaseWindow {
     // Re-fit height since the content changed
     this._layoutMetrics = null;
     this._fitHeight();
+    if (this.onStateChange) this.onStateChange();
   }
 
   /**
@@ -172,11 +174,31 @@ export class DiskDrivesWindow extends BaseWindow {
     this._fitHeight();
   }
 
+  getState() {
+    const base = super.getState();
+    base.graphicsHidden = this._graphicsHidden;
+    base.detailsOpen = this._detailsOpen;
+    return base;
+  }
+
   /**
    * After restoring persisted state, re-derive height from the restored width
    * so the window always wraps its content.
    */
   restoreState(state) {
+    // Restore toggle states before showing so layout is correct
+    if (state.graphicsHidden) {
+      this._graphicsHidden = true;
+      this.contentElement.classList.add('hide-graphics');
+      if (this._graphicsBtn) this._graphicsBtn.classList.add('active');
+      this.minHeight = this._minHeightCompact;
+    }
+    if (state.detailsOpen) {
+      this._detailsOpen = true;
+      this.contentElement.classList.add('show-details');
+      if (this._detailBtn) this._detailBtn.classList.add('active');
+    }
+
     // Restore position and width only; we'll derive height ourselves
     if (state.x !== undefined) {
       this.element.style.left = `${state.x}px`;
