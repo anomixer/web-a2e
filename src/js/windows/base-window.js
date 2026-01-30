@@ -7,22 +7,33 @@ export class BaseWindow {
     this.title = config.title;
     this.minWidth = config.minWidth || 280;
     this.minHeight = config.minHeight || 200;
+    this.maxWidth = config.maxWidth || Infinity;
+    this.maxHeight = config.maxHeight || Infinity;
     this.defaultWidth = config.defaultWidth || 400;
     this.defaultHeight = config.defaultHeight || 300;
     this.defaultPosition = config.defaultPosition || { x: 100, y: 100 };
 
     // Customizable CSS class names (defaults to debug-window style)
     this.cssClasses = {
-      window: config.cssClasses?.window || 'debug-window',
-      header: config.cssClasses?.header || 'debug-window-header',
-      title: config.cssClasses?.title || 'debug-window-title',
-      close: config.cssClasses?.close || 'debug-window-close',
-      content: config.cssClasses?.content || 'debug-window-content',
-      resizeHandle: config.cssClasses?.resizeHandle || 'debug-resize-handle',
+      window: config.cssClasses?.window || "debug-window",
+      header: config.cssClasses?.header || "debug-window-header",
+      title: config.cssClasses?.title || "debug-window-title",
+      close: config.cssClasses?.close || "debug-window-close",
+      content: config.cssClasses?.content || "debug-window-content",
+      resizeHandle: config.cssClasses?.resizeHandle || "debug-resize-handle",
     };
 
     // Resize directions to create handles for
-    this.resizeDirections = config.resizeDirections || ['n', 'e', 's', 'w', 'ne', 'nw', 'se', 'sw'];
+    this.resizeDirections = config.resizeDirections || [
+      "n",
+      "e",
+      "s",
+      "w",
+      "ne",
+      "nw",
+      "se",
+      "sw",
+    ];
 
     // Optional localStorage key for persisting window state
     this.storageKey = config.storageKey || null;
@@ -108,7 +119,9 @@ export class BaseWindow {
    */
   setupEventListeners() {
     // Close button
-    const closeBtn = this.headerElement.querySelector(`.${this.cssClasses.close}`);
+    const closeBtn = this.headerElement.querySelector(
+      `.${this.cssClasses.close}`,
+    );
     closeBtn.addEventListener("click", () => this.hide());
 
     // Drag start on header
@@ -118,11 +131,13 @@ export class BaseWindow {
     });
 
     // Resize start on handles
-    this.element.querySelectorAll(`.${this.cssClasses.resizeHandle}`).forEach((handle) => {
-      handle.addEventListener("mousedown", (e) => {
-        this.startResize(e, handle.dataset.direction);
+    this.element
+      .querySelectorAll(`.${this.cssClasses.resizeHandle}`)
+      .forEach((handle) => {
+        handle.addEventListener("mousedown", (e) => {
+          this.startResize(e, handle.dataset.direction);
+        });
       });
-    });
 
     // Bring to front on click
     this.element.addEventListener("mousedown", () => {
@@ -187,8 +202,8 @@ export class BaseWindow {
     let y = e.clientY - this.dragOffset.y;
 
     // Get header and footer heights to prevent dragging under/over them
-    const header = document.querySelector('header');
-    const footer = document.querySelector('footer');
+    const header = document.querySelector("header");
+    const footer = document.querySelector("footer");
     const minY = header ? header.offsetHeight : 0;
     const footerHeight = footer ? footer.offsetHeight : 0;
 
@@ -266,8 +281,8 @@ export class BaseWindow {
     const dir = this.resizeDirection;
 
     // Get header and footer heights for bounds checking
-    const header = document.querySelector('header');
-    const footer = document.querySelector('footer');
+    const header = document.querySelector("header");
+    const footer = document.querySelector("footer");
     const minTop = header ? header.offsetHeight : 0;
     const footerHeight = footer ? footer.offsetHeight : 0;
     const maxBottom = window.innerHeight - footerHeight;
@@ -279,23 +294,23 @@ export class BaseWindow {
 
     // Calculate new dimensions based on direction
     if (dir.includes("e")) {
-      newWidth = Math.max(this.minWidth, this.resizeStart.width + dx);
+      newWidth = Math.min(this.maxWidth, Math.max(this.minWidth, this.resizeStart.width + dx));
     }
     if (dir.includes("w")) {
-      const proposedWidth = this.resizeStart.width - dx;
+      const proposedWidth = Math.min(this.maxWidth, this.resizeStart.width - dx);
       if (proposedWidth >= this.minWidth) {
         newWidth = proposedWidth;
-        newLeft = this.resizeStart.left + dx;
+        newLeft = this.resizeStart.left + (this.resizeStart.width - proposedWidth);
       }
     }
     if (dir.includes("s")) {
-      newHeight = Math.max(this.minHeight, this.resizeStart.height + dy);
+      newHeight = Math.min(this.maxHeight, Math.max(this.minHeight, this.resizeStart.height + dy));
     }
     if (dir.includes("n")) {
-      const proposedHeight = this.resizeStart.height - dy;
+      const proposedHeight = Math.min(this.maxHeight, this.resizeStart.height - dy);
       if (proposedHeight >= this.minHeight) {
         newHeight = proposedHeight;
-        newTop = this.resizeStart.top + dy;
+        newTop = this.resizeStart.top + (this.resizeStart.height - proposedHeight);
       }
     }
 
@@ -391,14 +406,14 @@ export class BaseWindow {
       this.element.style.top = `${state.y}px`;
       this.currentY = state.y;
     }
-    // Enforce minimum dimensions when restoring
+    // Enforce min/max dimensions when restoring
     if (state.width !== undefined) {
-      const width = Math.max(state.width, this.minWidth);
+      const width = Math.min(this.maxWidth, Math.max(state.width, this.minWidth));
       this.element.style.width = `${width}px`;
       this.currentWidth = width;
     }
     if (state.height !== undefined) {
-      const height = Math.max(state.height, this.minHeight);
+      const height = Math.min(this.maxHeight, Math.max(state.height, this.minHeight));
       this.element.style.height = `${height}px`;
       this.currentHeight = height;
     }
@@ -427,8 +442,8 @@ export class BaseWindow {
     const height = this.currentHeight;
 
     // Get header and footer heights to prevent windows going under/over them
-    const header = document.querySelector('header');
-    const footer = document.querySelector('footer');
+    const header = document.querySelector("header");
+    const footer = document.querySelector("footer");
     const minTop = header ? header.offsetHeight : 0;
     const footerHeight = footer ? footer.offsetHeight : 0;
     const maxBottom = viewportHeight - footerHeight;
@@ -531,13 +546,16 @@ export class BaseWindow {
   saveSettings() {
     if (!this.storageKey) return;
     try {
-      localStorage.setItem(this.storageKey, JSON.stringify({
-        x: this.currentX,
-        y: this.currentY,
-        width: this.currentWidth,
-        height: this.currentHeight,
-        visible: this.isVisible,
-      }));
+      localStorage.setItem(
+        this.storageKey,
+        JSON.stringify({
+          x: this.currentX,
+          y: this.currentY,
+          width: this.currentWidth,
+          height: this.currentHeight,
+          visible: this.isVisible,
+        }),
+      );
     } catch (e) {
       console.warn(`Failed to save ${this.storageKey} settings:`, e.message);
     }
@@ -554,8 +572,10 @@ export class BaseWindow {
         const state = JSON.parse(saved);
         if (state.x !== undefined) this.currentX = state.x;
         if (state.y !== undefined) this.currentY = state.y;
-        if (state.width !== undefined) this.currentWidth = Math.max(state.width, this.minWidth);
-        if (state.height !== undefined) this.currentHeight = Math.max(state.height, this.minHeight);
+        if (state.width !== undefined)
+          this.currentWidth = Math.min(this.maxWidth, Math.max(state.width, this.minWidth));
+        if (state.height !== undefined)
+          this.currentHeight = Math.min(this.maxHeight, Math.max(state.height, this.minHeight));
 
         this.element.style.left = `${this.currentX}px`;
         this.element.style.top = `${this.currentY}px`;
@@ -571,8 +591,8 @@ export class BaseWindow {
    * Clean up event listeners and remove element from DOM
    */
   destroy() {
-    document.removeEventListener('mousemove', this.handleMouseMove);
-    document.removeEventListener('mouseup', this.handleMouseUp);
+    document.removeEventListener("mousemove", this.handleMouseMove);
+    document.removeEventListener("mouseup", this.handleMouseUp);
     if (this.element && this.element.parentNode) {
       this.element.parentNode.removeChild(this.element);
     }

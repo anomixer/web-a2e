@@ -3,32 +3,29 @@
 import { VERSION } from "./config/version.js";
 import { WebGLRenderer } from "./display/webgl-renderer.js";
 import { AudioDriver } from "./audio/audio-driver.js";
-import { InputHandler, TextSelection } from "./input/index.js";
+import { InputHandler, TextSelection, JoystickWindow } from "./input/index.js";
 import { DiskManager } from "./disk-manager/index.js";
 import { DiskDrivesWindow } from "./disk-manager/disk-drives-window.js";
 import { FileExplorerWindow } from "./file-explorer/index.js";
+import { DisplaySettingsWindow, ScreenWindow } from "./display/index.js";
+import { DocumentationWindow, ReleaseNotesWindow } from "./help/index.js";
 import { ReminderController } from "./ui/reminder-controller.js";
-import { DocumentationWindow } from "./ui/documentation-window.js";
 import { UIController } from "./ui/ui-controller.js";
+import { SlotConfigurationWindow } from "./ui/slot-configuration-window.js";
 import { StateManager } from "./state/state-manager.js";
 import {
   WindowManager,
   CPUDebuggerWindow,
   SoftSwitchWindow,
-  DisplaySettingsWindow,
   MemoryBrowserWindow,
   MemoryHeatMapWindow,
   MemoryMapWindow,
   StackViewerWindow,
   ZeroPageWatchWindow,
-  JoystickWindow,
   MockingboardWindow,
   MockingboardScopeWindow,
   BasicProgramWindow,
-  SlotConfigurationWindow,
 } from "./debug/index.js";
-import { ReleaseNotesWindow } from "./ui/release-notes-window.js";
-import { ScreenWindow } from "./ui/screen-window.js";
 
 class AppleIIeEmulator {
   constructor() {

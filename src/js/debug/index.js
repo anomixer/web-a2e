@@ -11,8 +11,3 @@ export { ZeroPageWatchWindow } from "./zero-page-watch-window.js";
 export { MockingboardWindow } from "./mockingboard-window.js";
 export { MockingboardScopeWindow } from "./mockingboard-scope-window.js";
 export { BasicProgramWindow } from "./basic-program-window.js";
-
-// Re-export UI windows for backwards compatibility
-export { DisplaySettingsWindow } from "../ui/display-settings-window.js";
-export { JoystickWindow } from "../ui/joystick-window.js";
-export { SlotConfigurationWindow } from "../ui/slot-configuration-window.js";

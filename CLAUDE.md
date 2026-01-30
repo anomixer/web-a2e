@@ -66,14 +66,15 @@ GCR (Group Code Recording) encoding tests (`tests/gcr/`). Native C++ tests for d
 **JavaScript Layer (src/js/)** - Browser integration:
 - `main.js` - AppleIIeEmulator class orchestrating all subsystems
 - `audio/` - Web Audio API driver and AudioWorklet
-- `display/` - WebGL renderer with CRT shader effects
+- `display/` - WebGL renderer, CRT shader effects, display settings, screen window
 - `disk-manager/` - Disk drive UI, persistence, surface rendering, drive sounds
 - `file-explorer/` - DOS 3.3 and ProDOS disk browser with disassembler
 - `debug/` - Debug window implementations (see Debugging section)
-- `ui/` - UI controls, display settings, slot configuration, joystick, screen window
-- `input/` - Keyboard input and text selection
+- `help/` - Documentation and release notes windows
+- `input/` - Keyboard input, text selection, joystick
+- `ui/` - Menu wiring, reminders, slot configuration
 - `state/` - State serialization and persistence
-- `config/` - Version and release notes
+- `config/` - App version
 - `utils/` - Shared utilities (storage, string, BASIC)
 - `windows/` - Base window class and window manager
 
@@ -130,14 +131,15 @@ src/
 └── js/                 # ES6 modules, no framework
     ├── main.js         # Entry point, AppleIIeEmulator class
     ├── audio/          # Web Audio API driver and worklet
-    ├── config/         # Version and release notes
+    ├── config/         # App version
     ├── debug/          # Debug window implementations
     ├── disk-manager/   # Disk drive operations, persistence, surface rendering
-    ├── display/        # WebGL renderer with CRT effects
+    ├── display/        # WebGL renderer, display settings, screen window
     ├── file-explorer/  # DOS 3.3 and ProDOS file browser, disassembler
-    ├── input/          # Keyboard input and text selection
+    ├── help/           # Documentation and release notes
+    ├── input/          # Keyboard input, text selection, joystick
     ├── state/          # State serialization and persistence
-    ├── ui/             # UI controls, display settings, slot config, joystick
+    ├── ui/             # Menu wiring, reminders, slot config
     ├── utils/          # Shared utilities (storage, string, BASIC)
     └── windows/        # Base window class and window manager
 public/                 # Static assets, built WASM files, shaders

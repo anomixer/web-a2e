@@ -1,5 +1,5 @@
 import { BaseWindow } from '../windows/base-window.js';
-import { RELEASE_NOTES, groupByDate, formatDate } from '../config/release-notes.js';
+import { RELEASE_NOTES, groupByDate, formatDate } from './release-notes.js';
 
 /**
  * ReleaseNotesWindow - Displays git commit history as release notes

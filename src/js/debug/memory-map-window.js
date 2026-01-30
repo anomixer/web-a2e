@@ -1,4 +1,4 @@
-import { BaseWindow } from '../windows/base-window.js';
+import { BaseWindow } from "../windows/base-window.js";
 
 /**
  * MemoryMapWindow - Visual representation of memory bank configuration
@@ -7,13 +7,15 @@ import { BaseWindow } from '../windows/base-window.js';
 export class MemoryMapWindow extends BaseWindow {
   constructor(wasmModule) {
     super({
-      id: 'memory-map',
-      title: 'Memory Map',
+      id: "memory-map",
+      title: "Memory Map",
       minWidth: 260,
-      minHeight: 200,
-      defaultWidth: 300,
-      defaultHeight: 340,
-      defaultPosition: { x: window.innerWidth - 360, y: 150 }
+      minHeight: 405,
+      maxWidth: 260,
+      maxHeight: 405,
+      defaultWidth: 260,
+      defaultHeight: 405,
+      defaultPosition: { x: window.innerWidth - 360, y: 150 },
     });
 
     this.wasmModule = wasmModule;
@@ -103,7 +105,9 @@ export class MemoryMapWindow extends BaseWindow {
 
     // Get soft switch states
     const stateLow = wasmModule._getSoftSwitchState();
-    const stateHigh = wasmModule._getSoftSwitchStateHigh ? wasmModule._getSoftSwitchStateHigh() : 0;
+    const stateHigh = wasmModule._getSoftSwitchStateHigh
+      ? wasmModule._getSoftSwitchStateHigh()
+      : 0;
 
     // Bit positions for relevant switches
     const ALTZP = 10;
@@ -129,57 +133,57 @@ export class MemoryMapWindow extends BaseWindow {
     const lcwrite = (stateLow & (1 << LCWRITE)) !== 0;
 
     // Zero Page / Stack: ALTZP controls
-    this.toggleBankRegion('bank-zp-main', !altzp);
-    this.toggleBankRegion('bank-zp-aux', altzp);
+    this.toggleBankRegion("bank-zp-main", !altzp);
+    this.toggleBankRegion("bank-zp-aux", altzp);
 
     // $0200-$03FF: RAMRD/RAMWRT controls (not affected by 80STORE)
-    this.toggleBankRegion('bank-0200-main', !ramrd);
-    this.toggleBankRegion('bank-0200-aux', ramrd);
+    this.toggleBankRegion("bank-0200-main", !ramrd);
+    this.toggleBankRegion("bank-0200-aux", ramrd);
 
     // Text Page 1 ($0400-$07FF): 80STORE + PAGE2 or RAMRD controls
     const text1Aux = store80 ? page2 : ramrd;
-    this.toggleBankRegion('bank-text1-main', !text1Aux);
-    this.toggleBankRegion('bank-text1-aux', text1Aux);
+    this.toggleBankRegion("bank-text1-main", !text1Aux);
+    this.toggleBankRegion("bank-text1-aux", text1Aux);
 
     // $0800-$1FFF: RAMRD/RAMWRT controls
-    this.toggleBankRegion('bank-0800-main', !ramrd);
-    this.toggleBankRegion('bank-0800-aux', ramrd);
+    this.toggleBankRegion("bank-0800-main", !ramrd);
+    this.toggleBankRegion("bank-0800-aux", ramrd);
 
     // HiRes Page 1 ($2000-$3FFF): 80STORE + HIRES + PAGE2 or RAMRD controls
-    const hires1Aux = (store80 && hires) ? page2 : ramrd;
-    this.toggleBankRegion('bank-hires1-main', !hires1Aux);
-    this.toggleBankRegion('bank-hires1-aux', hires1Aux);
+    const hires1Aux = store80 && hires ? page2 : ramrd;
+    this.toggleBankRegion("bank-hires1-main", !hires1Aux);
+    this.toggleBankRegion("bank-hires1-aux", hires1Aux);
 
     // HiRes Page 2 ($4000-$5FFF): RAMRD/RAMWRT controls
-    this.toggleBankRegion('bank-hires2-main', !ramrd);
-    this.toggleBankRegion('bank-hires2-aux', ramrd);
+    this.toggleBankRegion("bank-hires2-main", !ramrd);
+    this.toggleBankRegion("bank-hires2-aux", ramrd);
 
     // $6000-$BFFF: RAMRD/RAMWRT controls
-    this.toggleBankRegion('bank-6000-main', !ramrd);
-    this.toggleBankRegion('bank-6000-aux', ramrd);
+    this.toggleBankRegion("bank-6000-main", !ramrd);
+    this.toggleBankRegion("bank-6000-aux", ramrd);
 
     // Slot ROM ($C100-$CFFF): INTCXROM controls
-    this.toggleBankRegion('bank-slot-int', intcxrom);
-    this.toggleBankRegion('bank-slot-card', !intcxrom);
+    this.toggleBankRegion("bank-slot-int", intcxrom);
+    this.toggleBankRegion("bank-slot-card", !intcxrom);
 
     // Language Card ($D000-$FFFF): LCRAM and LCBANK2 control
-    this.toggleBankRegion('bank-lc-rom', !lcram);
-    this.toggleBankRegion('bank-lc-ram', lcram && !lcbank2);
-    this.toggleBankRegion('bank-lc-ram2', lcram && lcbank2);
+    this.toggleBankRegion("bank-lc-rom", !lcram);
+    this.toggleBankRegion("bank-lc-ram", lcram && !lcbank2);
+    this.toggleBankRegion("bank-lc-ram2", lcram && lcbank2);
 
     // Update status display
-    const readStatus = this.contentElement.querySelector('#bank-read-status');
-    const writeStatus = this.contentElement.querySelector('#bank-write-status');
+    const readStatus = this.contentElement.querySelector("#bank-read-status");
+    const writeStatus = this.contentElement.querySelector("#bank-write-status");
 
     if (readStatus) {
-      let readBank = ramrd ? 'Aux RAM' : 'Main RAM';
-      if (altzp) readBank += ' (Aux ZP)';
+      let readBank = ramrd ? "Aux RAM" : "Main RAM";
+      if (altzp) readBank += " (Aux ZP)";
       readStatus.textContent = readBank;
     }
 
     if (writeStatus) {
-      let writeBank = ramwrt ? 'Aux RAM' : 'Main RAM';
-      if (lcwrite) writeBank += ' + LC';
+      let writeBank = ramwrt ? "Aux RAM" : "Main RAM";
+      if (lcwrite) writeBank += " + LC";
       writeStatus.textContent = writeBank;
     }
   }
@@ -190,7 +194,7 @@ export class MemoryMapWindow extends BaseWindow {
   toggleBankRegion(id, show) {
     const el = this.contentElement.querySelector(`#${id}`);
     if (el) {
-      el.classList.toggle('hidden', !show);
+      el.classList.toggle("hidden", !show);
     }
   }
 }
