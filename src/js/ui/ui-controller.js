@@ -205,7 +205,6 @@ export class UIController {
       drivesBtn.addEventListener("click", () => {
         this.windowManager.toggleWindow("disk-drives");
         this.reminderController.dismissDrivesReminder();
-        this.updateDrivesCheckmark();
         this.closeAllMenus();
         this.refocusCanvas();
       });
@@ -247,22 +246,6 @@ export class UIController {
     }
   }
 
-  /**
-   * Update the drives checkmark in the Hardware menu
-   */
-  updateDrivesCheckmark() {
-    const drivesBtn = document.getElementById("btn-drives");
-    if (!drivesBtn) return;
-    const check = drivesBtn.querySelector(".menu-check");
-    if (!check) return;
-
-    const diskDrivesWindow = this.windowManager.getWindow("disk-drives");
-    if (diskDrivesWindow && diskDrivesWindow.isVisible) {
-      check.classList.remove("hidden");
-    } else {
-      check.classList.add("hidden");
-    }
-  }
 
   /**
    * Set up debug menu dropdown actions

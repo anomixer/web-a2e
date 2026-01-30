@@ -209,16 +209,6 @@
     font-family: var(--font-mono);
 }
 
-/* Check mark for toggled items */
-.menu-check {
-    color: var(--accent-green);
-    margin-right: 8px;
-    font-size: 0.875rem;
-}
-
-.menu-check.hidden {
-    visibility: hidden;
-}
 
 /* Menu separator */
 .header-menu-separator {
