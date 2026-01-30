@@ -4,7 +4,7 @@
 
 .file-explorer-window {
     position: fixed;
-    background: rgba(13, 17, 23, 0.85);
+    background: rgba(13, 17, 23, 0.95);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border: 1px solid var(--border-default);
@@ -15,6 +15,16 @@
     min-width: 400px;
     min-height: 300px;
     z-index: 10000;
+    overflow: hidden;
+}
+
+/* BaseWindow content wrapper - must fill remaining height */
+.file-explorer-window .fe-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
 }
 
 .file-explorer-window.hidden {
@@ -141,6 +151,7 @@
     flex: 1;
     display: flex;
     overflow: hidden;
+    min-height: 0;
 }
 
 /* Catalog panel */
