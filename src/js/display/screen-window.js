@@ -14,6 +14,7 @@ export class ScreenWindow extends BaseWindow {
       defaultWidth: 480,
       defaultHeight: 394,
       defaultPosition: { x: 100, y: 50 },
+      closable: false,
     });
 
     this.renderer = renderer;
@@ -30,9 +31,6 @@ export class ScreenWindow extends BaseWindow {
    * After create(), inject the charset toggle into the header.
    */
   onContentRendered() {
-    const closeBtn = this.headerElement.querySelector('.debug-window-close');
-    if (!closeBtn) return;
-
     const charsetSwitch = document.createElement('div');
     charsetSwitch.className = 'screen-window-charset-switch';
     charsetSwitch.title = 'Character Set (US/UK)';
@@ -58,9 +56,9 @@ export class ScreenWindow extends BaseWindow {
       </svg>
     `;
 
-    // Insert charset switch, then lock button, before close
-    this.headerElement.insertBefore(charsetSwitch, closeBtn);
-    this.headerElement.insertBefore(this._lockBtn, closeBtn);
+    // Insert charset switch and lock button into header
+    this.headerElement.appendChild(charsetSwitch);
+    this.headerElement.appendChild(this._lockBtn);
 
     // Prevent clicks from starting a window drag
     charsetSwitch.addEventListener('mousedown', (e) => {

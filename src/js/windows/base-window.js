@@ -12,6 +12,7 @@ export class BaseWindow {
     this.defaultWidth = config.defaultWidth || 400;
     this.defaultHeight = config.defaultHeight || 300;
     this.defaultPosition = config.defaultPosition || { x: 100, y: 100 };
+    this.closable = config.closable !== false;
 
     // Customizable CSS class names (defaults to debug-window style)
     this.cssClasses = {
@@ -84,7 +85,7 @@ export class BaseWindow {
     this.headerElement.className = this.cssClasses.header;
     this.headerElement.innerHTML = `
       <span class="${this.cssClasses.title}">${this.title}</span>
-      <button class="${this.cssClasses.close}" title="Close">&times;</button>
+      ${this.closable ? `<button class="${this.cssClasses.close}" title="Close">&times;</button>` : ""}
     `;
 
     // Content area
@@ -122,7 +123,9 @@ export class BaseWindow {
     const closeBtn = this.headerElement.querySelector(
       `.${this.cssClasses.close}`,
     );
-    closeBtn.addEventListener("click", () => this.hide());
+    if (closeBtn) {
+      closeBtn.addEventListener("click", () => this.hide());
+    }
 
     // Drag start on header
     this.headerElement.addEventListener("mousedown", (e) => {
