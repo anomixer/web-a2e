@@ -602,8 +602,10 @@ void main() {
         // Get base color with RGB shift
         color = rgbShift(u_texture, contentUV);
 
-        // Apply NTSC color fringing (before other effects for best results)
-        color = ntscFringing(u_texture, contentUV, color);
+        // Apply NTSC color fringing only in colour mode
+        if (u_monochromeMode == 0) {
+            color = ntscFringing(u_texture, contentUV, color);
+        }
     }
 
     // Apply texture-based effects only for content area
