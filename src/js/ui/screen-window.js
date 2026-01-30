@@ -11,14 +11,15 @@ export class ScreenWindow extends BaseWindow {
       title: 'Apple //e',
       minWidth: 284,    // 280 min canvas + 4px padding/border
       minHeight: 244,   // 210 min canvas + ~34px header
-      defaultWidth: 564,
-      defaultHeight: 418,
-      defaultPosition: { x: 100, y: 60 },
+      defaultWidth: 480,
+      defaultHeight: 394,
+      defaultPosition: { x: 100, y: 50 },
     });
 
     this.renderer = renderer;
     this.textSelection = textSelection;
     this._layoutMetrics = null;
+    this._viewportLocked = false;
   }
 
   renderContent() {
@@ -44,13 +45,50 @@ export class ScreenWindow extends BaseWindow {
       <span class="charset-label">UK</span>
     `;
 
-    // Insert before the close button
-    this.headerElement.insertBefore(charsetSwitch, closeBtn);
+    // Viewport lock button
+    this._lockBtn = document.createElement('button');
+    this._lockBtn.className = 'screen-window-lock';
+    this._lockBtn.title = 'Fit to viewport';
+    this._lockBtn.innerHTML = `
+      <svg class="lock-icon-unlocked" viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+        <path d="M4 7V5a4 4 0 0 1 8 0v1h-2V5a2 2 0 0 0-4 0v2H3a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1H4z"/>
+      </svg>
+      <svg class="lock-icon-locked" viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+        <path d="M4 7V5a4 4 0 0 1 8 0v2h1a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h1zm2-2v2h4V5a2 2 0 0 0-4 0z"/>
+      </svg>
+    `;
 
-    // Prevent charset switch clicks from starting a window drag
+    // Insert charset switch, then lock button, before close
+    this.headerElement.insertBefore(charsetSwitch, closeBtn);
+    this.headerElement.insertBefore(this._lockBtn, closeBtn);
+
+    // Prevent clicks from starting a window drag
     charsetSwitch.addEventListener('mousedown', (e) => {
       e.stopPropagation();
     });
+    this._lockBtn.addEventListener('mousedown', (e) => {
+      e.stopPropagation();
+    });
+    this._lockBtn.addEventListener('click', () => {
+      this.setViewportLocked(!this._viewportLocked);
+    });
+  }
+
+  /**
+   * Set viewport-lock state and immediately resize if locking on.
+   */
+  setViewportLocked(locked) {
+    this._viewportLocked = locked;
+    if (this._lockBtn) {
+      this._lockBtn.classList.toggle('active', locked);
+      this._lockBtn.title = locked
+        ? 'Unlock from viewport'
+        : 'Fit to viewport';
+    }
+    if (locked) {
+      this.constrainToViewport();
+    }
+    if (this.onStateChange) this.onStateChange();
   }
 
   /**
@@ -105,14 +143,29 @@ export class ScreenWindow extends BaseWindow {
   show() {
     super.show();
     this._layoutMetrics = null;
-    // Defer fit so layout is settled
-    requestAnimationFrame(() => this._fitToWindow());
+    // Defer fit so layout is settled (skip if viewport-locked — constrainToViewport handles sizing)
+    if (!this._viewportLocked) {
+      requestAnimationFrame(() => this._fitToWindow());
+    }
+  }
+
+  /**
+   * Get window state for persistence (adds viewportLocked).
+   */
+  getState() {
+    const base = super.getState();
+    base.viewportLocked = this._viewportLocked;
+    return base;
   }
 
   /**
    * After restoring persisted state, derive height from width to maintain 4:3.
    */
   restoreState(state) {
+    if (state.viewportLocked) {
+      this.setViewportLocked(true);
+    }
+
     if (state.x !== undefined) {
       this.element.style.left = `${state.x}px`;
       this.currentX = state.x;
@@ -138,6 +191,104 @@ export class ScreenWindow extends BaseWindow {
     if (state.visible) {
       this.show();
     }
+  }
+
+  /**
+   * Constrain to viewport.  When viewport-locked, resize to fill the
+   * available area at 4:3 and centre.  Otherwise just shrink if needed.
+   * Called by WindowManager on browser resize.
+   */
+  constrainToViewport() {
+    if (!this.element) return;
+
+    const vpW = window.innerWidth;
+    const vpH = window.innerHeight;
+    const header = document.querySelector('header');
+    const footer = document.querySelector('footer');
+    const minTop = header ? header.offsetHeight : 0;
+    const footerH = footer ? footer.offsetHeight : 0;
+    const maxBottom = vpH - footerH;
+    const availW = vpW;
+    const availH = maxBottom - minTop;
+    const margin = 8;
+
+    const m = this._layoutMetrics || { hPad: 4, vFixed: 34 };
+    let w = this.currentWidth;
+    let h = this.currentHeight;
+
+    if (this._viewportLocked) {
+      // Fill the available viewport at 4:3
+      const maxCanvasW = availW - margin * 2 - m.hPad;
+      const maxCanvasH = availH - margin * 2 - m.vFixed;
+
+      let canvasW, canvasH;
+      if (maxCanvasW * 3 / 4 <= maxCanvasH) {
+        canvasW = maxCanvasW;
+        canvasH = canvasW * 3 / 4;
+      } else {
+        canvasH = maxCanvasH;
+        canvasW = canvasH * 4 / 3;
+      }
+
+      w = Math.max(this.minWidth, Math.round(canvasW + m.hPad));
+      h = Math.max(this.minHeight, Math.round(canvasH + m.vFixed));
+
+      const x = Math.round((vpW - w) / 2);
+      const y = minTop + Math.round((availH - h) / 2);
+
+      this.element.style.width = `${w}px`;
+      this.element.style.height = `${h}px`;
+      this.element.style.left = `${x}px`;
+      this.element.style.top = `${y}px`;
+      this.currentWidth = w;
+      this.currentHeight = h;
+      this.currentX = x;
+      this.currentY = y;
+      this._updateRendererSize();
+    } else {
+      // Only shrink if the window exceeds the available space
+      if (w > availW || h > availH) {
+        const maxCanvasW = availW - m.hPad;
+        const maxCanvasH = availH - m.vFixed;
+
+        let canvasW, canvasH;
+        if (maxCanvasW * 3 / 4 <= maxCanvasH) {
+          canvasW = maxCanvasW;
+          canvasH = canvasW * 3 / 4;
+        } else {
+          canvasH = maxCanvasH;
+          canvasW = canvasH * 4 / 3;
+        }
+
+        w = Math.max(this.minWidth, Math.round(canvasW + m.hPad));
+        h = Math.max(this.minHeight, Math.round(canvasH + m.vFixed));
+
+        this.element.style.width = `${w}px`;
+        this.element.style.height = `${h}px`;
+        this.currentWidth = w;
+        this.currentHeight = h;
+        this._updateRendererSize();
+      }
+
+      // Clamp position within bounds
+      let x = this.currentX;
+      let y = this.currentY;
+
+      if (x + w > vpW) x = vpW - w;
+      if (x < 0) x = 0;
+      if (y + h > maxBottom) y = maxBottom - h;
+      if (y < minTop) y = minTop;
+
+      if (x !== this.currentX || y !== this.currentY) {
+        this.element.style.left = `${x}px`;
+        this.element.style.top = `${y}px`;
+        this.currentX = x;
+        this.currentY = y;
+      }
+    }
+
+    this.lastViewportWidth = vpW;
+    this.lastViewportHeight = vpH;
   }
 
   /**
@@ -277,9 +428,10 @@ export class ScreenWindow extends BaseWindow {
 
   /**
    * Set window height to match current width at 4:3.
+   * Skipped when viewport-locked (constrainToViewport manages sizing).
    */
   _fitToWindow() {
-    if (!this.isVisible) return;
+    if (!this.isVisible || this._viewportLocked) return;
 
     this._measureLayout();
     const h = Math.max(this.minHeight, this._heightForWidth(this.currentWidth));

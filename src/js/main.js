@@ -181,9 +181,6 @@ class AppleIIeEmulator {
       // Load saved window states
       this.windowManager.loadState();
 
-      // Show default windows when no saved state exists
-      this.showDefaultWindows();
-
       // Save window states when page is closed
       window.addEventListener("beforeunload", () => {
         if (this.windowManager) {
@@ -214,6 +211,9 @@ class AppleIIeEmulator {
       // Always show ScreenWindow and attach canvas
       this.screenWindow.show();
       this.screenWindow.attachCanvas();
+
+      // Position/size windows for first-time users
+      this.showDefaultWindows();
 
       // Set up UI controller
       this.uiController = new UIController({
@@ -254,117 +254,67 @@ class AppleIIeEmulator {
   }
 
   /**
-   * Position and show the screen and disk-drives windows when no saved
-   * state exists.  Computes positions so both windows are fully visible
-   * and non-overlapping, stacked vertically with a small gap.
+   * For first-time users (no saved window state), size the screen window
+   * to fill the available viewport at 4:3 and center it.  Disk drives
+   * stay hidden until the user opens them.
+   *
+   * Called after screenWindow.show() + attachCanvas() so the screen
+   * window already has accurate layout metrics.
    */
   showDefaultWindows() {
     const savedState = localStorage.getItem('a2e-debug-windows');
-    const parsed = savedState ? JSON.parse(savedState) : null;
+    if (savedState) {
+      try {
+        const parsed = JSON.parse(savedState);
+        if (parsed && parsed['screen-window']) return;
+      } catch (e) { /* proceed with defaults */ }
+    }
 
-    const screenNeedDefault = !this.windowManager.isWindowVisible('screen-window')
-      && (!parsed || !parsed['screen-window']);
-
-    const drivesNeedDefault = !this.windowManager.isWindowVisible('disk-drives')
-      && (!parsed || !parsed['disk-drives']);
-
-    if (!screenNeedDefault && !drivesNeedDefault) return;
-
-    // Measure available space
     const header = document.querySelector('header');
     const footer = document.querySelector('footer');
     const headerH = header ? header.offsetHeight : 0;
     const footerH = footer ? footer.offsetHeight : 0;
     const vpW = window.innerWidth;
     const vpH = window.innerHeight;
+    const availW = vpW;
     const availH = vpH - headerH - footerH;
     const margin = 8;
-    const gap = 8;
 
     const sw = this.screenWindow;
-    const dw = this.windowManager.getWindow('disk-drives');
+    const swM = sw._layoutMetrics || { hPad: 4, vFixed: 34 };
 
-    if (screenNeedDefault && drivesNeedDefault) {
-      // Both need defaults — lay them out together
-      // Screen gets ~65% of the vertical budget, drives get the rest
-      const screenFrac = 0.65;
-      const screenH = Math.floor((availH - gap) * screenFrac);
-      // Derive screen width from height keeping 4:3 canvas
-      // Window chrome adds ~34px vertically and ~4px horizontally (fallback metrics)
-      const vFixed = 34;
-      const hPad = 4;
-      const canvasH = Math.max(100, screenH - vFixed);
-      const canvasW = canvasH * (4 / 3);
-      const screenW = Math.min(Math.round(canvasW + hPad), vpW - margin * 2);
-      const finalScreenH = Math.round((screenW - hPad) / (4 / 3) + vFixed);
+    // Largest 4:3 canvas that fits within the available space
+    const maxCanvasW = availW - margin * 2 - swM.hPad;
+    const maxCanvasH = availH - margin * 2 - swM.vFixed;
 
-      const screenX = Math.round((vpW - screenW) / 2);
-      const screenY = headerH + margin;
-
-      sw.element.style.left = `${screenX}px`;
-      sw.element.style.top = `${screenY}px`;
-      sw.element.style.width = `${screenW}px`;
-      sw.element.style.height = `${finalScreenH}px`;
-      sw.currentX = screenX;
-      sw.currentY = screenY;
-      sw.currentWidth = screenW;
-      sw.currentHeight = finalScreenH;
-
-      // Disk drives: position below screen, same horizontal center
-      const drivesH = Math.max(dw.minHeight, vpH - footerH - margin - (screenY + finalScreenH + gap));
-      const drivesW = Math.min(dw.defaultWidth, vpW - margin * 2);
-      const drivesX = Math.round((vpW - drivesW) / 2);
-      const drivesY = screenY + finalScreenH + gap;
-
-      dw.element.style.left = `${drivesX}px`;
-      dw.element.style.top = `${drivesY}px`;
-      dw.element.style.width = `${drivesW}px`;
-      dw.currentX = drivesX;
-      dw.currentY = drivesY;
-      dw.currentWidth = drivesW;
-
-      this.windowManager.showWindow('screen-window');
-      this.windowManager.showWindow('disk-drives');
-
-    } else if (screenNeedDefault) {
-      // Only screen needs default — center it in available space
-      const maxH = availH - margin * 2;
-      const vFixed = 34;
-      const hPad = 4;
-      const canvasH = Math.max(100, maxH - vFixed);
-      const canvasW = canvasH * (4 / 3);
-      const screenW = Math.min(Math.round(canvasW + hPad), vpW - margin * 2);
-      const screenH = Math.round((screenW - hPad) / (4 / 3) + vFixed);
-
-      const screenX = Math.round((vpW - screenW) / 2);
-      const screenY = headerH + Math.round((availH - screenH) / 2);
-
-      sw.element.style.left = `${screenX}px`;
-      sw.element.style.top = `${screenY}px`;
-      sw.element.style.width = `${screenW}px`;
-      sw.element.style.height = `${screenH}px`;
-      sw.currentX = screenX;
-      sw.currentY = screenY;
-      sw.currentWidth = screenW;
-      sw.currentHeight = screenH;
-
-      this.windowManager.showWindow('screen-window');
-
-    } else if (drivesNeedDefault) {
-      // Only drives needs default — center horizontally, place below header
-      const drivesW = Math.min(dw.defaultWidth, vpW - margin * 2);
-      const drivesX = Math.round((vpW - drivesW) / 2);
-      const drivesY = headerH + margin;
-
-      dw.element.style.left = `${drivesX}px`;
-      dw.element.style.top = `${drivesY}px`;
-      dw.element.style.width = `${drivesW}px`;
-      dw.currentX = drivesX;
-      dw.currentY = drivesY;
-      dw.currentWidth = drivesW;
-
-      this.windowManager.showWindow('disk-drives');
+    let canvasW, canvasH;
+    if (maxCanvasW * 3 / 4 <= maxCanvasH) {
+      // Width is the limiting dimension
+      canvasW = maxCanvasW;
+      canvasH = canvasW * 3 / 4;
+    } else {
+      // Height is the limiting dimension
+      canvasH = maxCanvasH;
+      canvasW = canvasH * 4 / 3;
     }
+
+    const screenW = Math.max(sw.minWidth, Math.round(canvasW + swM.hPad));
+    const screenH = Math.max(sw.minHeight, Math.round(canvasH + swM.vFixed));
+    const screenX = Math.round((vpW - screenW) / 2);
+    const screenY = headerH + Math.round((availH - screenH) / 2);
+
+    sw.element.style.left = `${screenX}px`;
+    sw.element.style.top = `${screenY}px`;
+    sw.element.style.width = `${screenW}px`;
+    sw.element.style.height = `${screenH}px`;
+    sw.currentX = screenX;
+    sw.currentY = screenY;
+    sw.currentWidth = screenW;
+    sw.currentHeight = screenH;
+    sw._updateRendererSize();
+
+    // Lock to viewport by default so the window tracks browser resizes
+    sw.setViewportLocked(true);
   }
 
   /**

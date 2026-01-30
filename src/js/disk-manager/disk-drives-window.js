@@ -12,9 +12,9 @@ export class DiskDrivesWindow extends BaseWindow {
       title: 'Disk Drives',
       minWidth: 460,
       minHeight: 310,
-      defaultWidth: 600,
-      defaultHeight: 380,
-      defaultPosition: { x: 100, y: 400 },
+      defaultWidth: 560,
+      defaultHeight: 360,
+      defaultPosition: { x: 100, y: 452 },
     });
 
     this._detailsOpen = false;
