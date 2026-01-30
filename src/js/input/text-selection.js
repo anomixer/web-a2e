@@ -329,7 +329,7 @@ export class TextSelection {
 
   /**
    * Move overlay to the canvas's current parent and re-measure.
-   * Called when the canvas is reparented between bezel and ScreenWindow.
+   * Called when the canvas is reparented (e.g. for full-page mode).
    */
   reattach() {
     if (!this.overlay) return;

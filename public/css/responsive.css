@@ -44,10 +44,6 @@
         aspect-ratio: 560 / 384;
     }
 
-    .monitor-bezel {
-        padding: 16px;
-    }
-
     #disk-drives {
         flex-direction: column;
         gap: var(--space-sm);
@@ -119,78 +115,6 @@
         display: none !important;
     }
 
-    /* Monitor adjustments for mobile */
-    .monitor-bezel {
-        padding: 12px 14px 24px;
-        border-radius: var(--radius-md) var(--radius-md) var(--radius-sm)
-            var(--radius-sm);
-    }
-
-    .monitor-bezel::before {
-        height: 3px;
-        top: 5px;
-        left: 8px;
-        right: 8px;
-    }
-
-    .monitor-badge {
-        bottom: 5px;
-        padding: 1px 10px;
-    }
-
-    .monitor-badge span {
-        font-size: 0.5rem;
-    }
-
-    .monitor-power {
-        bottom: 5px;
-        right: 12px;
-        gap: 4px;
-    }
-
-    .power-led {
-        width: 6px;
-        height: 6px;
-    }
-
-    .power-label {
-        font-size: 0.4375rem;
-    }
-
-    .charset-switch {
-        bottom: 5px;
-        left: 8px;
-        padding: 2px 4px;
-        gap: 3px;
-    }
-
-    .charset-label {
-        font-size: 6px;
-    }
-
-    .charset-toggle {
-        width: 20px;
-        height: 12px;
-    }
-
-    .charset-slider::before {
-        width: 6px;
-        height: 6px;
-    }
-
-    .charset-toggle input:checked + .charset-slider::before {
-        transform: translateX(8px);
-    }
-
-    /* Make monitor base smaller on mobile */
-    .monitor-base {
-        height: 12px;
-    }
-
-    .monitor-stand {
-        height: 8px;
-    }
-
     /* Disk drives - more compact layout */
     .disk-drives-row {
         gap: var(--space-sm);
@@ -248,11 +172,6 @@
         font-size: 0.625rem;
     }
 
-    /* Hide monitor resize handles on mobile */
-    .monitor-resize-handle {
-        display: none;
-    }
-
     /* Floating reminders positioning for mobile */
     .power-reminder {
         top: auto;
@@ -284,10 +203,6 @@
     .control-btn svg {
         width: 18px;
         height: 18px;
-    }
-
-    .monitor-bezel {
-        padding: 10px 12px 20px;
     }
 
     .drive-image-container {
@@ -376,42 +291,6 @@
         flex: none;
     }
 
-    .monitor-bezel {
-        padding: 8px 10px 16px;
-    }
-
-    .monitor-bezel::before {
-        height: 2px;
-        top: 4px;
-    }
-
-    .monitor-badge,
-    .monitor-power,
-    .charset-switch {
-        bottom: 3px;
-    }
-
-    .monitor-badge span {
-        font-size: 0.4375rem;
-    }
-
-    .power-led {
-        width: 5px;
-        height: 5px;
-    }
-
-    .power-label {
-        font-size: 0.375rem;
-    }
-
-    .monitor-base {
-        height: 8px;
-    }
-
-    .monitor-stand {
-        height: 5px;
-    }
-
     /* Disk drives in landscape - compact */
     .disk-drives-row {
         flex-direction: column;
@@ -474,10 +353,6 @@
     #drives-reminder {
         display: none !important;
     }
-
-    .monitor-resize-handle {
-        display: none;
-    }
 }
 
 /* Touch device improvements */
@@ -516,41 +391,9 @@
         color: white;
     }
 
-    /* Hide resize handles - not usable on touch */
-    .monitor-resize-handle {
-        display: none;
-    }
-
     /* Visual feedback when keyboard is active */
     #screen.keyboard-active {
         outline: 2px solid var(--accent-green);
         outline-offset: 2px;
-    }
-
-    /* Tap hint for mobile users */
-    .monitor-screen-wrapper::after {
-        content: "Tap to type";
-        position: absolute;
-        bottom: 8px;
-        left: 50%;
-        transform: translateX(-50%);
-        background: rgba(0, 0, 0, 0.7);
-        color: var(--text-secondary);
-        padding: 4px 12px;
-        border-radius: var(--radius-sm);
-        font-size: 0.6875rem;
-        pointer-events: none;
-        opacity: 0;
-        transition: opacity 0.3s;
-    }
-
-    /* Show hint when screen doesn't have keyboard focus */
-    .monitor-screen-wrapper:not(:has(#screen.keyboard-active))::after {
-        opacity: 1;
-    }
-
-    /* Hide hint when keyboard is active */
-    .monitor-screen-wrapper:has(#screen.keyboard-active)::after {
-        opacity: 0;
     }
 }

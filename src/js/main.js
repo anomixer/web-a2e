@@ -7,7 +7,6 @@ import { InputHandler, TextSelection } from "./input/index.js";
 import { DiskManager } from "./disk-manager/index.js";
 import { DiskDrivesWindow } from "./disk-manager/disk-drives-window.js";
 import { FileExplorerWindow } from "./file-explorer/index.js";
-import { MonitorResizer } from "./ui/monitor-resizer.js";
 import { ReminderController } from "./ui/reminder-controller.js";
 import { DocumentationWindow } from "./ui/documentation-window.js";
 import { UIController } from "./ui/ui-controller.js";
@@ -30,9 +29,6 @@ import {
 import { ReleaseNotesWindow } from "./ui/release-notes-window.js";
 import { ScreenWindow } from "./ui/screen-window.js";
 
-// Display constants
-const MONITOR_ASPECT_RATIO = 4 / 3;
-
 class AppleIIeEmulator {
   constructor() {
     this.wasmModule = null;
@@ -44,7 +40,6 @@ class AppleIIeEmulator {
     this.windowManager = null;
     this.displaySettings = null;
     this.textSelection = null;
-    this.monitorResizer = null;
     this.reminderController = null;
     this.documentationWindow = null;
     this.uiController = null;
@@ -115,7 +110,7 @@ class AppleIIeEmulator {
       this.displaySettings.create();
       this.windowManager.register(this.displaySettings);
 
-      // Set up screen window (hosts canvas when bezel is disabled)
+      // Set up screen window (hosts the emulator canvas)
       this.screenWindow = new ScreenWindow(this.renderer, null); // textSelection set later
       this.screenWindow.create();
       this.windowManager.register(this.screenWindow);
@@ -213,38 +208,12 @@ class AppleIIeEmulator {
       this.documentationWindow.create();
       this.windowManager.register(this.documentationWindow);
 
-      // Set up monitor resizer
-      this.monitorResizer = new MonitorResizer({
-        aspectRatio: MONITOR_ASPECT_RATIO,
-        onResize: (width, height) => {
-          if (this.renderer) {
-            this.renderer.resize(width, height);
-          }
-          if (this.textSelection) {
-            this.textSelection.resize();
-          }
-          if (this.windowManager) {
-            this.windowManager.constrainAllToViewport();
-          }
-          this.reminderController.repositionAll();
-        },
-        onResizeComplete: () => {},
-      });
-      this.monitorResizer.init();
-
-      // Wire ScreenWindow close → restore bezel
-      this.screenWindow.onBezelRestore = () => {
-        this.displaySettings.settings.showBezel = true;
-        const bezelToggle = this.displaySettings.contentElement.querySelector('#ds-showBezel');
-        if (bezelToggle) bezelToggle.checked = true;
-        this.displaySettings.applyBezelSetting();
-        this.displaySettings.saveSettings();
-      };
-
-      // Wire references into display settings and apply
-      this.displaySettings.setScreenWindow(this.screenWindow);
-      this.displaySettings.setMonitorResizer(this.monitorResizer);
+      // Apply display settings
       this.displaySettings.applyAllSettings();
+
+      // Always show ScreenWindow and attach canvas
+      this.screenWindow.show();
+      this.screenWindow.attachCanvas();
 
       // Set up UI controller
       this.uiController = new UIController({
@@ -254,11 +223,9 @@ class AppleIIeEmulator {
         diskManager: this.diskManager,
         fileExplorer: this.fileExplorer,
         windowManager: this.windowManager,
-        monitorResizer: this.monitorResizer,
+        screenWindow: this.screenWindow,
         reminderController: this.reminderController,
       });
-      this.uiController.setScreenWindow(this.screenWindow);
-      this.uiController.setDisplaySettings(this.displaySettings);
       this.uiController.init();
 
       // Set up state manager
@@ -295,8 +262,7 @@ class AppleIIeEmulator {
     const savedState = localStorage.getItem('a2e-debug-windows');
     const parsed = savedState ? JSON.parse(savedState) : null;
 
-    const screenNeedDefault = !this.displaySettings.settings.showBezel
-      && !this.windowManager.isWindowVisible('screen-window')
+    const screenNeedDefault = !this.windowManager.isWindowVisible('screen-window')
       && (!parsed || !parsed['screen-window']);
 
     const drivesNeedDefault = !this.windowManager.isWindowVisible('disk-drives')
@@ -487,11 +453,6 @@ class AppleIIeEmulator {
     if (this.stateManager) {
       this.stateManager.destroy();
       this.stateManager = null;
-    }
-
-    if (this.monitorResizer) {
-      this.monitorResizer.destroy();
-      this.monitorResizer = null;
     }
 
     if (this.textSelection) {

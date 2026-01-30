@@ -50,8 +50,6 @@ export class DisplaySettingsWindow extends BaseWindow {
       ntscFringing: 67,
       // Monochrome mode (0=color, 1=green, 2=amber, 3=white)
       monochromeMode: 0,
-      // Show monitor bezel
-      showBezel: false,
     };
 
     // Current values
@@ -104,7 +102,7 @@ export class DisplaySettingsWindow extends BaseWindow {
       html += '</div>';
     }
 
-    // Rendering section with monochrome mode, sharp pixels, and bezel toggle
+    // Rendering section with monochrome mode and sharp pixels
     html += `
       <div class="settings-section">
         <div class="settings-section-title">Rendering</div>
@@ -120,13 +118,6 @@ export class DisplaySettingsWindow extends BaseWindow {
           <label>Sharp Pixels</label>
           <label class="toggle">
             <input type="checkbox" id="ds-sharpPixels" ${this.settings.sharpPixels ? 'checked' : ''}>
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-        <div class="setting-row toggle-row">
-          <label>Show Bezel</label>
-          <label class="toggle">
-            <input type="checkbox" id="ds-showBezel" ${this.settings.showBezel ? 'checked' : ''}>
             <span class="toggle-slider"></span>
           </label>
         </div>
@@ -200,16 +191,6 @@ export class DisplaySettingsWindow extends BaseWindow {
       });
     }
 
-    // Show bezel toggle
-    const bezelToggle = this.contentElement.querySelector('#ds-showBezel');
-    if (bezelToggle) {
-      bezelToggle.addEventListener('change', (e) => {
-        this.settings.showBezel = e.target.checked;
-        this.applyBezelSetting();
-        this.saveSettings();
-      });
-    }
-
     // NTSC Fringing slider (shader-based)
     const ntscInput = this.contentElement.querySelector('#ds-ntscFringing');
     const ntscValueSpan = this.contentElement.querySelector('#ds-val-ntscFringing');
@@ -234,21 +215,7 @@ export class DisplaySettingsWindow extends BaseWindow {
     super.create();
     this.loadSettings();
     this.setupContentEventListeners();
-    // applyAllSettings() is called by main.js after ScreenWindow and MonitorResizer are wired up
-  }
-
-  /**
-   * Set reference to ScreenWindow (needed for applyBezelSetting)
-   */
-  setScreenWindow(screenWindow) {
-    this.screenWindow = screenWindow;
-  }
-
-  /**
-   * Set reference to MonitorResizer (needed for applyBezelSetting)
-   */
-  setMonitorResizer(monitorResizer) {
-    this.monitorResizer = monitorResizer;
+    // applyAllSettings() is called by main.js after initialization
   }
 
   applyToRenderer(param, value) {
@@ -308,39 +275,8 @@ export class DisplaySettingsWindow extends BaseWindow {
       this.renderer.setNearestFilter(this.settings.sharpPixels);
     }
 
-    // Apply bezel setting
-    const bezelToggle = this.contentElement.querySelector('#ds-showBezel');
-    if (bezelToggle) {
-      bezelToggle.checked = this.settings.showBezel;
-    }
-    this.applyBezelSetting();
-
     // Apply NTSC fringing settings (shader-based)
     this.applyNTSCSettings();
-  }
-
-  applyBezelSetting() {
-    if (this.settings.showBezel) {
-      document.body.classList.remove('borderless-mode');
-      if (this.screenWindow) {
-        this.screenWindow.detachCanvas();
-        this.screenWindow.isVisible = false;
-        this.screenWindow.element.classList.add('hidden');
-      }
-      if (this.monitorResizer) {
-        this.monitorResizer.enabled = true;
-        this.monitorResizer.handleResize();
-      }
-    } else {
-      document.body.classList.add('borderless-mode');
-      if (this.monitorResizer) {
-        this.monitorResizer.enabled = false;
-      }
-      if (this.screenWindow) {
-        this.screenWindow.show();
-        this.screenWindow.attachCanvas();
-      }
-    }
   }
 
   resetToDefaults() {

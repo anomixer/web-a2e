@@ -1,5 +1,5 @@
 // Screen Window
-// Hosts the emulator canvas inside a standard BaseWindow when bezel is disabled.
+// Hosts the emulator canvas inside a standard BaseWindow.
 // Maintains 4:3 aspect ratio during resize.
 
 import { BaseWindow } from '../windows/base-window.js';
@@ -18,7 +18,6 @@ export class ScreenWindow extends BaseWindow {
 
     this.renderer = renderer;
     this.textSelection = textSelection;
-    this.onBezelRestore = null; // callback set by main.js
     this._layoutMetrics = null;
   }
 
@@ -55,7 +54,7 @@ export class ScreenWindow extends BaseWindow {
   }
 
   /**
-   * Move #screen canvas from bezel into this window's content area.
+   * Move #screen canvas from #monitor-frame into this window's content area.
    */
   attachCanvas() {
     const canvas = document.getElementById('screen');
@@ -64,7 +63,7 @@ export class ScreenWindow extends BaseWindow {
     const container = this.contentElement.querySelector('.screen-window-content');
     if (!container) return;
 
-    // Clear any inline sizing from MonitorResizer
+    // Clear any inline sizing
     canvas.style.width = '';
     canvas.style.height = '';
     canvas.style.marginTop = '';
@@ -80,22 +79,16 @@ export class ScreenWindow extends BaseWindow {
   }
 
   /**
-   * Move #screen canvas back into the bezel's .monitor-screen-wrapper.
+   * Move #screen canvas back into #monitor-frame (used by full-page mode).
    */
   detachCanvas() {
     const canvas = document.getElementById('screen');
     if (!canvas) return;
 
-    const wrapper = document.querySelector('.monitor-screen-wrapper');
-    if (!wrapper) return;
+    const frame = document.getElementById('monitor-frame');
+    if (!frame) return;
 
-    // Insert before .scanlines so overlay order is preserved
-    const scanlines = wrapper.querySelector('.scanlines');
-    if (scanlines) {
-      wrapper.insertBefore(canvas, scanlines);
-    } else {
-      wrapper.appendChild(canvas);
-    }
+    frame.appendChild(canvas);
 
     // Clear inline styles
     canvas.style.width = '';
@@ -104,18 +97,6 @@ export class ScreenWindow extends BaseWindow {
     if (this.textSelection) {
       this.textSelection.reattach();
     }
-  }
-
-  /**
-   * Override hide — closing the screen window restores the bezel
-   * so the screen is always visible.
-   */
-  hide() {
-    if (this.onBezelRestore) {
-      this.onBezelRestore();
-      return; // callback handles hiding and bezel restore
-    }
-    super.hide();
   }
 
   /**

@@ -18,7 +18,7 @@ const STATE_BUTTON_FLASH_MS = 600;
  * @property {Object} diskManager - Disk manager for drive sounds
  * @property {Object} fileExplorer - File explorer window
  * @property {Object} windowManager - Debug window manager
- * @property {Object} monitorResizer - Monitor resize handler
+ * @property {Object} screenWindow - Screen window instance
  * @property {Object} reminderController - Reminder controller
  */
 
@@ -33,7 +33,7 @@ export class UIController {
     this.diskManager = deps.diskManager;
     this.fileExplorer = deps.fileExplorer;
     this.windowManager = deps.windowManager;
-    this.monitorResizer = deps.monitorResizer;
+    this.screenWindow = deps.screenWindow;
     this.reminderController = deps.reminderController;
 
     this.isFullPageMode = false;
@@ -114,35 +114,18 @@ export class UIController {
   }
 
   /**
-   * Set the screen window reference for full-page mode handling
-   */
-  setScreenWindow(screenWindow) {
-    this.screenWindow = screenWindow;
-  }
-
-  /**
-   * Set the display settings reference for full-page mode handling
-   */
-  setDisplaySettings(displaySettings) {
-    this.displaySettings = displaySettings;
-  }
-
-  /**
    * Set up fullscreen/full page mode controls
    */
   setupFullPageModeControls() {
     const fullscreenBtn = document.getElementById("btn-fullscreen");
     if (!fullscreenBtn) return;
 
-    this._wasScreenWindowVisible = false;
-
     const exitFullPageMode = () => {
       document.body.classList.remove("full-page-mode");
       this.isFullPageMode = false;
 
-      // If ScreenWindow was visible before full-page, restore it
-      if (this._wasScreenWindowVisible && this.screenWindow && this.displaySettings && !this.displaySettings.settings.showBezel) {
-        // Hide monitor-frame again (borderless-mode CSS does this)
+      // Restore ScreenWindow and re-attach canvas from monitor-frame
+      if (this.screenWindow) {
         this.screenWindow.show();
         this.screenWindow.attachCanvas();
       }
@@ -151,9 +134,8 @@ export class UIController {
     };
 
     const enterFullPageMode = () => {
-      // If ScreenWindow is active, detach canvas back to monitor-frame for full-page rendering
-      this._wasScreenWindowVisible = this.screenWindow && this.screenWindow.isVisible;
-      if (this._wasScreenWindowVisible && this.screenWindow) {
+      // Detach canvas from ScreenWindow into monitor-frame for full-page rendering
+      if (this.screenWindow && this.screenWindow.isVisible) {
         this.screenWindow.detachCanvas();
         this.screenWindow.isVisible = false;
         this.screenWindow.element.classList.add('hidden');
@@ -217,8 +199,6 @@ export class UIController {
     const muteToggle = document.getElementById("mute-toggle");
     const driveSoundsToggle = document.getElementById("drive-sounds-toggle");
     const stereoToggle = document.getElementById("stereo-toggle");
-    const charsetToggle = document.getElementById("charset-toggle");
-
     if (!soundBtn || !soundPopup) return;
 
     // Load saved drive sounds setting
@@ -292,13 +272,12 @@ export class UIController {
       });
     }
 
-    // Character set toggle (UK/US) - bezel and screen window header versions
+    // Character set toggle (UK/US) - screen window header
     const screenWindowCharsetToggle = document.getElementById("screen-window-charset-toggle");
 
-    const syncCharsetToggles = (isUK) => {
+    const syncCharsetToggle = (isUK) => {
       this.wasmModule._setUKCharacterSet(isUK);
       localStorage.setItem("a2e-charset", isUK ? "uk" : "us");
-      if (charsetToggle) charsetToggle.checked = !isUK;
       if (screenWindowCharsetToggle) screenWindowCharsetToggle.checked = !isUK;
     };
 
@@ -306,20 +285,12 @@ export class UIController {
     const savedCharset = localStorage.getItem("a2e-charset");
     const isUKInitial = savedCharset === "uk";
     this.wasmModule._setUKCharacterSet(isUKInitial);
-    if (charsetToggle) charsetToggle.checked = !isUKInitial;
     if (screenWindowCharsetToggle) screenWindowCharsetToggle.checked = !isUKInitial;
-
-    // Bezel toggle listener
-    if (charsetToggle) {
-      charsetToggle.addEventListener("change", (e) => {
-        syncCharsetToggles(!e.target.checked);
-      });
-    }
 
     // Screen window header toggle listener
     if (screenWindowCharsetToggle) {
       screenWindowCharsetToggle.addEventListener("change", (e) => {
-        syncCharsetToggles(!e.target.checked);
+        syncCharsetToggle(!e.target.checked);
       });
     }
   }
@@ -470,16 +441,13 @@ export class UIController {
    */
   updatePowerButton(isRunning) {
     const powerBtn = document.getElementById("btn-power");
-    const powerLed = document.getElementById("monitor-power-led");
 
     if (isRunning) {
       powerBtn?.classList.remove("off");
       if (powerBtn) powerBtn.title = "Power Off";
-      powerLed?.classList.add("on");
     } else {
       powerBtn?.classList.add("off");
       if (powerBtn) powerBtn.title = "Power On";
-      powerLed?.classList.remove("on");
     }
   }
 

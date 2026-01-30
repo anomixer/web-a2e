@@ -360,7 +360,7 @@ export class DocumentationWindow extends BaseWindow {
         <p>Click the <strong>fullscreen button</strong> for an immersive experience. Press <kbd>Ctrl</kbd>+<kbd>Escape</kbd> to exit.</p>
 
         <h4>Character Set</h4>
-        <p>Toggle between US and UK character sets using the switch on the monitor bezel. The UK set replaces some symbols with British variants.</p>
+        <p>Toggle between US and UK character sets using the switch in the screen window header. The UK set replaces some symbols with British variants.</p>
       </section>
 
       <!-- Disk Drives Section -->
