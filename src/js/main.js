@@ -23,6 +23,7 @@ import {
   ZeroPageWatchWindow,
   JoystickWindow,
   MockingboardWindow,
+  MockingboardScopeWindow,
   BasicProgramWindow,
   SlotConfigurationWindow,
 } from "./debug/index.js";
@@ -149,6 +150,10 @@ class AppleIIeEmulator {
       const mockingboardWindow = new MockingboardWindow(this.wasmModule);
       mockingboardWindow.create();
       this.windowManager.register(mockingboardWindow);
+
+      const mockingboardScopeWindow = new MockingboardScopeWindow(this.wasmModule);
+      mockingboardScopeWindow.create();
+      this.windowManager.register(mockingboardScopeWindow);
 
       const basicProgramWindow = new BasicProgramWindow(
         this.wasmModule,

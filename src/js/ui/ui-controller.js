@@ -325,6 +325,7 @@ export class UIController {
       stack: "stack-viewer",
       zeropage: "zeropage-watch",
       mockingboard: "mockingboard-debug",
+      "mockingboard-scope": "mockingboard-scope",
       basic: "basic-program",
     };
 

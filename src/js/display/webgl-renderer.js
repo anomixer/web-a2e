@@ -379,6 +379,20 @@ export class WebGLRenderer {
   draw() {
     const gl = this.gl;
 
+    // Apply any pending canvas resize right before painting so the
+    // buffer clear and the redraw happen in the same frame (no flicker).
+    if (this._pendingWidth !== undefined) {
+      const pw = this._pendingWidth;
+      const ph = this._pendingHeight;
+      this._pendingWidth = undefined;
+      this._pendingHeight = undefined;
+      if (this.canvas.width !== pw || this.canvas.height !== ph) {
+        this.canvas.width = pw;
+        this.canvas.height = ph;
+        gl.viewport(0, 0, pw, ph);
+      }
+    }
+
     // Update time for animated effects
     this.time += 0.016; // Approximately 60fps
 
@@ -547,15 +561,14 @@ export class WebGLRenderer {
   }
 
   resize(width, height) {
-    // Use device pixel ratio for sharper rendering on high-DPI displays
+    // Defer the actual canvas buffer resize to the next draw() call.
+    // Setting canvas.width/height clears the WebGL drawing buffer and forces
+    // a GPU reallocation.  During a drag-resize this is called on every
+    // mousemove, but draw() only runs once per rAF.  Deferring keeps the
+    // buffer clear and the repaint in the same frame, eliminating flicker.
     const dpr = window.devicePixelRatio || 1;
-
-    // Set the backing store size (actual pixels)
-    this.canvas.width = Math.floor(width * dpr);
-    this.canvas.height = Math.floor(height * dpr);
-
-    // Update WebGL viewport
-    this.gl.viewport(0, 0, this.canvas.width, this.canvas.height);
+    this._pendingWidth = Math.floor(width * dpr);
+    this._pendingHeight = Math.floor(height * dpr);
   }
 
   async loadShader(path) {
