@@ -158,8 +158,8 @@ Example:
       }
     }
 
-    // Type through the emulator's keyboard input system
-    this.inputHandler.queueTextInput(inputText);
+    // Type through the emulator's keyboard input system at 8x speed
+    this.inputHandler.queueTextInput(inputText, { speedMultiplier: 8 });
 
     console.log(`BASIC program queued for input: ${lines.length} lines`);
     this.showLoadedFeedback(lines.length);

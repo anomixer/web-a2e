@@ -35,6 +35,7 @@ export class UIController {
     this.windowManager = deps.windowManager;
     this.screenWindow = deps.screenWindow;
     this.reminderController = deps.reminderController;
+    this.inputHandler = deps.inputHandler;
 
     this.isFullPageMode = false;
     this.canvas = null;
@@ -94,6 +95,7 @@ export class UIController {
     const warmResetBtn = document.getElementById("btn-warm-reset");
     if (warmResetBtn) {
       warmResetBtn.addEventListener("click", () => {
+        if (this.inputHandler) this.inputHandler.cancelPaste();
         this.wasmModule._warmReset();
         setTimeout(() => {
           this.reminderController.dismissBasicReminder();
@@ -106,6 +108,7 @@ export class UIController {
     const coldResetBtn = document.getElementById("btn-cold-reset");
     if (coldResetBtn) {
       coldResetBtn.addEventListener("click", async () => {
+        if (this.inputHandler) this.inputHandler.cancelPaste();
         this.wasmModule._reset();
         await clearStateFromStorage();
         this.refocusCanvas();

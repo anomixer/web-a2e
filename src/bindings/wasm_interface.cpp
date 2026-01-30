@@ -128,6 +128,18 @@ bool isKeyboardReady() {
 }
 
 EMSCRIPTEN_KEEPALIVE
+void setSpeedMultiplier(int multiplier) {
+  REQUIRE_EMULATOR();
+  g_emulator->setSpeedMultiplier(multiplier);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getSpeedMultiplier() {
+  REQUIRE_EMULATOR_OR(1);
+  return g_emulator->getSpeedMultiplier();
+}
+
+EMSCRIPTEN_KEEPALIVE
 bool insertDisk(int drive, uint8_t *data, int size, const char *filename) {
   REQUIRE_EMULATOR_OR(false);
   return g_emulator->insertDisk(drive, data, size, filename);

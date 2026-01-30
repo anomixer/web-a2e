@@ -230,6 +230,7 @@ class AppleIIeEmulator {
         windowManager: this.windowManager,
         screenWindow: this.screenWindow,
         reminderController: this.reminderController,
+        inputHandler: this.inputHandler,
       });
       this.uiController.init();
 
@@ -333,6 +334,7 @@ class AppleIIeEmulator {
   start() {
     if (this.running) return;
 
+    if (this.inputHandler) this.inputHandler.cancelPaste();
     this.wasmModule._reset();
     this.running = true;
     this.renderer.setNoSignal(false);

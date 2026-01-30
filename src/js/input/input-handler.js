@@ -15,8 +15,8 @@ export class InputHandler {
     // Paste queue for typing pasted text
     this.pasteQueue = [];
     this.pasteTimer = null;
-    this.pasteDelay = 0; // as fast as possible - keyboard ready check throttles to emulator speed
-    this.pasteBoostCycles = 50000; // extra cycles to run per character for fast paste
+    this.pasteSpeedUp = false; // whether we've set a speed multiplier for paste
+    this.savedSpeedMultiplier = 1; // speed before paste started
   }
 
   init() {
@@ -154,25 +154,14 @@ export class InputHandler {
     return false;
   }
 
-  // Handle paste event - still uses direct keyDown for ASCII characters
+  // Handle paste event - queues text for input at accelerated speed
   handlePaste(event) {
     event.preventDefault();
 
     const text = (event.clipboardData || window.clipboardData).getData("text");
     if (!text) return;
 
-    // Add characters to paste queue
-    for (const char of text) {
-      const appleKey = this.charToAppleKey(char);
-      if (appleKey !== null) {
-        this.pasteQueue.push(appleKey);
-      }
-    }
-
-    // Start processing queue if not already running
-    if (!this.pasteTimer && this.pasteQueue.length > 0) {
-      this.processPasteQueue();
-    }
+    this.queueTextInput(text, { speedMultiplier: 8 });
   }
 
   // Convert character to Apple II key code (for paste only)
@@ -198,24 +187,28 @@ export class InputHandler {
     return null;
   }
 
-  // Process paste queue in batches for speed, yielding to the browser
-  // periodically to keep the UI responsive
+  // Process paste queue in batches, yielding to the browser periodically
+  // to keep the UI responsive and let the audio worklet drive emulation.
+  // Speed multiplier (set via WASM) makes the audio-driven emulation run
+  // faster, while small boost cycle batches handle immediate key processing.
   processPasteQueue() {
     if (this.pasteQueue.length === 0) {
+      this.restorePasteSpeed();
       this.pasteTimer = null;
       return;
     }
 
-    const batchEnd = performance.now() + 16; // ~1 frame at 60fps
+    const BOOST_BATCH = 500; // small cycle batch for immediate key processing
+    const TIME_BUDGET_MS = 50;
+    const batchEnd = performance.now() + TIME_BUDGET_MS;
 
     while (this.pasteQueue.length > 0 && performance.now() < batchEnd) {
-      // Check if keyboard is ready (strobe cleared from previous character)
-      if (this.wasmModule._isKeyboardReady && !this.wasmModule._isKeyboardReady()) {
-        // Not ready yet, run extra cycles to speed up processing
-        if (this.wasmModule._runCycles) {
-          this.wasmModule._runCycles(this.pasteBoostCycles);
+      // Wait for keyboard ready, running small boost cycles until it is
+      if (this.wasmModule._isKeyboardReady) {
+        while (!this.wasmModule._isKeyboardReady()) {
+          this.wasmModule._runCycles(BOOST_BATCH);
+          if (performance.now() >= batchEnd) break;
         }
-        // If still not ready after boost, yield to browser
         if (!this.wasmModule._isKeyboardReady()) {
           break;
         }
@@ -224,10 +217,8 @@ export class InputHandler {
       const appleKey = this.pasteQueue.shift();
       this.wasmModule._keyDown(appleKey);
 
-      // Run extra cycles to let the emulator process the keystroke faster
-      if (this.wasmModule._runCycles) {
-        this.wasmModule._runCycles(this.pasteBoostCycles);
-      }
+      // Run a small burst to start processing the keystroke
+      this.wasmModule._runCycles(BOOST_BATCH);
     }
 
     // Schedule next batch if more characters remain
@@ -236,7 +227,27 @@ export class InputHandler {
         this.processPasteQueue();
       }, 0);
     } else {
+      this.restorePasteSpeed();
       this.pasteTimer = null;
+    }
+  }
+
+  // Set emulation speed multiplier for fast paste/input
+  setPasteSpeed(multiplier) {
+    if (!this.pasteSpeedUp && this.wasmModule._setSpeedMultiplier) {
+      this.savedSpeedMultiplier = this.wasmModule._getSpeedMultiplier
+        ? this.wasmModule._getSpeedMultiplier()
+        : 1;
+      this.wasmModule._setSpeedMultiplier(multiplier);
+      this.pasteSpeedUp = true;
+    }
+  }
+
+  // Restore emulation speed after paste completes
+  restorePasteSpeed() {
+    if (this.pasteSpeedUp && this.wasmModule._setSpeedMultiplier) {
+      this.wasmModule._setSpeedMultiplier(this.savedSpeedMultiplier);
+      this.pasteSpeedUp = false;
     }
   }
 
@@ -247,10 +258,14 @@ export class InputHandler {
       this.pasteTimer = null;
     }
     this.pasteQueue = [];
+    this.restorePasteSpeed();
   }
 
   // Queue text for programmatic input (used by BasicProgramWindow)
-  queueTextInput(text) {
+  // speedMultiplier: emulation speed during input (1=normal, 8=8x)
+  queueTextInput(text, { speedMultiplier = 8 } = {}) {
+    this.setPasteSpeed(speedMultiplier);
+
     for (const char of text) {
       const appleKey = this.charToAppleKey(char);
       if (appleKey !== null) {
