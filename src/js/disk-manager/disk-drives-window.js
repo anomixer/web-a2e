@@ -18,6 +18,9 @@ export class DiskDrivesWindow extends BaseWindow {
     });
 
     this._detailsOpen = false;
+    this._graphicsHidden = false;
+    this._minHeightFull = 310;
+    this._minHeightCompact = 100;
   }
 
   _driveHTML(num) {
@@ -61,22 +64,54 @@ export class DiskDrivesWindow extends BaseWindow {
         ${this._driveHTML(1)}
         ${this._driveHTML(2)}
       </div>
-      <div class="drive-detail-toggle-bar">
-        <button class="drive-detail-toggle">Details</button>
-      </div>
     `;
   }
 
   onContentRendered() {
-    const btn = this.contentElement.querySelector('.drive-detail-toggle');
-    if (btn) {
-      btn.addEventListener('click', () => this._toggleDetails());
+    const closeBtn = this.headerElement.querySelector(`.${this.cssClasses.close}`);
+
+    this._graphicsBtn = document.createElement('button');
+    this._graphicsBtn.className = 'drive-graphics-btn';
+    this._graphicsBtn.title = 'Toggle disk graphics';
+    this._graphicsBtn.innerHTML = `
+      <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+        <path d="M8 3C4.5 3 1.6 5.3.6 8c1 2.7 3.9 5 7.4 5s6.4-2.3 7.4-5c-1-2.7-3.9-5-7.4-5zm0 8.5A3.5 3.5 0 1 1 8 4.5a3.5 3.5 0 0 1 0 7zm0-5.5a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/>
+      </svg>
+    `;
+    this.headerElement.insertBefore(this._graphicsBtn, closeBtn);
+    this._graphicsBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+    this._graphicsBtn.addEventListener('click', () => this._toggleGraphics());
+
+    this._detailBtn = document.createElement('button');
+    this._detailBtn.className = 'drive-detail-btn';
+    this._detailBtn.title = 'Toggle details';
+    this._detailBtn.innerHTML = `
+      <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+        <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 2.5a1 1 0 1 1 0 2 1 1 0 0 1 0-2zM6.5 7h1.75v4.5H10v1H6v-1h1.25V8H6.5V7z"/>
+      </svg>
+    `;
+    this.headerElement.insertBefore(this._detailBtn, closeBtn);
+    this._detailBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+    this._detailBtn.addEventListener('click', () => this._toggleDetails());
+  }
+
+  _toggleGraphics() {
+    this._graphicsHidden = !this._graphicsHidden;
+    this.contentElement.classList.toggle('hide-graphics', this._graphicsHidden);
+    if (this._graphicsBtn) {
+      this._graphicsBtn.classList.toggle('active', this._graphicsHidden);
     }
+    this.minHeight = this._graphicsHidden ? this._minHeightCompact : this._minHeightFull;
+    this._layoutMetrics = null;
+    this._fitHeight();
   }
 
   _toggleDetails() {
     this._detailsOpen = !this._detailsOpen;
     this.contentElement.classList.toggle('show-details', this._detailsOpen);
+    if (this._detailBtn) {
+      this._detailBtn.classList.toggle('active', this._detailsOpen);
+    }
     // Re-fit height since the content changed
     this._layoutMetrics = null;
     this._fitHeight();
@@ -173,11 +208,18 @@ export class DiskDrivesWindow extends BaseWindow {
     this.element.style.height = "auto";
     // Force layout so measurements are valid
     this.element.offsetHeight; // eslint-disable-line no-unused-expressions
-    this._measureLayout();
 
-    const h = Math.max(this.minHeight, this._heightForWidth(this.currentWidth));
-    this.element.style.height = `${h}px`;
-    this.currentHeight = h;
+    if (this._graphicsHidden) {
+      // No canvas to scale — just use auto height
+      const h = Math.max(this.minHeight, this.element.offsetHeight);
+      this.element.style.height = `${h}px`;
+      this.currentHeight = h;
+    } else {
+      this._measureLayout();
+      const h = Math.max(this.minHeight, this._heightForWidth(this.currentWidth));
+      this.element.style.height = `${h}px`;
+      this.currentHeight = h;
+    }
   }
 
   /**
@@ -228,8 +270,48 @@ export class DiskDrivesWindow extends BaseWindow {
 
   /**
    * Width drives the canvas size; fixed chrome stays constant.
+   * When graphics are hidden, only horizontal resize is allowed and
+   * height is auto-fitted to content.
    */
   resize(e) {
+    if (this._graphicsHidden) {
+      const dx = e.clientX - this.resizeStart.x;
+      const dir = this.resizeDirection;
+
+      // Ignore pure vertical drags — no vertical resize in compact mode
+      if (!dir.includes("e") && !dir.includes("w")) return;
+
+      let newWidth = this.resizeStart.width;
+      let newLeft = this.resizeStart.left;
+
+      if (dir.includes("e")) {
+        newWidth = this.resizeStart.width + dx;
+      }
+      if (dir.includes("w")) {
+        const proposed = this.resizeStart.width - dx;
+        if (proposed >= this.minWidth) {
+          newWidth = proposed;
+          newLeft = this.resizeStart.left + dx;
+        }
+      }
+
+      // Clamp width
+      newLeft = Math.max(0, newLeft);
+      if (newLeft + newWidth > window.innerWidth) {
+        newWidth = window.innerWidth - newLeft;
+      }
+      newWidth = Math.max(this.minWidth, newWidth);
+
+      this.element.style.width = `${newWidth}px`;
+      this.element.style.left = `${newLeft}px`;
+      this.currentWidth = newWidth;
+      this.currentX = newLeft;
+
+      // Re-fit height to content at the new width
+      this._fitHeight();
+      return;
+    }
+
     const dx = e.clientX - this.resizeStart.x;
     const dy = e.clientY - this.resizeStart.y;
     const dir = this.resizeDirection;
