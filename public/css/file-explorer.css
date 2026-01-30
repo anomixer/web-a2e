@@ -472,7 +472,9 @@
 }
 
 .hex-line {
-    display: block;
+    display: flex;
+    align-items: baseline;
+    padding: 1px 0;
 }
 
 .hex-line:hover {
@@ -482,10 +484,13 @@
 .hex-addr {
     color: #7c8799;
     font-weight: 500;
+    flex-shrink: 0;
 }
 
 .hex-separator {
     color: #4a5568;
+    flex-shrink: 0;
+    margin-right: 0.5em;
 }
 
 .hex-byte {
@@ -505,20 +510,27 @@
 }
 
 .hex-bytes-first {
-    margin-right: 4px;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
 }
 
 .hex-bytes-second {
-    margin-right: 8px;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
 }
 
 .hex-ascii-separator {
     color: #3a4556;
-    margin: 0 6px;
+    flex-shrink: 0;
+    margin: 0 0.4em;
 }
 
 .hex-ascii {
     letter-spacing: 0;
+    flex-shrink: 0;
+    white-space: pre;
 }
 
 .hex-ascii-printable {
