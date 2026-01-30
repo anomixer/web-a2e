@@ -198,37 +198,46 @@ export class InputHandler {
     return null;
   }
 
-  // Process paste queue one character at a time
+  // Process paste queue in batches for speed, yielding to the browser
+  // periodically to keep the UI responsive
   processPasteQueue() {
     if (this.pasteQueue.length === 0) {
       this.pasteTimer = null;
       return;
     }
 
-    // Check if keyboard is ready (strobe cleared from previous character)
-    if (this.wasmModule._isKeyboardReady && !this.wasmModule._isKeyboardReady()) {
-      // Not ready yet, run extra cycles to speed up processing
+    const batchEnd = performance.now() + 16; // ~1 frame at 60fps
+
+    while (this.pasteQueue.length > 0 && performance.now() < batchEnd) {
+      // Check if keyboard is ready (strobe cleared from previous character)
+      if (this.wasmModule._isKeyboardReady && !this.wasmModule._isKeyboardReady()) {
+        // Not ready yet, run extra cycles to speed up processing
+        if (this.wasmModule._runCycles) {
+          this.wasmModule._runCycles(this.pasteBoostCycles);
+        }
+        // If still not ready after boost, yield to browser
+        if (!this.wasmModule._isKeyboardReady()) {
+          break;
+        }
+      }
+
+      const appleKey = this.pasteQueue.shift();
+      this.wasmModule._keyDown(appleKey);
+
+      // Run extra cycles to let the emulator process the keystroke faster
       if (this.wasmModule._runCycles) {
         this.wasmModule._runCycles(this.pasteBoostCycles);
       }
+    }
+
+    // Schedule next batch if more characters remain
+    if (this.pasteQueue.length > 0) {
       this.pasteTimer = setTimeout(() => {
         this.processPasteQueue();
       }, 0);
-      return;
+    } else {
+      this.pasteTimer = null;
     }
-
-    const appleKey = this.pasteQueue.shift();
-    this.wasmModule._keyDown(appleKey);
-
-    // Run extra cycles to let the emulator process the keystroke faster
-    if (this.wasmModule._runCycles) {
-      this.wasmModule._runCycles(this.pasteBoostCycles);
-    }
-
-    // Schedule next character immediately
-    this.pasteTimer = setTimeout(() => {
-      this.processPasteQueue();
-    }, this.pasteDelay);
   }
 
   // Cancel any pending paste operation
