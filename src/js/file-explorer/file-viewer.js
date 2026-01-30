@@ -771,20 +771,24 @@ export function detokenizeApplesoft(data, hasLengthHeader = true) {
  * @param {number} maxBytes - Maximum bytes to show (0 = all)
  * @returns {string} Formatted hex dump as HTML
  */
-export function formatHexDump(data, baseAddress = 0, maxBytes = 0) {
+export function formatHexDump(data, baseAddress = 0, maxBytes = 0, bytesPerRow = 16) {
   const lines = [];
   const bytesToShow =
     maxBytes > 0 ? Math.min(data.length, maxBytes) : data.length;
+  const groupSize = 8;
 
-  for (let i = 0; i < bytesToShow; i += 16) {
+  for (let i = 0; i < bytesToShow; i += bytesPerRow) {
     const addr = (baseAddress + i).toString(16).toUpperCase().padStart(4, "0");
 
-    // Hex bytes - first half and second half
-    let hexFirst = "";
-    let hexSecond = "";
+    let hexBytes = "";
     let ascii = "";
 
-    for (let j = 0; j < 16; j++) {
+    for (let j = 0; j < bytesPerRow; j++) {
+      // Add group gap every 8 bytes (not at start)
+      if (j > 0 && j % groupSize === 0) {
+        hexBytes += `<span class="hex-group-gap"></span>`;
+      }
+
       if (i + j < bytesToShow) {
         const byte = data[i + j];
         const hexStr = byte.toString(16).toUpperCase().padStart(2, "0");
@@ -799,12 +803,7 @@ export function formatHexDump(data, baseAddress = 0, maxBytes = 0) {
           byteClass += " hex-highbit";
         }
 
-        const styledByte = `<span class="${byteClass}">${hexStr}</span>`;
-        if (j < 8) {
-          hexFirst += styledByte + " ";
-        } else {
-          hexSecond += styledByte + " ";
-        }
+        hexBytes += `<span class="${byteClass}">${hexStr}</span> `;
 
         // ASCII representation (printable chars only)
         const ch = byte & 0x7f;
@@ -815,11 +814,7 @@ export function formatHexDump(data, baseAddress = 0, maxBytes = 0) {
           ascii += `<span class="hex-ascii-dot">.</span>`;
         }
       } else {
-        if (j < 8) {
-          hexFirst += "   ";
-        } else {
-          hexSecond += "   ";
-        }
+        hexBytes += "   ";
         ascii += " ";
       }
     }
@@ -828,8 +823,7 @@ export function formatHexDump(data, baseAddress = 0, maxBytes = 0) {
       `<span class="hex-line">` +
       `<span class="hex-addr">${addr}</span>` +
       `<span class="hex-separator">:</span> ` +
-      `<span class="hex-bytes-first">${hexFirst}</span>` +
-      `<span class="hex-bytes-second">${hexSecond}</span>` +
+      `<span class="hex-bytes">${hexBytes}</span>` +
       `<span class="hex-ascii-separator">│</span>` +
       `<span class="hex-ascii">${ascii}</span>` +
       `<span class="hex-ascii-separator">│</span>` +

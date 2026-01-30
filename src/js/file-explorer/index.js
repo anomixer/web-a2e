@@ -52,6 +52,11 @@ export class FileExplorerWindow extends BaseWindow {
     this.basicLineNumToIndex = null; // For BASIC GOTO/GOSUB navigation
     this.basicOriginalHtml = null; // Original unhighlighted BASIC content
 
+    // Hex view dynamic column state
+    this.hexDisplayState = null; // { data, baseAddress, maxBytes }
+    this.hexResizeObserver = null;
+    this.hexBytesPerRow = 16;
+
     // Bind handlers
     this.handleBasicLineClick = this.handleBasicLineClick.bind(this);
   }
@@ -93,6 +98,12 @@ export class FileExplorerWindow extends BaseWindow {
             <span class="dis-address">Address</span>
             <span class="dis-immediate">Immediate</span>
             <span class="dis-data">Data</span>
+          </div>
+          <div class="fe-hex-legend hidden">
+            <span class="hex-legend-printable">Printable</span>
+            <span class="hex-legend-control">Control</span>
+            <span class="hex-legend-highbit">High Bit</span>
+            <span class="hex-legend-zero">Zero</span>
           </div>
           <div class="fe-file-content"></div>
         </div>
@@ -165,6 +176,9 @@ export class FileExplorerWindow extends BaseWindow {
         }
       }
     });
+
+    // Resize observer for dynamic hex column count
+    this.setupHexResizeObserver();
   }
 
   /**
@@ -389,6 +403,7 @@ export class FileExplorerWindow extends BaseWindow {
     const contentEl = this.element.querySelector('.fe-file-content');
     const viewToggle = this.element.querySelector('.fe-view-toggle');
     const asmLegend = this.element.querySelector('.fe-asm-legend');
+    const hexLegend = this.element.querySelector('.fe-hex-legend');
 
     if (!this.selectedFile || !this.diskData) {
       this.clearFileView();
@@ -418,8 +433,12 @@ export class FileExplorerWindow extends BaseWindow {
     viewToggle.classList.toggle('hidden', !isBinary);
 
     // Show/hide ASM legend based on binary file and view mode
-    const showLegend = isBinary && this.binaryViewMode === 'asm';
-    asmLegend.classList.toggle('hidden', !showLegend);
+    const showAsmLegend = isBinary && this.binaryViewMode === 'asm';
+    asmLegend.classList.toggle('hidden', !showAsmLegend);
+
+    // Show/hide hex legend (shown for binary hex mode; also set later for unmapped types)
+    const showHexLegend = isBinary && this.binaryViewMode === 'hex';
+    hexLegend.classList.toggle('hidden', !showHexLegend);
 
     // Read file data (cache it for view switching)
     try {
@@ -462,12 +481,15 @@ export class FileExplorerWindow extends BaseWindow {
         this.basicOriginalHtml = null;
 
         if (this.binaryViewMode === 'hex') {
-          // Show hex dump (formatHexDump returns HTML)
-          const hexContent = formatHexDump(displayData, info?.address || 0);
+          // Show hex dump with dynamic column count
           contentEl.className = 'fe-file-content hex';
+          this.hexDisplayState = { data: displayData, baseAddress: info?.address || 0, maxBytes: 0 };
+          this.hexBytesPerRow = this.calculateBytesPerRow();
+          const hexContent = formatHexDump(displayData, info?.address || 0, 0, this.hexBytesPerRow);
           contentEl.innerHTML = `<pre>${hexContent}</pre>`;
         } else {
           // Show disassembly (async) - progressive rendering to avoid freezing
+          this.hexDisplayState = null;
           contentEl.className = 'fe-file-content asm';
           contentEl.innerHTML = '<pre>Disassembling...</pre>';
 
@@ -504,8 +526,11 @@ export class FileExplorerWindow extends BaseWindow {
 
         // If mapFileTypeForViewer returns -1, use hex dump
         if (viewerFileType === -1) {
-          const hexContent = formatHexDump(fileData);
           contentEl.className = 'fe-file-content hex';
+          hexLegend.classList.remove('hidden');
+          this.hexDisplayState = { data: fileData, baseAddress: 0, maxBytes: 0 };
+          this.hexBytesPerRow = this.calculateBytesPerRow();
+          const hexContent = formatHexDump(fileData, 0, 0, this.hexBytesPerRow);
           contentEl.innerHTML = `<pre>${hexContent}</pre>`;
           this.basicLineNumToIndex = null;
           this.basicOriginalHtml = null;
@@ -513,6 +538,7 @@ export class FileExplorerWindow extends BaseWindow {
         }
 
         // ProDOS BASIC files don't have the 2-byte length header that DOS 3.3 files have
+        this.hexDisplayState = null;
         const hasLengthHeader = this.diskFormat !== 'prodos';
         const formatted = formatFileContents(fileData, viewerFileType, { hasLengthHeader });
         contentEl.className = `fe-file-content ${formatted.format}`;
@@ -568,12 +594,87 @@ export class FileExplorerWindow extends BaseWindow {
     }
   }
 
+  /**
+   * Set up ResizeObserver to dynamically adjust hex column count
+   */
+  setupHexResizeObserver() {
+    const contentEl = this.element.querySelector('.fe-file-content');
+    if (!contentEl) return;
+
+    this.hexResizeObserver = new ResizeObserver(() => {
+      if (!this.hexDisplayState || !contentEl.classList.contains('hex')) return;
+
+      const bytesPerRow = this.calculateBytesPerRow();
+      if (bytesPerRow !== this.hexBytesPerRow) {
+        this.hexBytesPerRow = bytesPerRow;
+        this.rerenderHex();
+      }
+    });
+
+    this.hexResizeObserver.observe(contentEl);
+  }
+
+  /**
+   * Calculate optimal bytes per row based on available width
+   */
+  calculateBytesPerRow() {
+    const contentEl = this.element.querySelector('.fe-file-content');
+    if (!contentEl) return 16;
+
+    // Create a test element to measure monospace character width
+    const testPre = document.createElement('pre');
+    testPre.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;margin:0;padding:0;font-family:var(--font-mono);font-size:11px';
+    testPre.textContent = '0000000000';
+    contentEl.appendChild(testPre);
+    const charWidth = testPre.getBoundingClientRect().width / 10;
+    const emWidth = parseFloat(getComputedStyle(testPre).fontSize);
+    contentEl.removeChild(testPre);
+
+    if (charWidth === 0) return 16;
+
+    // Available width inside the content element (minus padding and scrollbar)
+    const style = getComputedStyle(contentEl);
+    const padding = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+    const availableWidth = contentEl.clientWidth - padding;
+
+    // Fixed parts per line (in pixels):
+    // Address: 4 chars, separator ":": 1 char + 0.5em margin, space: 1 char
+    // ASCII separators: 2 × (1 char + 0.4em margin on each side)
+    const fixedPx = 6 * charWidth + 0.5 * emWidth + 1.6 * emWidth;
+
+    // Per byte: 3 chars hex ("XX ") + 1 char ASCII = 4 chars
+    const perBytePx = 4 * charWidth;
+
+    // First estimate without group gaps
+    let bytesPerRow = Math.floor((availableWidth - fixedPx) / perBytePx);
+
+    // Refine: account for group gaps (0.75em each, between every 8-byte group)
+    const groupGapWidth = 0.75 * emWidth;
+    const gapCount = Math.max(0, Math.floor((bytesPerRow - 1) / 8));
+    bytesPerRow = Math.floor((availableWidth - fixedPx - gapCount * groupGapWidth) / perBytePx);
+
+    return Math.max(1, Math.min(64, bytesPerRow));
+  }
+
+  /**
+   * Re-render hex dump with current bytesPerRow
+   */
+  rerenderHex() {
+    const contentEl = this.element.querySelector('.fe-file-content');
+    if (!contentEl || !this.hexDisplayState) return;
+
+    const { data, baseAddress, maxBytes } = this.hexDisplayState;
+    const hexContent = formatHexDump(data, baseAddress, maxBytes, this.hexBytesPerRow);
+    contentEl.innerHTML = `<pre>${hexContent}</pre>`;
+  }
+
   clearFileView() {
     const titleEl = this.element.querySelector('.fe-file-title');
     const infoEl = this.element.querySelector('.fe-file-info');
     const contentEl = this.element.querySelector('.fe-file-content');
     const viewToggle = this.element.querySelector('.fe-view-toggle');
     const asmLegend = this.element.querySelector('.fe-asm-legend');
+    const hexLegend = this.element.querySelector('.fe-hex-legend');
 
     titleEl.textContent = 'Select a file';
     infoEl.textContent = '';
@@ -581,8 +682,10 @@ export class FileExplorerWindow extends BaseWindow {
     contentEl.className = 'fe-file-content';
     viewToggle.classList.add('hidden');
     asmLegend.classList.add('hidden');
+    hexLegend.classList.add('hidden');
     this.currentFileData = null;
     this.basicLineNumToIndex = null;
     this.basicOriginalHtml = null;
+    this.hexDisplayState = null;
   }
 }

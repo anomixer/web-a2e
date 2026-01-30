@@ -435,6 +435,52 @@
     background: #8b949e;
 }
 
+/* Hex dump legend */
+.fe-hex-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+    padding: 6px 10px;
+    background: rgba(0, 0, 0, 0.15);
+    border-bottom: 1px solid var(--border-subtle);
+    font-family: var(--font-mono);
+    font-size: 10px;
+}
+
+.fe-hex-legend.hidden {
+    display: none;
+}
+
+.fe-hex-legend span {
+    display: inline-flex;
+    align-items: center;
+}
+
+.fe-hex-legend span::before {
+    content: "";
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    margin-right: 4px;
+}
+
+.fe-hex-legend .hex-legend-printable::before {
+    background: #7ee787;
+}
+
+.fe-hex-legend .hex-legend-control::before {
+    background: #79c0ff;
+}
+
+.fe-hex-legend .hex-legend-highbit::before {
+    background: #d2a8ff;
+}
+
+.fe-hex-legend .hex-legend-zero::before {
+    background: #4a5568;
+}
+
 .fe-file-content {
     flex: 1;
     overflow: auto;
@@ -509,16 +555,15 @@
     color: #d2a8ff;
 }
 
-.hex-bytes-first {
+.hex-bytes {
     flex: 1;
     min-width: 0;
-    overflow: hidden;
+    white-space: nowrap;
 }
 
-.hex-bytes-second {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
+.hex-group-gap {
+    display: inline-block;
+    width: 0.75em;
 }
 
 .hex-ascii-separator {
