@@ -186,7 +186,7 @@ export class UIController {
     }
 
     // Prevent system menu from closing when clicking toggle items
-    const systemMenu = document.getElementById("system-menu");
+    const systemMenu = document.getElementById("file-menu");
     if (systemMenu) {
       systemMenu.querySelectorAll(".menu-toggle-item").forEach((item) => {
         item.addEventListener("click", (e) => {
@@ -566,7 +566,7 @@ export class UIController {
    * Flash the system menu trigger to indicate saving
    */
   flashStateButton() {
-    const trigger = document.getElementById("btn-system-menu");
+    const trigger = document.getElementById("btn-file-menu");
     if (!trigger) return;
 
     trigger.classList.add("saving");

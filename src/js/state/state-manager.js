@@ -90,7 +90,7 @@ export class StateManager {
     this.updateStateUI();
 
     // Update last saved time when system menu opens
-    const systemMenuContainer = document.getElementById("system-menu-container");
+    const systemMenuContainer = document.getElementById("file-menu-container");
     if (systemMenuContainer) {
       const observer = new MutationObserver(() => {
         if (systemMenuContainer.classList.contains("open")) {
@@ -135,7 +135,7 @@ export class StateManager {
         if (restored) {
           this.uiController.showNotification("State restored");
           // Close system menu after restore
-          const container = document.getElementById("system-menu-container");
+          const container = document.getElementById("file-menu-container");
           if (container) container.classList.remove("open");
         } else {
           this.uiController.showNotification("Failed to restore state");

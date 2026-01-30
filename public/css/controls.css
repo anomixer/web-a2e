@@ -320,7 +320,7 @@
 }
 
 /* State save notification pulse (on system menu trigger) */
-#btn-system-menu.saving {
+#btn-file-menu.saving {
     color: #f0883e;
     animation: state-save-pulse 0.6s ease;
 }

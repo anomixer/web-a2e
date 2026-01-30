@@ -99,7 +99,7 @@ export class ReminderController {
   }
 
   repositionDrivesReminder() {
-    this.positionReminderBelowElement("drives-reminder", "btn-hardware-menu", 180);
+    this.positionReminderBelowElement("drives-reminder", "btn-view-menu", 180);
   }
 
   dismissDrivesReminder() {
