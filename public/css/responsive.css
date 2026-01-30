@@ -80,22 +80,9 @@
         gap: 2px;
     }
 
-    /* Hide button labels on mobile, show only icons */
-    .control-btn span {
-        display: none;
-    }
-
     .control-btn {
         width: 36px;
         height: 36px;
-        padding: 0;
-    }
-
-    .control-btn.power-btn,
-    .control-btn.reset-btn,
-    .control-btn.display-btn,
-    .control-btn.debugger-btn {
-        width: 36px;
         padding: 0;
     }
 
@@ -104,13 +91,20 @@
         height: 20px;
     }
 
-    /* Hide dropdown arrow on mobile */
-    .dropdown-arrow {
+    /* Compact menu triggers and text buttons on mobile */
+    .header-menu-trigger,
+    .header-text-btn {
+        padding: 4px 8px;
+        font-size: 0.75rem;
+    }
+
+    .header-menu-trigger svg.menu-chevron {
         display: none;
     }
 
-    /* Hide debug menu on mobile - not usable on small screens */
-    .debug-menu-container,
+    /* Hide debug and help menus on mobile - not usable on small screens */
+    #debug-menu-container,
+    #help-menu-container,
     .debug-window {
         display: none !important;
     }
@@ -205,6 +199,12 @@
         height: 18px;
     }
 
+    .header-menu-trigger,
+    .header-text-btn {
+        padding: 4px 6px;
+        font-size: 0.6875rem;
+    }
+
     .drive-image-container {
         max-width: 150px;
     }
@@ -238,21 +238,9 @@
         display: none;
     }
 
-    .control-btn span {
-        display: none;
-    }
-
     .control-btn {
         width: 32px;
         height: 32px;
-    }
-
-    .control-btn.power-btn,
-    .control-btn.reset-btn,
-    .control-btn.display-btn,
-    .control-btn.debugger-btn {
-        width: 32px;
-        padding: 0;
     }
 
     .control-btn svg {
@@ -266,12 +254,19 @@
         border: none;
     }
 
-    .dropdown-arrow {
+    .header-menu-trigger,
+    .header-text-btn {
+        padding: 4px 6px;
+        font-size: 0.6875rem;
+    }
+
+    .header-menu-trigger svg.menu-chevron {
         display: none;
     }
 
-    /* Hide debug menu in landscape mobile */
-    .debug-menu-container,
+    /* Hide debug/help menus in landscape mobile */
+    #debug-menu-container,
+    #help-menu-container,
     .debug-window {
         display: none !important;
     }
@@ -360,6 +355,10 @@
     /* Increase touch target sizes */
     .control-btn {
         min-width: 44px;
+        min-height: 44px;
+    }
+
+    .header-menu-trigger {
         min-height: 44px;
     }
 

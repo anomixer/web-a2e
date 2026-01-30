@@ -35,15 +35,7 @@
 }
 
 .control-btn.power-btn {
-    width: auto;
-    padding: 0 var(--space-md);
-    font-size: 0.8125rem;
-    font-weight: 500;
     color: var(--accent-green);
-}
-
-.control-btn.power-btn span {
-    margin-left: var(--space-xs);
 }
 
 .control-btn.power-btn:hover {
@@ -64,65 +56,192 @@
     box-shadow: 0 0 20px rgba(248, 81, 73, 0.3);
 }
 
-/* Drives toggle button */
-#btn-drives {
-    color: var(--accent-green);
-}
-
-#btn-drives:hover {
-    border-color: var(--accent-green);
-    box-shadow: 0 0 15px rgba(63, 185, 80, 0.3);
-}
-
-#btn-drives.off {
-    color: var(--text-muted);
-}
-
-#btn-drives.off:hover {
+/* Compact text-only header buttons (Ctrl+Reset, Reboot) */
+.header-text-btn {
+    padding: 6px 10px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
     color: var(--text-secondary);
-    border-color: var(--border-subtle);
-    box-shadow: none;
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
 }
 
-/* State control popup */
-.state-control-wrapper {
+.header-text-btn:hover {
+    background: var(--bg-light);
+    color: var(--text-primary);
+    border-color: var(--border-default);
+}
+
+.header-text-btn:active {
+    transform: scale(0.95);
+}
+
+/* (Drives toggle is now a menu item - no standalone button styles needed) */
+
+/* =============================================
+   Unified Header Menu System
+   ============================================= */
+
+/* Menu container */
+.header-menu-container {
     position: relative;
 }
 
-.state-popup {
-    position: absolute;
-    top: calc(100% + 8px);
-    right: 0;
-    width: 240px;
-    background: var(--bg-medium);
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-lg);
-    z-index: 2000;
-    overflow: hidden;
+/* Menu trigger buttons - text labels with subtle hover */
+.header-menu-trigger {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 10px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-md);
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
 }
 
-.state-popup.hidden {
+.header-menu-trigger:hover,
+.header-menu-container.open .header-menu-trigger {
+    background: var(--bg-light);
+    color: var(--text-primary);
+    border-color: var(--border-default);
+}
+
+.header-menu-trigger svg.menu-chevron {
+    color: var(--text-muted);
+    transition: transform 0.2s;
+}
+
+.header-menu-container.open .header-menu-trigger svg.menu-chevron {
+    transform: rotate(180deg);
+}
+
+/* Dropdown panel */
+.header-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    min-width: 200px;
+    background: rgba(13, 17, 23, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(48, 54, 61, 0.6);
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-8px);
+    transition: opacity 0.15s, transform 0.15s, visibility 0.15s;
+    z-index: 2000;
+    padding: 4px 0;
+}
+
+.header-menu.header-menu-right {
+    left: auto;
+    right: 0;
+}
+
+.header-menu-container.open .header-menu {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+/* Menu items */
+.header-menu-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 8px 12px;
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.header-menu-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* Toggle items (autosave, etc.) - non-clickable container with toggle */
+.menu-toggle-item {
+    cursor: default;
+}
+
+.menu-toggle-item:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+/* State row label within menus */
+.state-row-label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.state-row-label span:first-child {
+    font-size: 0.8125rem;
+    color: var(--text-primary);
+}
+
+.state-row-hint {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+}
+
+/* Keyboard hint on right side */
+.menu-hint {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    font-family: var(--font-mono);
+}
+
+/* Check mark for toggled items */
+.menu-check {
+    color: var(--accent-green);
+    margin-right: 8px;
+    font-size: 0.875rem;
+}
+
+.menu-check.hidden {
+    visibility: hidden;
+}
+
+/* Menu separator */
+.header-menu-separator {
+    height: 1px;
+    background: rgba(48, 54, 61, 0.6);
+    margin: 4px 8px;
+}
+
+/* Menu footer text (e.g., "Last saved: 2 min ago") */
+.header-menu-footer {
+    padding: 6px 12px;
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    text-align: center;
+    border-top: 1px solid rgba(48, 54, 61, 0.6);
+    font-style: italic;
+}
+
+.header-menu-footer:empty {
     display: none;
 }
 
-.state-popup-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 14px;
-    background: var(--bg-dark);
-    border-bottom: 1px solid var(--border-default);
-}
-
-.state-popup-title {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: var(--text-primary);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-
+/* State status badge (in menu) */
 .state-status {
     font-size: 0.625rem;
     padding: 2px 6px;
@@ -140,31 +259,8 @@
     color: var(--text-muted);
 }
 
-.state-popup-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 14px;
-}
-
-.state-row-label {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.state-row-label span:first-child {
-    font-size: 0.8125rem;
-    color: var(--text-primary);
-}
-
-.state-row-hint {
-    font-size: 0.6875rem;
-    color: var(--text-muted);
-}
-
-/* State popup toggle switch */
-.state-popup .toggle-switch {
+/* Toggle switch within header menus */
+.header-menu .toggle-switch {
     position: relative;
     display: inline-block;
     width: 40px;
@@ -173,11 +269,11 @@
     border: none;
 }
 
-.state-popup .toggle-switch::after {
+.header-menu .toggle-switch::after {
     display: none;
 }
 
-.state-popup .toggle-switch input {
+.header-menu .toggle-switch input {
     position: absolute;
     opacity: 0;
     width: 0;
@@ -185,7 +281,7 @@
     pointer-events: none;
 }
 
-.state-popup .toggle-slider {
+.header-menu .toggle-slider {
     position: absolute;
     cursor: pointer;
     top: 0;
@@ -197,7 +293,7 @@
     transition: 0.2s;
 }
 
-.state-popup .toggle-slider:before {
+.header-menu .toggle-slider:before {
     position: absolute;
     content: "";
     height: 16px;
@@ -209,111 +305,35 @@
     transition: 0.2s;
 }
 
-.state-popup .toggle-switch input:checked + .toggle-slider {
+.header-menu .toggle-switch input:checked + .toggle-slider {
     background-color: var(--accent-green);
 }
 
-.state-popup .toggle-switch input:checked + .toggle-slider:before {
+.header-menu .toggle-switch input:checked + .toggle-slider:before {
     transform: translateX(18px);
 }
 
-.state-popup-divider {
-    height: 1px;
-    background: var(--border-default);
-    margin: 0 14px;
-}
-
-.state-popup-actions {
-    display: flex;
-    gap: 8px;
-    padding: 12px 14px;
-}
-
-.state-action-btn {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 8px 12px;
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius-md);
-    background: var(--bg-light);
-    color: var(--text-secondary);
-    font-size: 0.75rem;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.15s ease;
-}
-
-.state-action-btn svg {
-    width: 14px;
-    height: 14px;
-}
-
-.state-action-btn:hover:not(:disabled) {
-    background: var(--bg-panel);
-    color: var(--text-primary);
-    border-color: var(--text-muted);
-}
-
-.state-action-btn.save-btn:hover:not(:disabled) {
-    color: var(--accent-green);
-    border-color: var(--accent-green);
-    background: var(--accent-green-dim);
-}
-
-.state-action-btn.restore-btn:hover:not(:disabled) {
-    color: var(--accent-blue);
-    border-color: var(--accent-blue);
-    background: rgba(88, 166, 255, 0.15);
-}
-
-.state-action-btn:disabled {
+/* Save state button disabled state */
+#btn-save-state:disabled {
     opacity: 0.4;
     cursor: not-allowed;
 }
 
-.state-action-btn:active:not(:disabled) {
-    transform: scale(0.97);
-}
-
-.state-last-saved {
-    padding: 8px 14px 12px;
-    font-size: 0.6875rem;
-    color: var(--text-muted);
-    text-align: center;
-    border-top: 1px solid var(--border-default);
-    background: var(--bg-dark);
-}
-
-.state-last-saved:empty {
-    display: none;
-}
-
-/* State button active indicator */
-#btn-state.has-autosave {
-    color: var(--accent-green);
-    border-color: var(--accent-green-dim);
-}
-
-/* State button saving animation */
-#btn-state.saving {
+/* State save notification pulse (on system menu trigger) */
+#btn-system-menu.saving {
     color: #f0883e;
-    border-color: #f0883e;
-    background: rgba(240, 136, 62, 0.2);
     animation: state-save-pulse 0.6s ease;
 }
 
 @keyframes state-save-pulse {
     0% {
-        box-shadow: 0 0 0 0 rgba(240, 136, 62, 0.5);
+        text-shadow: 0 0 0 rgba(240, 136, 62, 0.5);
     }
     50% {
-        box-shadow: 0 0 0 6px rgba(240, 136, 62, 0);
+        text-shadow: 0 0 8px rgba(240, 136, 62, 0.4);
     }
     100% {
-        box-shadow: 0 0 0 0 rgba(240, 136, 62, 0);
+        text-shadow: 0 0 0 rgba(240, 136, 62, 0);
     }
 }
 
@@ -342,93 +362,7 @@
     pointer-events: auto;
 }
 
-/* Reset buttons with labels */
-.control-btn.reset-btn {
-    width: auto;
-    padding: 0 var(--space-md);
-    font-size: 0.8125rem;
-    font-weight: 500;
-}
-
-.control-btn.reset-btn span {
-    margin-left: var(--space-xs);
-}
-
-
-/* Debug button - slightly wider to accommodate icon + dropdown arrow */
-.debugger-btn {
-    width: 52px;
-}
-
-/* Debug dropdown menu */
-.debug-menu-container {
-    position: relative;
-}
-
-.debug-menu-container .dropdown-arrow {
-    margin-left: 4px;
-    transition: transform 0.2s;
-}
-
-.debug-menu-container.open .dropdown-arrow {
-    transform: rotate(180deg);
-}
-
-.debug-menu {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    min-width: 180px;
-    background: rgba(13, 17, 23, 0.85);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid rgba(48, 54, 61, 0.6);
-    border-radius: var(--radius-md);
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
-    opacity: 0;
-    visibility: hidden;
-    transform: translateY(-8px);
-    transition: opacity 0.15s, transform 0.15s, visibility 0.15s;
-    z-index: 2000;
-    padding: 4px 0;
-}
-
-.debug-menu-container.open .debug-menu {
-    opacity: 1;
-    visibility: visible;
-    transform: translateY(0);
-}
-
-.debug-menu-item {
-    display: flex;
-    align-items: center;
-    width: 100%;
-    padding: 8px 12px;
-    background: none;
-    border: none;
-    color: var(--text-primary);
-    font-size: 0.8125rem;
-    text-align: left;
-    cursor: pointer;
-    transition: background 0.1s;
-}
-
-.debug-menu-item:hover {
-    background: rgba(255, 255, 255, 0.08);
-}
-
-.debug-menu-item .menu-icon {
-    width: 20px;
-    font-size: 14px;
-    margin-right: 8px;
-    text-align: center;
-}
-
-.debug-menu-separator {
-    height: 1px;
-    background: rgba(48, 54, 61, 0.6);
-    margin: 4px 8px;
-}
+/* (Legacy debug/reset button styles removed - now using unified header menu system) */
 
 /* Volume slider */
 .volume-slider {

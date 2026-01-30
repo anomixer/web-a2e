@@ -65,20 +65,16 @@ header {
 .header-controls {
     display: flex;
     align-items: center;
-    gap: var(--space-sm);
+    gap: var(--space-xs);
 }
 
 .control-group {
     display: flex;
     align-items: center;
     gap: var(--space-xs);
-    padding: 0 var(--space-sm);
-    border-right: 1px solid var(--border-muted);
-}
-
-.control-group:last-child {
-    border-right: none;
-    padding-right: 0;
+    padding: 0 var(--space-xs);
+    margin-left: var(--space-xs);
+    border-left: 1px solid var(--border-muted);
 }
 
 /* Main content */

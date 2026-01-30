@@ -76,16 +76,12 @@ export class StateManager {
   }
 
   /**
-   * Set up state popup UI
+   * Set up state controls within the System menu
    */
   setupStatePopup() {
-    const stateBtn = document.getElementById("btn-state");
-    const statePopup = document.getElementById("state-popup");
     const autosaveToggle = document.getElementById("autosave-toggle");
     const saveStateBtn = document.getElementById("btn-save-state");
     const restoreStateBtn = document.getElementById("btn-restore-state");
-
-    if (!stateBtn || !statePopup) return;
 
     // Initialize toggle state
     if (autosaveToggle) {
@@ -93,27 +89,17 @@ export class StateManager {
     }
     this.updateStateUI();
 
-    // Toggle popup
-    stateBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      statePopup.classList.toggle("hidden");
-      if (!statePopup.classList.contains("hidden")) {
-        this.updateStateUI();
-        this.updateLastSavedTime();
-      }
-    });
-
-    // Close popup when clicking outside
-    document.addEventListener("click", (e) => {
-      if (!statePopup.contains(e.target) && e.target !== stateBtn) {
-        statePopup.classList.add("hidden");
-      }
-    });
-
-    // Prevent popup from closing when clicking inside
-    statePopup.addEventListener("click", (e) => {
-      e.stopPropagation();
-    });
+    // Update last saved time when system menu opens
+    const systemMenuContainer = document.getElementById("system-menu-container");
+    if (systemMenuContainer) {
+      const observer = new MutationObserver(() => {
+        if (systemMenuContainer.classList.contains("open")) {
+          this.updateStateUI();
+          this.updateLastSavedTime();
+        }
+      });
+      observer.observe(systemMenuContainer, { attributes: true, attributeFilter: ["class"] });
+    }
 
     // Auto-save toggle
     if (autosaveToggle) {
@@ -148,7 +134,9 @@ export class StateManager {
         const restored = await this.restoreState();
         if (restored) {
           this.uiController.showNotification("State restored");
-          statePopup.classList.add("hidden");
+          // Close system menu after restore
+          const container = document.getElementById("system-menu-container");
+          if (container) container.classList.remove("open");
         } else {
           this.uiController.showNotification("Failed to restore state");
         }
@@ -158,16 +146,11 @@ export class StateManager {
   }
 
   /**
-   * Update state popup UI elements
+   * Update state UI elements within System menu
    */
   updateStateUI() {
-    const stateBtn = document.getElementById("btn-state");
     const stateStatus = document.getElementById("state-status");
     const saveStateBtn = document.getElementById("btn-save-state");
-
-    if (stateBtn) {
-      stateBtn.classList.toggle("has-autosave", this.autoSaveEnabled);
-    }
 
     if (stateStatus) {
       if (this.autoSaveEnabled) {

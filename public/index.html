@@ -43,60 +43,119 @@
                         <span class="logo-text">Apple //e</span>
                         <span id="app-version" class="app-version"></span>
                     </div>
-                    <span class="tagline">Apple II Enhanced Emulator</span>
+                    <!--<span class="tagline">Apple II Enhanced Emulator</span>-->
                 </div>
                 <nav class="header-controls">
-                    <div class="control-group">
-                        <button
-                            id="btn-power"
-                            class="control-btn power-btn off"
-                            title="Power On"
+                    <!-- Power, Reset, Reboot (standalone top-level buttons) -->
+                    <button
+                        id="btn-power"
+                        class="control-btn power-btn off"
+                        title="Power On"
+                    >
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
                         >
-                            <svg
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                            >
-                                <path d="M12 2v10M18.4 6.6a9 9 0 1 1-12.8 0" />
+                            <path d="M12 2v10M18.4 6.6a9 9 0 1 1-12.8 0" />
+                        </svg>
+                    </button>
+                    <button
+                        id="btn-warm-reset"
+                        class="header-text-btn"
+                        title="Ctrl+Reset (warm reset, preserves memory)"
+                    >Ctrl+Reset</button>
+                    <button
+                        id="btn-cold-reset"
+                        class="header-text-btn"
+                        title="Cold Reset (full restart)"
+                    >Reboot</button>
+
+                    <!-- System menu (state management) -->
+                    <div class="header-menu-container" id="system-menu-container">
+                        <button class="header-menu-trigger" id="btn-system-menu">
+                            <span>System</span>
+                            <svg class="menu-chevron" viewBox="0 0 12 12" width="10" height="10">
+                                <path d="M3 5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5"/>
                             </svg>
-                            <span>Power</span>
                         </button>
-                        <button
-                            id="btn-warm-reset"
-                            class="control-btn reset-btn"
-                            title="Ctrl+Reset (warm reset, preserves memory)"
-                        >
-                            <svg
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                            >
-                                <path
-                                    d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"
-                                />
-                                <path d="M3 3v5h5" />
-                            </svg>
-                            <span>Ctrl+Reset</span>
-                        </button>
-                        <button
-                            id="btn-cold-reset"
-                            class="control-btn reset-btn"
-                            title="Cold Reset (full restart)"
-                        >
-                            <svg
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                            >
-                                <path d="M21 12a9 9 0 1 1-9-9" />
-                                <path d="M21 3v6h-6" />
-                            </svg>
-                            <span>Reboot</span>
-                        </button>
+                        <div class="header-menu" id="system-menu">
+                            <div class="header-menu-item menu-toggle-item">
+                                <div class="state-row-label">
+                                    <span>Auto-Save</span>
+                                    <span class="state-row-hint">Save every 5 seconds</span>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="autosave-toggle" checked />
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            <button class="header-menu-item" id="btn-save-state">
+                                <span>Save State</span>
+                                <span id="state-status" class="state-status"></span>
+                            </button>
+                            <button class="header-menu-item" id="btn-restore-state">
+                                <span>Restore State</span>
+                            </button>
+                            <div id="state-last-saved" class="header-menu-footer"></div>
+                        </div>
                     </div>
+
+                    <!-- Hardware menu -->
+                    <div class="header-menu-container" id="hardware-menu-container">
+                        <button class="header-menu-trigger" id="btn-hardware-menu">
+                            <span>Hardware</span>
+                            <svg class="menu-chevron" viewBox="0 0 12 12" width="10" height="10">
+                                <path d="M3 5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                            </svg>
+                        </button>
+                        <div class="header-menu" id="hardware-menu">
+                            <button class="header-menu-item" id="btn-drives" data-checkable="true">
+                                <span class="menu-check hidden">&#10003;</span>
+                                <span>Disk Drives</span>
+                            </button>
+                            <button class="header-menu-item" id="btn-file-explorer">
+                                <span>File Explorer</span>
+                            </button>
+                            <div class="header-menu-separator"></div>
+                            <button class="header-menu-item" id="btn-display">
+                                <span>Display</span>
+                            </button>
+                            <button class="header-menu-item" id="btn-joystick">
+                                <span>Joystick / Paddles</span>
+                            </button>
+                            <button class="header-menu-item" id="btn-slots">
+                                <span>Expansion Slots</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Debug menu -->
+                    <div class="header-menu-container" id="debug-menu-container">
+                        <button class="header-menu-trigger" id="btn-debug-menu">
+                            <span>Debug</span>
+                            <svg class="menu-chevron" viewBox="0 0 12 12" width="10" height="10">
+                                <path d="M3 5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                            </svg>
+                        </button>
+                        <div class="header-menu" id="debug-menu">
+                            <button class="header-menu-item" data-window="cpu">CPU Debugger</button>
+                            <button class="header-menu-item" data-window="switches">Soft Switches</button>
+                            <button class="header-menu-item" data-window="memmap">Memory Map</button>
+                            <div class="header-menu-separator"></div>
+                            <button class="header-menu-item" data-window="memory">Memory Browser</button>
+                            <button class="header-menu-item" data-window="heatmap">Memory Heat Map</button>
+                            <button class="header-menu-item" data-window="stack">Stack Viewer</button>
+                            <button class="header-menu-item" data-window="zeropage">Zero Page Watch</button>
+                            <div class="header-menu-separator"></div>
+                            <button class="header-menu-item" data-window="mockingboard">Mockingboard</button>
+                            <button class="header-menu-item" data-window="mockingboard-scope">Mockingboard Scope</button>
+                            <button class="header-menu-item" data-window="basic">BASIC Program</button>
+                        </div>
+                    </div>
+
+                    <!-- Standalone buttons -->
                     <div class="control-group">
                         <button
                             id="btn-fullscreen"
@@ -115,223 +174,6 @@
                                 />
                             </svg>
                         </button>
-                        <button
-                            id="btn-drives"
-                            class="control-btn"
-                            title="Show/Hide Disk Drives"
-                            aria-label="Show/Hide Disk Drives"
-                        >
-                            <svg
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                            >
-                                <!-- Disk II drive box -->
-                                <rect
-                                    x="2"
-                                    y="6"
-                                    width="20"
-                                    height="12"
-                                    rx="2"
-                                />
-                                <!-- Drive slot -->
-                                <rect
-                                    x="5"
-                                    y="9"
-                                    width="10"
-                                    height="1.5"
-                                    rx="0.5"
-                                />
-                                <!-- LED indicator -->
-                                <circle cx="18" cy="12" r="1.5" />
-                                <!-- Drive door latch -->
-                                <line x1="5" y1="14" x2="8" y2="14" />
-                            </svg>
-                        </button>
-                        <button
-                            id="btn-file-explorer"
-                            class="control-btn"
-                            title="File Explorer - Browse Disk Contents"
-                            aria-label="File Explorer"
-                        >
-                            <svg
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                            >
-                                <!-- Folder icon -->
-                                <path
-                                    d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"
-                                />
-                            </svg>
-                        </button>
-                        <button
-                            id="btn-display"
-                            class="control-btn"
-                            title="Display Settings"
-                            aria-label="Display Settings"
-                        >
-                            <svg
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                            >
-                                <rect
-                                    x="2"
-                                    y="3"
-                                    width="20"
-                                    height="14"
-                                    rx="2"
-                                    ry="2"
-                                />
-                                <line x1="8" y1="21" x2="16" y2="21" />
-                                <line x1="12" y1="17" x2="12" y2="21" />
-                            </svg>
-                        </button>
-                        <button
-                            id="btn-joystick"
-                            class="control-btn"
-                            title="Joystick / Paddle Input"
-                            aria-label="Joystick"
-                        >
-                            <svg
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                            >
-                                <circle cx="12" cy="16" r="6" />
-                                <circle
-                                    cx="12"
-                                    cy="16"
-                                    r="2"
-                                    fill="currentColor"
-                                />
-                                <line x1="12" y1="10" x2="12" y2="4" />
-                                <circle cx="12" cy="3" r="2" />
-                            </svg>
-                        </button>
-                        <button
-                            id="btn-slots"
-                            class="control-btn"
-                            title="Expansion Slots"
-                            aria-label="Expansion Slots"
-                        >
-                            <svg
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                            >
-                                <!-- Expansion card slot icon -->
-                                <rect
-                                    x="3"
-                                    y="4"
-                                    width="18"
-                                    height="16"
-                                    rx="2"
-                                />
-                                <line x1="7" y1="8" x2="7" y2="16" />
-                                <line x1="10" y1="8" x2="10" y2="16" />
-                                <line x1="13" y1="8" x2="13" y2="16" />
-                                <line x1="16" y1="8" x2="16" y2="16" />
-                            </svg>
-                        </button>
-                        <div class="state-control-wrapper">
-                            <button
-                                id="btn-state"
-                                class="control-btn"
-                                title="State Management"
-                                aria-label="State Management"
-                            >
-                                <svg
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    stroke-width="2"
-                                >
-                                    <path
-                                        d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"
-                                    />
-                                    <polyline points="17 21 17 13 7 13 7 21" />
-                                    <polyline points="7 3 7 8 15 8" />
-                                </svg>
-                            </button>
-                            <div id="state-popup" class="state-popup hidden">
-                                <div class="state-popup-header">
-                                    <span class="state-popup-title"
-                                        >State Management</span
-                                    >
-                                    <span
-                                        id="state-status"
-                                        class="state-status"
-                                    ></span>
-                                </div>
-                                <div class="state-popup-row">
-                                    <div class="state-row-label">
-                                        <span>Auto-Save</span>
-                                        <span class="state-row-hint"
-                                            >Save every 5 seconds</span
-                                        >
-                                    </div>
-                                    <label class="toggle-switch">
-                                        <input
-                                            type="checkbox"
-                                            id="autosave-toggle"
-                                            checked
-                                        />
-                                        <span class="toggle-slider"></span>
-                                    </label>
-                                </div>
-                                <div class="state-popup-divider"></div>
-                                <div class="state-popup-actions">
-                                    <button
-                                        id="btn-save-state"
-                                        class="state-action-btn save-btn"
-                                    >
-                                        <svg
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            stroke-width="2"
-                                        >
-                                            <path
-                                                d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"
-                                            />
-                                            <polyline
-                                                points="17 21 17 13 7 13 7 21"
-                                            />
-                                            <polyline points="7 3 7 8 15 8" />
-                                        </svg>
-                                        <span>Save Now</span>
-                                    </button>
-                                    <button
-                                        id="btn-restore-state"
-                                        class="state-action-btn restore-btn"
-                                    >
-                                        <svg
-                                            viewBox="0 0 24 24"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            stroke-width="2"
-                                        >
-                                            <polyline points="1 4 1 10 7 10" />
-                                            <path
-                                                d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"
-                                            />
-                                        </svg>
-                                        <span>Restore</span>
-                                    </button>
-                                </div>
-                                <div
-                                    id="state-last-saved"
-                                    class="state-last-saved"
-                                ></div>
-                            </div>
-                        </div>
                         <div class="sound-control-wrapper">
                             <button
                                 id="btn-sound"
@@ -412,157 +254,32 @@
                             </div>
                         </div>
                     </div>
-                    <div class="control-group">
-                        <div class="debug-menu-container">
-                            <button
-                                id="btn-debug-menu"
-                                class="control-btn debugger-btn"
-                                title="Debug Windows"
-                            >
-                                <svg
-                                    viewBox="0 0 24 24"
-                                    fill="none"
-                                    stroke="currentColor"
-                                    stroke-width="2"
-                                >
-                                    <path d="M8 2l1.88 1.88" />
-                                    <path d="M14.12 3.88L16 2" />
-                                    <path
-                                        d="M9 7.13v-1a3.003 3.003 0 1 1 6 0v1"
-                                    />
-                                    <path
-                                        d="M12 20c-3.3 0-6-2.7-6-6v-3a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v3c0 3.3-2.7 6-6 6"
-                                    />
-                                    <path d="M12 20v-9" />
-                                    <path d="M6.53 9C4.6 8.8 3 7.1 3 5" />
-                                    <path d="M6 13H2" />
-                                    <path d="M3 21c0-2.1 1.7-3.9 3.8-4" />
-                                    <path d="M20.97 5c0 2.1-1.6 3.8-3.5 4" />
-                                    <path d="M22 13h-4" />
-                                    <path d="M17.2 17c2.1.1 3.8 1.9 3.8 4" />
-                                </svg>
-                                <svg
-                                    class="dropdown-arrow"
-                                    viewBox="0 0 12 12"
-                                    width="10"
-                                    height="10"
-                                >
-                                    <path
-                                        d="M3 5l3 3 3-3"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        stroke-width="1.5"
-                                    />
-                                </svg>
+
+                    <!-- Help menu -->
+                    <div class="header-menu-container" id="help-menu-container">
+                        <button class="header-menu-trigger" id="btn-help-menu" title="Help (F1)">
+                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"/>
+                                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
+                                <line x1="12" y1="17" x2="12.01" y2="17"/>
+                            </svg>
+                            <svg class="menu-chevron" viewBox="0 0 12 12" width="10" height="10">
+                                <path d="M3 5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                            </svg>
+                        </button>
+                        <div class="header-menu header-menu-right" id="help-menu">
+                            <button class="header-menu-item" id="btn-help">
+                                <span>Documentation</span>
+                                <span class="menu-hint">F1</span>
                             </button>
-                            <div class="debug-menu" id="debug-menu">
-                                <button
-                                    class="debug-menu-item"
-                                    data-window="cpu"
-                                >
-                                    CPU Debugger
-                                </button>
-                                <button
-                                    class="debug-menu-item"
-                                    data-window="switches"
-                                >
-                                    Soft Switches
-                                </button>
-                                <button
-                                    class="debug-menu-item"
-                                    data-window="memmap"
-                                >
-                                    Memory Map
-                                </button>
-                                <div class="debug-menu-separator"></div>
-                                <button
-                                    class="debug-menu-item"
-                                    data-window="memory"
-                                >
-                                    Memory Browser
-                                </button>
-                                <button
-                                    class="debug-menu-item"
-                                    data-window="heatmap"
-                                >
-                                    Memory Heat Map
-                                </button>
-                                <button
-                                    class="debug-menu-item"
-                                    data-window="stack"
-                                >
-                                    Stack Viewer
-                                </button>
-                                <button
-                                    class="debug-menu-item"
-                                    data-window="zeropage"
-                                >
-                                    Zero Page Watch
-                                </button>
-                                <div class="debug-menu-separator"></div>
-                                <button
-                                    class="debug-menu-item"
-                                    data-window="mockingboard"
-                                >
-                                    Mockingboard
-                                </button>
-                                <button
-                                    class="debug-menu-item"
-                                    data-window="mockingboard-scope"
-                                >
-                                    Mockingboard Scope
-                                </button>
-                                <button
-                                    class="debug-menu-item"
-                                    data-window="basic"
-                                >
-                                    BASIC Program
-                                </button>
-                            </div>
+                            <button class="header-menu-item" id="btn-release-notes-menu">
+                                <span>Release Notes</span>
+                            </button>
+                            <div class="header-menu-separator"></div>
+                            <button class="header-menu-item" id="btn-update">
+                                <span>Check for Updates</span>
+                            </button>
                         </div>
-                    </div>
-                    <div class="control-group">
-                        <button
-                            id="btn-help"
-                            class="control-btn"
-                            title="Help & Documentation (F1)"
-                            aria-label="Help"
-                        >
-                            <svg
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                                stroke-linecap="round"
-                                stroke-linejoin="round"
-                            >
-                                <circle cx="12" cy="12" r="10" />
-                                <line x1="12" y1="16" x2="12" y2="12" />
-                                <line x1="12" y1="8" x2="12.01" y2="8" />
-                            </svg>
-                        </button>
-                        <button
-                            id="btn-update"
-                            class="control-btn"
-                            title="Check for updates"
-                            aria-label="Check for updates"
-                        >
-                            <svg
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                stroke-width="2"
-                            >
-                                <path
-                                    d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"
-                                />
-                                <path d="M3 3v5h5" />
-                                <path
-                                    d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"
-                                />
-                                <path d="M16 16h5v5" />
-                            </svg>
-                        </button>
                     </div>
                 </nav>
             </header>
@@ -606,7 +323,7 @@
                     <div class="reminder-text">
                         <span class="reminder-title">Ready to go!</span>
                         <span class="reminder-hint"
-                            >Click <strong>Power</strong> to start the Apple
+                            >Click the <strong>power button</strong> to start the Apple
                             //e</span
                         >
                     </div>

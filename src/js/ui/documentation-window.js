@@ -36,10 +36,15 @@ export class DocumentationWindow extends BaseWindow {
       }
     });
 
-    // Set up help button
+    // Set up help button (inside help menu dropdown)
     const helpButton = document.getElementById("btn-help");
     if (helpButton) {
-      helpButton.addEventListener("click", () => this.toggle());
+      helpButton.addEventListener("click", () => {
+        this.toggle();
+        // Close the help menu dropdown
+        const menuContainer = helpButton.closest(".header-menu-container");
+        if (menuContainer) menuContainer.classList.remove("open");
+      });
     }
   }
 

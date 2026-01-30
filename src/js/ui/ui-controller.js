@@ -1,6 +1,6 @@
 /**
  * UIController - Manages all toolbar and control UI interactions
- * Handles button clicks, popups, and UI state updates
+ * Handles button clicks, popups, menus, and UI state updates
  */
 
 import { clearStateFromStorage } from "../state/state-persistence.js";
@@ -51,12 +51,14 @@ export class UIController {
       return;
     }
 
+    this.setupMenus();
     this.setupPowerControls();
     this.setupFullPageModeControls();
-    this.setupDrivesToggle();
     this.setupSoundControls();
-    this.setupDebugMenuControls();
-    this.setupMiscControls();
+    this.setupSystemMenuActions();
+    this.setupHardwareMenuActions();
+    this.setupDebugMenuActions();
+    this.setupHelpMenuActions();
   }
 
   /**
@@ -69,7 +71,70 @@ export class UIController {
   }
 
   /**
-   * Set up power button and reset controls
+   * Close all open header menus
+   */
+  closeAllMenus() {
+    document.querySelectorAll(".header-menu-container.open").forEach((c) => {
+      c.classList.remove("open");
+    });
+  }
+
+  /**
+   * Set up generic menu open/close behavior for all header-menu-container elements
+   */
+  setupMenus() {
+    const containers = document.querySelectorAll(".header-menu-container");
+
+    containers.forEach((container) => {
+      const trigger = container.querySelector(".header-menu-trigger");
+      if (!trigger) return;
+
+      trigger.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const wasOpen = container.classList.contains("open");
+
+        // Close all menus first
+        this.closeAllMenus();
+
+        // Toggle this one
+        if (!wasOpen) {
+          container.classList.add("open");
+        }
+      });
+
+      // Hovering over a different menu trigger while one is open switches menus
+      trigger.addEventListener("mouseenter", () => {
+        const anyOpen = document.querySelector(".header-menu-container.open");
+        if (anyOpen && anyOpen !== container) {
+          this.closeAllMenus();
+          container.classList.add("open");
+        }
+      });
+    });
+
+    // Close menus when clicking outside
+    document.addEventListener("click", (e) => {
+      const inMenu = e.target.closest(".header-menu-container");
+      if (!inMenu) {
+        this.closeAllMenus();
+      }
+    });
+
+    // Close menus on Escape
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        this.closeAllMenus();
+      }
+    });
+
+    // Close menus on window resize
+    window.addEventListener("resize", () => {
+      this.closeAllMenus();
+    });
+  }
+
+  /**
+   * Set up power button and reset controls (System menu items)
    */
   setupPowerControls() {
     const powerBtn = document.getElementById("btn-power");
@@ -90,8 +155,13 @@ export class UIController {
       }
       this.refocusCanvas();
     });
+  }
 
-    // Warm reset button (preserves memory)
+  /**
+   * Set up reset buttons and System menu state management actions
+   */
+  setupSystemMenuActions() {
+    // Warm reset button (top-level, preserves memory)
     const warmResetBtn = document.getElementById("btn-warm-reset");
     if (warmResetBtn) {
       warmResetBtn.addEventListener("click", () => {
@@ -104,7 +174,7 @@ export class UIController {
       });
     }
 
-    // Cold reset button (full restart)
+    // Cold reset button (top-level, full restart)
     const coldResetBtn = document.getElementById("btn-cold-reset");
     if (coldResetBtn) {
       coldResetBtn.addEventListener("click", async () => {
@@ -112,6 +182,160 @@ export class UIController {
         this.wasmModule._reset();
         await clearStateFromStorage();
         this.refocusCanvas();
+      });
+    }
+
+    // Prevent system menu from closing when clicking toggle items
+    const systemMenu = document.getElementById("system-menu");
+    if (systemMenu) {
+      systemMenu.querySelectorAll(".menu-toggle-item").forEach((item) => {
+        item.addEventListener("click", (e) => {
+          e.stopPropagation();
+        });
+      });
+    }
+  }
+
+  /**
+   * Set up Hardware menu action items
+   */
+  setupHardwareMenuActions() {
+    const drivesBtn = document.getElementById("btn-drives");
+    if (drivesBtn) {
+      drivesBtn.addEventListener("click", () => {
+        this.windowManager.toggleWindow("disk-drives");
+        this.reminderController.dismissDrivesReminder();
+        this.updateDrivesCheckmark();
+        this.closeAllMenus();
+        this.refocusCanvas();
+      });
+    }
+
+    const fileExplorerBtn = document.getElementById("btn-file-explorer");
+    if (fileExplorerBtn) {
+      fileExplorerBtn.addEventListener("click", () => {
+        this.fileExplorer.toggle();
+        this.closeAllMenus();
+      });
+    }
+
+    const displayBtn = document.getElementById("btn-display");
+    if (displayBtn) {
+      displayBtn.addEventListener("click", () => {
+        this.windowManager.toggleWindow("display-settings");
+        this.closeAllMenus();
+        this.refocusCanvas();
+      });
+    }
+
+    const joystickBtn = document.getElementById("btn-joystick");
+    if (joystickBtn) {
+      joystickBtn.addEventListener("click", () => {
+        this.windowManager.toggleWindow("joystick");
+        this.closeAllMenus();
+        this.refocusCanvas();
+      });
+    }
+
+    const slotsBtn = document.getElementById("btn-slots");
+    if (slotsBtn) {
+      slotsBtn.addEventListener("click", () => {
+        this.windowManager.toggleWindow("slot-configuration");
+        this.closeAllMenus();
+        this.refocusCanvas();
+      });
+    }
+  }
+
+  /**
+   * Update the drives checkmark in the Hardware menu
+   */
+  updateDrivesCheckmark() {
+    const drivesBtn = document.getElementById("btn-drives");
+    if (!drivesBtn) return;
+    const check = drivesBtn.querySelector(".menu-check");
+    if (!check) return;
+
+    const diskDrivesWindow = this.windowManager.getWindow("disk-drives");
+    if (diskDrivesWindow && diskDrivesWindow.isVisible) {
+      check.classList.remove("hidden");
+    } else {
+      check.classList.add("hidden");
+    }
+  }
+
+  /**
+   * Set up debug menu dropdown actions
+   */
+  setupDebugMenuActions() {
+    const debugMenu = document.getElementById("debug-menu");
+    if (!debugMenu) return;
+
+    const windowMap = {
+      cpu: "cpu-debugger",
+      switches: "soft-switches",
+      memmap: "memory-map",
+      memory: "memory-browser",
+      heatmap: "memory-heatmap",
+      stack: "stack-viewer",
+      zeropage: "zeropage-watch",
+      mockingboard: "mockingboard-debug",
+      "mockingboard-scope": "mockingboard-scope",
+      basic: "basic-program",
+    };
+
+    debugMenu.querySelectorAll(".header-menu-item").forEach((item) => {
+      item.addEventListener("click", () => {
+        const windowType = item.dataset.window;
+        if (windowMap[windowType]) {
+          this.windowManager.toggleWindow(windowMap[windowType]);
+        }
+        this.closeAllMenus();
+        this.refocusCanvas();
+      });
+    });
+  }
+
+  /**
+   * Set up Help menu actions
+   */
+  setupHelpMenuActions() {
+    // Documentation (btn-help) is handled by DocumentationWindow via F1 and direct click
+    // btn-help is now inside the help menu - DocumentationWindow binds to it in its own create()
+
+    // Release notes menu item
+    const releaseNotesMenuBtn = document.getElementById("btn-release-notes-menu");
+    if (releaseNotesMenuBtn) {
+      releaseNotesMenuBtn.addEventListener("click", () => {
+        this.windowManager.toggleWindow("release-notes");
+        this.closeAllMenus();
+      });
+    }
+
+    // Update/refresh button - force service worker update
+    const updateBtn = document.getElementById("btn-update");
+    if (updateBtn) {
+      updateBtn.addEventListener("click", async () => {
+        this.closeAllMenus();
+        if ("serviceWorker" in navigator) {
+          try {
+            const registration = await navigator.serviceWorker.getRegistration();
+            if (registration) {
+              await registration.unregister();
+              const cacheNames = await caches.keys();
+              await Promise.all(cacheNames.map((name) => caches.delete(name)));
+              this.showNotification("Updating... page will reload");
+              setTimeout(() => window.location.reload(true), 500);
+            } else {
+              this.showNotification("No service worker registered");
+            }
+          } catch (error) {
+            console.error("Update failed:", error);
+            this.showNotification("Update failed: " + error.message);
+          }
+        } else {
+          window.location.reload(true);
+        }
       });
     }
   }
@@ -145,6 +369,9 @@ export class UIController {
     };
 
     const enterFullPageMode = () => {
+      // Close any open menus
+      this.closeAllMenus();
+
       // Remember which windows are visible before hiding them
       this._windowsBeforeFullPage = this.windowManager.getVisibleWindowIds();
 
@@ -189,20 +416,6 @@ export class UIController {
   }
 
   /**
-   * Set up disk drives visibility toggle
-   */
-  setupDrivesToggle() {
-    const drivesBtn = document.getElementById("btn-drives");
-    if (!drivesBtn) return;
-
-    drivesBtn.addEventListener("click", () => {
-      this.windowManager.toggleWindow("disk-drives");
-      this.reminderController.dismissDrivesReminder();
-      this.refocusCanvas();
-    });
-  }
-
-  /**
    * Set up sound controls popup
    */
   setupSoundControls() {
@@ -227,6 +440,8 @@ export class UIController {
     // Toggle popup on button click
     soundBtn.addEventListener("click", (e) => {
       e.stopPropagation();
+      // Close header menus when opening sound popup
+      this.closeAllMenus();
       soundPopup.classList.toggle("hidden");
     });
 
@@ -313,128 +528,6 @@ export class UIController {
   }
 
   /**
-   * Set up debug menu dropdown
-   */
-  setupDebugMenuControls() {
-    const debugMenuContainer = document.querySelector(".debug-menu-container");
-    const debugMenuBtn = document.getElementById("btn-debug-menu");
-    const debugMenu = document.getElementById("debug-menu");
-
-    if (!debugMenuBtn || !debugMenu || !debugMenuContainer) return;
-
-    const windowMap = {
-      cpu: "cpu-debugger",
-      switches: "soft-switches",
-      memmap: "memory-map",
-      memory: "memory-browser",
-      heatmap: "memory-heatmap",
-      stack: "stack-viewer",
-      zeropage: "zeropage-watch",
-      mockingboard: "mockingboard-debug",
-      "mockingboard-scope": "mockingboard-scope",
-      basic: "basic-program",
-    };
-
-    debugMenuBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      debugMenuContainer.classList.toggle("open");
-    });
-
-    debugMenu.querySelectorAll(".debug-menu-item").forEach((item) => {
-      item.addEventListener("click", () => {
-        const windowType = item.dataset.window;
-        if (windowMap[windowType]) {
-          this.windowManager.toggleWindow(windowMap[windowType]);
-        }
-        debugMenuContainer.classList.remove("open");
-        this.refocusCanvas();
-      });
-    });
-
-    document.addEventListener("click", (e) => {
-      if (!debugMenuContainer.contains(e.target)) {
-        debugMenuContainer.classList.remove("open");
-      }
-    });
-
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") {
-        debugMenuContainer.classList.remove("open");
-      }
-    });
-  }
-
-  /**
-   * Set up miscellaneous controls (file explorer, display settings)
-   */
-  setupMiscControls() {
-    // File explorer button
-    const fileExplorerBtn = document.getElementById("btn-file-explorer");
-    if (fileExplorerBtn) {
-      fileExplorerBtn.addEventListener("click", () => {
-        this.fileExplorer.toggle();
-      });
-    }
-
-    // Display settings button
-    const displayBtn = document.getElementById("btn-display");
-    if (displayBtn) {
-      displayBtn.addEventListener("click", () => {
-        this.windowManager.toggleWindow("display-settings");
-        this.refocusCanvas();
-      });
-    }
-
-    // Joystick button
-    const joystickBtn = document.getElementById("btn-joystick");
-    if (joystickBtn) {
-      joystickBtn.addEventListener("click", () => {
-        this.windowManager.toggleWindow("joystick");
-        this.refocusCanvas();
-      });
-    }
-
-    // Expansion slots button
-    const slotsBtn = document.getElementById("btn-slots");
-    if (slotsBtn) {
-      slotsBtn.addEventListener("click", () => {
-        this.windowManager.toggleWindow("slot-configuration");
-        this.refocusCanvas();
-      });
-    }
-
-    // Update/refresh button - force service worker update
-    const updateBtn = document.getElementById("btn-update");
-    if (updateBtn) {
-      updateBtn.addEventListener("click", async () => {
-        if ("serviceWorker" in navigator) {
-          try {
-            const registration = await navigator.serviceWorker.getRegistration();
-            if (registration) {
-              // Unregister the service worker
-              await registration.unregister();
-              // Clear all caches
-              const cacheNames = await caches.keys();
-              await Promise.all(cacheNames.map((name) => caches.delete(name)));
-              // Reload the page to get fresh content
-              this.showNotification("Updating... page will reload");
-              setTimeout(() => window.location.reload(true), 500);
-            } else {
-              this.showNotification("No service worker registered");
-            }
-          } catch (error) {
-            console.error("Update failed:", error);
-            this.showNotification("Update failed: " + error.message);
-          }
-        } else {
-          // No service worker, just reload
-          window.location.reload(true);
-        }
-      });
-    }
-  }
-
-  /**
    * Update sound button icon based on mute state
    */
   updateSoundButton() {
@@ -470,15 +563,15 @@ export class UIController {
   }
 
   /**
-   * Flash the state button to indicate saving
+   * Flash the system menu trigger to indicate saving
    */
   flashStateButton() {
-    const stateBtn = document.getElementById("btn-state");
-    if (!stateBtn) return;
+    const trigger = document.getElementById("btn-system-menu");
+    if (!trigger) return;
 
-    stateBtn.classList.add("saving");
+    trigger.classList.add("saving");
     setTimeout(() => {
-      stateBtn.classList.remove("saving");
+      trigger.classList.remove("saving");
     }, STATE_BUTTON_FLASH_MS);
   }
 
