@@ -258,17 +258,30 @@ export class DiskSurfaceRenderer {
   }
 
   _drawIndexHole(ctx) {
-    // Position rotates with disk, drawn after hub to punch through the white ring
-    const hx = CENTER_X + Math.cos(this.angle) * INDEX_HOLE_DIST;
-    const hy = CENTER_Y + Math.sin(this.angle) * INDEX_HOLE_DIST;
+    // Red parallelogram across the hub ring, rotates with disk
+    const outerR = HUB_RING_OUTER;
+    const innerR = HUB_RING_INNER;
+    const outerHalf = 1.5;   // shorter side (next to disk)
+    const innerHalf = 2.5;   // slightly longer side (next to center hole)
+
+    ctx.save();
+    ctx.translate(CENTER_X, CENTER_Y);
+    ctx.rotate(this.angle);
 
     ctx.beginPath();
-    ctx.arc(hx, hy, INDEX_HOLE_RADIUS, 0, Math.PI * 2);
+    ctx.moveTo(outerR, -outerHalf);
+    ctx.lineTo(outerR,  outerHalf);
+    ctx.lineTo(innerR,  innerHalf);
+    ctx.lineTo(innerR, -innerHalf);
+    ctx.closePath();
+
     ctx.fillStyle = 'rgba(200,30,30,0.9)';
     ctx.fill();
     ctx.strokeStyle = 'rgba(120,10,10,0.6)';
     ctx.lineWidth = 0.5;
     ctx.stroke();
+
+    ctx.restore();
   }
 
   _drawHeadArm(ctx, quarterTrack) {

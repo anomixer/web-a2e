@@ -178,6 +178,7 @@ export class SlotConfigurationWindow extends BaseWindow {
     const defaults = {
       4: "mockingboard",
       6: "disk2",
+      7: "thunderclock",
     };
     return defaults[slot] || "empty";
   }
@@ -269,11 +270,12 @@ export class SlotConfigurationWindow extends BaseWindow {
 
   applyInitialSettings() {
     // Apply saved settings on startup (before first reset)
+    // If no saved settings, default to Thunderclock in slot 7
     const saved = this.loadSettingsFromStorage();
-    if (saved && this.wasmModule && this.wasmModule._setSlotCard) {
-      for (const [slot, cardId] of Object.entries(saved)) {
+    const config = saved || { 7: "thunderclock" };
+    if (this.wasmModule && this.wasmModule._setSlotCard) {
+      for (const [slot, cardId] of Object.entries(config)) {
         const slotNum = parseInt(slot, 10);
-        // Allocate string for cardId
         const cardIdPtr = this.wasmModule._malloc(cardId.length + 1);
         this.wasmModule.stringToUTF8(cardId, cardIdPtr, cardId.length + 1);
 
