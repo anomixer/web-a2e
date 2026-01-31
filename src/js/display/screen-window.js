@@ -112,6 +112,10 @@ export class ScreenWindow extends BaseWindow {
 
     this._layoutMetrics = null;
     this._fitToWindow();
+
+    // _fitToWindow skips _updateRendererSize when viewport-locked, but the
+    // renderer always needs to know the canvas display size after attach.
+    this._updateRendererSize();
   }
 
   /**
