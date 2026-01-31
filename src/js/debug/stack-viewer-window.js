@@ -31,6 +31,7 @@ export class StackViewerWindow extends BaseWindow {
       <div class="stack-depth-bar">
         <div class="stack-depth-fill"></div>
       </div>
+      <div class="stack-call-stack" id="call-stack"></div>
       <div class="stack-header">
         <span class="stack-col-addr">Addr</span>
         <span class="stack-col-value">Value</span>
@@ -182,5 +183,60 @@ export class StackViewerWindow extends BaseWindow {
 
     this.contentDiv.innerHTML = html;
     this.previousSP = sp;
+
+    // Build call stack summary
+    this.updateCallStack(wasmModule, sp);
+  }
+
+  /**
+   * Build a call stack summary by walking the stack for return addresses.
+   * Display: current_PC → caller → caller → ...
+   */
+  updateCallStack(wasmModule, sp) {
+    const callStackEl = this.contentElement.querySelector("#call-stack");
+    if (!callStackEl) return;
+
+    const pc = wasmModule._getPC();
+    const callers = [];
+
+    // Walk the stack looking for JSR return address pairs
+    let i = sp + 1;
+    while (i < 0xff) {
+      const low = wasmModule._peekMemory(0x100 + i);
+      const high = wasmModule._peekMemory(0x100 + i + 1);
+      const retAddr = ((high << 8) | low) + 1;
+
+      // Validate: check if instruction before retAddr was a JSR
+      if (retAddr >= 3 && retAddr <= 0xffff) {
+        const possibleJSR = wasmModule._peekMemory(retAddr - 3);
+        if (possibleJSR === 0x20) {
+          // JSR target is the address JSR was calling
+          const jsrTargetLo = wasmModule._peekMemory(retAddr - 2);
+          const jsrTargetHi = wasmModule._peekMemory(retAddr - 1);
+          const jsrTarget = (jsrTargetHi << 8) | jsrTargetLo;
+          callers.push({
+            retAddr,
+            jsrTarget,
+          });
+          i += 2; // Skip past the return address pair
+          continue;
+        }
+      }
+      i++;
+    }
+
+    if (callers.length === 0) {
+      callStackEl.innerHTML = "";
+      return;
+    }
+
+    let stackHtml = '<span class="call-stack-label">Call:</span> ';
+    stackHtml += `<span class="call-stack-addr">$${this.formatHex(pc, 4)}</span>`;
+
+    for (const caller of callers) {
+      stackHtml += ` ← <span class="call-stack-addr" title="Returns to $${this.formatHex(caller.retAddr, 4)}">$${this.formatHex(caller.jsrTarget, 4)}</span>`;
+    }
+
+    callStackEl.innerHTML = stackHtml;
   }
 }

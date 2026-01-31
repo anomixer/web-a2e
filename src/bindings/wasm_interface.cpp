@@ -259,6 +259,43 @@ bool isNMIEdge() {
   return g_emulator->isNMIEdge();
 }
 
+// CPU register setters (for debugger editing)
+EMSCRIPTEN_KEEPALIVE
+void setRegA(uint8_t value) {
+  REQUIRE_EMULATOR();
+  g_emulator->setA(value);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void setRegX(uint8_t value) {
+  REQUIRE_EMULATOR();
+  g_emulator->setX(value);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void setRegY(uint8_t value) {
+  REQUIRE_EMULATOR();
+  g_emulator->setY(value);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void setRegSP(uint8_t value) {
+  REQUIRE_EMULATOR();
+  g_emulator->setSP(value);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void setRegPC(uint16_t value) {
+  REQUIRE_EMULATOR();
+  g_emulator->setPC(value);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void setRegP(uint8_t value) {
+  REQUIRE_EMULATOR();
+  g_emulator->setP(value);
+}
+
 EMSCRIPTEN_KEEPALIVE
 bool isPaused() {
   REQUIRE_EMULATOR_OR(false);
@@ -850,6 +887,115 @@ bool isSlotEmpty(int slot) {
     return g_emulator->isSlotEmpty(static_cast<uint8_t>(slot));
   }
   return true;
+}
+
+// ============================================================================
+// Watchpoints
+// ============================================================================
+
+EMSCRIPTEN_KEEPALIVE
+void addWatchpoint(uint16_t startAddr, uint16_t endAddr, uint8_t type) {
+  REQUIRE_EMULATOR();
+  g_emulator->addWatchpoint(startAddr, endAddr,
+    static_cast<a2e::Emulator::WatchpointType>(type));
+}
+
+EMSCRIPTEN_KEEPALIVE
+void removeWatchpoint(uint16_t startAddr) {
+  REQUIRE_EMULATOR();
+  g_emulator->removeWatchpoint(startAddr);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void clearWatchpoints() {
+  REQUIRE_EMULATOR();
+  g_emulator->clearWatchpoints();
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool isWatchpointHit() {
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->isWatchpointHit();
+}
+
+EMSCRIPTEN_KEEPALIVE
+uint16_t getWatchpointAddress() {
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->getWatchpointAddress();
+}
+
+EMSCRIPTEN_KEEPALIVE
+uint8_t getWatchpointValue() {
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->getWatchpointValue();
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool isWatchpointWrite() {
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->isWatchpointWrite();
+}
+
+// ============================================================================
+// Instruction Trace
+// ============================================================================
+
+EMSCRIPTEN_KEEPALIVE
+void setTraceEnabled(bool enabled) {
+  REQUIRE_EMULATOR();
+  g_emulator->setTraceEnabled(enabled);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void clearTrace() {
+  REQUIRE_EMULATOR();
+  g_emulator->clearTrace();
+}
+
+EMSCRIPTEN_KEEPALIVE
+uint32_t getTraceCount() {
+  REQUIRE_EMULATOR_OR(0);
+  return static_cast<uint32_t>(g_emulator->getTraceCount());
+}
+
+EMSCRIPTEN_KEEPALIVE
+uint32_t getTraceHead() {
+  REQUIRE_EMULATOR_OR(0);
+  return static_cast<uint32_t>(g_emulator->getTraceHead());
+}
+
+EMSCRIPTEN_KEEPALIVE
+const void* getTraceBuffer() {
+  REQUIRE_EMULATOR_OR(nullptr);
+  return g_emulator->getTraceBuffer();
+}
+
+EMSCRIPTEN_KEEPALIVE
+uint32_t getTraceCapacity() {
+  REQUIRE_EMULATOR_OR(0);
+  return static_cast<uint32_t>(g_emulator->getTraceCapacity());
+}
+
+// ============================================================================
+// Cycle Profiling
+// ============================================================================
+
+EMSCRIPTEN_KEEPALIVE
+void setProfileEnabled(bool enabled) {
+  REQUIRE_EMULATOR();
+  g_emulator->setProfileEnabled(enabled);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void clearProfile() {
+  REQUIRE_EMULATOR();
+  g_emulator->clearProfile();
+}
+
+EMSCRIPTEN_KEEPALIVE
+const uint32_t* getProfileCycles() {
+  REQUIRE_EMULATOR_OR(nullptr);
+  return g_emulator->getProfileCycles();
 }
 
 } // extern "C"
