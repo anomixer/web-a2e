@@ -278,6 +278,29 @@
     color: var(--text-secondary);
 }
 
+.cpu-irq-state {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    margin-top: 4px;
+}
+
+.irq-indicator {
+    font-size: 9px;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 3px;
+    background: rgba(128, 128, 128, 0.15);
+    border: 1px solid rgba(128, 128, 128, 0.3);
+    color: var(--text-muted);
+}
+
+.irq-indicator.active {
+    background: rgba(248, 81, 73, 0.25);
+    border-color: rgba(248, 81, 73, 0.5);
+    color: #f85149;
+}
+
 /* Disassembly */
 .cpu-disassembly {
     flex: 1;

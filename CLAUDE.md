@@ -110,6 +110,7 @@ Single global `Emulator` instance in C++ (`wasm_interface.cpp`). JS allocates WA
 - `341-0160-A-US-UK.bin` (alternate character ROM variant)
 - `341-0027.bin` (256 bytes Disk II ROM)
 - `Thunderclock Plus ROM.bin` (2KB Thunderclock card ROM)
+- `342-0270-C.bin` (2KB Mouse Interface Card ROM)
 
 ## Code Organization
 
@@ -188,6 +189,7 @@ class ExpansionCard {
 
 - `Disk2Card` - Wraps Disk2Controller (slot 6)
 - `MockingboardCard` - Wraps Mockingboard AY-3-8910 + VIA 6522 (slot 4)
+- `MouseCard` - Apple Mouse Interface Card via MC6821 PIA command protocol (slots 2, 4, 7)
 - `ThunderclockCard` - ProDOS-compatible real-time clock (slot 5)
 
 ## State Serialization
@@ -210,4 +212,5 @@ Built-in debug windows accessible via Debug menu:
 - Soft Switch Monitor: Apple II switch states
 - Mockingboard Detail: AY-3-8910 and VIA register inspection
 - Mockingboard Scope: per-channel waveforms, level meters, and mute controls
+- Mouse Card: PIA registers, position, mode, interrupt state, protocol activity
 - BASIC Program Viewer: list BASIC programs from memory

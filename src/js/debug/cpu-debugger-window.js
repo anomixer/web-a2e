@@ -109,6 +109,11 @@ export class CPUDebuggerWindow extends BaseWindow {
             <span class="label">Cycles:</span>
             <span class="value" id="cycle-count">0</span>
           </div>
+          <div class="cpu-irq-state">
+            <span class="irq-indicator" id="irq-pending" title="IRQ Pending">IRQ</span>
+            <span class="irq-indicator" id="nmi-pending" title="NMI Pending">NMI</span>
+            <span class="irq-indicator" id="nmi-edge" title="NMI Edge Detected">EDGE</span>
+          </div>
         </div>
 
         <!-- Disassembly -->
@@ -382,6 +387,7 @@ export class CPUDebuggerWindow extends BaseWindow {
 
     this.updateRegisters();
     this.updateFlags();
+    this.updateIRQState();
     this.updateDisassembly();
   }
 
@@ -427,6 +433,24 @@ export class CPUDebuggerWindow extends BaseWindow {
       const elem = this.contentElement.querySelector(`#${id}`);
       if (elem) {
         elem.classList.toggle("active", (p & bit) !== 0);
+      }
+    });
+  }
+
+  /**
+   * Update IRQ/NMI state indicators
+   */
+  updateIRQState() {
+    const indicators = [
+      { id: "irq-pending", fn: "_isIRQPending" },
+      { id: "nmi-pending", fn: "_isNMIPending" },
+      { id: "nmi-edge", fn: "_isNMIEdge" },
+    ];
+
+    indicators.forEach(({ id, fn }) => {
+      const elem = this.contentElement.querySelector(`#${id}`);
+      if (elem && this.wasmModule[fn]) {
+        elem.classList.toggle("active", this.wasmModule[fn]());
       }
     });
   }

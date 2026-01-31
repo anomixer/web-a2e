@@ -242,6 +242,24 @@ uint64_t getTotalCycles() {
 }
 
 EMSCRIPTEN_KEEPALIVE
+bool isIRQPending() {
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->isIRQPending();
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool isNMIPending() {
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->isNMIPending();
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool isNMIEdge() {
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->isNMIEdge();
+}
+
+EMSCRIPTEN_KEEPALIVE
 bool isPaused() {
   REQUIRE_EMULATOR_OR(false);
   return g_emulator->isPaused();
