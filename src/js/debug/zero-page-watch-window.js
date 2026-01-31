@@ -25,7 +25,7 @@ const PREDEFINED_WATCHES = {
     { addr: 0x28, label: "BASL", size: 16, desc: "Text base address" },
     { addr: 0x2a, label: "BAS2L", size: 16, desc: "Scroll line base" },
   ],
-  "Graphics": [
+  Graphics: [
     { addr: 0x26, label: "GBASL", size: 16, desc: "Graphics base address" },
     { addr: 0x30, label: "COLOR", size: 8, desc: "LoRes color" },
     { addr: 0xe0, label: "HCOLOR1", size: 8, desc: "HiRes color 1" },
@@ -37,7 +37,7 @@ const PREDEFINED_WATCHES = {
     { addr: 0xab, label: "DOSDRIVE", size: 8, desc: "DOS drive" },
     { addr: 0xac, label: "FILTYP", size: 8, desc: "File type" },
   ],
-  "System": [
+  System: [
     { addr: 0x00, label: "LOC0", size: 16, desc: "General use" },
     { addr: 0x02, label: "LOC2", size: 16, desc: "General use" },
     { addr: 0x36, label: "CSWL", size: 16, desc: "Char output hook" },
@@ -57,10 +57,11 @@ export class ZeroPageWatchWindow extends BaseWindow {
     super({
       id: "zeropage-watch",
       title: "Zero Page Watch",
-      defaultWidth: 420,
+      defaultWidth: 400,
       defaultHeight: 450,
-      minWidth: 350,
+      minWidth: 400,
       minHeight: 300,
+      maxWidth: 400,
       defaultPosition: { x: 300, y: 300 },
     });
     this.wasmModule = wasmModule;
@@ -76,7 +77,7 @@ export class ZeroPageWatchWindow extends BaseWindow {
       const saved = localStorage.getItem("zp-custom-watches");
       return saved ? JSON.parse(saved) : [];
     } catch (e) {
-      console.warn('Failed to load custom watches:', e.message);
+      console.warn("Failed to load custom watches:", e.message);
       return [];
     }
   }
@@ -85,10 +86,10 @@ export class ZeroPageWatchWindow extends BaseWindow {
     try {
       localStorage.setItem(
         "zp-custom-watches",
-        JSON.stringify(this.customWatches)
+        JSON.stringify(this.customWatches),
       );
     } catch (e) {
-      console.warn('Failed to save custom watches:', e.message);
+      console.warn("Failed to save custom watches:", e.message);
     }
   }
 
@@ -214,7 +215,10 @@ export class ZeroPageWatchWindow extends BaseWindow {
       return;
     }
 
-    const label = prompt("Enter label for this watch:", `$${this.formatHex(addr, 2)}`);
+    const label = prompt(
+      "Enter label for this watch:",
+      `$${this.formatHex(addr, 2)}`,
+    );
     if (!label) return;
 
     const sizeStr = prompt("Size (8 or 16 bits):", "8");

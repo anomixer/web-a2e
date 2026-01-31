@@ -727,6 +727,86 @@ int getMockingboardWaveform(int psg, int channel, float* buffer, int count) {
 }
 
 // ============================================================================
+// Mouse Input
+// ============================================================================
+
+EMSCRIPTEN_KEEPALIVE
+void mouseMove(int dx, int dy) {
+  REQUIRE_EMULATOR();
+  g_emulator->mouseMove(dx, dy);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void mouseButton(bool pressed) {
+  REQUIRE_EMULATOR();
+  g_emulator->mouseButton(pressed);
+}
+
+// ============================================================================
+// Mouse Card Debug
+// ============================================================================
+
+// Returns whether a mouse card is currently installed
+EMSCRIPTEN_KEEPALIVE
+bool isMouseCardInstalled() {
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->getMouseCard() != nullptr;
+}
+
+// Get mouse card state field
+// field: 0=slotNum, 1=mouseX, 2=mouseY, 3=button, 4=moved, 5=buttonChanged,
+//        6=clampMinX, 7=clampMaxX, 8=clampMinY, 9=clampMaxY,
+//        10=irqActive, 11=vblPending, 12=movePending, 13=buttonPending,
+//        14=wasInVBL, 15=mode, 16=lastCommand, 17=responseState
+EMSCRIPTEN_KEEPALIVE
+int32_t getMouseCardState(int field) {
+  REQUIRE_EMULATOR_OR(0);
+  auto* mouse = g_emulator->getMouseCard();
+  if (!mouse) return 0;
+  switch (field) {
+    case 0: return mouse->getSlotNumber();
+    case 1: return mouse->getMouseX();
+    case 2: return mouse->getMouseY();
+    case 3: return mouse->getMouseButton() ? 1 : 0;
+    case 4: return mouse->getMoved() ? 1 : 0;
+    case 5: return mouse->getButtonChanged() ? 1 : 0;
+    case 6: return mouse->getClampMinX();
+    case 7: return mouse->getClampMaxX();
+    case 8: return mouse->getClampMinY();
+    case 9: return mouse->getClampMaxY();
+    case 10: return mouse->isIRQActive() ? 1 : 0;
+    case 11: return mouse->getVBLInterruptPending() ? 1 : 0;
+    case 12: return mouse->getMoveInterruptPending() ? 1 : 0;
+    case 13: return mouse->getButtonInterruptPending() ? 1 : 0;
+    case 14: return mouse->getWasInVBL() ? 1 : 0;
+    case 15: return mouse->getMode();
+    case 16: return mouse->getLastCommand();
+    case 17: return mouse->getResponseState();
+  }
+  return 0;
+}
+
+// Get mouse card PIA register
+// reg: 0=DDRA, 1=DDRB, 2=ORA, 3=ORB, 4=IRA, 5=IRB, 6=CRA, 7=CRB
+EMSCRIPTEN_KEEPALIVE
+uint32_t getMouseCardPIARegister(int reg) {
+  REQUIRE_EMULATOR_OR(0);
+  auto* mouse = g_emulator->getMouseCard();
+  if (!mouse) return 0;
+  switch (reg) {
+    case 0: return mouse->getDDRA();
+    case 1: return mouse->getDDRB();
+    case 2: return mouse->getORA();
+    case 3: return mouse->getORB();
+    case 4: return mouse->getIRA();
+    case 5: return mouse->getIRB();
+    case 6: return mouse->getCRA();
+    case 7: return mouse->getCRB();
+  }
+  return 0;
+}
+
+// ============================================================================
 // Expansion Slot Management
 // ============================================================================
 

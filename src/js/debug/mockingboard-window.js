@@ -10,9 +10,11 @@ export class MockingboardWindow extends BaseWindow {
       id: "mockingboard-debug",
       title: "Mockingboard",
       minWidth: 760,
-      minHeight: 540,
-      defaultWidth: 820,
-      defaultHeight: 580,
+      minHeight: 630,
+      maxWidth: 760,
+      maxHeight: 630,
+      defaultWidth: 760,
+      defaultHeight: 630,
       defaultPosition: { x: window.innerWidth - 840, y: 100 },
     });
 
@@ -26,17 +28,36 @@ export class MockingboardWindow extends BaseWindow {
 
     // PSG register names
     this.psgRegisterNames = [
-      "Tone A Fine", "Tone A Coarse", "Tone B Fine", "Tone B Coarse",
-      "Tone C Fine", "Tone C Coarse", "Noise Period", "Mixer",
-      "Amp A", "Amp B", "Amp C", "Env Fine", "Env Coarse", "Env Shape",
-      "I/O Port A", "I/O Port B",
+      "Tone A Fine",
+      "Tone A Coarse",
+      "Tone B Fine",
+      "Tone B Coarse",
+      "Tone C Fine",
+      "Tone C Coarse",
+      "Noise Period",
+      "Mixer",
+      "Amp A",
+      "Amp B",
+      "Amp C",
+      "Env Fine",
+      "Env Coarse",
+      "Env Shape",
+      "I/O Port A",
+      "I/O Port B",
     ];
 
     // Envelope shape descriptions
     this.envShapes = {
-      0x00: "\\___", 0x04: "/___", 0x08: "\\\\\\\\", 0x09: "\\___",
-      0x0a: "\\/\\/", 0x0b: "\\---", 0x0c: "////", 0x0d: "/---",
-      0x0e: "/\\/\\", 0x0f: "/___",
+      0x00: "\\___",
+      0x04: "/___",
+      0x08: "\\\\\\\\",
+      0x09: "\\___",
+      0x0a: "\\/\\/",
+      0x0b: "\\---",
+      0x0c: "////",
+      0x0d: "/---",
+      0x0e: "/\\/\\",
+      0x0f: "/___",
     };
   }
 
@@ -150,7 +171,8 @@ export class MockingboardWindow extends BaseWindow {
   }
 
   renderPSGTable(psgNum) {
-    let html = '<table><tr><th>Reg</th><th>Name</th><th>Hex</th><th>Dec</th><th>Info</th></tr>';
+    let html =
+      "<table><tr><th>Reg</th><th>Name</th><th>Hex</th><th>Dec</th><th>Info</th></tr>";
     for (let i = 0; i < 16; i++) {
       html += `<tr id="psg${psgNum}-r${i}">
         <td class="reg-num">R${i}</td>
@@ -179,9 +201,15 @@ export class MockingboardWindow extends BaseWindow {
 
       // PSG registers
       for (let reg = 0; reg < 16; reg++) {
-        this.elements.psg[psg][`r${reg}hex`] = el.querySelector(`#psg${psgNum}-r${reg}-hex`);
-        this.elements.psg[psg][`r${reg}dec`] = el.querySelector(`#psg${psgNum}-r${reg}-dec`);
-        this.elements.psg[psg][`r${reg}info`] = el.querySelector(`#psg${psgNum}-r${reg}-info`);
+        this.elements.psg[psg][`r${reg}hex`] = el.querySelector(
+          `#psg${psgNum}-r${reg}-hex`,
+        );
+        this.elements.psg[psg][`r${reg}dec`] = el.querySelector(
+          `#psg${psgNum}-r${reg}-dec`,
+        );
+        this.elements.psg[psg][`r${reg}info`] = el.querySelector(
+          `#psg${psgNum}-r${reg}-info`,
+        );
       }
 
       // VIA elements
@@ -228,7 +256,9 @@ export class MockingboardWindow extends BaseWindow {
   }
 
   updateEnabled(wasmModule) {
-    const enabled = wasmModule._isMockingboardEnabled ? wasmModule._isMockingboardEnabled() : true;
+    const enabled = wasmModule._isMockingboardEnabled
+      ? wasmModule._isMockingboardEnabled()
+      : true;
     const key = "enabled";
     if (this.prevValues[key] !== enabled) {
       this.prevValues[key] = enabled;
@@ -254,16 +284,26 @@ export class MockingboardWindow extends BaseWindow {
         const decEl = this.elements.psg[psgIndex][`r${reg}dec`];
         const infoEl = this.elements.psg[psgIndex][`r${reg}info`];
 
-        if (hexEl) hexEl.textContent = "$" + value.toString(16).toUpperCase().padStart(2, "0");
+        if (hexEl)
+          hexEl.textContent =
+            "$" + value.toString(16).toUpperCase().padStart(2, "0");
         if (decEl) decEl.textContent = value.toString();
-        if (infoEl) infoEl.textContent = this.getRegisterInfo(reg, value, wasmModule, psgIndex);
+        if (infoEl)
+          infoEl.textContent = this.getRegisterInfo(
+            reg,
+            value,
+            wasmModule,
+            psgIndex,
+          );
       }
     }
   }
 
   getRegisterInfo(reg, value, wasmModule, psgIndex) {
     switch (reg) {
-      case 1: case 3: case 5: {
+      case 1:
+      case 3:
+      case 5: {
         const fine = wasmModule._getMockingboardPSGRegister(psgIndex, reg - 1);
         const period = fine | ((value & 0x0f) << 8);
         return period > 0 ? `${Math.round(1023000 / (8 * period))}Hz` : "";
@@ -280,8 +320,10 @@ export class MockingboardWindow extends BaseWindow {
         if (!(value & 0x20)) info += "Nc";
         return info || "off";
       }
-      case 8: case 9: case 10:
-        return (value & 0x10) ? "ENV" : `vol:${value & 0x0f}`;
+      case 8:
+      case 9:
+      case 10:
+        return value & 0x10 ? "ENV" : `vol:${value & 0x0f}`;
       case 12: {
         const fine = wasmModule._getMockingboardPSGRegister(psgIndex, 11);
         const period = fine | (value << 8);
@@ -295,7 +337,16 @@ export class MockingboardWindow extends BaseWindow {
   }
 
   updateVIAStatus(wasmModule) {
-    const controlModes = ["INACT", "READ", "WRITE", "LATCH", "INACT", "READ", "WRITE", "LATCH"];
+    const controlModes = [
+      "INACT",
+      "READ",
+      "WRITE",
+      "LATCH",
+      "INACT",
+      "READ",
+      "WRITE",
+      "LATCH",
+    ];
 
     for (let via = 0; via < 2; via++) {
       const els = this.elements.via[via];
@@ -328,7 +379,9 @@ export class MockingboardWindow extends BaseWindow {
           const key = `via${via}${portKeys[i]}`;
           if (this.prevValues[key] !== ports[i]) {
             this.prevValues[key] = ports[i];
-            if (portEls[i]) portEls[i].textContent = "$" + ports[i].toString(16).toUpperCase().padStart(2, "0");
+            if (portEls[i])
+              portEls[i].textContent =
+                "$" + ports[i].toString(16).toUpperCase().padStart(2, "0");
           }
         }
 
@@ -370,15 +423,55 @@ export class MockingboardWindow extends BaseWindow {
         const ifr = wasmModule._getMockingboardVIATimerInfo(via, 5);
         const ier = wasmModule._getMockingboardVIATimerInfo(via, 6);
 
-        this.updateIfChanged(`via${via}t1cnt`, t1cnt, els.t1cnt, v => "$" + v.toString(16).toUpperCase().padStart(4, "0"));
-        this.updateIfChanged(`via${via}t1lat`, t1lat, els.t1lat, v => "$" + v.toString(16).toUpperCase().padStart(4, "0"));
-        this.updateIfChanged(`via${via}acr`, acr, els.acr, v => "$" + v.toString(16).toUpperCase().padStart(2, "0"));
-        this.updateIfChanged(`via${via}ifr`, ifr, els.ifr, v => "$" + v.toString(16).toUpperCase().padStart(2, "0"));
-        this.updateIfChanged(`via${via}ier`, ier, els.ier, v => "$" + v.toString(16).toUpperCase().padStart(2, "0"));
+        this.updateIfChanged(
+          `via${via}t1cnt`,
+          t1cnt,
+          els.t1cnt,
+          (v) => "$" + v.toString(16).toUpperCase().padStart(4, "0"),
+        );
+        this.updateIfChanged(
+          `via${via}t1lat`,
+          t1lat,
+          els.t1lat,
+          (v) => "$" + v.toString(16).toUpperCase().padStart(4, "0"),
+        );
+        this.updateIfChanged(
+          `via${via}acr`,
+          acr,
+          els.acr,
+          (v) => "$" + v.toString(16).toUpperCase().padStart(2, "0"),
+        );
+        this.updateIfChanged(
+          `via${via}ifr`,
+          ifr,
+          els.ifr,
+          (v) => "$" + v.toString(16).toUpperCase().padStart(2, "0"),
+        );
+        this.updateIfChanged(
+          `via${via}ier`,
+          ier,
+          els.ier,
+          (v) => "$" + v.toString(16).toUpperCase().padStart(2, "0"),
+        );
 
-        this.updateClassIfChanged(`via${via}t1run`, t1run !== 0, els.t1run, "active");
-        this.updateClassIfChanged(`via${via}t1fire`, t1fire !== 0, els.t1fire, "active");
-        this.updateClassIfChanged(`via${via}t1irq`, (ier & 0x40) !== 0 && (ifr & 0x40) !== 0, els.t1irq, "active");
+        this.updateClassIfChanged(
+          `via${via}t1run`,
+          t1run !== 0,
+          els.t1run,
+          "active",
+        );
+        this.updateClassIfChanged(
+          `via${via}t1fire`,
+          t1fire !== 0,
+          els.t1fire,
+          "active",
+        );
+        this.updateClassIfChanged(
+          `via${via}t1irq`,
+          (ier & 0x40) !== 0 && (ifr & 0x40) !== 0,
+          els.t1irq,
+          "active",
+        );
       }
     }
   }
@@ -396,5 +489,4 @@ export class MockingboardWindow extends BaseWindow {
       if (el) el.classList.toggle(className, condition);
     }
   }
-
 }

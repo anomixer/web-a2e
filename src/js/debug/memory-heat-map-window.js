@@ -42,9 +42,12 @@ export class MemoryHeatMapWindow extends BaseWindow {
       id: "memory-heatmap",
       title: "Memory Heat Map",
       defaultWidth: 580,
-      defaultHeight: 420,
-      minWidth: 500,
-      minHeight: 380,
+      defaultHeight: 435,
+      minWidth: 580,
+      minHeight: 435,
+      maxWidth: 580,
+      maxHeight: 435,
+
       defaultPosition: { x: 200, y: 200 },
     });
     this.wasmModule = wasmModule;
@@ -162,8 +165,12 @@ export class MemoryHeatMapWindow extends BaseWindow {
       this.showAddressInfo(addr, AUX_MEMORY_REGIONS, "Aux");
     });
 
-    this.canvasMain.addEventListener("mouseleave", () => this.clearAddressInfo());
-    this.canvasAux.addEventListener("mouseleave", () => this.clearAddressInfo());
+    this.canvasMain.addEventListener("mouseleave", () =>
+      this.clearAddressInfo(),
+    );
+    this.canvasAux.addEventListener("mouseleave", () =>
+      this.clearAddressInfo(),
+    );
 
     // Click to jump to Memory Browser
     this.canvasMain.addEventListener("click", (e) => {
@@ -236,7 +243,7 @@ export class MemoryHeatMapWindow extends BaseWindow {
       readCountsPtr,
       writeCountsPtr,
       mainRAMPtr,
-      systemROMPtr
+      systemROMPtr,
     );
 
     // Update aux memory canvas
@@ -245,7 +252,7 @@ export class MemoryHeatMapWindow extends BaseWindow {
       this.ctxAux,
       readCountsPtr,
       writeCountsPtr,
-      auxRAMPtr
+      auxRAMPtr,
     );
 
     // Apply decay if enabled
@@ -273,7 +280,14 @@ export class MemoryHeatMapWindow extends BaseWindow {
    * - $C000-$CFFF: I/O and soft switches
    * - $D000-$FFFF: ROM or bank-switched RAM
    */
-  updateCanvas(imageData, ctx, readCountsPtr, writeCountsPtr, mainRAMPtr, systemROMPtr) {
+  updateCanvas(
+    imageData,
+    ctx,
+    readCountsPtr,
+    writeCountsPtr,
+    mainRAMPtr,
+    systemROMPtr,
+  ) {
     const data = imageData.data;
     const wasmModule = this.wasmModule;
 
@@ -283,10 +297,10 @@ export class MemoryHeatMapWindow extends BaseWindow {
 
       // Get memory content for background brightness
       let memValue = 0;
-      if (mainRAMPtr && addr < 0xC000) {
+      if (mainRAMPtr && addr < 0xc000) {
         memValue = wasmModule.HEAPU8[mainRAMPtr + addr];
-      } else if (systemROMPtr && addr >= 0xC000) {
-        memValue = wasmModule.HEAPU8[systemROMPtr + (addr - 0xC000)];
+      } else if (systemROMPtr && addr >= 0xc000) {
+        memValue = wasmModule.HEAPU8[systemROMPtr + (addr - 0xc000)];
       }
 
       const pixelIndex = addr * 4;
@@ -318,7 +332,11 @@ export class MemoryHeatMapWindow extends BaseWindow {
           if (readCount > 0 && writeCount > 0) {
             // Purple/magenta for both
             r = Math.min(255, bgLevel + writeIntensity);
-            g = Math.min(255, bgLevel + Math.floor(Math.min(readIntensity, writeIntensity) * 0.3));
+            g = Math.min(
+              255,
+              bgLevel +
+                Math.floor(Math.min(readIntensity, writeIntensity) * 0.3),
+            );
             b = Math.min(255, bgLevel + readIntensity);
           } else if (readCount > 0) {
             // Cyan/blue for reads only
@@ -394,7 +412,11 @@ export class MemoryHeatMapWindow extends BaseWindow {
           if (readCount > 0 && writeCount > 0) {
             // Purple/magenta for both
             r = Math.min(255, bgLevel + writeIntensity);
-            g = Math.min(255, bgLevel + Math.floor(Math.min(readIntensity, writeIntensity) * 0.3));
+            g = Math.min(
+              255,
+              bgLevel +
+                Math.floor(Math.min(readIntensity, writeIntensity) * 0.3),
+            );
             b = Math.min(255, bgLevel + readIntensity);
           } else if (readCount > 0) {
             // Cyan/blue for reads only

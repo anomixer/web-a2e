@@ -24,6 +24,7 @@ export class SlotConfigurationWindow extends BaseWindow {
       { id: "disk2", name: "Disk II Controller" },
       { id: "mockingboard", name: "Mockingboard" },
       { id: "thunderclock", name: "Thunderclock Plus" },
+      { id: "mouse", name: "Apple Mouse Card" },
     ];
 
     // Slot metadata
@@ -37,7 +38,7 @@ export class SlotConfigurationWindow extends BaseWindow {
       {
         slot: 2,
         label: "Slot 2",
-        available: ["empty"],
+        available: ["empty", "mouse"],
         note: "Serial / Modem",
       },
       {
@@ -50,7 +51,7 @@ export class SlotConfigurationWindow extends BaseWindow {
       {
         slot: 4,
         label: "Slot 4",
-        available: ["empty", "mockingboard"],
+        available: ["empty", "mockingboard", "mouse"],
         note: "Sound cards",
       },
       { slot: 5, label: "Slot 5", available: ["empty", "thunderclock"], note: "Clock / Hard drive" },
@@ -60,7 +61,7 @@ export class SlotConfigurationWindow extends BaseWindow {
         available: ["empty", "disk2"],
         note: "Disk drives",
       },
-      { slot: 7, label: "Slot 7", available: ["empty", "thunderclock"], note: "RAM disk / Clock" },
+      { slot: 7, label: "Slot 7", available: ["empty", "thunderclock", "mouse"], note: "RAM disk / Clock" },
     ];
 
     // Track pending changes

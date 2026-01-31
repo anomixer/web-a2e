@@ -8,10 +8,11 @@ export class StackViewerWindow extends BaseWindow {
     super({
       id: "stack-viewer",
       title: "Stack Viewer",
-      defaultWidth: 320,
+      defaultWidth: 280,
       defaultHeight: 400,
       minWidth: 280,
       minHeight: 250,
+      maxWidth: 280,
       defaultPosition: { x: 250, y: 250 },
     });
     this.wasmModule = wasmModule;
@@ -41,7 +42,8 @@ export class StackViewerWindow extends BaseWindow {
 
   onContentRendered() {
     this.spValueSpan = this.contentElement.querySelector(".stack-sp-value");
-    this.depthValueSpan = this.contentElement.querySelector(".stack-depth-value");
+    this.depthValueSpan =
+      this.contentElement.querySelector(".stack-depth-value");
     this.depthFill = this.contentElement.querySelector(".stack-depth-fill");
     this.contentDiv = this.contentElement.querySelector(".stack-content");
   }
@@ -79,7 +81,7 @@ export class StackViewerWindow extends BaseWindow {
     // Check if it points to code-like regions
     return (
       (addr >= 0x0800 && addr < 0xc000) || // Main RAM (likely program code)
-      (addr >= 0xd000 && addr <= 0xffff)    // ROM
+      (addr >= 0xd000 && addr <= 0xffff) // ROM
     );
   }
 

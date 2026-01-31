@@ -3,7 +3,7 @@
 import { VERSION } from "./config/version.js";
 import { WebGLRenderer } from "./display/webgl-renderer.js";
 import { AudioDriver } from "./audio/audio-driver.js";
-import { InputHandler, TextSelection, JoystickWindow } from "./input/index.js";
+import { InputHandler, TextSelection, JoystickWindow, MouseHandler } from "./input/index.js";
 import { DiskManager } from "./disk-manager/index.js";
 import { DiskDrivesWindow } from "./disk-manager/disk-drives-window.js";
 import { FileExplorerWindow } from "./file-explorer/index.js";
@@ -24,6 +24,7 @@ import {
   ZeroPageWatchWindow,
   MockingboardWindow,
   MockingboardScopeWindow,
+  MouseCardWindow,
   BasicProgramWindow,
 } from "./debug/index.js";
 
@@ -42,6 +43,7 @@ class AppleIIeEmulator {
     this.documentationWindow = null;
     this.uiController = null;
     this.stateManager = null;
+    this.mouseHandler = null;
 
     this.running = false;
   }
@@ -72,6 +74,10 @@ class AppleIIeEmulator {
       // Set up input handler
       this.inputHandler = new InputHandler(this.wasmModule);
       this.inputHandler.init();
+
+      // Set up mouse handler for Apple Mouse Interface Card
+      this.mouseHandler = new MouseHandler(this.wasmModule);
+      this.mouseHandler.init();
 
       // Set up file explorer
       this.fileExplorer = new FileExplorerWindow(this.wasmModule);
@@ -152,6 +158,10 @@ class AppleIIeEmulator {
       mockingboardScopeWindow.create();
       this.windowManager.register(mockingboardScopeWindow);
 
+      const mouseCardWindow = new MouseCardWindow(this.wasmModule);
+      mouseCardWindow.create();
+      this.windowManager.register(mouseCardWindow);
+
       const basicProgramWindow = new BasicProgramWindow(
         this.wasmModule,
         this.inputHandler,
@@ -162,7 +172,10 @@ class AppleIIeEmulator {
       // Slot configuration window
       const slotConfigWindow = new SlotConfigurationWindow(
         this.wasmModule,
-        () => this.wasmModule._reset(),
+        () => {
+          this.wasmModule._reset();
+          this.updateMouseHandlerState();
+        },
       );
       slotConfigWindow.create();
       this.windowManager.register(slotConfigWindow);
@@ -180,7 +193,12 @@ class AppleIIeEmulator {
         });
       }
 
-      // Load saved window states
+      // Set up documentation window
+      this.documentationWindow = new DocumentationWindow();
+      this.documentationWindow.create();
+      this.windowManager.register(this.documentationWindow);
+
+      // Load saved window states (must be after all windows are registered)
       this.windowManager.loadState();
 
       // Save window states when page is closed
@@ -201,11 +219,6 @@ class AppleIIeEmulator {
 
       // Set up reminder controller
       this.reminderController = new ReminderController();
-
-      // Set up documentation window
-      this.documentationWindow = new DocumentationWindow();
-      this.documentationWindow.create();
-      this.windowManager.register(this.documentationWindow);
 
       // Apply display settings
       this.displaySettings.applyAllSettings();
@@ -240,6 +253,9 @@ class AppleIIeEmulator {
         reminderController: this.reminderController,
       });
       this.stateManager.init();
+
+      // Enable mouse handler if a mouse card is configured
+      this.updateMouseHandlerState();
 
       // Start render loop
       this.startRenderLoop();
@@ -318,6 +334,29 @@ class AppleIIeEmulator {
 
     // Lock to viewport by default so the window tracks browser resizes
     sw.setViewportLocked(true);
+  }
+
+  /**
+   * Check slot configuration and enable/disable mouse handler accordingly
+   */
+  updateMouseHandlerState() {
+    if (!this.mouseHandler || !this.wasmModule._getSlotCard) return;
+    let mousePresent = false;
+    for (let slot = 1; slot <= 7; slot++) {
+      const ptr = this.wasmModule._getSlotCard(slot);
+      if (ptr) {
+        const name = this.wasmModule.UTF8ToString(ptr);
+        if (name === "mouse") {
+          mousePresent = true;
+          break;
+        }
+      }
+    }
+    if (mousePresent) {
+      this.mouseHandler.enable();
+    } else {
+      this.mouseHandler.disable();
+    }
   }
 
   /**
