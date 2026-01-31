@@ -158,13 +158,6 @@ export class DiskSurfaceRenderer {
     ctx.lineWidth = 0.5;
     ctx.stroke();
 
-    // Arm guide line (12 o'clock)
-    ctx.beginPath();
-    ctx.moveTo(CENTER_X, CENTER_Y - HUB_RING_OUTER);
-    ctx.lineTo(CENTER_X, CENTER_Y - OUTER_RADIUS - 4);
-    ctx.strokeStyle = 'rgba(255,255,255,0.05)';
-    ctx.lineWidth = 2;
-    ctx.stroke();
   }
 
   _drawDisk(state) {
@@ -201,10 +194,9 @@ export class DiskSurfaceRenderer {
     this._drawSectorLines(ctx);
     ctx.restore();
 
-    // 5. Head arm (static, 12 o'clock)
-    this._drawHeadArm(ctx, quarterTrack);
+    // 5. Head and activity glow
+    this._drawHeadArm(ctx, quarterTrack, isActive, isWriteMode);
 
-    // 6. Head glow
     if (isActive) {
       this._drawHeadGlow(ctx, quarterTrack, isWriteMode);
     }
@@ -284,30 +276,28 @@ export class DiskSurfaceRenderer {
     ctx.restore();
   }
 
-  _drawHeadArm(ctx, quarterTrack) {
+  _drawHeadArm(ctx, quarterTrack, isActive, isWriteMode) {
     const trackPos = quarterTrack / 4;
-    const headR = TRACK_OUTER - (trackPos * TRACK_RANGE / NUM_TRACKS);
+    const headR = TRACK_OUTER - ((trackPos + 0.5) * TRACK_RANGE / NUM_TRACKS);
 
-    ctx.beginPath();
-    ctx.moveTo(CENTER_X, CENTER_Y - HUB_RING_OUTER - 2);
-    ctx.lineTo(CENTER_X, CENTER_Y - headR - 2);
-    ctx.strokeStyle = 'rgba(140,135,130,0.5)';
-    ctx.lineWidth = 2;
-    ctx.lineCap = 'butt';
-    ctx.stroke();
-
-    // Head tip
-    ctx.fillStyle = 'rgba(160,155,150,0.7)';
+    // Head color: green when reading, red when writing, grey when idle
+    if (isActive) {
+      ctx.fillStyle = isWriteMode
+        ? 'rgba(220,40,40,0.85)'
+        : 'rgba(40,200,60,0.85)';
+    } else {
+      ctx.fillStyle = 'rgba(160,155,150,0.7)';
+    }
     ctx.fillRect(CENTER_X - 3, CENTER_Y - headR - 2, 6, 4);
   }
 
   _drawHeadGlow(ctx, quarterTrack, isWriteMode) {
     const trackPos = quarterTrack / 4;
-    const headR = TRACK_OUTER - (trackPos * TRACK_RANGE / NUM_TRACKS);
+    const headR = TRACK_OUTER - ((trackPos + 0.5) * TRACK_RANGE / NUM_TRACKS);
 
     ctx.fillStyle = isWriteMode
-      ? 'rgba(255,180,40,0.6)'
-      : 'rgba(60,220,80,0.6)';
+      ? 'rgba(220,40,40,0.4)'
+      : 'rgba(40,200,60,0.4)';
     ctx.fillRect(CENTER_X - 4, CENTER_Y - headR - 3, 8, 6);
   }
 
