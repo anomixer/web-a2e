@@ -469,7 +469,7 @@ export class DocumentationWindow extends BaseWindow {
       <!-- State Management Section -->
       <section id="doc-state" class="documentation-section">
         <h3>State Management</h3>
-        <p>The emulator automatically saves your session so you can pick up exactly where you left off.</p>
+        <p>The emulator automatically saves your session so you can pick up exactly where you left off. You also have 5 manual save slots for organizing different states.</p>
 
         <h4>What Gets Saved</h4>
         <ul>
@@ -488,21 +488,31 @@ export class DocumentationWindow extends BaseWindow {
           <li>You close the browser</li>
           <li>You power off the emulator</li>
         </ul>
+        <p>Toggle auto-save on or off from the <strong>File</strong> menu.</p>
 
-        <h4>State Controls</h4>
-        <p>Click the <strong>floppy disk icon</strong> in the toolbar to access:</p>
+        <h4>Save States Window</h4>
+        <p>Open the Save States window from <strong>File &gt; Save States...</strong> to manage all your saved states in one place.</p>
+
+        <h4>Autosave Slot</h4>
+        <p>The top row shows the current autosave with a screenshot thumbnail and timestamp. Use the <strong>Load</strong> button to restore it, or <strong>DL</strong> to download it as a file. This slot updates automatically while the window is open.</p>
+
+        <h4>Manual Slots (1&ndash;5)</h4>
+        <p>Below the autosave are 5 numbered slots for manual saves. Each slot has:</p>
         <ul>
-          <li><strong>Auto-Save Toggle:</strong> Enable/disable automatic saving</li>
-          <li><strong>Save Now:</strong> Immediately save current state</li>
-          <li><strong>Restore:</strong> Load the last saved state</li>
-          <li><strong>Last Saved:</strong> Shows when state was last saved</li>
+          <li><strong>Save:</strong> Capture the current emulator state with a screenshot thumbnail</li>
+          <li><strong>Load:</strong> Restore the emulator to this saved state</li>
+          <li><strong>Clear:</strong> Delete the saved state from this slot</li>
+          <li><strong>DL:</strong> Download the state as an <code>.a2state</code> file</li>
         </ul>
 
+        <h4>Load from File</h4>
+        <p>Click <strong>Load from File...</strong> at the bottom of the Save States window to restore a previously downloaded <code>.a2state</code> file. The file is validated before loading.</p>
+
         <h4>How Restore Works</h4>
-        <p>Restoring performs a complete power cycle and then loads the saved state. This ensures a clean restoration with no leftover state from the current session.</p>
+        <p>Restoring any state (autosave, slot, or file) performs a complete power cycle and then loads the saved state. This ensures a clean restoration with no leftover state from the current session.</p>
 
         <div class="info-box tip">
-          <p><strong>Tip:</strong> State is preserved even if your browser crashes. Just return to the emulator and click Restore to continue.</p>
+          <p><strong>Tip:</strong> Use slots to save before difficult parts of a game, or to keep multiple program states. Download slots to back up important states or transfer them to another device.</p>
         </div>
       </section>
 
@@ -744,6 +754,7 @@ export class DocumentationWindow extends BaseWindow {
         <h4>Saving Your Work</h4>
         <ul>
           <li>State auto-saves every 5 seconds by default</li>
+          <li>Use <strong>File &gt; Save States...</strong> to save to manual slots or download states</li>
           <li>Modified disks are saved when ejected</li>
           <li>Export disks via File Explorer for backup</li>
         </ul>
