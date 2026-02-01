@@ -15,9 +15,10 @@ const TEXT_ROW_BASES = [
 const PAGE2_OFFSET = 0x400;
 
 export class TextSelection {
-  constructor(canvas, wasmModule) {
+  constructor(canvas, wasmModule, renderer) {
     this.canvas = canvas;
     this.wasmModule = wasmModule;
+    this.renderer = renderer || null;
 
     // Selection state
     this.isSelecting = false;
@@ -47,18 +48,9 @@ export class TextSelection {
 
   setupOverlay() {
     this.overlay = document.createElement('canvas');
-    this.overlay.className = 'text-selection-overlay';
     this.overlay.width = 560;
     this.overlay.height = 384;
-
-    const wrapper = this.canvas.parentElement;
-    if (wrapper) {
-      wrapper.style.position = 'relative';
-      wrapper.appendChild(this.overlay);
-    }
-
     this.overlayCtx = this.overlay.getContext('2d');
-    this.resize();
   }
 
   setupEventListeners() {
@@ -108,22 +100,56 @@ export class TextSelection {
   }
 
   /**
-   * Convert canvas pixel coordinates to character position
+   * Convert canvas pixel coordinates to character position.
+   * Mirrors the shader transform pipeline (curveUV → applyOverscan → applyScreenMargin)
+   * so the mouse mapping matches the curved on-screen content.
    */
   pixelToChar(x, y) {
     const rect = this.canvas.getBoundingClientRect();
-    const scaleX = 560 / rect.width;
-    const scaleY = 384 / rect.height;
+    const params = this.renderer && this.renderer.crtParams || {};
 
-    const canvasX = (x - rect.left) * scaleX;
-    const canvasY = (y - rect.top) * scaleY;
+    // Convert mouse position to normalised UV (0–1)
+    let u = (x - rect.left) / rect.width;
+    let v = (y - rect.top) / rect.height;
+
+    // Apply CRT curvature (matches curveUV in crt.glsl)
+    const curvature = params.curvature || 0;
+    if (curvature > 0.001) {
+      const cx = u - 0.5;
+      const cy = v - 0.5;
+      const dist = cx * cx + cy * cy;
+      const distortion = dist * curvature * 0.5;
+      u += cx * distortion;
+      v += cy * distortion;
+    }
+
+    // Apply overscan (matches applyOverscan in crt.glsl)
+    const overscan = params.overscan || 0;
+    if (overscan > 0.001) {
+      const borderSize = overscan * 0.1;
+      const scale = 1.0 - borderSize * 2.0;
+      u = (u - 0.5) / scale + 0.5;
+      v = (v - 0.5) / scale + 0.5;
+    }
+
+    // Apply screen margin (matches applyScreenMargin in crt.glsl)
+    const margin = params.screenMargin || 0;
+    if (margin > 0.001) {
+      const scale = 1.0 / (1.0 - margin * 2.0);
+      u = (u - 0.5) * scale + 0.5;
+      v = (v - 0.5) * scale + 0.5;
+    }
+
+    // u,v are now contentUV — map to 560×384 texture space
+    const contentX = u * 560;
+    const contentY = v * 384;
 
     const mode = this.getDisplayMode();
     const cols = mode.col80 ? 80 : 40;
     const charWidth = mode.col80 ? this.charWidth80 : this.charWidth40;
 
-    const col = Math.floor(canvasX / charWidth);
-    const row = Math.floor(canvasY / this.charHeight);
+    const col = Math.floor(contentX / charWidth);
+    const row = Math.floor(contentY / this.charHeight);
 
     return {
       row: Math.max(0, Math.min(this.rows - 1, row)),
@@ -299,13 +325,13 @@ export class TextSelection {
    */
   drawSelectionHighlight() {
     const ctx = this.overlayCtx;
-    ctx.clearRect(0, 0, this.overlay.width, this.overlay.height);
+    ctx.clearRect(0, 0, 560, 384);
 
     const mode = this.getDisplayMode();
-    if (!mode.textMode) return;
+    if (!mode.textMode) { this.uploadOverlay(); return; }
 
     const sel = this.normalizeSelection();
-    if (!sel) return;
+    if (!sel) { this.uploadOverlay(); return; }
 
     const cols = mode.col80 ? 80 : 40;
     const charWidth = mode.col80 ? this.charWidth80 : this.charWidth40;
@@ -325,6 +351,14 @@ export class TextSelection {
 
       ctx.fillRect(x, y, width, height);
     }
+
+    this.uploadOverlay();
+  }
+
+  uploadOverlay() {
+    if (this.renderer && this.renderer.updateSelectionTexture) {
+      this.renderer.updateSelectionTexture(this.overlay);
+    }
   }
 
   /**
@@ -332,21 +366,7 @@ export class TextSelection {
    * Called when the canvas is reparented (e.g. for full-page mode).
    */
   reattach() {
-    if (!this.overlay) return;
-
-    const wrapper = this.canvas.parentElement;
-    if (!wrapper) return;
-
-    // Move overlay to new parent if needed
-    if (this.overlay.parentElement !== wrapper) {
-      if (this.overlay.parentElement) {
-        this.overlay.parentElement.removeChild(this.overlay);
-      }
-      wrapper.style.position = 'relative';
-      wrapper.appendChild(this.overlay);
-    }
-
-    this.resize();
+    // Overlay is offscreen; nothing to reparent
   }
 
   /**
@@ -358,7 +378,8 @@ export class TextSelection {
     this.isSelecting = false;
 
     if (this.overlayCtx) {
-      this.overlayCtx.clearRect(0, 0, this.overlay.width, this.overlay.height);
+      this.overlayCtx.clearRect(0, 0, 560, 384);
+      this.uploadOverlay();
     }
   }
 
@@ -518,21 +539,7 @@ export class TextSelection {
    * Update overlay size and position when canvas resizes
    */
   resize() {
-    if (!this.overlay) return;
-
-    const wrapper = this.canvas.parentElement;
-    if (!wrapper) return;
-
-    const wrapperRect = wrapper.getBoundingClientRect();
-    const canvasRect = this.canvas.getBoundingClientRect();
-
-    const offsetLeft = canvasRect.left - wrapperRect.left;
-    const offsetTop = canvasRect.top - wrapperRect.top;
-
-    this.overlay.style.left = offsetLeft + 'px';
-    this.overlay.style.top = offsetTop + 'px';
-    this.overlay.style.width = canvasRect.width + 'px';
-    this.overlay.style.height = canvasRect.height + 'px';
+    // Overlay is offscreen; no DOM positioning needed
   }
 
   /**
@@ -545,11 +552,6 @@ export class TextSelection {
     document.removeEventListener('mouseup', this.boundOnMouseUp);
     document.removeEventListener('keydown', this.boundOnKeyDown, true);  // capture phase
     this.canvas.removeEventListener('contextmenu', this.boundOnContextMenu);
-
-    // Remove overlay
-    if (this.overlay && this.overlay.parentElement) {
-      this.overlay.parentElement.removeChild(this.overlay);
-    }
 
     // Remove any open context menu
     const menu = document.querySelector('.text-select-context-menu');

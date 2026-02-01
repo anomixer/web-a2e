@@ -14,6 +14,9 @@ export class WebGLRenderer {
     this.burnInTextures = [null, null];
     this.currentBurnInIndex = 0;
 
+    // Selection overlay texture
+    this.selectionTexture = null;
+
     // Texture dimensions
     this.width = 560;
     this.height = 384;
@@ -198,6 +201,7 @@ export class WebGLRenderer {
       edgeHighlight: gl.getUniformLocation(this.program, "u_edgeHighlight"),
       beamY: gl.getUniformLocation(this.program, "u_beamY"),
       beamX: gl.getUniformLocation(this.program, "u_beamX"),
+      selectionTexture: gl.getUniformLocation(this.program, "u_selectionTexture"),
     };
 
     // Get burn-in program uniform locations
@@ -291,6 +295,15 @@ export class WebGLRenderer {
     // Unbind framebuffer
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
 
+    // Create selection overlay texture
+    this.selectionTexture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.selectionTexture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.width, this.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, emptyData);
+
     // Set initial canvas size if not already set
     if (!this.canvas.width || !this.canvas.height) {
       this.canvas.width = this.width;
@@ -335,6 +348,12 @@ export class WebGLRenderer {
       gl.UNSIGNED_BYTE,
       data,
     );
+  }
+
+  updateSelectionTexture(canvas) {
+    const gl = this.gl;
+    gl.bindTexture(gl.TEXTURE_2D, this.selectionTexture);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas);
   }
 
   updateBurnIn() {
@@ -430,6 +449,11 @@ export class WebGLRenderer {
     gl.activeTexture(gl.TEXTURE1);
     gl.bindTexture(gl.TEXTURE_2D, this.burnInTextures[this.currentBurnInIndex]);
     gl.uniform1i(this.uniforms.burnInTexture, 1);
+
+    // Bind selection overlay texture
+    gl.activeTexture(gl.TEXTURE2);
+    gl.bindTexture(gl.TEXTURE_2D, this.selectionTexture);
+    gl.uniform1i(this.uniforms.selectionTexture, 2);
 
     // Set all uniforms
     gl.uniform2f(

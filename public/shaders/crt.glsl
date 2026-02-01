@@ -5,6 +5,7 @@ precision highp float;
 
 uniform sampler2D u_texture;
 uniform sampler2D u_burnInTexture;
+uniform sampler2D u_selectionTexture;
 uniform vec2 u_resolution;
 uniform vec2 u_textureSize;
 uniform float u_time;
@@ -643,6 +644,12 @@ void main() {
 
     // Apply texture-based effects only for content area
     if (!inMargin) {
+        // Blend text selection overlay (before burn-in and glow so CRT effects apply on top)
+        vec4 sel = texture2D(u_selectionTexture, contentUV);
+        if (sel.a > 0.0) {
+            color = mix(color, sel.rgb, sel.a);
+        }
+
         // Apply burn-in from accumulation buffer
         if (u_burnIn > 0.001) {
             // Burn-in texture is stored in non-flipped coords, flip Y to match main texture
