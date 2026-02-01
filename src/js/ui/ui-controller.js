@@ -185,6 +185,16 @@ export class UIController {
       });
     }
 
+    // Save States window button
+    const saveStatesBtn = document.getElementById("btn-save-states");
+    if (saveStatesBtn) {
+      saveStatesBtn.addEventListener("click", () => {
+        this.windowManager.toggleWindow("save-states");
+        this.closeAllMenus();
+        this.refocusCanvas();
+      });
+    }
+
     // Prevent system menu from closing when clicking toggle items
     const systemMenu = document.getElementById("file-menu");
     if (systemMenu) {

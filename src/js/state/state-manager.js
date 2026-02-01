@@ -1,6 +1,6 @@
 /**
  * StateManager - Manages emulator state save/restore and UI
- * Handles auto-save, manual save/restore, and state popup UI
+ * Handles auto-save, manual save/restore, slot saves, and state popup UI
  */
 
 import {
@@ -8,10 +8,14 @@ import {
   loadStateFromStorage,
   hasSavedState,
   getSavedStateTimestamp,
+  saveStateToSlot,
+  loadStateFromSlot,
 } from "./state-persistence.js";
 
 // Constants
 const AUTO_SAVE_INTERVAL_MS = 5000;
+const THUMBNAIL_WIDTH = 140;
+const THUMBNAIL_HEIGHT = 96;
 
 /**
  * @typedef {Object} StateManagerDeps
@@ -35,6 +39,9 @@ export class StateManager {
 
     this.autoSaveEnabled = true;
     this.autoSaveInterval = null;
+
+    /** @type {function|null} Called after each autosave completes */
+    this.onAutosave = null;
   }
 
   /**
@@ -80,21 +87,17 @@ export class StateManager {
    */
   setupStatePopup() {
     const autosaveToggle = document.getElementById("autosave-toggle");
-    const saveStateBtn = document.getElementById("btn-save-state");
-    const restoreStateBtn = document.getElementById("btn-restore-state");
 
     // Initialize toggle state
     if (autosaveToggle) {
       autosaveToggle.checked = this.autoSaveEnabled;
     }
-    this.updateStateUI();
 
     // Update last saved time when system menu opens
     const systemMenuContainer = document.getElementById("file-menu-container");
     if (systemMenuContainer) {
       const observer = new MutationObserver(() => {
         if (systemMenuContainer.classList.contains("open")) {
-          this.updateStateUI();
           this.updateLastSavedTime();
         }
       });
@@ -106,65 +109,7 @@ export class StateManager {
       autosaveToggle.addEventListener("change", () => {
         this.autoSaveEnabled = autosaveToggle.checked;
         localStorage.setItem("a2e-autosave-state", this.autoSaveEnabled);
-        this.updateStateUI();
       });
-    }
-
-    // Save state button
-    if (saveStateBtn) {
-      saveStateBtn.addEventListener("click", async () => {
-        if (!this.emulator.isRunning()) {
-          this.uiController.showNotification("Power on the emulator first to save state");
-          return;
-        }
-        await this.saveState();
-        this.updateLastSavedTime();
-        this.uiController.showNotification("State saved");
-      });
-    }
-
-    // Restore state button
-    if (restoreStateBtn) {
-      restoreStateBtn.addEventListener("click", async () => {
-        const hasState = await hasSavedState();
-        if (!hasState) {
-          this.uiController.showNotification("No saved state to restore");
-          return;
-        }
-        const restored = await this.restoreState();
-        if (restored) {
-          this.uiController.showNotification("State restored");
-          // Close system menu after restore
-          const container = document.getElementById("file-menu-container");
-          if (container) container.classList.remove("open");
-        } else {
-          this.uiController.showNotification("Failed to restore state");
-        }
-        this.uiController.refocusCanvas();
-      });
-    }
-  }
-
-  /**
-   * Update state UI elements within System menu
-   */
-  updateStateUI() {
-    const stateStatus = document.getElementById("state-status");
-    const saveStateBtn = document.getElementById("btn-save-state");
-
-    if (stateStatus) {
-      if (this.autoSaveEnabled) {
-        stateStatus.textContent = "AUTO";
-        stateStatus.className = "state-status on";
-      } else {
-        stateStatus.textContent = "OFF";
-        stateStatus.className = "state-status off";
-      }
-    }
-
-    // Disable save button when auto-save is on
-    if (saveStateBtn) {
-      saveStateBtn.disabled = this.autoSaveEnabled;
     }
   }
 
@@ -200,18 +145,16 @@ export class StateManager {
   }
 
   /**
-   * Save the current emulator state to IndexedDB
-   * @returns {Promise<void>}
+   * Capture current emulator state as a Uint8Array
+   * @returns {Uint8Array|null}
    */
-  async saveState() {
+  captureStateData() {
     if (!this.emulator.isRunning() || !this.wasmModule) {
-      return;
+      return null;
     }
 
+    const sizePtr = this.wasmModule._malloc(4);
     try {
-      this.uiController.flashStateButton();
-
-      const sizePtr = this.wasmModule._malloc(4);
       const statePtr = this.wasmModule._exportState(sizePtr);
 
       if (statePtr && sizePtr) {
@@ -223,18 +166,103 @@ export class StateManager {
           stateData.set(
             new Uint8Array(this.wasmModule.HEAPU8.buffer, statePtr, size)
           );
-          await saveStateToStorage(stateData);
+          return stateData;
         }
       }
-
+      return null;
+    } finally {
       this.wasmModule._free(sizePtr);
+    }
+  }
+
+  /**
+   * Import raw state data into the emulator (power cycles first)
+   * @param {Uint8Array} stateData
+   * @returns {boolean} True if state was imported successfully
+   */
+  importStateData(stateData) {
+    if (!this.wasmModule || !stateData) {
+      return false;
+    }
+
+    // Power cycle: stop and restart the emulator for a clean slate
+    const wasRunning = this.emulator.isRunning();
+    if (wasRunning) {
+      this.emulator.stop();
+    }
+
+    // Start fresh
+    this.emulator.start();
+
+    // Copy state data to WASM memory
+    const statePtr = this.wasmModule._malloc(stateData.length);
+    this.wasmModule.HEAPU8.set(stateData, statePtr);
+
+    // Import state
+    const success = this.wasmModule._importState(statePtr, stateData.length);
+
+    this.wasmModule._free(statePtr);
+
+    if (success) {
+      if (this.reminderController) {
+        this.reminderController.dismissPowerReminder();
+        this.reminderController.showBasicReminder(false);
+      }
+      if (this.diskManager) {
+        this.diskManager.syncWithEmulatorState();
+      }
+      return true;
+    } else {
+      this.emulator.stop();
+      return false;
+    }
+  }
+
+  /**
+   * Capture a thumbnail screenshot of the current emulator display
+   * @returns {string|null} Data URL of the thumbnail, or null
+   */
+  captureScreenshot() {
+    const canvas = document.getElementById("screen");
+    if (!canvas) return null;
+
+    try {
+      const offscreen = document.createElement("canvas");
+      offscreen.width = THUMBNAIL_WIDTH;
+      offscreen.height = THUMBNAIL_HEIGHT;
+      const ctx = offscreen.getContext("2d");
+      ctx.drawImage(canvas, 0, 0, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT);
+      return offscreen.toDataURL("image/png");
+    } catch (error) {
+      console.error("Failed to capture screenshot:", error);
+      return null;
+    }
+  }
+
+  /**
+   * Save the current emulator state to IndexedDB (auto-save)
+   * @returns {Promise<void>}
+   */
+  async saveState() {
+    if (!this.emulator.isRunning() || !this.wasmModule) {
+      return;
+    }
+
+    try {
+      this.uiController.flashStateButton();
+      const stateData = this.captureStateData();
+      if (stateData) {
+        const thumbnail = this.captureScreenshot();
+        await saveStateToStorage(stateData, thumbnail);
+        if (this.onAutosave) this.onAutosave();
+      }
     } catch (error) {
       console.error("Failed to save emulator state:", error);
     }
   }
 
   /**
-   * Restore emulator state from IndexedDB
+   * Restore emulator state from IndexedDB (auto-save)
    * @returns {Promise<boolean>} True if state was restored
    */
   async restoreState() {
@@ -248,42 +276,51 @@ export class StateManager {
         return false;
       }
 
-      // Power cycle: stop and restart the emulator for a clean slate
-      const wasRunning = this.emulator.isRunning();
-      if (wasRunning) {
-        this.emulator.stop();
-      }
-
-      // Start fresh
-      this.emulator.start();
-
-      // Copy state data to WASM memory
-      const statePtr = this.wasmModule._malloc(stateData.length);
-      this.wasmModule.HEAPU8.set(stateData, statePtr);
-
-      // Import state
-      const success = this.wasmModule._importState(statePtr, stateData.length);
-
-      this.wasmModule._free(statePtr);
-
+      const success = this.importStateData(stateData);
       if (success) {
-        if (this.reminderController) {
-          this.reminderController.dismissPowerReminder();
-          this.reminderController.showBasicReminder(false);
-        }
-        if (this.diskManager) {
-          this.diskManager.syncWithEmulatorState();
-        }
         console.log("Restored emulator state from storage");
         return true;
-      } else {
-        this.emulator.stop();
       }
     } catch (error) {
       console.error("Failed to restore emulator state:", error);
     }
 
     return false;
+  }
+
+  /**
+   * Save current state to a numbered slot with screenshot
+   * @param {number} slotNumber - Slot number (1-5)
+   * @returns {Promise<boolean>}
+   */
+  async saveToSlot(slotNumber) {
+    const stateData = this.captureStateData();
+    if (!stateData) return false;
+
+    const thumbnail = this.captureScreenshot();
+    await saveStateToSlot(slotNumber, stateData, thumbnail);
+    return true;
+  }
+
+  /**
+   * Restore state from a numbered slot
+   * @param {number} slotNumber - Slot number (1-5)
+   * @returns {Promise<boolean>}
+   */
+  async restoreFromSlot(slotNumber) {
+    const slot = await loadStateFromSlot(slotNumber);
+    if (!slot) return false;
+
+    return this.importStateData(slot.data);
+  }
+
+  /**
+   * Restore state from raw file data (e.g. uploaded .a2state file)
+   * @param {Uint8Array} stateData
+   * @returns {boolean}
+   */
+  restoreFromFileData(stateData) {
+    return this.importStateData(stateData);
   }
 
   /**

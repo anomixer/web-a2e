@@ -92,7 +92,7 @@ export class WebGLRenderer {
 
   async init() {
     // Get WebGL context
-    const ctxAttrs = { alpha: true, premultipliedAlpha: false };
+    const ctxAttrs = { alpha: true, premultipliedAlpha: false, preserveDrawingBuffer: true };
     this.gl =
       this.canvas.getContext("webgl2", ctxAttrs) || this.canvas.getContext("webgl", ctxAttrs);
     if (!this.gl) {

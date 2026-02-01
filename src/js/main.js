@@ -13,6 +13,7 @@ import { ReminderController } from "./ui/reminder-controller.js";
 import { UIController } from "./ui/ui-controller.js";
 import { SlotConfigurationWindow } from "./ui/slot-configuration-window.js";
 import { StateManager } from "./state/state-manager.js";
+import { SaveStatesWindow } from "./state/save-states-window.js";
 import {
   WindowManager,
   CPUDebuggerWindow,
@@ -265,6 +266,18 @@ class AppleIIeEmulator {
         reminderController: this.reminderController,
       });
       this.stateManager.init();
+
+      // Save States window
+      const saveStatesWindow = new SaveStatesWindow(this.stateManager, this.uiController);
+      saveStatesWindow.create();
+      this.windowManager.register(saveStatesWindow);
+
+      // Keep autosave row current when the window is open
+      this.stateManager.onAutosave = () => {
+        if (saveStatesWindow.isVisible) {
+          saveStatesWindow.refreshAutosaveRow();
+        }
+      };
 
       // Enable mouse handler if a mouse card is configured
       this.updateMouseHandlerState();
