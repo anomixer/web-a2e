@@ -428,6 +428,18 @@ uint32_t getSoftSwitchStateHigh() {
   return static_cast<uint32_t>(g_emulator->getSoftSwitchState() >> 32);
 }
 
+// Screen text extraction
+EMSCRIPTEN_KEEPALIVE
+int screenCodeToAscii(uint8_t code) {
+  return a2e::Emulator::screenCodeToAscii(code);
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char* readScreenText(int startRow, int startCol, int endRow, int endCol) {
+  REQUIRE_EMULATOR_OR("");
+  return g_emulator->readScreenText(startRow, startCol, endRow, endCol);
+}
+
 // Disk controller state for debugging
 EMSCRIPTEN_KEEPALIVE
 int getDiskTrack(int drive) {

@@ -2,17 +2,8 @@
  * TextSelection - Enable text selection and copying from the Apple II screen
  *
  * Handles mouse selection on the canvas and converts screen memory to text.
+ * Character encoding and screen memory reading are handled by C++ core.
  */
-
-// Apple II text screen row base addresses (non-linear layout)
-const TEXT_ROW_BASES = [
-  0x400, 0x480, 0x500, 0x580, 0x600, 0x680, 0x700, 0x780,
-  0x428, 0x4A8, 0x528, 0x5A8, 0x628, 0x6A8, 0x728, 0x7A8,
-  0x450, 0x4D0, 0x550, 0x5D0, 0x650, 0x6D0, 0x750, 0x7D0
-];
-
-// Page 2 offset
-const PAGE2_OFFSET = 0x400;
 
 export class TextSelection {
   constructor(canvas, wasmModule, renderer) {
@@ -180,112 +171,16 @@ export class TextSelection {
   }
 
   /**
-   * Get the screen memory address for a character position
-   */
-  getScreenAddress(row, col, page2) {
-    const baseAddr = TEXT_ROW_BASES[row];
-    const page2Offset = page2 ? PAGE2_OFFSET : 0;
-    return baseAddr + page2Offset + col;
-  }
-
-  /**
-   * Read a character from screen memory
-   */
-  readScreenChar(row, col, mode) {
-    if (mode.col80) {
-      // 80-column mode: even screen columns in aux, odd in main
-      // Both share the same address within their memory bank
-      const memCol = Math.floor(col / 2);
-      const isAux = (col % 2) === 0;
-      const addr = this.getScreenAddress(row, memCol, mode.page2);
-
-      if (isAux && this.wasmModule._peekAuxMemory) {
-        return this.wasmModule._peekAuxMemory(addr);
-      } else {
-        return this.wasmModule._peekMemory(addr);
-      }
-    } else {
-      const addr = this.getScreenAddress(row, col, mode.page2);
-      return this.wasmModule._peekMemory(addr);
-    }
-  }
-
-  /**
-   * Convert Apple II character code to ASCII/Unicode
-   *
-   * Apple II screen codes:
-   * $00-$1F: Inverse uppercase @ A-Z [ \ ] ^ _
-   * $20-$3F: Inverse space ! " # $ % & ' ( ) * + , - . / 0-9 : ; < = > ?
-   * $40-$5F: Flash uppercase (same as inverse)
-   * $60-$7F: Flash symbols (same as inverse symbols)
-   * $80-$9F: Normal uppercase @ A-Z [ \ ] ^ _
-   * $A0-$BF: Normal space ! " # $ % & ' ( ) * + , - . / 0-9 : ; < = > ?
-   * $C0-$DF: Normal uppercase (MouseText on IIe, same as $80-$9F on II+)
-   * $E0-$FF: Normal lowercase ` a-z { | } ~
-   */
-  charToAscii(code) {
-    // Mask to 7 bits for the base character
-    const base = code & 0x7F;
-
-    // Handle different ranges
-    if (code >= 0xE0) {
-      // $E0-$FF: Normal lowercase - maps to ASCII $60-$7F
-      return code - 0x80;
-    } else if (code >= 0xC0) {
-      // $C0-$DF: Normal uppercase (or MouseText) - treat as uppercase
-      return code - 0x80;
-    } else if (code >= 0xA0) {
-      // $A0-$BF: Normal symbols/digits - maps to ASCII $20-$3F
-      return code - 0x80;
-    } else if (code >= 0x80) {
-      // $80-$9F: Normal uppercase - maps to ASCII $40-$5F
-      return code - 0x40;
-    } else if (code >= 0x60) {
-      // $60-$7F: Flash symbols - maps to ASCII $20-$3F
-      return code - 0x40;
-    } else if (code >= 0x40) {
-      // $40-$5F: Flash uppercase - maps to ASCII $40-$5F
-      return code;
-    } else if (code >= 0x20) {
-      // $20-$3F: Inverse symbols - maps to ASCII $20-$3F
-      return code;
-    } else {
-      // $00-$1F: Inverse uppercase - maps to ASCII $40-$5F
-      return code + 0x40;
-    }
-  }
-
-  /**
-   * Get selected text as a string
+   * Get selected text as a string (delegates to C++ for screen memory reading and decoding)
    */
   getSelectedText() {
-    const mode = this.getDisplayMode();
-    if (!mode.textMode) return '';
-
     const sel = this.normalizeSelection();
     if (!sel) return '';
 
-    const cols = mode.col80 ? 80 : 40;
-    let text = '';
-
-    for (let row = sel.startRow; row <= sel.endRow; row++) {
-      const colStart = (row === sel.startRow) ? sel.startCol : 0;
-      const colEnd = (row === sel.endRow) ? sel.endCol : cols - 1;
-
-      let line = '';
-      for (let col = colStart; col <= colEnd; col++) {
-        const charCode = this.readScreenChar(row, col, mode);
-        const ascii = this.charToAscii(charCode);
-        line += String.fromCharCode(ascii);
-      }
-
-      text += line.trimEnd();
-      if (row < sel.endRow) {
-        text += '\n';
-      }
-    }
-
-    return text;
+    const resultPtr = this.wasmModule._readScreenText(
+      sel.startRow, sel.startCol, sel.endRow, sel.endCol
+    );
+    return resultPtr ? this.wasmModule.UTF8ToString(resultPtr) : '';
   }
 
   /**
