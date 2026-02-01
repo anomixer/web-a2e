@@ -73,6 +73,10 @@ export class WebGLRenderer {
 
       // Edge highlight intensity (0.0 to 1.0)
       edgeHighlight: 0.3,
+
+      // Beam position crosshair (-1.0 = off, 0.0–1.0 = normalized position)
+      beamY: -1.0,
+      beamX: -1.0,
     };
 
     // Time for animated effects
@@ -192,6 +196,8 @@ export class WebGLRenderer {
       cornerRadius: gl.getUniformLocation(this.program, "u_cornerRadius"),
       screenMargin: gl.getUniformLocation(this.program, "u_screenMargin"),
       edgeHighlight: gl.getUniformLocation(this.program, "u_edgeHighlight"),
+      beamY: gl.getUniformLocation(this.program, "u_beamY"),
+      beamX: gl.getUniformLocation(this.program, "u_beamX"),
     };
 
     // Get burn-in program uniform locations
@@ -461,6 +467,8 @@ export class WebGLRenderer {
     gl.uniform1f(this.uniforms.cornerRadius, this.crtParams.cornerRadius);
     gl.uniform1f(this.uniforms.screenMargin, this.crtParams.screenMargin);
     gl.uniform1f(this.uniforms.edgeHighlight, this.crtParams.edgeHighlight);
+    gl.uniform1f(this.uniforms.beamY, this.crtParams.beamY);
+    gl.uniform1f(this.uniforms.beamX, this.crtParams.beamX);
 
     // Draw
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);

@@ -42,6 +42,7 @@ export class BaseWindow {
     this.element = null;
     this.headerElement = null;
     this.contentElement = null;
+    this.zIndex = 1000;
     this.isVisible = false;
     this.isDragging = false;
     this.isResizing = false;
@@ -380,6 +381,7 @@ export class BaseWindow {
    * Set window z-index
    */
   setZIndex(z) {
+    this.zIndex = z;
     this.element.style.zIndex = z;
   }
 

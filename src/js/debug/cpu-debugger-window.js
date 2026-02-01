@@ -18,7 +18,7 @@ export class CPUDebuggerWindow extends BaseWindow {
       minWidth: 420,
       minHeight: 400,
       defaultWidth: 500,
-      defaultHeight: 600,
+      defaultHeight: 660,
       defaultPosition: { x: window.innerWidth - 480, y: 60 },
     });
 
@@ -86,6 +86,26 @@ export class CPUDebuggerWindow extends BaseWindow {
               <span class="irq-indicator" id="nmi-edge" title="NMI Edge Detected">EDGE</span>
             </div>
           </div>
+          <div class="cpu-dbg-scanline-row">
+            <span class="scanline-item"><span class="scanline-label">SCAN</span> <span class="scanline-value" id="scan-line">0</span></span>
+            <span class="scanline-item"><span class="scanline-label">H</span> <span class="scanline-value" id="scan-hpos">0</span></span>
+            <span class="scanline-item"><span class="scanline-label">COL</span> <span class="scanline-value" id="scan-col">--</span></span>
+            <span class="scanline-item"><span class="scanline-label">FCYC</span> <span class="scanline-value" id="scan-fcyc">0</span></span>
+            <span class="scanline-badge" id="scan-badge">VISIBLE</span>
+          </div>
+          <div class="cpu-dbg-beam-break-row">
+            <select id="beam-break-mode" class="beam-break-select">
+              <option value="off">Beam Break: Off</option>
+              <option value="vbl">VBL Start</option>
+              <option value="hblank">HBLANK</option>
+              <option value="scanline">Scanline</option>
+              <option value="column">Column</option>
+              <option value="scancol">Scan + Col</option>
+            </select>
+            <input type="text" id="beam-break-scan" class="beam-break-input" placeholder="Row" maxlength="3" style="display:none">
+            <input type="text" id="beam-break-col" class="beam-break-input" placeholder="Col" maxlength="2" style="display:none">
+            <span class="beam-break-indicator" id="beam-break-hit" style="display:none">BEAM HIT</span>
+          </div>
         </div>
 
         <div class="cpu-dbg-disasm">
@@ -98,10 +118,13 @@ export class CPUDebuggerWindow extends BaseWindow {
           <div class="cpu-disasm-view" id="disasm-view"></div>
         </div>
 
-        <div class="cpu-dbg-panel">
-          <div class="cpu-dbg-panel-header">
-            <span class="cpu-dbg-panel-title">Breakpoints</span>
-            <div class="cpu-dbg-panel-controls">
+        <div class="cpu-dbg-tabs">
+          <div class="cpu-dbg-tab-bar">
+            <button class="cpu-dbg-tab active" data-tab="breakpoints">Breakpoints <span class="cpu-dbg-tab-count" id="bp-tab-count">0</span></button>
+            <button class="cpu-dbg-tab" data-tab="watch">Watch <span class="cpu-dbg-tab-count" id="watch-tab-count">0</span></button>
+          </div>
+          <div class="cpu-dbg-tab-content active" data-tab="breakpoints">
+            <div class="cpu-dbg-tab-toolbar">
               <select id="bp-type-select" title="Breakpoint type">
                 <option value="exec">Exec</option>
                 <option value="read">Read</option>
@@ -111,19 +134,38 @@ export class CPUDebuggerWindow extends BaseWindow {
               <input type="text" id="breakpoint-input" placeholder="$XXXX" spellcheck="false">
               <button class="cpu-dbg-add-btn" id="breakpoint-add-btn" title="Add breakpoint">+</button>
             </div>
+            <div class="cpu-bp-list" id="breakpoint-list"></div>
           </div>
-          <div class="cpu-bp-list" id="breakpoint-list"></div>
-        </div>
-
-        <div class="cpu-dbg-panel">
-          <div class="cpu-dbg-panel-header">
-            <span class="cpu-dbg-panel-title">Watch</span>
-            <div class="cpu-dbg-panel-controls">
-              <input type="text" id="watch-input" placeholder="PEEK($00), A*2, DEEK($36)" spellcheck="false">
+          <div class="cpu-dbg-tab-content" data-tab="watch">
+            <div class="cpu-dbg-tab-toolbar">
+              <select id="watch-source-select" title="Watch source type">
+                <option value="reg">Register</option>
+                <option value="flag">Flag</option>
+                <option value="byte">Byte</option>
+                <option value="word">Word</option>
+              </select>
+              <select id="watch-detail-reg" class="watch-detail-control active" title="Register">
+                <option value="A">A</option>
+                <option value="X">X</option>
+                <option value="Y">Y</option>
+                <option value="SP">SP</option>
+                <option value="PC">PC</option>
+                <option value="P">P</option>
+              </select>
+              <select id="watch-detail-flag" class="watch-detail-control" title="Flag">
+                <option value="N">N</option>
+                <option value="V">V</option>
+                <option value="B">B</option>
+                <option value="D">D</option>
+                <option value="I">I</option>
+                <option value="Z">Z</option>
+                <option value="C">C</option>
+              </select>
+              <input type="text" id="watch-detail-addr" class="watch-detail-control" placeholder="$0000" spellcheck="false">
               <button class="cpu-dbg-add-btn" id="watch-add-btn" title="Add watch">+</button>
             </div>
+            <div class="cpu-watch-list" id="watch-list"></div>
           </div>
-          <div class="cpu-watch-list" id="watch-list"></div>
         </div>
       </div>
     `;
@@ -269,6 +311,16 @@ export class CPUDebuggerWindow extends BaseWindow {
           }
           return;
         }
+        const editBtn = e.target.closest(".bp-edit");
+        if (editBtn) {
+          e.stopPropagation();
+          e.preventDefault();
+          const item = editBtn.closest(".cpu-bp-item");
+          if (item && item.dataset.addr) {
+            this.editBreakpointCondition(parseInt(item.dataset.addr, 10));
+          }
+          return;
+        }
         const checkbox = e.target.closest(".bp-enable input");
         if (checkbox) {
           // Let the checkbox handle its own change event
@@ -296,24 +348,46 @@ export class CPUDebuggerWindow extends BaseWindow {
       });
     }
 
-    // Watch expression add
-    const watchInput = this.contentElement.querySelector("#watch-input");
+    // Watch source/detail switching
+    const watchSourceSelect = this.contentElement.querySelector("#watch-source-select");
+    const watchDetailReg = this.contentElement.querySelector("#watch-detail-reg");
+    const watchDetailFlag = this.contentElement.querySelector("#watch-detail-flag");
+    const watchDetailAddr = this.contentElement.querySelector("#watch-detail-addr");
     const watchAddBtn = this.contentElement.querySelector("#watch-add-btn");
-    if (watchAddBtn && watchInput) {
-      const addWatch = () => {
-        const expr = watchInput.value.trim();
-        if (expr) {
-          this.watchExpressions.push(expr);
-          this.saveWatchExpressions();
-          this.updateWatchList();
-          watchInput.value = "";
-        }
-      };
-      watchAddBtn.addEventListener("click", addWatch);
-      watchInput.addEventListener("keypress", (e) => {
-        if (e.key === "Enter") addWatch();
+
+    if (watchSourceSelect) {
+      watchSourceSelect.addEventListener("change", () => {
+        const source = watchSourceSelect.value;
+        if (watchDetailReg) watchDetailReg.classList.toggle("active", source === "reg");
+        if (watchDetailFlag) watchDetailFlag.classList.toggle("active", source === "flag");
+        if (watchDetailAddr) watchDetailAddr.classList.toggle("active", source === "byte" || source === "word");
       });
-      watchInput.addEventListener("keydown", (e) => e.stopPropagation());
+    }
+
+    if (watchAddBtn) {
+      watchAddBtn.addEventListener("click", () => this.addWatchFromForm());
+    }
+
+    if (watchDetailAddr) {
+      watchDetailAddr.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") this.addWatchFromForm();
+      });
+      watchDetailAddr.addEventListener("keydown", (e) => e.stopPropagation());
+    }
+
+    // Tab switching
+    const tabBar = this.contentElement.querySelector(".cpu-dbg-tab-bar");
+    if (tabBar) {
+      tabBar.addEventListener("click", (e) => {
+        const tab = e.target.closest(".cpu-dbg-tab");
+        if (!tab) return;
+        const tabName = tab.dataset.tab;
+        tabBar.querySelectorAll(".cpu-dbg-tab").forEach((t) => t.classList.remove("active"));
+        tab.classList.add("active");
+        this.contentElement.querySelectorAll(".cpu-dbg-tab-content").forEach((c) => {
+          c.classList.toggle("active", c.dataset.tab === tabName);
+        });
+      });
     }
 
     // Watch list event delegation (survives DOM rebuilds from updateWatchList)
@@ -344,6 +418,7 @@ export class CPUDebuggerWindow extends BaseWindow {
     this.setupContentEventListeners();
     this.setupKeyboardShortcuts();
     this.setupRegisterEditing();
+    this.setupBeamBreakEvents();
   }
 
   destroy() {
@@ -405,6 +480,37 @@ export class CPUDebuggerWindow extends BaseWindow {
     if (!isNaN(addr) && addr >= 0 && addr <= 0xffff) {
       this.bpManager.add(addr, { type });
       input.value = "";
+    }
+  }
+
+  /**
+   * Build expression string from the watch form and add it
+   */
+  addWatchFromForm() {
+    const source = this.contentElement.querySelector("#watch-source-select")?.value;
+    if (!source) return;
+
+    let expr = null;
+    if (source === "reg") {
+      expr = this.contentElement.querySelector("#watch-detail-reg")?.value;
+    } else if (source === "flag") {
+      expr = this.contentElement.querySelector("#watch-detail-flag")?.value;
+    } else if (source === "byte" || source === "word") {
+      const addrInput = this.contentElement.querySelector("#watch-detail-addr");
+      if (!addrInput) return;
+      const text = addrInput.value.trim();
+      if (!text) return;
+      const addr = this.resolveAddress(text);
+      if (addr === null) return;
+      const hexAddr = "$" + this.formatHex(addr, 4);
+      expr = source === "byte" ? `PEEK(${hexAddr})` : `DEEK(${hexAddr})`;
+      addrInput.value = "";
+    }
+
+    if (expr) {
+      this.watchExpressions.push(expr);
+      this.saveWatchExpressions();
+      this.updateWatchList();
     }
   }
 
@@ -615,6 +721,16 @@ export class CPUDebuggerWindow extends BaseWindow {
       }
     }
 
+    // Beam breakpoint hit indicator
+    const beamHitEl = this.contentElement.querySelector("#beam-break-hit");
+    if (beamHitEl) {
+      if (isPaused && this.wasmModule._isBeamBreakpointHit && this.wasmModule._isBeamBreakpointHit()) {
+        beamHitEl.style.display = "";
+      } else {
+        beamHitEl.style.display = "none";
+      }
+    }
+
     // If PC changed, snap disassembly back to follow PC
     if (this.lastPC !== null && pc !== this.lastPC) {
       this.disasmViewAddress = null;
@@ -623,6 +739,9 @@ export class CPUDebuggerWindow extends BaseWindow {
     this.updateRegisters();
     this.updateFlags();
     this.updateIRQState();
+    if (isPaused) {
+      this.updateScanline();
+    }
     this.updateDisassembly();
     this.updateWatchList();
   }
@@ -745,6 +864,76 @@ export class CPUDebuggerWindow extends BaseWindow {
   }
 
   /**
+   * Set up beam breakpoint select/input event handling
+   */
+  setupBeamBreakEvents() {
+    const modeSelect = this.contentElement.querySelector("#beam-break-mode");
+    const scanInput = this.contentElement.querySelector("#beam-break-scan");
+    const colInput = this.contentElement.querySelector("#beam-break-col");
+    if (!modeSelect) return;
+
+    const applyBeamBreak = () => {
+      const mode = modeSelect.value;
+      if (scanInput) scanInput.style.display = "none";
+      if (colInput) colInput.style.display = "none";
+
+      switch (mode) {
+        case "off":
+          this.wasmModule._clearBeamBreakpoint();
+          break;
+        case "vbl":
+          this.wasmModule._setBeamBreakpoint(192, 0);
+          break;
+        case "hblank":
+          this.wasmModule._setBeamBreakpoint(-1, 0);
+          break;
+        case "scanline":
+          if (scanInput) scanInput.style.display = "";
+          {
+            const n = parseInt(scanInput?.value, 10);
+            if (!isNaN(n) && n >= 0 && n <= 261) {
+              this.wasmModule._setBeamBreakpoint(n, -1);
+            }
+          }
+          break;
+        case "column":
+          if (colInput) colInput.style.display = "";
+          {
+            const c = parseInt(colInput?.value, 10);
+            if (!isNaN(c) && c >= 0 && c <= 39) {
+              this.wasmModule._setBeamBreakpoint(-1, c + 25);
+            }
+          }
+          break;
+        case "scancol":
+          if (scanInput) scanInput.style.display = "";
+          if (colInput) colInput.style.display = "";
+          {
+            const n = parseInt(scanInput?.value, 10);
+            const c = parseInt(colInput?.value, 10);
+            if (!isNaN(n) && n >= 0 && n <= 261 && !isNaN(c) && c >= 0 && c <= 39) {
+              this.wasmModule._setBeamBreakpoint(n, c + 25);
+            }
+          }
+          break;
+      }
+    };
+
+    modeSelect.addEventListener("change", applyBeamBreak);
+
+    const onInputKey = (e) => {
+      if (e.key === "Enter") applyBeamBreak();
+      e.stopPropagation();
+    };
+    if (scanInput) {
+      scanInput.addEventListener("keydown", onInputKey);
+    }
+    if (colInput) {
+      colInput.addEventListener("keydown", onInputKey);
+    }
+  }
+
+  /**
    * Update CPU flags display
    */
   updateFlags() {
@@ -783,6 +972,44 @@ export class CPUDebuggerWindow extends BaseWindow {
         elem.classList.toggle("active", this.wasmModule[fn]());
       }
     });
+  }
+
+  /**
+   * Update scanline / beam position display
+   */
+  updateScanline() {
+    const totalCycles = Number(this.wasmModule._getTotalCycles());
+    const frameCycle = totalCycles % 17030;
+    const scanline = Math.floor(frameCycle / 65);
+    const hPos = frameCycle % 65;
+    const col = hPos >= 25 ? hPos - 25 : -1;
+    const inVBL = scanline >= 192;
+    const inHBLANK = hPos < 25;
+
+    const scanEl = this.contentElement.querySelector("#scan-line");
+    const hPosEl = this.contentElement.querySelector("#scan-hpos");
+    const colEl = this.contentElement.querySelector("#scan-col");
+    const fcycEl = this.contentElement.querySelector("#scan-fcyc");
+    const badgeEl = this.contentElement.querySelector("#scan-badge");
+
+    if (scanEl) scanEl.textContent = scanline;
+    if (hPosEl) hPosEl.textContent = hPos;
+    if (colEl) colEl.textContent = col >= 0 ? col.toString().padStart(2, "0") : "--";
+    if (fcycEl) fcycEl.textContent = frameCycle;
+
+    if (badgeEl) {
+      if (inVBL) {
+        badgeEl.textContent = "VBL";
+        badgeEl.className = "scanline-badge scanline-badge-vbl";
+      } else if (inHBLANK) {
+        badgeEl.textContent = "HBLANK";
+        badgeEl.className = "scanline-badge scanline-badge-hblank";
+      } else {
+        badgeEl.textContent = "VISIBLE";
+        badgeEl.className = "scanline-badge scanline-badge-visible";
+      }
+    }
+
   }
 
   /**
@@ -1018,9 +1245,11 @@ export class CPUDebuggerWindow extends BaseWindow {
 
     list.innerHTML = "";
     const allBps = this.bpManager.getAll();
+    let count = 0;
 
     for (const [addr, entry] of allBps) {
       if (entry.isTemp) continue;
+      count++;
 
       const item = document.createElement("div");
       item.className = "cpu-bp-item";
@@ -1058,28 +1287,54 @@ export class CPUDebuggerWindow extends BaseWindow {
         html += `<span class="bp-hits" title="Hit count">${hitText}</span>`;
       }
 
+      html += `<button class="bp-edit" title="Edit condition">if&#8230;</button>`;
       html += `<button class="bp-remove" title="Remove">×</button>`;
 
       item.innerHTML = html;
       list.appendChild(item);
     }
+
+    if (count === 0) {
+      const empty = document.createElement("div");
+      empty.className = "cpu-dbg-empty-state";
+      empty.textContent = "Click a disassembly line to toggle a breakpoint, or add one above.";
+      list.appendChild(empty);
+    }
+
+    // Update tab badge count
+    const badge = this.contentElement.querySelector("#bp-tab-count");
+    if (badge) {
+      badge.textContent = count;
+      badge.classList.toggle("has-items", count > 0);
+    }
   }
 
   /**
-   * Edit condition on a breakpoint via prompt
+   * Set the Rule Builder window reference
+   */
+  setRuleBuilder(ruleBuilderWindow) {
+    this.ruleBuilder = ruleBuilderWindow;
+  }
+
+  /**
+   * Edit condition on a breakpoint via Rule Builder or prompt fallback
    */
   editBreakpointCondition(addr) {
     const entry = this.bpManager.get(addr);
     if (!entry) return;
 
-    const condition = prompt(
-      `Condition for breakpoint at $${this.formatHex(addr, 4)}:\n` +
-      `Examples: A==#$FF, PEEK($00)==#$42, C==1 && X>=#$10`,
-      entry.condition || ""
-    );
-
-    if (condition !== null) {
-      this.bpManager.setCondition(addr, condition);
+    if (this.ruleBuilder) {
+      this.ruleBuilder.editBreakpoint(addr, entry);
+    } else {
+      // Fallback to prompt if Rule Builder not wired
+      const condition = prompt(
+        `Condition for breakpoint at $${this.formatHex(addr, 4)}:\n` +
+        `Examples: A==#$FF, PEEK($00)==#$42, C==1 && X>=#$10`,
+        entry.condition || ""
+      );
+      if (condition !== null) {
+        this.bpManager.setCondition(addr, condition);
+      }
     }
   }
 
@@ -1147,6 +1402,44 @@ export class CPUDebuggerWindow extends BaseWindow {
     } catch (e) { /* ignore */ }
   }
 
+  static REGISTER_NAMES = new Set(["A", "X", "Y", "SP", "PC", "P"]);
+
+  static FLAG_LABELS = {
+    N: "Negative",
+    V: "Overflow",
+    B: "Break",
+    D: "Decimal",
+    I: "Interrupt",
+    Z: "Zero",
+    C: "Carry",
+  };
+
+  /**
+   * Build a friendly display label and type icon for a watch expression
+   */
+  getWatchLabel(expr) {
+    // Register: single token like "A", "X", "PC"
+    if (CPUDebuggerWindow.REGISTER_NAMES.has(expr)) {
+      return { icon: "R", iconClass: "watch-icon-reg", label: expr };
+    }
+    // Flag: single letter N/V/B/D/I/Z/C
+    if (CPUDebuggerWindow.FLAG_LABELS[expr]) {
+      return { icon: "F", iconClass: "watch-icon-flag", label: CPUDebuggerWindow.FLAG_LABELS[expr] };
+    }
+    // PEEK($XXXX) → byte
+    const peekMatch = expr.match(/^PEEK\(\$([0-9A-Fa-f]{1,4})\)$/);
+    if (peekMatch) {
+      return { icon: "B", iconClass: "watch-icon-byte", label: `$${peekMatch[1].toUpperCase()} byte` };
+    }
+    // DEEK($XXXX) → word
+    const deekMatch = expr.match(/^DEEK\(\$([0-9A-Fa-f]{1,4})\)$/);
+    if (deekMatch) {
+      return { icon: "W", iconClass: "watch-icon-word", label: `$${deekMatch[1].toUpperCase()} word` };
+    }
+    // Legacy / custom expression
+    return { icon: "E", iconClass: "watch-icon-expr", label: expr };
+  }
+
   updateWatchList() {
     const list = this.contentElement.querySelector("#watch-list");
     if (!list) return;
@@ -1166,16 +1459,32 @@ export class CPUDebuggerWindow extends BaseWindow {
         valueStr = `err: ${e.message}`;
       }
 
+      const { icon, iconClass, label } = this.getWatchLabel(expr);
       const item = document.createElement("div");
       item.className = "cpu-watch-item";
       item.dataset.index = i;
       item.innerHTML = `
-        <span class="watch-expr" title="${expr}">${expr}</span>
+        <span class="watch-type-icon ${iconClass}" title="${expr}">${icon}</span>
+        <span class="watch-expr" title="${expr}">${label}</span>
         <span class="watch-value">${valueStr}</span>
         <button class="watch-remove" title="Remove">×</button>
       `;
 
       list.appendChild(item);
+    }
+
+    if (this.watchExpressions.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "cpu-dbg-empty-state";
+      empty.textContent = "Add watch expressions to monitor values during execution.";
+      list.appendChild(empty);
+    }
+
+    // Update tab badge count
+    const badge = this.contentElement.querySelector("#watch-tab-count");
+    if (badge) {
+      badge.textContent = this.watchExpressions.length;
+      badge.classList.toggle("has-items", this.watchExpressions.length > 0);
     }
   }
 

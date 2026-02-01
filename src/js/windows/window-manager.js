@@ -93,14 +93,40 @@ export class WindowManager {
   }
 
   /**
-   * Bring a window to the front
+   * Bring a window to the front.
+   * Caps z-index below 2000 so header dropdown menus always render on top.
    */
   bringToFront(id) {
     this.highestZIndex++;
+    if (this.highestZIndex >= 1900) {
+      this.normalizeZIndices(id);
+      return;
+    }
     const window = this.windows.get(id);
     if (window) {
       window.setZIndex(this.highestZIndex);
     }
+  }
+
+  /**
+   * Reassign z-indices starting from 1000, preserving the current stacking order.
+   * The window identified by frontId is placed on top.
+   */
+  normalizeZIndices(frontId) {
+    // Collect windows that have a z-index (visible or not) and sort by current z
+    const ordered = [...this.windows.entries()]
+      .filter(([id]) => id !== frontId)
+      .sort((a, b) => (a[1].zIndex || 0) - (b[1].zIndex || 0));
+
+    let z = 1000;
+    for (const [, win] of ordered) {
+      win.setZIndex(z++);
+    }
+    const front = this.windows.get(frontId);
+    if (front) {
+      front.setZIndex(z);
+    }
+    this.highestZIndex = z;
   }
 
   /**

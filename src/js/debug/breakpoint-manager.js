@@ -35,6 +35,7 @@ export class BreakpointManager {
       address,
       enabled: opts.enabled !== false,
       condition: opts.condition || null,
+      conditionRules: opts.conditionRules || null,
       hitCount: 0,
       hitTarget: opts.hitTarget || 0,
       isTemp: false,
@@ -111,6 +112,17 @@ export class BreakpointManager {
     const entry = this.breakpoints.get(address);
     if (!entry) return;
     entry.condition = condition || null;
+    this.save();
+    this._notify();
+  }
+
+  /**
+   * Set the structured rule tree on a breakpoint (for Rule Builder persistence)
+   */
+  setConditionRules(address, rules) {
+    const entry = this.breakpoints.get(address);
+    if (!entry) return;
+    entry.conditionRules = rules || null;
     this.save();
     this._notify();
   }
@@ -521,6 +533,7 @@ export class BreakpointManager {
           address: addr,
           enabled: entry.enabled,
           condition: entry.condition,
+          conditionRules: entry.conditionRules,
           hitTarget: entry.hitTarget,
           type: entry.type,
         });
@@ -544,6 +557,7 @@ export class BreakpointManager {
           this.add(entry.address, {
             enabled: entry.enabled,
             condition: entry.condition,
+            conditionRules: entry.conditionRules,
             hitTarget: entry.hitTarget,
             type: entry.type,
           });

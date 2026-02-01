@@ -42,6 +42,10 @@ uniform int u_monochromeMode;
 // Corner radius for rounded screen corners
 uniform float u_cornerRadius;
 
+// Beam position crosshair overlay (-1.0 = off, 0.0–1.0 = normalized position)
+uniform float u_beamY;
+uniform float u_beamX;
+
 // Screen margin/padding for rounded corners (content is inset by this amount)
 uniform float u_screenMargin;
 
@@ -525,6 +529,35 @@ float edgeHighlightIntensity(vec2 uv, float radius) {
 }
 
 // ============================================
+// Beam position crosshair overlay
+// ============================================
+
+vec3 beamOverlay(vec2 uv) {
+    if (u_beamY < 0.0 && u_beamX < 0.0) return vec3(0.0);
+
+    // Line thickness in UV space (~1.5 pixels)
+    float lineW = 1.5 / u_textureSize.x;
+    float lineH = 1.5 / u_textureSize.y;
+
+    vec3 lineColor = vec3(1.0, 0.0, 0.0); // Red
+    float intensity = 0.0;
+
+    // Horizontal line at beamY
+    if (u_beamY >= 0.0 && u_beamY <= 1.0) {
+        float dy = abs(uv.y - u_beamY);
+        intensity += smoothstep(lineH, 0.0, dy) * 0.6;
+    }
+
+    // Vertical line at beamX
+    if (u_beamX >= 0.0 && u_beamX <= 1.0) {
+        float dx = abs(uv.x - u_beamX);
+        intensity += smoothstep(lineW, 0.0, dx) * 0.6;
+    }
+
+    return lineColor * min(intensity, 1.0);
+}
+
+// ============================================
 // Main fragment shader
 // ============================================
 
@@ -658,6 +691,11 @@ void main() {
     float edgeGlow = edgeHighlightIntensity(curvedUV, u_cornerRadius);
     vec3 highlightColor = vec3(0.55, 0.55, 0.5); // Light gray edge highlight
     color = mix(color, highlightColor, edgeGlow);
+
+    // Beam position crosshair (additive blend, uses content UV)
+    if (!inMargin) {
+        color += beamOverlay(contentUV);
+    }
 
     // Clamp final color
     color = clamp(color, 0.0, 1.0);

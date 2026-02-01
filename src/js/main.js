@@ -26,6 +26,7 @@ import {
   MockingboardScopeWindow,
   MouseCardWindow,
   BasicProgramWindow,
+  RuleBuilderWindow,
 } from "./debug/index.js";
 
 class AppleIIeEmulator {
@@ -101,6 +102,17 @@ class AppleIIeEmulator {
       const cpuWindow = new CPUDebuggerWindow(this.wasmModule);
       cpuWindow.create();
       this.windowManager.register(cpuWindow);
+      this.cpuDebuggerWindow = cpuWindow;
+
+      const ruleBuilderWindow = new RuleBuilderWindow();
+      ruleBuilderWindow.create();
+      this.windowManager.register(ruleBuilderWindow);
+
+      ruleBuilderWindow.onApply = (addr, condStr, rules) => {
+        cpuWindow.bpManager.setCondition(addr, condStr);
+        cpuWindow.bpManager.setConditionRules(addr, rules);
+      };
+      cpuWindow.setRuleBuilder(ruleBuilderWindow);
 
       const switchWindow = new SoftSwitchWindow(this.wasmModule);
       switchWindow.create();
@@ -416,7 +428,23 @@ class AppleIIeEmulator {
       this.windowManager.updateAll(this.wasmModule);
       this.diskManager.updateLEDs();
 
-      if (!this.running) {
+      // Beam crosshair overlay — only when CPU debugger is open and CPU is paused
+      const isPaused = this.running && this.wasmModule._isPaused();
+      if (isPaused && this.cpuDebuggerWindow && this.cpuDebuggerWindow.isVisible) {
+        const totalCycles = Number(this.wasmModule._getTotalCycles());
+        const frameCycle = totalCycles % 17030;
+        const scanline = Math.floor(frameCycle / 65);
+        const hPos = frameCycle % 65;
+        // Map beam Y to center of scanline band (0–191 visible, ≥192 is VBL)
+        this.renderer.setParam("beamY", scanline < 192 ? (scanline + 0.5) / 192.0 : -1.0);
+        // Map beam X to leading edge of column (hPos 25–64 → columns 0–39)
+        this.renderer.setParam("beamX", hPos >= 25 ? (hPos - 25) / 40.0 : -1.0);
+      } else {
+        this.renderer.setParam("beamY", -1.0);
+        this.renderer.setParam("beamX", -1.0);
+      }
+
+      if (!this.running || isPaused) {
         this.renderer.draw();
       }
 

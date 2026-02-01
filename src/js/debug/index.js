@@ -12,3 +12,4 @@ export { MockingboardWindow } from "./mockingboard-window.js";
 export { MockingboardScopeWindow } from "./mockingboard-scope-window.js";
 export { MouseCardWindow } from "./mouse-card-window.js";
 export { BasicProgramWindow } from "./basic-program-window.js";
+export { RuleBuilderWindow } from "./rule-builder-window.js";
