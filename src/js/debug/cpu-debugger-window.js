@@ -30,11 +30,13 @@ export class CPUDebuggerWindow extends BaseWindow {
     this.disasmStartAddr = 0;
     this.disasmViewAddress = null; // When set, overrides PC-centered view
     this.previousRegisters = {}; // For change highlighting
+    this.previousWatchValues = {}; // For watch change highlighting
     this.profileEnabled = false; // When true, shows heat overlay in disassembly
     this.watchExpressions = []; // Array of expression strings
     this.loadWatchExpressions();
     this.bookmarks = []; // Array of addresses
     this.loadBookmarks();
+    this.beamBreakpoints = []; // Array of { id, scanline, hPos, enabled, mode }
 
     // Re-render breakpoint list when breakpoints change
     this.bpManager.onChange(() => {
@@ -93,19 +95,6 @@ export class CPUDebuggerWindow extends BaseWindow {
             <span class="scanline-item"><span class="scanline-label">FCYC</span> <span class="scanline-value" id="scan-fcyc">0</span></span>
             <span class="scanline-badge" id="scan-badge">VISIBLE</span>
           </div>
-          <div class="cpu-dbg-beam-break-row">
-            <select id="beam-break-mode" class="beam-break-select">
-              <option value="off">Beam Break: Off</option>
-              <option value="vbl">VBL Start</option>
-              <option value="hblank">HBLANK</option>
-              <option value="scanline">Scanline</option>
-              <option value="column">Column</option>
-              <option value="scancol">Scan + Col</option>
-            </select>
-            <input type="text" id="beam-break-scan" class="beam-break-input" placeholder="Row" maxlength="3" style="display:none">
-            <input type="text" id="beam-break-col" class="beam-break-input" placeholder="Col" maxlength="2" style="display:none">
-            <span class="beam-break-indicator" id="beam-break-hit" style="display:none">BEAM HIT</span>
-          </div>
         </div>
 
         <div class="cpu-dbg-disasm">
@@ -122,6 +111,7 @@ export class CPUDebuggerWindow extends BaseWindow {
           <div class="cpu-dbg-tab-bar">
             <button class="cpu-dbg-tab active" data-tab="breakpoints">Breakpoints <span class="cpu-dbg-tab-count" id="bp-tab-count">0</span></button>
             <button class="cpu-dbg-tab" data-tab="watch">Watch <span class="cpu-dbg-tab-count" id="watch-tab-count">0</span></button>
+            <button class="cpu-dbg-tab" data-tab="beam">Beam <span class="cpu-dbg-tab-count" id="beam-tab-count">0</span></button>
           </div>
           <div class="cpu-dbg-tab-content active" data-tab="breakpoints">
             <div class="cpu-dbg-tab-toolbar">
@@ -165,6 +155,21 @@ export class CPUDebuggerWindow extends BaseWindow {
               <button class="cpu-dbg-add-btn" id="watch-add-btn" title="Add watch">+</button>
             </div>
             <div class="cpu-watch-list" id="watch-list"></div>
+          </div>
+          <div class="cpu-dbg-tab-content" data-tab="beam">
+            <div class="cpu-dbg-tab-toolbar">
+              <select id="beam-mode-select" title="Beam breakpoint type">
+                <option value="vbl">VBL Start</option>
+                <option value="hblank">HBLANK</option>
+                <option value="scanline">Scanline</option>
+                <option value="column">Column</option>
+                <option value="scancol">Scan + Col</option>
+              </select>
+              <input type="text" id="beam-scan-input" class="beam-input" placeholder="Row" maxlength="3" style="display:none">
+              <input type="text" id="beam-col-input" class="beam-input" placeholder="Col" maxlength="2" style="display:none">
+              <button class="cpu-dbg-add-btn" id="beam-add-btn" title="Add beam breakpoint">+</button>
+            </div>
+            <div class="cpu-beam-list" id="beam-list"></div>
           </div>
         </div>
       </div>
@@ -418,7 +423,7 @@ export class CPUDebuggerWindow extends BaseWindow {
     this.setupContentEventListeners();
     this.setupKeyboardShortcuts();
     this.setupRegisterEditing();
-    this.setupBeamBreakEvents();
+    this.setupBeamBreakTabEvents();
   }
 
   destroy() {
@@ -721,16 +726,6 @@ export class CPUDebuggerWindow extends BaseWindow {
       }
     }
 
-    // Beam breakpoint hit indicator
-    const beamHitEl = this.contentElement.querySelector("#beam-break-hit");
-    if (beamHitEl) {
-      if (isPaused && this.wasmModule._isBeamBreakpointHit && this.wasmModule._isBeamBreakpointHit()) {
-        beamHitEl.style.display = "";
-      } else {
-        beamHitEl.style.display = "none";
-      }
-    }
-
     // If PC changed, snap disassembly back to follow PC
     if (this.lastPC !== null && pc !== this.lastPC) {
       this.disasmViewAddress = null;
@@ -744,6 +739,7 @@ export class CPUDebuggerWindow extends BaseWindow {
     }
     this.updateDisassembly();
     this.updateWatchList();
+    this.updateBeamHitHighlight();
   }
 
   /**
@@ -864,73 +860,214 @@ export class CPUDebuggerWindow extends BaseWindow {
   }
 
   /**
-   * Set up beam breakpoint select/input event handling
+   * Set up beam breakpoint tab events
    */
-  setupBeamBreakEvents() {
-    const modeSelect = this.contentElement.querySelector("#beam-break-mode");
-    const scanInput = this.contentElement.querySelector("#beam-break-scan");
-    const colInput = this.contentElement.querySelector("#beam-break-col");
+  setupBeamBreakTabEvents() {
+    const modeSelect = this.contentElement.querySelector("#beam-mode-select");
+    const scanInput = this.contentElement.querySelector("#beam-scan-input");
+    const colInput = this.contentElement.querySelector("#beam-col-input");
+    const addBtn = this.contentElement.querySelector("#beam-add-btn");
     if (!modeSelect) return;
 
-    const applyBeamBreak = () => {
+    const updateInputVisibility = () => {
       const mode = modeSelect.value;
-      if (scanInput) scanInput.style.display = "none";
-      if (colInput) colInput.style.display = "none";
-
-      switch (mode) {
-        case "off":
-          this.wasmModule._clearBeamBreakpoint();
-          break;
-        case "vbl":
-          this.wasmModule._setBeamBreakpoint(192, 0);
-          break;
-        case "hblank":
-          this.wasmModule._setBeamBreakpoint(-1, 0);
-          break;
-        case "scanline":
-          if (scanInput) scanInput.style.display = "";
-          {
-            const n = parseInt(scanInput?.value, 10);
-            if (!isNaN(n) && n >= 0 && n <= 261) {
-              this.wasmModule._setBeamBreakpoint(n, -1);
-            }
-          }
-          break;
-        case "column":
-          if (colInput) colInput.style.display = "";
-          {
-            const c = parseInt(colInput?.value, 10);
-            if (!isNaN(c) && c >= 0 && c <= 39) {
-              this.wasmModule._setBeamBreakpoint(-1, c + 25);
-            }
-          }
-          break;
-        case "scancol":
-          if (scanInput) scanInput.style.display = "";
-          if (colInput) colInput.style.display = "";
-          {
-            const n = parseInt(scanInput?.value, 10);
-            const c = parseInt(colInput?.value, 10);
-            if (!isNaN(n) && n >= 0 && n <= 261 && !isNaN(c) && c >= 0 && c <= 39) {
-              this.wasmModule._setBeamBreakpoint(n, c + 25);
-            }
-          }
-          break;
-      }
+      if (scanInput) scanInput.style.display = (mode === "scanline" || mode === "scancol") ? "" : "none";
+      if (colInput) colInput.style.display = (mode === "column" || mode === "scancol") ? "" : "none";
     };
 
-    modeSelect.addEventListener("change", applyBeamBreak);
+    modeSelect.addEventListener("change", updateInputVisibility);
+    updateInputVisibility();
+
+    if (addBtn) {
+      addBtn.addEventListener("click", () => this.addBeamBreakpointFromForm());
+    }
 
     const onInputKey = (e) => {
-      if (e.key === "Enter") applyBeamBreak();
+      if (e.key === "Enter") this.addBeamBreakpointFromForm();
       e.stopPropagation();
     };
-    if (scanInput) {
-      scanInput.addEventListener("keydown", onInputKey);
+    if (scanInput) scanInput.addEventListener("keydown", onInputKey);
+    if (colInput) colInput.addEventListener("keydown", onInputKey);
+
+    // Event delegation on beam list for checkboxes and remove buttons
+    const beamList = this.contentElement.querySelector("#beam-list");
+    if (beamList) {
+      beamList.addEventListener("mousedown", (e) => {
+        const removeBtn = e.target.closest(".beam-remove");
+        if (removeBtn) {
+          e.stopPropagation();
+          e.preventDefault();
+          const item = removeBtn.closest(".cpu-beam-item");
+          if (item && item.dataset.id) {
+            this.removeBeamBreakpoint(parseInt(item.dataset.id, 10));
+          }
+          return;
+        }
+      });
+      beamList.addEventListener("change", (e) => {
+        const checkbox = e.target.closest(".beam-enable input");
+        if (checkbox) {
+          const item = checkbox.closest(".cpu-beam-item");
+          if (item && item.dataset.id) {
+            this.enableBeamBreakpoint(parseInt(item.dataset.id, 10), checkbox.checked);
+          }
+        }
+      });
     }
-    if (colInput) {
-      colInput.addEventListener("keydown", onInputKey);
+  }
+
+  /**
+   * Add a beam breakpoint from the toolbar form
+   */
+  addBeamBreakpointFromForm() {
+    const modeSelect = this.contentElement.querySelector("#beam-mode-select");
+    const scanInput = this.contentElement.querySelector("#beam-scan-input");
+    const colInput = this.contentElement.querySelector("#beam-col-input");
+    if (!modeSelect) return;
+
+    const mode = modeSelect.value;
+    let scanline = -1;
+    let hPos = -1;
+
+    switch (mode) {
+      case "vbl":
+        scanline = 192;
+        hPos = 0;
+        break;
+      case "hblank":
+        scanline = -1;
+        hPos = 0;
+        break;
+      case "scanline": {
+        const n = parseInt(scanInput?.value, 10);
+        if (isNaN(n) || n < 0 || n > 261) return;
+        scanline = n;
+        hPos = -1;
+        break;
+      }
+      case "column": {
+        const c = parseInt(colInput?.value, 10);
+        if (isNaN(c) || c < 0 || c > 39) return;
+        scanline = -1;
+        hPos = c + 25;
+        break;
+      }
+      case "scancol": {
+        const n = parseInt(scanInput?.value, 10);
+        const c = parseInt(colInput?.value, 10);
+        if (isNaN(n) || n < 0 || n > 261 || isNaN(c) || c < 0 || c > 39) return;
+        scanline = n;
+        hPos = c + 25;
+        break;
+      }
     }
+
+    const id = this.wasmModule._addBeamBreakpoint(scanline, hPos);
+    if (id < 0) return; // full
+
+    this.beamBreakpoints.push({ id, scanline, hPos, enabled: true, mode });
+    this.updateBeamList();
+  }
+
+  /**
+   * Remove a beam breakpoint by ID
+   */
+  removeBeamBreakpoint(id) {
+    this.wasmModule._removeBeamBreakpoint(id);
+    this.beamBreakpoints = this.beamBreakpoints.filter((bp) => bp.id !== id);
+    this.updateBeamList();
+  }
+
+  /**
+   * Enable/disable a beam breakpoint by ID
+   */
+  enableBeamBreakpoint(id, enabled) {
+    this.wasmModule._enableBeamBreakpoint(id, enabled);
+    const bp = this.beamBreakpoints.find((b) => b.id === id);
+    if (bp) bp.enabled = enabled;
+    this.updateBeamList();
+  }
+
+  /**
+   * Render the beam breakpoint list and update the tab badge
+   */
+  updateBeamList() {
+    const list = this.contentElement.querySelector("#beam-list");
+    if (!list) return;
+
+    list.innerHTML = "";
+    const isPaused = this.wasmModule._isPaused();
+    const hitId = (isPaused && this.wasmModule._isBeamBreakpointHit && this.wasmModule._isBeamBreakpointHit())
+      ? this.wasmModule._getBeamBreakpointHitId()
+      : -1;
+
+    for (const bp of this.beamBreakpoints) {
+      const item = document.createElement("div");
+      item.className = "cpu-beam-item";
+      item.dataset.id = bp.id;
+      if (!bp.enabled) item.classList.add("disabled");
+      if (bp.id === hitId) item.classList.add("hit");
+
+      const { typeLabel, typeClass, detail } = this.getBeamBreakpointDisplay(bp);
+
+      item.innerHTML = `
+        <span class="beam-enable"><input type="checkbox" ${bp.enabled ? "checked" : ""}></span>
+        <span class="beam-type ${typeClass}">${typeLabel}</span>
+        <span class="beam-detail">${detail}</span>
+        <button class="beam-remove" title="Remove">×</button>
+      `;
+      list.appendChild(item);
+    }
+
+    if (this.beamBreakpoints.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "cpu-dbg-empty-state";
+      empty.textContent = "Add beam breakpoints to pause at specific raster positions.";
+      list.appendChild(empty);
+    }
+
+    // Update tab badge count
+    const badge = this.contentElement.querySelector("#beam-tab-count");
+    if (badge) {
+      badge.textContent = this.beamBreakpoints.length;
+      badge.classList.toggle("has-items", this.beamBreakpoints.length > 0);
+    }
+  }
+
+  /**
+   * Lightweight hit highlight update — toggles .hit class without rebuilding DOM
+   */
+  updateBeamHitHighlight() {
+    const list = this.contentElement.querySelector("#beam-list");
+    if (!list) return;
+
+    const isPaused = this.wasmModule._isPaused();
+    const hitId = (isPaused && this.wasmModule._isBeamBreakpointHit && this.wasmModule._isBeamBreakpointHit())
+      ? this.wasmModule._getBeamBreakpointHitId()
+      : -1;
+
+    if (hitId === this._lastBeamHitId) return;
+    this._lastBeamHitId = hitId;
+
+    const items = list.querySelectorAll(".cpu-beam-item");
+    for (const item of items) {
+      const id = parseInt(item.dataset.id, 10);
+      item.classList.toggle("hit", id === hitId);
+    }
+  }
+
+  /**
+   * Get display info for a beam breakpoint
+   */
+  getBeamBreakpointDisplay(bp) {
+    const modeMap = {
+      vbl: { typeLabel: "VBL", typeClass: "beam-type-vbl", detail: "Scanline 192" },
+      hblank: { typeLabel: "HBL", typeClass: "beam-type-hbl", detail: "HPos 0" },
+      scanline: { typeLabel: "SCAN", typeClass: "beam-type-scan", detail: `Row ${bp.scanline}` },
+      column: { typeLabel: "COL", typeClass: "beam-type-col", detail: `Col ${bp.hPos - 25}` },
+      scancol: { typeLabel: "S+C", typeClass: "beam-type-sc", detail: `Row ${bp.scanline}, Col ${bp.hPos - 25}` },
+    };
+    return modeMap[bp.mode] || { typeLabel: "?", typeClass: "", detail: `Scan ${bp.scanline}, HPos ${bp.hPos}` };
   }
 
   /**
@@ -1440,44 +1577,93 @@ export class CPUDebuggerWindow extends BaseWindow {
     return { icon: "E", iconClass: "watch-icon-expr", label: expr };
   }
 
+  /**
+   * Format a watch value for display — always shows hex + decimal
+   */
+  formatWatchValue(expr, value) {
+    // Flags: show 0/1 plus set/clear label
+    if (CPUDebuggerWindow.FLAG_LABELS[expr]) {
+      return value ? "1 (set)" : "0 (clear)";
+    }
+    // Word values (DEEK)
+    if (/^DEEK\(/.test(expr)) {
+      return `$${this.formatHex(value & 0xffff, 4)} (${value & 0xffff})`;
+    }
+    // Byte values and registers
+    if (value >= 0 && value <= 0xff) {
+      return `$${this.formatHex(value & 0xff, 2)} (${value & 0xff})`;
+    }
+    return `$${this.formatHex(value & 0xffff, 4)} (${value & 0xffff})`;
+  }
+
   updateWatchList() {
     const list = this.contentElement.querySelector("#watch-list");
     if (!list) return;
 
-    list.innerHTML = "";
-    for (let i = 0; i < this.watchExpressions.length; i++) {
-      const expr = this.watchExpressions[i];
-      let valueStr;
-      try {
-        const value = this.bpManager.evaluateCondition(expr);
-        if (typeof value === "boolean") {
-          valueStr = value ? "true" : "false";
-        } else {
-          valueStr = `$${this.formatHex(value & 0xffff, value > 0xff ? 4 : 2)} (${value})`;
+    // Check if DOM structure matches expressions (needs full rebuild if not)
+    const existingItems = list.querySelectorAll(".cpu-watch-item");
+    const needsRebuild = existingItems.length !== this.watchExpressions.length;
+
+    if (needsRebuild) {
+      list.innerHTML = "";
+      this.previousWatchValues = {};
+
+      for (let i = 0; i < this.watchExpressions.length; i++) {
+        const expr = this.watchExpressions[i];
+        let valueStr;
+        try {
+          const value = this.bpManager.evaluateValue(expr);
+          valueStr = this.formatWatchValue(expr, value);
+          this.previousWatchValues[i] = valueStr;
+        } catch (e) {
+          valueStr = `err: ${e.message}`;
+          this.previousWatchValues[i] = valueStr;
         }
-      } catch (e) {
-        valueStr = `err: ${e.message}`;
+
+        const { icon, iconClass, label } = this.getWatchLabel(expr);
+        const item = document.createElement("div");
+        item.className = "cpu-watch-item";
+        item.dataset.index = i;
+        item.innerHTML = `
+          <span class="watch-type-icon ${iconClass}" title="${expr}">${icon}</span>
+          <span class="watch-expr" title="${expr}">${label}</span>
+          <span class="watch-value">${valueStr}</span>
+          <button class="watch-remove" title="Remove">×</button>
+        `;
+        list.appendChild(item);
       }
 
-      const { icon, iconClass, label } = this.getWatchLabel(expr);
-      const item = document.createElement("div");
-      item.className = "cpu-watch-item";
-      item.dataset.index = i;
-      item.innerHTML = `
-        <span class="watch-type-icon ${iconClass}" title="${expr}">${icon}</span>
-        <span class="watch-expr" title="${expr}">${label}</span>
-        <span class="watch-value">${valueStr}</span>
-        <button class="watch-remove" title="Remove">×</button>
-      `;
+      if (this.watchExpressions.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "cpu-dbg-empty-state";
+        empty.textContent = "Add watch expressions to monitor values during execution.";
+        list.appendChild(empty);
+      }
+    } else {
+      // In-place value update with change highlighting
+      for (let i = 0; i < this.watchExpressions.length; i++) {
+        const expr = this.watchExpressions[i];
+        const item = existingItems[i];
+        const valueEl = item.querySelector(".watch-value");
+        if (!valueEl) continue;
 
-      list.appendChild(item);
-    }
+        let valueStr;
+        try {
+          const value = this.bpManager.evaluateValue(expr);
+          valueStr = this.formatWatchValue(expr, value);
+        } catch (e) {
+          valueStr = `err: ${e.message}`;
+        }
 
-    if (this.watchExpressions.length === 0) {
-      const empty = document.createElement("div");
-      empty.className = "cpu-dbg-empty-state";
-      empty.textContent = "Add watch expressions to monitor values during execution.";
-      list.appendChild(empty);
+        const prevVal = this.previousWatchValues[i];
+        if (prevVal !== undefined && prevVal !== valueStr) {
+          valueEl.classList.remove("changed");
+          void valueEl.offsetWidth; // force reflow to restart animation
+          valueEl.classList.add("changed");
+        }
+        this.previousWatchValues[i] = valueStr;
+        valueEl.textContent = valueStr;
+      }
     }
 
     // Update tab badge count

@@ -438,55 +438,121 @@
     color: #d29922;
 }
 
-/* ---- Beam Breakpoint ---- */
-.cpu-dbg-beam-break-row {
+/* ---- Beam Breakpoint List ---- */
+.cpu-beam-list {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.cpu-beam-item {
     display: flex;
     align-items: center;
-    gap: 6px;
-    margin-top: 2px;
+    gap: 4px;
     padding: 3px 4px;
-    background: rgba(0, 0, 0, 0.15);
-    border-radius: 3px;
-}
-
-.beam-break-select {
-    font-family: var(--font-mono);
     font-size: 10px;
-    background: rgba(0, 0, 0, 0.3);
-    color: var(--text-secondary);
-    border: 1px solid var(--border-subtle);
     border-radius: 3px;
-    padding: 1px 4px;
-    cursor: pointer;
+    cursor: default;
 }
 
-.beam-break-input {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    width: 40px;
-    background: rgba(0, 0, 0, 0.3);
-    color: var(--text-primary);
-    border: 1px solid var(--border-subtle);
-    border-radius: 3px;
-    padding: 1px 4px;
-    text-align: center;
+.cpu-beam-item:hover {
+    background: rgba(255, 255, 255, 0.05);
 }
 
-.beam-break-indicator {
-    font-family: var(--font-mono);
-    font-size: 8px;
-    font-weight: 700;
-    padding: 1px 5px;
-    border-radius: 2px;
-    margin-left: auto;
-    background: rgba(248, 81, 73, 0.2);
-    border: 1px solid rgba(248, 81, 73, 0.4);
-    color: #f85149;
+.cpu-beam-item.disabled {
+    opacity: 0.45;
+}
+
+.cpu-beam-item.hit {
+    background: rgba(248, 81, 73, 0.15);
     animation: beam-hit-pulse 0.6s ease-in-out 2;
 }
 
+.beam-enable {
+    flex-shrink: 0;
+}
+
+.beam-enable input[type="checkbox"] {
+    width: 10px;
+    height: 10px;
+    margin: 0;
+    cursor: pointer;
+}
+
+.beam-type {
+    flex-shrink: 0;
+    font-size: 8px;
+    font-weight: 700;
+    min-width: 24px;
+    text-align: center;
+    padding: 1px 3px;
+    border-radius: 2px;
+    letter-spacing: 0.02em;
+}
+
+.beam-type-vbl {
+    background: rgba(248, 81, 73, 0.15);
+    color: #f85149;
+}
+
+.beam-type-hbl {
+    background: rgba(227, 179, 65, 0.15);
+    color: #e3b341;
+}
+
+.beam-type-scan {
+    background: rgba(88, 166, 255, 0.15);
+    color: #58a6ff;
+}
+
+.beam-type-col {
+    background: rgba(63, 185, 80, 0.15);
+    color: #3fb950;
+}
+
+.beam-type-sc {
+    background: rgba(188, 140, 255, 0.15);
+    color: #bc8cff;
+}
+
+.beam-detail {
+    flex: 1;
+    min-width: 0;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-secondary);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.beam-remove {
+    display: none;
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 12px;
+    padding: 0 2px;
+    line-height: 1;
+}
+
+.cpu-beam-item:hover .beam-remove {
+    display: block;
+}
+
+.beam-remove:hover {
+    color: #f85149;
+}
+
 @keyframes beam-hit-pulse {
-    50% { background: rgba(248, 81, 73, 0.4); }
+    50% { background: rgba(248, 81, 73, 0.3); }
+}
+
+.cpu-dbg-tab-toolbar .beam-input {
+    width: 40px;
+    flex: 0 0 auto;
+    text-align: center;
 }
 
 /* ---- Disassembly ---- */
@@ -786,6 +852,7 @@
     display: flex;
     flex-direction: column;
     min-height: 140px;
+    overflow: hidden;
     border-top: 1px solid rgba(48, 54, 61, 0.4);
 }
 
@@ -1085,6 +1152,10 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     font-family: var(--font-mono);
+}
+
+.cpu-watch-item .watch-value.changed {
+    animation: reg-flash 0.6s ease-out;
 }
 
 .cpu-watch-item .watch-remove {

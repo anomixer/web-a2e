@@ -1003,21 +1003,39 @@ const uint32_t* getProfileCycles() {
 // ============================================================================
 
 EMSCRIPTEN_KEEPALIVE
-void setBeamBreakpoint(int16_t scanline, int16_t hPos) {
-  REQUIRE_EMULATOR();
-  g_emulator->setBeamBreakpoint(scanline, hPos);
+int32_t addBeamBreakpoint(int16_t scanline, int16_t hPos) {
+  REQUIRE_EMULATOR_OR(-1);
+  return g_emulator->addBeamBreakpoint(scanline, hPos);
 }
 
 EMSCRIPTEN_KEEPALIVE
-void clearBeamBreakpoint() {
+void removeBeamBreakpoint(int32_t id) {
   REQUIRE_EMULATOR();
-  g_emulator->clearBeamBreakpoint();
+  g_emulator->removeBeamBreakpoint(id);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void enableBeamBreakpoint(int32_t id, bool enabled) {
+  REQUIRE_EMULATOR();
+  g_emulator->enableBeamBreakpoint(id, enabled);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void clearAllBeamBreakpoints() {
+  REQUIRE_EMULATOR();
+  g_emulator->clearAllBeamBreakpoints();
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool isBeamBreakpointHit() {
   REQUIRE_EMULATOR_OR(false);
   return g_emulator->isBeamBreakpointHit();
+}
+
+EMSCRIPTEN_KEEPALIVE
+int32_t getBeamBreakpointHitId() {
+  REQUIRE_EMULATOR_OR(-1);
+  return g_emulator->getBeamBreakpointHitId();
 }
 
 EMSCRIPTEN_KEEPALIVE

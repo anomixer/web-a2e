@@ -263,6 +263,15 @@ export class BreakpointManager {
     return this._parseOr(tokens, { pos: 0 });
   }
 
+  /**
+   * Evaluate an expression and return the raw numeric value
+   * (no boolean coercion). Used by watch expressions.
+   */
+  evaluateValue(expr) {
+    const tokens = this._tokenize(expr);
+    return this._parseExpr(tokens, { pos: 0 });
+  }
+
   _tokenize(expr) {
     const tokens = [];
     let i = 0;
