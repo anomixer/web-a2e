@@ -37,6 +37,7 @@ export class CPUDebuggerWindow extends BaseWindow {
     this.bookmarks = []; // Array of addresses
     this.loadBookmarks();
     this.beamBreakpoints = []; // Array of { id, scanline, hPos, enabled, mode }
+    this.activeTab = "breakpoints"; // Active tab panel (breakpoints, watch, beam)
 
     // Re-render breakpoint list when breakpoints change
     this.bpManager.onChange(() => {
@@ -392,6 +393,8 @@ export class CPUDebuggerWindow extends BaseWindow {
         this.contentElement.querySelectorAll(".cpu-dbg-tab-content").forEach((c) => {
           c.classList.toggle("active", c.dataset.tab === tabName);
         });
+        this.activeTab = tabName;
+        if (this.onStateChange) this.onStateChange();
       });
     }
 
@@ -1768,6 +1771,31 @@ export class CPUDebuggerWindow extends BaseWindow {
     if (ratio > 0.1) return 3;
     if (ratio > 0.02) return 2;
     return 1;
+  }
+
+  getState() {
+    const base = super.getState();
+    base.activeTab = this.activeTab;
+    return base;
+  }
+
+  restoreState(state) {
+    if (state.activeTab) {
+      this.activeTab = state.activeTab;
+    }
+    super.restoreState(state);
+    // Apply tab selection to DOM after restoreState calls show()
+    if (this.contentElement && this.activeTab) {
+      const tabBar = this.contentElement.querySelector(".cpu-dbg-tab-bar");
+      if (tabBar) {
+        tabBar.querySelectorAll(".cpu-dbg-tab").forEach((t) => {
+          t.classList.toggle("active", t.dataset.tab === this.activeTab);
+        });
+        this.contentElement.querySelectorAll(".cpu-dbg-tab-content").forEach((c) => {
+          c.classList.toggle("active", c.dataset.tab === this.activeTab);
+        });
+      }
+    }
   }
 
   /**

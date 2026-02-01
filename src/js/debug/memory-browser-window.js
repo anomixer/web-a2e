@@ -265,6 +265,7 @@ export class MemoryBrowserWindow extends BaseWindow {
     if (addr !== this.baseAddress) {
       this.baseAddress = addr;
       this.forceRefresh = true;
+      if (this.onStateChange) this.onStateChange();
     }
     this.updateScrollbar();
     this.updateRegionName();
@@ -380,6 +381,29 @@ export class MemoryBrowserWindow extends BaseWindow {
     }
 
     this.contentDiv.innerHTML = html;
+  }
+
+  getState() {
+    const base = super.getState();
+    base.baseAddress = this.baseAddress;
+    return base;
+  }
+
+  restoreState(state) {
+    if (state.baseAddress !== undefined) {
+      this.baseAddress = state.baseAddress;
+    }
+    super.restoreState(state);
+  }
+
+  show() {
+    super.show();
+    // Apply restored base address to UI after content is rendered
+    if (this.contentDiv) {
+      this.updateScrollbar();
+      this.updateRegionName();
+      this.forceRefresh = true;
+    }
   }
 
   // Allow external code to jump to a specific address
