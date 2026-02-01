@@ -39,8 +39,9 @@ export class MouseHandler {
     }
   }
 
-  _onCanvasClick() {
+  _onCanvasClick(event) {
     if (!this.enabled || this.locked) return;
+    if (!event.altKey) return;
     this.canvas.requestPointerLock();
   }
 

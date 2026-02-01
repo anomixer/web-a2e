@@ -4,11 +4,26 @@
  */
 
 import { BaseWindow } from '../windows/base-window.js';
-import { isDOS33, readCatalog, readFile, parseVTOC, getBinaryFileInfo } from './dos33.js';
-import { isProDOS, readCatalog as readProDOSCatalog, readFile as readProDOSFile, parseVolumeInfo, mapFileTypeForViewer, getBinaryFileInfo as getProDOSBinaryInfo } from './prodos.js';
-import { formatFileContents, formatFileSize, formatHexDump } from './file-viewer.js';
+import { formatFileContents, formatFileSize, formatHexDump, setFileViewerWasm } from './file-viewer.js';
 import { disassemble, setWasmModule } from './disassembler.js';
 import { escapeHtml } from '../utils/string-utils.js';
+
+// File type description tables (UI display only - parsing logic is in C++)
+const DOS33_FILE_DESCRIPTIONS = {
+  0x00: 'Text', 0x01: 'Integer BASIC', 0x02: 'Applesoft BASIC',
+  0x04: 'Binary', 0x08: 'Type S', 0x10: 'Relocatable',
+  0x20: 'Type a', 0x40: 'Type b',
+};
+
+const PRODOS_FILE_DESCRIPTIONS = {
+  0x00: 'Unknown', 0x01: 'Bad Block', 0x04: 'Text', 0x06: 'Binary',
+  0x0F: 'Directory', 0x19: 'AppleWorks DB', 0x1A: 'AppleWorks WP',
+  0x1B: 'AppleWorks SS', 0xB0: 'Source Code', 0xB3: 'GS/OS App',
+  0xBF: 'Document', 0xC0: 'Packed HiRes', 0xC1: 'HiRes Picture',
+  0xE0: 'ShrinkIt Archive', 0xEF: 'Pascal', 0xF0: 'Command',
+  0xFA: 'Integer BASIC', 0xFB: 'Integer Vars', 0xFC: 'Applesoft BASIC',
+  0xFD: 'Applesoft Vars', 0xFE: 'Relocatable', 0xFF: 'System',
+};
 
 export class FileExplorerWindow extends BaseWindow {
   constructor(wasmModule) {
@@ -37,14 +52,16 @@ export class FileExplorerWindow extends BaseWindow {
 
     this.wasmModule = wasmModule;
 
-    // Initialize the disassembler with the WASM module
+    // Initialize the disassembler and file viewer with the WASM module
     setWasmModule(wasmModule);
+    setFileViewerWasm(wasmModule);
 
     // Content state
     this.selectedDrive = 0;
     this.catalog = [];
     this.selectedFile = null;
-    this.diskData = null;
+    this.diskDataPtr = 0;    // Pointer to disk data in WASM heap
+    this.diskDataSize = 0;   // Size of disk data
     this.diskFormat = null; // 'dos33' | 'prodos' | null
     this.currentPath = ''; // Current directory path for ProDOS navigation
     this.binaryViewMode = 'asm'; // 'asm' or 'hex'
@@ -197,66 +214,97 @@ export class FileExplorerWindow extends BaseWindow {
   }
 
   loadDisk() {
+    const wasm = this.wasmModule;
     const diskInfo = this.element.querySelector('.fe-disk-info');
     const catalogList = this.element.querySelector('.fe-catalog-list');
 
     // Check if disk is inserted
-    if (!this.wasmModule._isDiskInserted(this.selectedDrive)) {
+    if (!wasm._isDiskInserted(this.selectedDrive)) {
       diskInfo.textContent = 'No disk inserted';
       catalogList.innerHTML = '<div class="fe-empty">No disk in drive</div>';
       this.catalog = [];
-      this.diskData = null;
+      this.diskDataPtr = 0;
+      this.diskDataSize = 0;
       this.diskFormat = null;
       this.clearFileView();
       return;
     }
 
-    // Get disk sector data (raw sector data regardless of disk format)
-    const sizePtr = this.wasmModule._malloc(4);
-    const dataPtr = this.wasmModule._getDiskSectorData(this.selectedDrive, sizePtr);
-    const size = new Uint32Array(this.wasmModule.HEAPU8.buffer, sizePtr, 1)[0];
-    this.wasmModule._free(sizePtr);
+    // Get disk sector data pointer (stays in WASM heap)
+    const sizePtr = wasm._malloc(4);
+    const dataPtr = wasm._getDiskSectorData(this.selectedDrive, sizePtr);
+    const size = new Uint32Array(wasm.HEAPU8.buffer, sizePtr, 1)[0];
+    wasm._free(sizePtr);
 
     if (!dataPtr || size === 0) {
-      // Get filename to show in error
-      const filenamePtr = this.wasmModule._getDiskFilename(this.selectedDrive);
-      const filename = filenamePtr ? this.wasmModule.UTF8ToString(filenamePtr) : 'Disk';
+      const filenamePtr = wasm._getDiskFilename(this.selectedDrive);
+      const filename = filenamePtr ? wasm.UTF8ToString(filenamePtr) : 'Disk';
       diskInfo.textContent = filename;
       catalogList.innerHTML = '<div class="fe-empty">Cannot read sector data<br><small>Copy-protected or non-standard disk format</small></div>';
       this.catalog = [];
-      this.diskData = null;
+      this.diskDataPtr = 0;
+      this.diskDataSize = 0;
       this.diskFormat = null;
       this.clearFileView();
       return;
     }
 
-    // Copy disk data (create our own copy since WASM memory can move)
-    this.diskData = new Uint8Array(size);
-    this.diskData.set(new Uint8Array(this.wasmModule.HEAPU8.buffer, dataPtr, size));
+    this.diskDataPtr = dataPtr;
+    this.diskDataSize = size;
 
     // Get filename
-    const filenamePtr = this.wasmModule._getDiskFilename(this.selectedDrive);
-    const filename = filenamePtr ? this.wasmModule.UTF8ToString(filenamePtr) : 'Unknown';
+    const filenamePtr = wasm._getDiskFilename(this.selectedDrive);
+    const filename = filenamePtr ? wasm.UTF8ToString(filenamePtr) : 'Unknown';
 
-    // Check disk format - try ProDOS first, then DOS 3.3
-    if (isProDOS(this.diskData)) {
+    // Check disk format using WASM - try ProDOS first, then DOS 3.3
+    if (wasm._isProDOSFormat(dataPtr, size)) {
       this.diskFormat = 'prodos';
-      this.volumeInfo = parseVolumeInfo(this.diskData);
-      diskInfo.textContent = `${filename} (ProDOS: ${this.volumeInfo.volumeName})`;
+      wasm._getProDOSVolumeInfo(dataPtr, size);
+      const volumeName = wasm.UTF8ToString(wasm._getProDOSVolumeName());
+      this.volumeInfo = { volumeName };
+      diskInfo.textContent = `${filename} (ProDOS: ${volumeName})`;
 
-      // Read ProDOS catalog
-      this.catalog = readProDOSCatalog(this.diskData);
+      // Read ProDOS catalog via WASM
+      const count = wasm._getProDOSCatalog(dataPtr, size);
+      this.catalog = [];
+      for (let i = 0; i < count; i++) {
+        this.catalog.push({
+          filename: wasm.UTF8ToString(wasm._getProDOSEntryFilename(i)),
+          path: wasm.UTF8ToString(wasm._getProDOSEntryPath(i)),
+          fileType: wasm._getProDOSEntryFileType(i),
+          fileTypeName: wasm.UTF8ToString(wasm._getProDOSEntryFileTypeName(i)),
+          fileTypeDescription: PRODOS_FILE_DESCRIPTIONS[wasm._getProDOSEntryFileType(i)] || 'Unknown',
+          storageType: wasm._getProDOSEntryStorageType(i),
+          eof: wasm._getProDOSEntryEOF(i),
+          auxType: wasm._getProDOSEntryAuxType(i),
+          blocksUsed: wasm._getProDOSEntryBlocksUsed(i),
+          isLocked: wasm._getProDOSEntryIsLocked(i),
+          isDirectory: wasm._getProDOSEntryIsDirectory(i),
+          _wasmIndex: i,
+        });
+      }
 
       // Reset to root directory and render
       this.currentPath = '';
       this.renderProDOSCatalog();
-    } else if (isDOS33(this.diskData)) {
+    } else if (wasm._isDOS33Format(dataPtr, size)) {
       this.diskFormat = 'dos33';
-      const vtoc = parseVTOC(this.diskData);
-      diskInfo.textContent = `${filename} (Vol ${vtoc.volumeNumber})`;
+      diskInfo.textContent = `${filename} (DOS 3.3)`;
 
-      // Read DOS 3.3 catalog
-      this.catalog = readCatalog(this.diskData);
+      // Read DOS 3.3 catalog via WASM
+      const count = wasm._getDOS33Catalog(dataPtr, size);
+      this.catalog = [];
+      for (let i = 0; i < count; i++) {
+        this.catalog.push({
+          filename: wasm.UTF8ToString(wasm._getDOS33EntryFilename(i)),
+          fileType: wasm._getDOS33EntryFileType(i),
+          fileTypeName: wasm.UTF8ToString(wasm._getDOS33EntryFileTypeName(i)),
+          fileTypeDescription: DOS33_FILE_DESCRIPTIONS[wasm._getDOS33EntryFileType(i)] || 'Unknown',
+          isLocked: wasm._getDOS33EntryIsLocked(i),
+          sectorCount: wasm._getDOS33EntrySectorCount(i),
+          _wasmIndex: i,
+        });
+      }
 
       // Render catalog
       if (this.catalog.length === 0) {
@@ -405,7 +453,7 @@ export class FileExplorerWindow extends BaseWindow {
     const asmLegend = this.element.querySelector('.fe-asm-legend');
     const hexLegend = this.element.querySelector('.fe-hex-legend');
 
-    if (!this.selectedFile || !this.diskData) {
+    if (!this.selectedFile || !this.diskDataPtr) {
       this.clearFileView();
       return;
     }
@@ -442,22 +490,31 @@ export class FileExplorerWindow extends BaseWindow {
 
     // Read file data (cache it for view switching)
     try {
+      const wasm = this.wasmModule;
+
       // Only re-read if we don't have cached data or file changed
       const cacheKey = this.diskFormat === 'prodos' && this.selectedFile.path
         ? this.selectedFile.path
         : this.selectedFile.filename;
 
       if (!this.currentFileData || this.currentFileData.filename !== cacheKey) {
-        // Use appropriate read function based on disk format
-        const fileData = this.diskFormat === 'prodos'
-          ? readProDOSFile(this.diskData, this.selectedFile)
-          : readFile(this.diskData, this.selectedFile);
+        // Read file via WASM
+        const wasmIdx = this.selectedFile._wasmIndex;
+        let bytesRead;
 
-        this.currentFileData = {
-          filename: cacheKey,
-          data: fileData,
-          fileType: this.selectedFile.fileType,
-        };
+        if (this.diskFormat === 'prodos') {
+          bytesRead = wasm._readProDOSFile(this.diskDataPtr, this.diskDataSize, wasmIdx);
+          const bufPtr = wasm._getProDOSFileBuffer();
+          const fileData = new Uint8Array(bytesRead);
+          fileData.set(new Uint8Array(wasm.HEAPU8.buffer, bufPtr, bytesRead));
+          this.currentFileData = { filename: cacheKey, data: fileData, fileType: this.selectedFile.fileType };
+        } else {
+          bytesRead = wasm._readDOS33File(this.diskDataPtr, this.diskDataSize, wasmIdx);
+          const bufPtr = wasm._getDOS33FileBuffer();
+          const fileData = new Uint8Array(bytesRead);
+          fileData.set(new Uint8Array(wasm.HEAPU8.buffer, bufPtr, bytesRead));
+          this.currentFileData = { filename: cacheKey, data: fileData, fileType: this.selectedFile.fileType };
+        }
       }
 
       const fileData = this.currentFileData.data;
@@ -469,10 +526,16 @@ export class FileExplorerWindow extends BaseWindow {
         let displayData;
 
         if (this.diskFormat === 'prodos') {
-          info = getProDOSBinaryInfo(this.selectedFile);
+          info = { address: this.selectedFile.auxType, length: this.selectedFile.eof };
           displayData = fileData; // ProDOS binary data doesn't have header
         } else {
-          info = getBinaryFileInfo(fileData);
+          // DOS 3.3 binary files have a 4-byte header: 2 bytes address, 2 bytes length
+          if (fileData.length >= 4) {
+            info = {
+              address: fileData[0] | (fileData[1] << 8),
+              length: fileData[2] | (fileData[3] << 8),
+            };
+          }
           displayData = info ? fileData.slice(4) : fileData; // DOS 3.3 has 4-byte header
         }
 
@@ -521,7 +584,7 @@ export class FileExplorerWindow extends BaseWindow {
       } else {
         // Non-binary files - use formatFileContents with mapped file type
         const viewerFileType = this.diskFormat === 'prodos'
-          ? mapFileTypeForViewer(this.selectedFile.fileType)
+          ? wasm._mapProDOSFileType(this.selectedFile.fileType)
           : this.selectedFile.fileType;
 
         // If mapFileTypeForViewer returns -1, use hex dump
@@ -688,4 +751,5 @@ export class FileExplorerWindow extends BaseWindow {
     this.basicOriginalHtml = null;
     this.hexDisplayState = null;
   }
+
 }

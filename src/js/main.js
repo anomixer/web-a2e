@@ -224,7 +224,7 @@ class AppleIIeEmulator {
       this.renderer.setNoSignal(true);
 
       // Set up text selection for copying screen contents
-      this.textSelection = new TextSelection(canvas, this.wasmModule);
+      this.textSelection = new TextSelection(canvas, this.wasmModule, this.renderer);
 
       // Wire textSelection into screen window
       this.screenWindow.textSelection = this.textSelection;
@@ -431,10 +431,8 @@ class AppleIIeEmulator {
       // Beam crosshair overlay — only when CPU debugger is open and CPU is paused
       const isPaused = this.running && this.wasmModule._isPaused();
       if (isPaused && this.cpuDebuggerWindow && this.cpuDebuggerWindow.isVisible) {
-        const totalCycles = Number(this.wasmModule._getTotalCycles());
-        const frameCycle = totalCycles % 17030;
-        const scanline = Math.floor(frameCycle / 65);
-        const hPos = frameCycle % 65;
+        const scanline = this.wasmModule._getBeamScanline();
+        const hPos = this.wasmModule._getBeamHPos();
         // Map beam Y to center of scanline band (0–191 visible, ≥192 is VBL)
         this.renderer.setParam("beamY", scanline < 192 ? (scanline + 0.5) / 192.0 : -1.0);
         // Map beam X to leading edge of column (hPos 25–64 → columns 0–39)

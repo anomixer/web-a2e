@@ -1,5 +1,10 @@
 #include "../core/emulator.hpp"
 #include "../core/disassembler/disassembler.hpp"
+#include "../core/debug/condition_evaluator.hpp"
+#include "../core/filesystem/dos33.hpp"
+#include "../core/filesystem/prodos.hpp"
+#include "../core/basic/basic_detokenizer.hpp"
+#include "../core/input/keyboard.hpp"
 #include <cstdlib>
 #include <cstring>
 #include <emscripten.h>
@@ -104,6 +109,11 @@ void handleRawKeyUp(int browserKeycode, bool shift, bool ctrl, bool alt,
 }
 
 EMSCRIPTEN_KEEPALIVE
+int charToAppleKey(int charCode) {
+  return a2e::charToAppleKey(charCode);
+}
+
+EMSCRIPTEN_KEEPALIVE
 void setButton(int button, bool pressed) {
   REQUIRE_EMULATOR();
   g_emulator->setButton(button, pressed);
@@ -167,6 +177,74 @@ EMSCRIPTEN_KEEPALIVE
 const uint8_t *getDiskSectorData(int drive, size_t *size) {
   if (!g_emulator) { *size = 0; return nullptr; }
   return g_emulator->getDiskData(drive, size);
+}
+
+// ============================================================================
+// Beam Position
+// ============================================================================
+
+EMSCRIPTEN_KEEPALIVE
+int getFrameCycle() {
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->getFrameCycle();
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getBeamScanline() {
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->getBeamScanline();
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getBeamHPos() {
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->getBeamHPos();
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getBeamColumn() {
+  REQUIRE_EMULATOR_OR(-1);
+  return g_emulator->getBeamColumn();
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool isInVBL() {
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->isInVBL();
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool isInHBLANK() {
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->isInHBLANK();
+}
+
+// ============================================================================
+// Step Over / Step Out
+// ============================================================================
+
+EMSCRIPTEN_KEEPALIVE
+uint16_t stepOver() {
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->stepOver();
+}
+
+EMSCRIPTEN_KEEPALIVE
+uint16_t stepOut() {
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->stepOut();
+}
+
+EMSCRIPTEN_KEEPALIVE
+void clearTempBreakpoint() {
+  REQUIRE_EMULATOR();
+  g_emulator->clearTempBreakpoint();
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool isTempBreakpointHit() {
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->isTempBreakpointHit();
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -1048,6 +1126,296 @@ EMSCRIPTEN_KEEPALIVE
 int16_t getBeamBreakHPos() {
   REQUIRE_EMULATOR_OR(-1);
   return g_emulator->getBeamBreakHPos();
+}
+
+// ============================================================================
+// Condition Evaluator
+// ============================================================================
+
+EMSCRIPTEN_KEEPALIVE
+bool evaluateCondition(const char* expr) {
+  REQUIRE_EMULATOR_OR(false);
+  return a2e::ConditionEvaluator::evaluate(expr, *g_emulator);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int32_t evaluateExpression(const char* expr) {
+  REQUIRE_EMULATOR_OR(0);
+  return a2e::ConditionEvaluator::evaluateNumeric(expr, *g_emulator);
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char* getConditionError() {
+  return a2e::ConditionEvaluator::getLastError();
+}
+
+// ============================================================================
+// Opcode Mnemonic Lookup
+// ============================================================================
+
+EMSCRIPTEN_KEEPALIVE
+const char* getOpcodeMnemonic(uint8_t opcode) {
+  return a2e::getMnemonic(opcode);
+}
+
+// ============================================================================
+// Call Stack Analysis
+// ============================================================================
+
+struct CallStackEntry {
+  uint16_t returnAddr;
+  uint16_t jsrTarget;
+};
+
+static CallStackEntry g_callStack[64];
+static int g_callStackCount = 0;
+
+EMSCRIPTEN_KEEPALIVE
+int getCallStack() {
+  REQUIRE_EMULATOR_OR(0);
+  g_callStackCount = 0;
+
+  uint8_t sp = g_emulator->getSP();
+  int i = sp + 1;
+
+  while (i < 0xFF && g_callStackCount < 64) {
+    uint8_t low = g_emulator->peekMemory(0x100 + i);
+    uint8_t high = g_emulator->peekMemory(0x100 + i + 1);
+    uint16_t retAddr = ((high << 8) | low) + 1;
+
+    // Validate: check if instruction before retAddr was a JSR
+    if (retAddr >= 3 && retAddr <= 0xFFFF) {
+      uint8_t possibleJSR = g_emulator->peekMemory(retAddr - 3);
+      if (possibleJSR == 0x20) {
+        // JSR target
+        uint8_t jsrLo = g_emulator->peekMemory(retAddr - 2);
+        uint8_t jsrHi = g_emulator->peekMemory(retAddr - 1);
+        g_callStack[g_callStackCount].returnAddr = retAddr;
+        g_callStack[g_callStackCount].jsrTarget = (jsrHi << 8) | jsrLo;
+        g_callStackCount++;
+        i += 2;
+        continue;
+      }
+    }
+    i++;
+  }
+
+  return g_callStackCount;
+}
+
+EMSCRIPTEN_KEEPALIVE
+const void* getCallStackBuffer() {
+  return g_callStack;
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool isLikelyReturnAddress(uint16_t addr) {
+  REQUIRE_EMULATOR_OR(false);
+  // Check if it points to code-like regions
+  return (addr >= 0x0800 && addr < 0xC000) ||  // Main RAM (program code)
+         (addr >= 0xD000 && addr <= 0xFFFF);    // ROM
+}
+
+// ============================================================================
+// DOS 3.3 Filesystem
+// ============================================================================
+
+static a2e::DOS33CatalogEntry g_dos33Catalog[128];
+static int g_dos33CatalogCount = 0;
+static uint8_t g_dos33FileBuffer[256 * 256]; // 64KB max file
+
+EMSCRIPTEN_KEEPALIVE
+bool isDOS33Format(const uint8_t* data, int size) {
+  return a2e::DOS33::isDOS33(data, static_cast<size_t>(size));
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getDOS33Catalog(const uint8_t* data, int size) {
+  g_dos33CatalogCount = a2e::DOS33::readCatalog(data, static_cast<size_t>(size),
+                                                  g_dos33Catalog, 128);
+  return g_dos33CatalogCount;
+}
+
+EMSCRIPTEN_KEEPALIVE
+const void* getDOS33CatalogBuffer() {
+  return g_dos33Catalog;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getDOS33CatalogEntrySize() {
+  return static_cast<int>(sizeof(a2e::DOS33CatalogEntry));
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char* getDOS33EntryFilename(int index) {
+  if (index < 0 || index >= g_dos33CatalogCount) return "";
+  return g_dos33Catalog[index].filename;
+}
+
+EMSCRIPTEN_KEEPALIVE
+uint8_t getDOS33EntryFileType(int index) {
+  if (index < 0 || index >= g_dos33CatalogCount) return 0;
+  return g_dos33Catalog[index].fileType;
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char* getDOS33EntryFileTypeName(int index) {
+  if (index < 0 || index >= g_dos33CatalogCount) return "?";
+  return g_dos33Catalog[index].fileTypeName;
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool getDOS33EntryIsLocked(int index) {
+  if (index < 0 || index >= g_dos33CatalogCount) return false;
+  return g_dos33Catalog[index].isLocked;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getDOS33EntrySectorCount(int index) {
+  if (index < 0 || index >= g_dos33CatalogCount) return 0;
+  return g_dos33Catalog[index].sectorCount;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int readDOS33File(const uint8_t* data, int size, int index) {
+  if (index < 0 || index >= g_dos33CatalogCount) return 0;
+  const auto& entry = g_dos33Catalog[index];
+  return a2e::DOS33::readFile(data, static_cast<size_t>(size),
+                               entry.firstTrack, entry.firstSector,
+                               g_dos33FileBuffer, sizeof(g_dos33FileBuffer));
+}
+
+EMSCRIPTEN_KEEPALIVE
+const uint8_t* getDOS33FileBuffer() {
+  return g_dos33FileBuffer;
+}
+
+// ============================================================================
+// ProDOS Filesystem
+// ============================================================================
+
+static a2e::ProDOSCatalogEntry g_prodosCatalog[256];
+static int g_prodosCatalogCount = 0;
+static a2e::ProDOSVolumeInfo g_prodosVolumeInfo;
+static uint8_t g_prodosFileBuffer[128 * 1024]; // 128KB max file
+
+EMSCRIPTEN_KEEPALIVE
+bool isProDOSFormat(const uint8_t* data, int size) {
+  return a2e::ProDOS::isProDOS(data, static_cast<size_t>(size));
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool getProDOSVolumeInfo(const uint8_t* data, int size) {
+  return a2e::ProDOS::parseVolumeInfo(data, static_cast<size_t>(size), &g_prodosVolumeInfo);
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char* getProDOSVolumeName() {
+  return g_prodosVolumeInfo.volumeName;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getProDOSTotalBlocks() {
+  return g_prodosVolumeInfo.totalBlocks;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getProDOSCatalog(const uint8_t* data, int size) {
+  g_prodosCatalogCount = a2e::ProDOS::readCatalog(data, static_cast<size_t>(size),
+                                                    g_prodosCatalog, 256);
+  return g_prodosCatalogCount;
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char* getProDOSEntryFilename(int index) {
+  if (index < 0 || index >= g_prodosCatalogCount) return "";
+  return g_prodosCatalog[index].filename;
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char* getProDOSEntryPath(int index) {
+  if (index < 0 || index >= g_prodosCatalogCount) return "";
+  return g_prodosCatalog[index].path;
+}
+
+EMSCRIPTEN_KEEPALIVE
+uint8_t getProDOSEntryFileType(int index) {
+  if (index < 0 || index >= g_prodosCatalogCount) return 0;
+  return g_prodosCatalog[index].fileType;
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char* getProDOSEntryFileTypeName(int index) {
+  if (index < 0 || index >= g_prodosCatalogCount) return "???";
+  return g_prodosCatalog[index].fileTypeName;
+}
+
+EMSCRIPTEN_KEEPALIVE
+uint8_t getProDOSEntryStorageType(int index) {
+  if (index < 0 || index >= g_prodosCatalogCount) return 0;
+  return g_prodosCatalog[index].storageType;
+}
+
+EMSCRIPTEN_KEEPALIVE
+uint32_t getProDOSEntryEOF(int index) {
+  if (index < 0 || index >= g_prodosCatalogCount) return 0;
+  return g_prodosCatalog[index].eof;
+}
+
+EMSCRIPTEN_KEEPALIVE
+uint16_t getProDOSEntryAuxType(int index) {
+  if (index < 0 || index >= g_prodosCatalogCount) return 0;
+  return g_prodosCatalog[index].auxType;
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool getProDOSEntryIsLocked(int index) {
+  if (index < 0 || index >= g_prodosCatalogCount) return false;
+  return g_prodosCatalog[index].isLocked;
+}
+
+EMSCRIPTEN_KEEPALIVE
+uint16_t getProDOSEntryBlocksUsed(int index) {
+  if (index < 0 || index >= g_prodosCatalogCount) return 0;
+  return g_prodosCatalog[index].blocksUsed;
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool getProDOSEntryIsDirectory(int index) {
+  if (index < 0 || index >= g_prodosCatalogCount) return false;
+  return g_prodosCatalog[index].isDirectory;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int readProDOSFile(const uint8_t* data, int size, int index) {
+  if (index < 0 || index >= g_prodosCatalogCount) return 0;
+  return a2e::ProDOS::readFile(data, static_cast<size_t>(size),
+                                &g_prodosCatalog[index],
+                                g_prodosFileBuffer, sizeof(g_prodosFileBuffer));
+}
+
+EMSCRIPTEN_KEEPALIVE
+const uint8_t* getProDOSFileBuffer() {
+  return g_prodosFileBuffer;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int mapProDOSFileType(uint8_t prodosType) {
+  return a2e::ProDOS::mapFileTypeForViewer(prodosType);
+}
+
+// ============================================================================
+// BASIC Detokenization
+// ============================================================================
+
+EMSCRIPTEN_KEEPALIVE
+const char* detokenizeApplesoft(const uint8_t* data, int size, bool hasLengthHeader) {
+  return a2e::BasicDetokenizer::detokenizeApplesoft(data, size, hasLengthHeader);
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char* detokenizeIntegerBasic(const uint8_t* data, int size, bool hasLengthHeader) {
+  return a2e::BasicDetokenizer::detokenizeIntegerBasic(data, size, hasLengthHeader);
 }
 
 } // extern "C"

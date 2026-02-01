@@ -295,6 +295,7 @@ export class DocumentationWindow extends BaseWindow {
             <tr><td><kbd>F5</kbd></td><td>Run / Continue execution</td></tr>
             <tr><td><kbd>F10</kbd></td><td>Step Over (skip subroutine calls)</td></tr>
             <tr><td><kbd>F11</kbd></td><td>Step Into (single instruction)</td></tr>
+            <tr><td><kbd>Shift</kbd>+<kbd>F11</kbd></td><td>Step Out (run until current subroutine returns)</td></tr>
           </tbody>
         </table>
 
@@ -537,14 +538,101 @@ export class DocumentationWindow extends BaseWindow {
         <h3>Debug Tools</h3>
         <p>Professional debugging tools for software development, reverse engineering, and exploration. Access via the <strong>Debug</strong> menu in the toolbar.</p>
 
-        <h4>CPU Debugger</h4>
+        <h4>CPU Debugger Overview</h4>
+        <p>The CPU Debugger provides full control over 65C02 execution with registers, disassembly, breakpoints, watch expressions, and beam position breakpoints. Open it from <strong>Debug &gt; CPU Debugger</strong>.</p>
+
+        <h4>Execution Controls</h4>
+        <table class="key-table">
+          <thead>
+            <tr><th>Button</th><th>Shortcut</th><th>Function</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Run</td><td><kbd>F5</kbd></td><td>Resume execution (or continue from breakpoint)</td></tr>
+            <tr><td>Pause</td><td></td><td>Pause execution immediately</td></tr>
+            <tr><td>Step</td><td><kbd>F11</kbd></td><td>Execute one instruction, stepping into subroutines</td></tr>
+            <tr><td>Step Over</td><td><kbd>F10</kbd></td><td>Execute one instruction, skipping over JSR calls</td></tr>
+            <tr><td>Step Out</td><td><kbd>Shift</kbd>+<kbd>F11</kbd></td><td>Run until the current subroutine returns (RTS/RTI)</td></tr>
+          </tbody>
+        </table>
+
+        <h4>Registers &amp; Flags</h4>
+        <p>The top panel displays all CPU registers and status flags in real time.</p>
         <ul>
-          <li><strong>Registers:</strong> Live view of A, X, Y, SP, PC</li>
-          <li><strong>Flags:</strong> N, V, B, D, I, Z, C status flags</li>
-          <li><strong>Disassembly:</strong> Scrolling disassembly around PC</li>
-          <li><strong>Breakpoints:</strong> Click addresses to set/clear (persisted)</li>
-          <li><strong>Controls:</strong> Run, Pause, Step, Step Over, Step Out</li>
+          <li><strong>Registers:</strong> A, X, Y (accumulator and index), SP (stack pointer), PC (program counter) &mdash; all shown in hexadecimal</li>
+          <li><strong>Flags:</strong> N (negative), V (overflow), B (break), D (decimal), I (interrupt disable), Z (zero), C (carry) &mdash; active flags are highlighted</li>
+          <li><strong>Editing:</strong> Double-click any register value while paused to enter a new hex value</li>
         </ul>
+
+        <h4>Cycle &amp; Beam Position</h4>
+        <ul>
+          <li><strong>CYC:</strong> Total CPU cycle count since power-on</li>
+          <li><strong>IRQ / NMI / EDGE:</strong> Indicators for pending interrupt requests</li>
+          <li><strong>SCAN:</strong> Current scanline (0&ndash;261), <strong>H:</strong> horizontal position, <strong>COL:</strong> column (0&ndash;39)</li>
+          <li><strong>FCYC:</strong> Cycle within the current frame</li>
+          <li>A badge shows the beam region: <strong>VISIBLE</strong>, <strong>HBLANK</strong>, or <strong>VBL</strong></li>
+        </ul>
+
+        <h4>Disassembly View</h4>
+        <p>The scrollable disassembly view shows decoded 65C02 instructions around the current PC.</p>
+        <ul>
+          <li><strong>Go to Address:</strong> Enter a hex address or symbol name in the input field and click <strong>Go</strong> to jump the disassembly view</li>
+          <li><strong>Follow PC:</strong> Click <strong>Follow PC</strong> to re-center the view on the current program counter. When the CPU is running, the view automatically follows PC</li>
+          <li><strong>Click a line:</strong> Toggle an execution breakpoint at that address</li>
+          <li><strong>Ctrl+Click</strong> (or <strong>Cmd+Click</strong>): Toggle a bookmark on that line (highlighted in yellow)</li>
+          <li><strong>Double-click a line:</strong> Add or edit an inline comment that appears next to the instruction</li>
+          <li><strong>Right-click a line:</strong> Context menu with <em>Run to Cursor</em>, <em>Go to Address</em>, and <em>Toggle Breakpoint</em></li>
+        </ul>
+        <p>Branch and jump instructions are color-coded. When symbols are loaded, known addresses are annotated with their symbol names.</p>
+
+        <h4>Symbol Import</h4>
+        <p>Click <strong>Import Symbols</strong> in the disassembly toolbar to load a symbol file. Supported formats:</p>
+        <ul>
+          <li><code>.dbg</code> &mdash; cc65 debug info files</li>
+          <li><code>.sym</code> &mdash; Symbol table files (label = address)</li>
+          <li><code>.labels</code> &mdash; Label files (address label)</li>
+          <li><code>.map</code> &mdash; Map files</li>
+          <li><code>.txt</code> &mdash; Plain text symbol lists</li>
+        </ul>
+        <p>Once imported, symbols appear in the disassembly as annotations and can be used in the address input field.</p>
+
+        <h4>Breakpoints Tab</h4>
+        <p>The Breakpoints tab lets you manage all breakpoints. Click <strong>Add</strong> to create a new breakpoint.</p>
+        <ul>
+          <li><strong>Type:</strong> Choose from <em>Exec</em> (execution), <em>Read</em> (memory read), <em>Write</em> (memory write), or <em>R/W</em> (read or write)</li>
+          <li><strong>Address:</strong> Enter a hex address (e.g., <code>FF69</code>) or a symbol name if symbols are loaded</li>
+          <li><strong>Conditions:</strong> Optionally add a condition expression. Click the condition cell to open the Rule Builder, or type expressions directly:
+            <ul>
+              <li><code>A==#$FF</code> &mdash; break when accumulator equals $FF</li>
+              <li><code>X&gt;#$10</code> &mdash; break when X register exceeds $10</li>
+              <li><code>PEEK($00)==#$42</code> &mdash; break when zero page location $00 equals $42</li>
+            </ul>
+          </li>
+          <li><strong>Hit Count:</strong> Set a hit count target &mdash; the breakpoint only fires after being hit that many times</li>
+          <li><strong>Enable/Disable:</strong> Use the checkbox to temporarily disable a breakpoint without deleting it</li>
+          <li><strong>Remove:</strong> Click the &times; button to delete a breakpoint</li>
+        </ul>
+        <p>Breakpoints are persisted to localStorage and survive page reloads.</p>
+
+        <h4>Watch Tab</h4>
+        <p>The Watch tab monitors values in real time, highlighting changes. Click <strong>Add Watch</strong> and choose a source:</p>
+        <ul>
+          <li><strong>Register:</strong> Watch A, X, Y, SP, PC, or P (status byte)</li>
+          <li><strong>Flag:</strong> Watch individual status flags (N, V, B, D, I, Z, C)</li>
+          <li><strong>Byte:</strong> Watch a memory byte &mdash; displays as <code>PEEK($addr)</code></li>
+          <li><strong>Word:</strong> Watch a 16-bit value (little-endian) &mdash; displays as <code>DEEK($addr)</code></li>
+        </ul>
+        <p>When a watched value changes, it briefly highlights to draw attention. Watch entries are persisted between sessions.</p>
+
+        <h4>Beam Breakpoints Tab</h4>
+        <p>Beam breakpoints pause execution based on the CRT beam position rather than the program counter. This is useful for debugging display timing and raster effects.</p>
+        <ul>
+          <li><strong>VBL Start:</strong> Break at the start of vertical blanking (scanline 192)</li>
+          <li><strong>HBLANK:</strong> Break at the start of each horizontal blanking period</li>
+          <li><strong>Scanline:</strong> Break when the beam reaches a specific scanline (0&ndash;261)</li>
+          <li><strong>Column:</strong> Break when the beam reaches a specific column (0&ndash;39)</li>
+          <li><strong>Scan+Col:</strong> Break at a specific scanline <em>and</em> column combination</li>
+        </ul>
+        <p>Use the <strong>Enable</strong> checkbox to activate or deactivate beam breakpoints. When hit, the breakpoint row highlights briefly.</p>
 
         <h4>Memory Browser</h4>
         <ul>
@@ -553,11 +641,12 @@ export class DocumentationWindow extends BaseWindow {
           <li>Direct address entry for navigation</li>
           <li>Changed bytes highlighted with fade animation</li>
           <li>Search for hex byte sequences</li>
+          <li>Click any byte to edit its value</li>
         </ul>
 
         <h4>Memory Heat Map</h4>
         <ul>
-          <li>256x256 visualization of memory access</li>
+          <li>256&times;256 visualization of memory access</li>
           <li>Left panel: Main RAM + ROM</li>
           <li>Right panel: Auxiliary RAM</li>
           <li>View modes: Combined, Reads only, Writes only</li>
@@ -599,7 +688,7 @@ export class DocumentationWindow extends BaseWindow {
         </ul>
 
         <div class="info-box tip">
-          <p><strong>Tip:</strong> All debug windows can be moved and resized. Their positions are saved between sessions.</p>
+          <p><strong>Tip:</strong> All debug windows can be moved and resized. Their positions and settings are saved between sessions.</p>
         </div>
       </section>
 

@@ -2,26 +2,19 @@ import { BaseWindow } from "../windows/base-window.js";
 import { getSymbolInfo } from "./symbols.js";
 
 /**
- * Opcode mnemonics for 65C02 (indexed by opcode byte)
+ * Cached opcode mnemonics from WASM disassembler (populated on first use)
  */
-const MNEMONICS = [
-  "BRK","ORA","NOP","NOP","TSB","ORA","ASL","RMB0","PHP","ORA","ASL","NOP","TSB","ORA","ASL","BBR0",
-  "BPL","ORA","ORA","NOP","TRB","ORA","ASL","RMB1","CLC","ORA","INC","NOP","TRB","ORA","ASL","BBR1",
-  "JSR","AND","NOP","NOP","BIT","AND","ROL","RMB2","PLP","AND","ROL","NOP","BIT","AND","ROL","BBR2",
-  "BMI","AND","AND","NOP","BIT","AND","ROL","RMB3","SEC","AND","DEC","NOP","BIT","AND","ROL","BBR3",
-  "RTI","EOR","NOP","NOP","NOP","EOR","LSR","RMB4","PHA","EOR","LSR","NOP","JMP","EOR","LSR","BBR4",
-  "BVC","EOR","EOR","NOP","NOP","EOR","LSR","RMB5","CLI","EOR","PHY","NOP","NOP","EOR","LSR","BBR5",
-  "RTS","ADC","NOP","NOP","STZ","ADC","ROR","RMB6","PLA","ADC","ROR","NOP","JMP","ADC","ROR","BBR6",
-  "BVS","ADC","ADC","NOP","STZ","ADC","ROR","RMB7","SEI","ADC","PLY","NOP","JMP","ADC","ROR","BBR7",
-  "BRA","STA","NOP","NOP","STY","STA","STX","SMB0","DEY","BIT","TXA","NOP","STY","STA","STX","BBS0",
-  "BCC","STA","STA","NOP","STY","STA","STX","SMB1","TYA","STA","TXS","NOP","STZ","STA","STZ","BBS1",
-  "LDY","LDA","LDX","NOP","LDY","LDA","LDX","SMB2","TAY","LDA","TAX","NOP","LDY","LDA","LDX","BBS2",
-  "BCS","LDA","LDA","NOP","LDY","LDA","LDX","SMB3","CLV","LDA","TSX","NOP","LDY","LDA","LDX","BBS3",
-  "CPY","CMP","NOP","NOP","CPY","CMP","DEC","SMB4","INY","CMP","DEX","WAI","CPY","CMP","DEC","BBS4",
-  "BNE","CMP","CMP","NOP","NOP","CMP","DEC","SMB5","CLD","CMP","PHX","STP","NOP","CMP","DEC","BBS5",
-  "CPX","SBC","NOP","NOP","CPX","SBC","INC","SMB6","INX","SBC","NOP","NOP","CPX","SBC","INC","BBS6",
-  "BEQ","SBC","SBC","NOP","NOP","SBC","INC","SMB7","SED","SBC","PLX","NOP","NOP","SBC","INC","BBS7",
-];
+let MNEMONICS = null;
+
+function getMnemonicTable(wasmModule) {
+  if (MNEMONICS) return MNEMONICS;
+  MNEMONICS = new Array(256);
+  for (let i = 0; i < 256; i++) {
+    const ptr = wasmModule._getOpcodeMnemonic(i);
+    MNEMONICS[i] = ptr ? wasmModule.UTF8ToString(ptr) : "???";
+  }
+  return MNEMONICS;
+}
 
 /**
  * TracePanelWindow - Displays instruction trace from the WASM ring buffer
@@ -176,7 +169,7 @@ export class TracePanelWindow extends BaseWindow {
       const cycle = heap[offset + 12] | (heap[offset + 13] << 8) |
                     (heap[offset + 14] << 16) | (heap[offset + 15] << 24);
 
-      const mnemonic = MNEMONICS[opcode] || "???";
+      const mnemonic = getMnemonicTable(this.wasmModule)[opcode] || "???";
       let bytesStr = this.hex2(opcode);
       if (len >= 2) bytesStr += " " + this.hex2(op1);
       if (len >= 3) bytesStr += " " + this.hex2(op2);

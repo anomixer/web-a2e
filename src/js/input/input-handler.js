@@ -166,25 +166,8 @@ export class InputHandler {
 
   // Convert character to Apple II key code (for paste only)
   charToAppleKey(char) {
-    const code = char.charCodeAt(0);
-
-    // Newline -> CR
-    if (char === '\n' || char === '\r') {
-      return 0x0D;
-    }
-
-    // Tab
-    if (char === '\t') {
-      return 0x09;
-    }
-
-    // Printable ASCII (space through tilde)
-    if (code >= 0x20 && code <= 0x7E) {
-      return code;
-    }
-
-    // Skip non-printable characters
-    return null;
+    const result = this.wasmModule._charToAppleKey(char.charCodeAt(0));
+    return result >= 0 ? result : null;
   }
 
   // Process paste queue in batches, yielding to the browser periodically

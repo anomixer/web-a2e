@@ -72,18 +72,13 @@ export class StackViewerWindow extends BaseWindow {
   }
 
   isLikelyReturnAddress(sp, wasmModule) {
-    // Heuristic: check if bytes at sp+1 and sp+2 form a valid address in ROM or RAM code
     if (sp >= 0xfe) return false; // Need at least 2 bytes
 
     const low = wasmModule._peekMemory(0x100 + sp + 1);
     const high = wasmModule._peekMemory(0x100 + sp + 2);
     const addr = ((high << 8) | low) + 1;
 
-    // Check if it points to code-like regions
-    return (
-      (addr >= 0x0800 && addr < 0xc000) || // Main RAM (likely program code)
-      (addr >= 0xd000 && addr <= 0xffff) // ROM
-    );
+    return wasmModule._isLikelyReturnAddress(addr & 0xffff);
   }
 
   update(wasmModule) {
@@ -197,44 +192,25 @@ export class StackViewerWindow extends BaseWindow {
     if (!callStackEl) return;
 
     const pc = wasmModule._getPC();
-    const callers = [];
+    const count = wasmModule._getCallStack();
 
-    // Walk the stack looking for JSR return address pairs
-    let i = sp + 1;
-    while (i < 0xff) {
-      const low = wasmModule._peekMemory(0x100 + i);
-      const high = wasmModule._peekMemory(0x100 + i + 1);
-      const retAddr = ((high << 8) | low) + 1;
-
-      // Validate: check if instruction before retAddr was a JSR
-      if (retAddr >= 3 && retAddr <= 0xffff) {
-        const possibleJSR = wasmModule._peekMemory(retAddr - 3);
-        if (possibleJSR === 0x20) {
-          // JSR target is the address JSR was calling
-          const jsrTargetLo = wasmModule._peekMemory(retAddr - 2);
-          const jsrTargetHi = wasmModule._peekMemory(retAddr - 1);
-          const jsrTarget = (jsrTargetHi << 8) | jsrTargetLo;
-          callers.push({
-            retAddr,
-            jsrTarget,
-          });
-          i += 2; // Skip past the return address pair
-          continue;
-        }
-      }
-      i++;
-    }
-
-    if (callers.length === 0) {
+    if (count === 0) {
       callStackEl.innerHTML = "";
       return;
     }
 
+    // Read packed CallStackEntry structs (4 bytes each: uint16_t returnAddr, uint16_t jsrTarget)
+    const bufPtr = wasmModule._getCallStackBuffer();
+    const heap = wasmModule.HEAPU8;
+
     let stackHtml = '<span class="call-stack-label">Call:</span> ';
     stackHtml += `<span class="call-stack-addr">$${this.formatHex(pc, 4)}</span>`;
 
-    for (const caller of callers) {
-      stackHtml += ` ← <span class="call-stack-addr" title="Returns to $${this.formatHex(caller.retAddr, 4)}">$${this.formatHex(caller.jsrTarget, 4)}</span>`;
+    for (let i = 0; i < count; i++) {
+      const offset = bufPtr + i * 4;
+      const retAddr = heap[offset] | (heap[offset + 1] << 8);
+      const jsrTarget = heap[offset + 2] | (heap[offset + 3] << 8);
+      stackHtml += ` ← <span class="call-stack-addr" title="Returns to $${this.formatHex(retAddr, 4)}">$${this.formatHex(jsrTarget, 4)}</span>`;
     }
 
     callStackEl.innerHTML = stackHtml;

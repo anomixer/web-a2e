@@ -556,22 +556,9 @@ export class CPUDebuggerWindow extends BaseWindow {
    */
   stepOver() {
     this.bpManager.clearTemp();
-    const pc = this.wasmModule._getPC();
-    const opcode = this.wasmModule._peekMemory(pc);
-
-    if (opcode === 0x20) {
-      // JSR - set breakpoint at instruction after JSR (PC + 3)
-      const returnAddr = (pc + 3) & 0xffff;
-      this.bpManager.setTemp(returnAddr);
-      this.wasmModule._setPaused(false);
-    } else if (opcode === 0x00) {
-      // BRK - treat like JSR but with PC+2 as return address
-      const returnAddr = (pc + 2) & 0xffff;
-      this.bpManager.setTemp(returnAddr);
-      this.wasmModule._setPaused(false);
-    } else {
-      // Not a JSR/BRK, just single step
-      this.wasmModule._stepInstruction();
+    const tempAddr = this.wasmModule._stepOver();
+    if (tempAddr) {
+      this.bpManager.syncTemp(tempAddr);
     }
   }
 
@@ -581,21 +568,9 @@ export class CPUDebuggerWindow extends BaseWindow {
    */
   stepOut() {
     this.bpManager.clearTemp();
-    const sp = this.wasmModule._getSP();
-    // Stack is at $0100-$01FF, return address is at SP+1 (low) and SP+2 (high)
-    // The 6502 pushes PCH first, then PCL, so:
-    // $0100+SP+1 = PCL, $0100+SP+2 = PCH
-    const pcl = this.wasmModule._peekMemory(0x0100 + ((sp + 1) & 0xff));
-    const pch = this.wasmModule._peekMemory(0x0100 + ((sp + 2) & 0xff));
-    // RTS adds 1 to the address, so the actual return is (pch:pcl) + 1
-    const returnAddr = ((pch << 8) | pcl) + 1;
-
-    if (returnAddr > 0 && returnAddr <= 0xffff) {
-      this.bpManager.setTemp(returnAddr & 0xffff);
-      this.wasmModule._setPaused(false);
-    } else {
-      // Invalid return address (probably not in a subroutine), just step
-      this.wasmModule._stepInstruction();
+    const tempAddr = this.wasmModule._stepOut();
+    if (tempAddr) {
+      this.bpManager.syncTemp(tempAddr);
     }
   }
 
@@ -1118,13 +1093,12 @@ export class CPUDebuggerWindow extends BaseWindow {
    * Update scanline / beam position display
    */
   updateScanline() {
-    const totalCycles = Number(this.wasmModule._getTotalCycles());
-    const frameCycle = totalCycles % 17030;
-    const scanline = Math.floor(frameCycle / 65);
-    const hPos = frameCycle % 65;
-    const col = hPos >= 25 ? hPos - 25 : -1;
-    const inVBL = scanline >= 192;
-    const inHBLANK = hPos < 25;
+    const frameCycle = this.wasmModule._getFrameCycle();
+    const scanline = this.wasmModule._getBeamScanline();
+    const hPos = this.wasmModule._getBeamHPos();
+    const col = this.wasmModule._getBeamColumn();
+    const inVBL = this.wasmModule._isInVBL();
+    const inHBLANK = this.wasmModule._isInHBLANK();
 
     const scanEl = this.contentElement.querySelector("#scan-line");
     const hPosEl = this.contentElement.querySelector("#scan-hpos");

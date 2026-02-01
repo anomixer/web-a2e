@@ -194,6 +194,13 @@ export class BreakpointManager {
   }
 
   /**
+   * Sync temp breakpoint state from C++ (step over/out sets it in C++)
+   */
+  syncTemp(address) {
+    this.tempBreakpoint = address;
+  }
+
+  /**
    * Clear the temporary breakpoint
    */
   clearTemp() {
@@ -207,12 +214,27 @@ export class BreakpointManager {
       }
       this.tempBreakpoint = null;
     }
+    // Also clear C++ temp breakpoint
+    try {
+      this.wasmModule._clearTempBreakpoint();
+    } catch (e) {
+      /* ignore */
+    }
   }
 
   /**
    * Check if temp breakpoint was hit (call in update loop)
    */
   checkTemp(pc) {
+    // Check C++ temp breakpoint first
+    try {
+      if (this.wasmModule._isTempBreakpointHit()) {
+        this.tempBreakpoint = null;
+        return true;
+      }
+    } catch (e) {
+      /* ignore */
+    }
     if (this.tempBreakpoint !== null && pc === this.tempBreakpoint) {
       this.clearTemp();
       return true;
@@ -251,238 +273,26 @@ export class BreakpointManager {
   }
 
   /**
-   * Evaluate a breakpoint condition expression.
-   * Supports:
-   *   Register comparisons: A==#$FF, X>=#$10
-   *   Memory reads: PEEK($00)==#$42
-   *   Flag checks: C==1, Z==0
-   *   Combinators: &&, ||
+   * Evaluate a breakpoint condition expression via C++ evaluator.
    */
   evaluateCondition(expr) {
-    const tokens = this._tokenize(expr);
-    return this._parseOr(tokens, { pos: 0 });
+    const exprPtr = this.wasmModule._malloc(expr.length + 1);
+    this.wasmModule.stringToUTF8(expr, exprPtr, expr.length + 1);
+    const result = this.wasmModule._evaluateCondition(exprPtr);
+    this.wasmModule._free(exprPtr);
+    return result;
   }
 
   /**
-   * Evaluate an expression and return the raw numeric value
-   * (no boolean coercion). Used by watch expressions.
+   * Evaluate an expression and return the raw numeric value.
+   * Used by watch expressions.
    */
   evaluateValue(expr) {
-    const tokens = this._tokenize(expr);
-    return this._parseExpr(tokens, { pos: 0 });
-  }
-
-  _tokenize(expr) {
-    const tokens = [];
-    let i = 0;
-    while (i < expr.length) {
-      if (expr[i] === " " || expr[i] === "\t") {
-        i++;
-        continue;
-      }
-      // Two-char operators
-      if (i + 1 < expr.length) {
-        const two = expr.substring(i, i + 2);
-        if (["==", "!=", ">=", "<=", "&&", "||"].includes(two)) {
-          tokens.push(two);
-          i += 2;
-          continue;
-        }
-      }
-      // Single-char operators
-      if (["<", ">", "(", ")", "+", "-", "*"].includes(expr[i])) {
-        tokens.push(expr[i]);
-        i++;
-        continue;
-      }
-      // Hex literal: #$XX or $XXXX
-      if (
-        expr[i] === "#" &&
-        i + 1 < expr.length &&
-        expr[i + 1] === "$"
-      ) {
-        let num = "";
-        i += 2;
-        while (i < expr.length && /[0-9A-Fa-f]/.test(expr[i])) {
-          num += expr[i++];
-        }
-        tokens.push({ type: "num", value: parseInt(num, 16) });
-        continue;
-      }
-      if (expr[i] === "$") {
-        let num = "";
-        i++;
-        while (i < expr.length && /[0-9A-Fa-f]/.test(expr[i])) {
-          num += expr[i++];
-        }
-        tokens.push({ type: "num", value: parseInt(num, 16) });
-        continue;
-      }
-      // Decimal literal
-      if (/[0-9]/.test(expr[i])) {
-        let num = "";
-        while (i < expr.length && /[0-9]/.test(expr[i])) {
-          num += expr[i++];
-        }
-        tokens.push({ type: "num", value: parseInt(num, 10) });
-        continue;
-      }
-      // Identifiers: A, X, Y, SP, PC, P, C, Z, N, V, D, I, PEEK, DEEK
-      if (/[A-Za-z_]/.test(expr[i])) {
-        let id = "";
-        while (i < expr.length && /[A-Za-z0-9_]/.test(expr[i])) {
-          id += expr[i++];
-        }
-        tokens.push({ type: "id", value: id.toUpperCase() });
-        continue;
-      }
-      // Unknown char, skip
-      i++;
-    }
-    return tokens;
-  }
-
-  _parseOr(tokens, ctx) {
-    let left = this._parseAnd(tokens, ctx);
-    while (ctx.pos < tokens.length && tokens[ctx.pos] === "||") {
-      ctx.pos++;
-      const right = this._parseAnd(tokens, ctx);
-      left = left || right;
-    }
-    return left;
-  }
-
-  _parseAnd(tokens, ctx) {
-    let left = this._parseComparison(tokens, ctx);
-    while (ctx.pos < tokens.length && tokens[ctx.pos] === "&&") {
-      ctx.pos++;
-      const right = this._parseComparison(tokens, ctx);
-      left = left && right;
-    }
-    return left;
-  }
-
-  _parseComparison(tokens, ctx) {
-    const left = this._parseExpr(tokens, ctx);
-    if (ctx.pos < tokens.length) {
-      const op = tokens[ctx.pos];
-      if (["==", "!=", ">=", "<=", ">", "<"].includes(op)) {
-        ctx.pos++;
-        const right = this._parseExpr(tokens, ctx);
-        switch (op) {
-          case "==":
-            return left === right;
-          case "!=":
-            return left !== right;
-          case ">=":
-            return left >= right;
-          case "<=":
-            return left <= right;
-          case ">":
-            return left > right;
-          case "<":
-            return left < right;
-        }
-      }
-    }
-    return !!left; // Truthy if no comparison
-  }
-
-  _parseExpr(tokens, ctx) {
-    let val = this._parseAtom(tokens, ctx);
-    while (ctx.pos < tokens.length) {
-      const op = tokens[ctx.pos];
-      if (op === "+" || op === "-" || op === "*") {
-        ctx.pos++;
-        const right = this._parseAtom(tokens, ctx);
-        if (op === "+") val += right;
-        else if (op === "-") val -= right;
-        else val *= right;
-      } else break;
-    }
-    return val;
-  }
-
-  _parseAtom(tokens, ctx) {
-    if (ctx.pos >= tokens.length) return 0;
-    const t = tokens[ctx.pos];
-
-    // Number literal
-    if (typeof t === "object" && t.type === "num") {
-      ctx.pos++;
-      return t.value;
-    }
-
-    // Parenthesized expression
-    if (t === "(") {
-      ctx.pos++;
-      const val = this._parseOr(tokens, ctx);
-      if (ctx.pos < tokens.length && tokens[ctx.pos] === ")") {
-        ctx.pos++;
-      }
-      return val;
-    }
-
-    // Identifier
-    if (typeof t === "object" && t.type === "id") {
-      ctx.pos++;
-      const id = t.value;
-
-      // PEEK(addr) - read byte
-      if (id === "PEEK" && ctx.pos < tokens.length && tokens[ctx.pos] === "(") {
-        ctx.pos++;
-        const addr = this._parseOr(tokens, ctx);
-        if (ctx.pos < tokens.length && tokens[ctx.pos] === ")") ctx.pos++;
-        return this.wasmModule._peekMemory(addr & 0xffff);
-      }
-
-      // DEEK(addr) - read 16-bit word (little-endian)
-      if (id === "DEEK" && ctx.pos < tokens.length && tokens[ctx.pos] === "(") {
-        ctx.pos++;
-        const addr = this._parseOr(tokens, ctx);
-        if (ctx.pos < tokens.length && tokens[ctx.pos] === ")") ctx.pos++;
-        const lo = this.wasmModule._peekMemory(addr & 0xffff);
-        const hi = this.wasmModule._peekMemory((addr + 1) & 0xffff);
-        return (hi << 8) | lo;
-      }
-
-      // Registers
-      switch (id) {
-        case "A":
-          return this.wasmModule._getA();
-        case "X":
-          return this.wasmModule._getX();
-        case "Y":
-          return this.wasmModule._getY();
-        case "SP":
-          return this.wasmModule._getSP();
-        case "PC":
-          return this.wasmModule._getPC();
-        case "P":
-          return this.wasmModule._getP();
-        // Individual flags
-        case "C":
-          return this.wasmModule._getP() & 0x01 ? 1 : 0;
-        case "Z":
-          return this.wasmModule._getP() & 0x02 ? 1 : 0;
-        case "I":
-          return this.wasmModule._getP() & 0x04 ? 1 : 0;
-        case "D":
-          return this.wasmModule._getP() & 0x08 ? 1 : 0;
-        case "B":
-          return this.wasmModule._getP() & 0x10 ? 1 : 0;
-        case "V":
-          return this.wasmModule._getP() & 0x40 ? 1 : 0;
-        case "N":
-          return this.wasmModule._getP() & 0x80 ? 1 : 0;
-      }
-
-      return 0; // Unknown identifier
-    }
-
-    // Fallback
-    ctx.pos++;
-    return 0;
+    const exprPtr = this.wasmModule._malloc(expr.length + 1);
+    this.wasmModule.stringToUTF8(expr, exprPtr, expr.length + 1);
+    const result = this.wasmModule._evaluateExpression(exprPtr);
+    this.wasmModule._free(exprPtr);
+    return result;
   }
 
   // ---- WASM sync helpers ----
