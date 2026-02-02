@@ -26,15 +26,17 @@ const db = createDatabaseManager({
  * Save emulator state to IndexedDB
  * @param {Uint8Array} stateData - The serialized emulator state
  * @param {string|null} [thumbnail] - Optional data URL of screenshot thumbnail
+ * @param {string|null} [preview] - Optional data URL of high-res preview
  * @returns {Promise<void>}
  */
-export async function saveStateToStorage(stateData, thumbnail) {
+export async function saveStateToStorage(stateData, thumbnail, preview) {
   try {
     const stateRecord = {
       id: "autosave",
       data: new Uint8Array(stateData),
       savedAt: Date.now(),
       thumbnail: thumbnail || null,
+      preview: preview || null,
     };
 
     await db.put(STORE_NAME, stateRecord);
@@ -113,6 +115,7 @@ export async function getAutosaveInfo() {
       return {
         savedAt: result.savedAt,
         thumbnail: result.thumbnail || null,
+        preview: result.preview || null,
       };
     }
     return null;
@@ -135,15 +138,17 @@ function slotKey(slotNumber) {
  * @param {number} slotNumber - Slot number (1-5)
  * @param {Uint8Array} stateData - The serialized emulator state
  * @param {string|null} thumbnail - Data URL of screenshot thumbnail
+ * @param {string|null} [preview] - Optional data URL of high-res preview
  * @returns {Promise<void>}
  */
-export async function saveStateToSlot(slotNumber, stateData, thumbnail) {
+export async function saveStateToSlot(slotNumber, stateData, thumbnail, preview) {
   try {
     const record = {
       id: slotKey(slotNumber),
       data: new Uint8Array(stateData),
       savedAt: Date.now(),
       thumbnail: thumbnail || null,
+      preview: preview || null,
     };
     await db.put(STORE_NAME, record);
   } catch (error) {
@@ -200,6 +205,7 @@ export async function getAllSlotInfo() {
           slotNumber: i,
           savedAt: result.savedAt,
           thumbnail: result.thumbnail || null,
+          preview: result.preview || null,
         });
       } else {
         slots.push(null);

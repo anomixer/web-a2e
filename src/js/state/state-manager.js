@@ -23,6 +23,8 @@ import {
 const AUTO_SAVE_INTERVAL_MS = 5000;
 const THUMBNAIL_WIDTH = 140;
 const THUMBNAIL_HEIGHT = 96;
+const PREVIEW_WIDTH = 560;
+const PREVIEW_HEIGHT = 384;
 
 /**
  * @typedef {Object} StateManagerDeps
@@ -247,6 +249,27 @@ export class StateManager {
   }
 
   /**
+   * Capture a high-resolution preview of the current emulator display
+   * @returns {string|null} Data URL of the preview, or null
+   */
+  capturePreview() {
+    const canvas = document.getElementById("screen");
+    if (!canvas) return null;
+
+    try {
+      const offscreen = document.createElement("canvas");
+      offscreen.width = PREVIEW_WIDTH;
+      offscreen.height = PREVIEW_HEIGHT;
+      const ctx = offscreen.getContext("2d");
+      ctx.drawImage(canvas, 0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+      return offscreen.toDataURL("image/png");
+    } catch (error) {
+      console.error("Failed to capture preview:", error);
+      return null;
+    }
+  }
+
+  /**
    * Save the current emulator state to IndexedDB (auto-save)
    * @returns {Promise<void>}
    */
@@ -260,7 +283,8 @@ export class StateManager {
       const stateData = this.captureStateData();
       if (stateData) {
         const thumbnail = this.captureScreenshot();
-        await saveStateToStorage(stateData, thumbnail);
+        const preview = this.capturePreview();
+        await saveStateToStorage(stateData, thumbnail, preview);
         if (this.onAutosave) this.onAutosave();
       }
     } catch (error) {
@@ -305,7 +329,8 @@ export class StateManager {
     if (!stateData) return false;
 
     const thumbnail = this.captureScreenshot();
-    await saveStateToSlot(slotNumber, stateData, thumbnail);
+    const preview = this.capturePreview();
+    await saveStateToSlot(slotNumber, stateData, thumbnail, preview);
     return true;
   }
 

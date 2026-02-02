@@ -39,6 +39,7 @@ export class SaveStatesWindow extends BaseWindow {
     this.uiController = uiController;
     this.autosaveElement = null;
     this.slotElements = [];
+    this.hoverPreview = null;
   }
 
   renderContent() {
@@ -118,6 +119,39 @@ export class SaveStatesWindow extends BaseWindow {
       else if (action === "download-auto") this.handleDownloadAutosave();
     });
 
+    // Hover preview tooltip
+    this.hoverPreview = document.createElement("div");
+    this.hoverPreview.className = "slot-thumbnail-preview";
+    document.body.appendChild(this.hoverPreview);
+
+    this.contentElement.addEventListener("mouseenter", (e) => {
+      const thumb = e.target.closest(".slot-thumbnail");
+      if (!thumb) return;
+      const previewSrc = thumb.dataset.preview;
+      if (!previewSrc) return;
+      this.hoverPreview.innerHTML = `<img src="${previewSrc}" />`;
+      this.hoverPreview.classList.add("visible");
+    }, true);
+
+    this.contentElement.addEventListener("mouseleave", (e) => {
+      const thumb = e.target.closest(".slot-thumbnail");
+      if (!thumb) return;
+      this.hoverPreview.classList.remove("visible");
+    }, true);
+
+    this.contentElement.addEventListener("mousemove", (e) => {
+      if (!this.hoverPreview.classList.contains("visible")) return;
+      const previewW = 280;
+      const previewH = 192;
+      const pad = 12;
+      let x = e.clientX + pad;
+      let y = e.clientY + pad;
+      if (x + previewW > window.innerWidth) x = e.clientX - previewW - pad;
+      if (y + previewH > window.innerHeight) y = e.clientY - previewH - pad;
+      this.hoverPreview.style.left = `${x}px`;
+      this.hoverPreview.style.top = `${y}px`;
+    });
+
     // Load from file
     const fileInput = this.contentElement.querySelector('input[type="file"]');
     const loadFileBtn = this.contentElement.querySelector(".load-file-btn");
@@ -162,6 +196,7 @@ export class SaveStatesWindow extends BaseWindow {
         } else {
           thumbEl.innerHTML = '<span class="slot-empty-icon">--</span>';
         }
+        thumbEl.dataset.preview = info.preview || info.thumbnail || "";
         statusEl.textContent = "Saved";
         statusEl.classList.remove("empty");
         timestampEl.textContent = this.formatTimestamp(info.savedAt);
@@ -170,6 +205,7 @@ export class SaveStatesWindow extends BaseWindow {
         downloadBtn.disabled = false;
       } else {
         thumbEl.innerHTML = '<span class="slot-empty-icon">--</span>';
+        delete thumbEl.dataset.preview;
         statusEl.textContent = "Empty";
         statusEl.classList.add("empty");
         timestampEl.textContent = "";
@@ -197,6 +233,7 @@ export class SaveStatesWindow extends BaseWindow {
       } else {
         thumbEl.innerHTML = '<span class="slot-empty-icon">--</span>';
       }
+      thumbEl.dataset.preview = info.preview || info.thumbnail || "";
       statusEl.textContent = "Autosave";
       statusEl.classList.remove("empty");
       timestampEl.textContent = this.formatTimestamp(info.savedAt);
@@ -204,6 +241,7 @@ export class SaveStatesWindow extends BaseWindow {
       downloadBtn.disabled = false;
     } else {
       thumbEl.innerHTML = '<span class="slot-empty-icon">--</span>';
+      delete thumbEl.dataset.preview;
       statusEl.textContent = "No autosave";
       statusEl.classList.add("empty");
       timestampEl.textContent = "";
@@ -345,5 +383,12 @@ export class SaveStatesWindow extends BaseWindow {
       this.uiController.showNotification("Failed to read file");
     };
     reader.readAsArrayBuffer(file);
+  }
+
+  destroy() {
+    if (this.hoverPreview && this.hoverPreview.parentNode) {
+      this.hoverPreview.parentNode.removeChild(this.hoverPreview);
+    }
+    super.destroy();
   }
 }
