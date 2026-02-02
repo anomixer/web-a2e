@@ -1,3 +1,10 @@
+/*
+ * breakpoint-manager.js - CPU breakpoint and watchpoint management
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
 /**
  * BreakpointManager - Manages all breakpoint types including
  * execution breakpoints, conditional breakpoints, and watchpoints.

@@ -1,6 +1,8 @@
-/**
- * BASIC Syntax Highlighting Utilities
- * Shared between file viewer (detokenized display) and BASIC program editor
+/*
+ * basic-highlighting.js - BASIC syntax highlighting
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
  */
 
 import { escapeHtml } from "./string-utils.js";

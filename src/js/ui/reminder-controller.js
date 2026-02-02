@@ -1,3 +1,10 @@
+/*
+ * reminder-controller.js - UI reminder notifications
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
 /**
  * ReminderController - Manages floating reminder tooltips
  * Handles power, resize, and drives toggle reminders with positioning and persistence

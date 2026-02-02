@@ -1,3 +1,10 @@
+/*
+ * save-states-window.js - Save states window UI
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
 /**
  * SaveStatesWindow - Window for managing save state slots
  * Auto-save row at top (load/download only), plus 5 numbered manual slots

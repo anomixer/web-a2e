@@ -1,6 +1,8 @@
-/**
- * Applesoft BASIC Token Definitions
- * Used by syntax highlighting and autocomplete UI
+/*
+ * basic-tokens.js - Applesoft BASIC token definitions
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
  */
 
 // Applesoft BASIC tokens - array index = token value - 0x80

@@ -1,5 +1,9 @@
-// Disk Manager for Apple //e Emulator
-// Main orchestrator for disk drive operations
+/*
+ * index.js - Disk manager subsystem initialization and exports
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
 
 import { DriveSounds } from "./drive-sounds.js";
 import { DiskSurfaceRenderer } from "./disk-surface-renderer.js";

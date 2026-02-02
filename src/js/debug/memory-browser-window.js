@@ -1,6 +1,10 @@
-/**
- * MemoryBrowserWindow - Scrollable 64KB memory viewer
+/*
+ * memory-browser-window.js - Scrollable hex/ASCII memory browser for 64KB address space
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
  */
+
 import { BaseWindow } from "../windows/base-window.js";
 
 // Memory region definitions for Apple II

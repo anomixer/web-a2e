@@ -1,6 +1,10 @@
-/**
- * JoystickWindow - Virtual joystick/paddle control
+/*
+ * joystick-window.js - Virtual joystick and paddle configuration window
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
  */
+
 import { BaseWindow } from "../windows/base-window.js";
 
 export class JoystickWindow extends BaseWindow {

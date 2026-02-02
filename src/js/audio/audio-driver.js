@@ -1,4 +1,9 @@
-// Audio Driver - Uses Web Audio API to drive emulator timing
+/*
+ * audio-driver.js - Web Audio API driver for emulator audio and timing
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
 
 // Audio constants
 const SAMPLE_RATE = 48000;

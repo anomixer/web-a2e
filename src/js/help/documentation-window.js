@@ -1,3 +1,10 @@
+/*
+ * documentation-window.js - Help and documentation window
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
 /**
  * DocumentationWindow - Moveable help & documentation window
  * Extends BaseWindow for drag/resize functionality

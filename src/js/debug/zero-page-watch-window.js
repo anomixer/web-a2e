@@ -1,6 +1,10 @@
-/**
- * ZeroPageWatchWindow - Monitor important zero page locations
+/*
+ * zero-page-watch-window.js - Zero page watch window for monitoring memory locations
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
  */
+
 import { BaseWindow } from "../windows/base-window.js";
 
 // Predefined watches for common Apple II zero page locations

@@ -1,4 +1,9 @@
-// Apple //e Emulator - Main Entry Point
+/*
+ * main.js - Main entry point and AppleIIeEmulator class
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
 
 import { VERSION } from "./config/version.js";
 import { WebGLRenderer } from "./display/webgl-renderer.js";

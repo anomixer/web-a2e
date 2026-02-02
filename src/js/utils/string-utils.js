@@ -1,4 +1,9 @@
-// String utility functions
+/*
+ * string-utils.js - String utility functions
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
 
 /**
  * Escape HTML special characters to prevent XSS

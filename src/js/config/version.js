@@ -1,2 +1,8 @@
-// App version - update this when releasing new versions
+/*
+ * version.js - Application version configuration
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
 export const VERSION = "1.4.0";

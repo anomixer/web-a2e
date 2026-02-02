@@ -1,9 +1,12 @@
+/*
+ * rule-builder-window.js - Visual rule builder for composing breakpoint conditions
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
 import { BaseWindow } from "../windows/base-window.js";
 
-/**
- * RuleBuilderWindow - Visual query-builder UI for breakpoint conditions.
- * Users compose conditions by adding rules and groups through dropdowns.
- */
 export class RuleBuilderWindow extends BaseWindow {
   constructor() {
     super({

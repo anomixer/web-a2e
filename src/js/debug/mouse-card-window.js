@@ -1,10 +1,12 @@
+/*
+ * mouse-card-window.js - Mouse card debug window for PIA registers, position, and protocol state
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
 import { BaseWindow } from "../windows/base-window.js";
 
-/**
- * MouseCardWindow - Display Apple Mouse Interface Card internal state
- * Shows PIA registers, mouse position, interrupt state, and protocol info.
- * Follows the same dirty-checking pattern as MockingboardWindow.
- */
 export class MouseCardWindow extends BaseWindow {
   constructor(wasmModule) {
     super({

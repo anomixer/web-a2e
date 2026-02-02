@@ -1,3 +1,10 @@
+/*
+ * slot-configuration-window.js - Expansion slot configuration window
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
 import { BaseWindow } from "../windows/base-window.js";
 
 /**

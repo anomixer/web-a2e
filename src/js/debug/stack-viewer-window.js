@@ -1,6 +1,10 @@
-/**
- * StackViewerWindow - Dedicated stack visualization
+/*
+ * stack-viewer-window.js - Stack viewer debug window with live stack contents
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
  */
+
 import { BaseWindow } from "../windows/base-window.js";
 
 export class StackViewerWindow extends BaseWindow {

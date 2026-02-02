@@ -1,9 +1,12 @@
+/*
+ * mockingboard-window.js - Mockingboard detail window for PSG and VIA register inspection
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
 import { BaseWindow } from "../windows/base-window.js";
 
-/**
- * MockingboardWindow - Display Mockingboard PSG and VIA state for debugging
- * Optimized for minimal CPU usage with cached DOM references and dirty checking
- */
 export class MockingboardWindow extends BaseWindow {
   constructor(wasmModule) {
     super({

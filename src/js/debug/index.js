@@ -1,4 +1,10 @@
-// Debug window module exports
+/*
+ * index.js - Debug subsystem module exports
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
 export { BaseWindow } from "../windows/base-window.js";
 export { WindowManager } from "../windows/window-manager.js";
 export { CPUDebuggerWindow } from "./cpu-debugger-window.js";

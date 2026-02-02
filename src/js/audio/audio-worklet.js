@@ -1,6 +1,9 @@
-// Audio Worklet Processor for Apple //e Emulator
-// This runs in a separate thread and drives emulator timing
-// Stereo output: PSG1 on left channel, PSG2 on right channel
+/*
+ * audio-worklet.js - AudioWorklet processor for sample generation and emulator timing
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
 
 class AppleAudioProcessor extends AudioWorkletProcessor {
   constructor() {

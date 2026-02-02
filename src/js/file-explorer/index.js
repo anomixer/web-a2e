@@ -1,3 +1,10 @@
+/*
+ * index.js - File explorer window for browsing Apple II disk images
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
 /**
  * FileExplorerWindow - Browse and view contents of Apple II disk images
  * Extends BaseWindow to inherit drag/resize/show/hide functionality

@@ -1,3 +1,10 @@
+/*
+ * disassembler.js - 65C02 disassembler for file viewer
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
 /**
  * 6502 Disassembler with Virtual Scrolling
  * Uses the C++ disassembler from the emulation core for structured data

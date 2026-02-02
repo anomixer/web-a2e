@@ -1,6 +1,10 @@
-/**
- * WindowManager - Coordinates debug windows and handles persistence
+/*
+ * window-manager.js - Window manager for all windows
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
  */
+
 export class WindowManager {
   constructor() {
     this.windows = new Map();

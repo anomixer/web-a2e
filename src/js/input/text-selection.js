@@ -1,3 +1,10 @@
+/*
+ * text-selection.js - Screen text selection and copy support
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
 /**
  * TextSelection - Enable text selection and copying from the Apple II screen
  *

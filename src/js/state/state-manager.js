@@ -1,3 +1,10 @@
+/*
+ * state-manager.js - Emulator state serialization and management
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
 /**
  * StateManager - Manages emulator state save/restore and UI
  * Handles auto-save, manual save/restore, slot saves, and state popup UI

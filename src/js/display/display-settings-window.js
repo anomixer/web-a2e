@@ -1,3 +1,10 @@
+/*
+ * display-settings-window.js - Display settings window
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
 import { BaseWindow } from '../windows/base-window.js';
 
 /**

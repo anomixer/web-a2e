@@ -1,5 +1,9 @@
-// Disk Surface Renderer
-// Canvas-based top-down 5.25" floppy disk visualization (no sleeve)
+/*
+ * disk-surface-renderer.js - Disk surface visualization renderer
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
 
 const CANVAS_W = 280;
 const CANVAS_H = 240;

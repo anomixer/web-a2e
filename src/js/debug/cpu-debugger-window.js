@@ -1,3 +1,10 @@
+/*
+ * cpu-debugger-window.js - CPU debugger with registers, disassembly, and breakpoints
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
 import { BaseWindow } from "../windows/base-window.js";
 import {
   getSymbolInfo,

@@ -1,7 +1,10 @@
-/**
- * MemoryHeatMapWindow - Dual 256x256 visualization of memory access patterns
- * Left: Main RAM + ROM, Right: Auxiliary RAM (banked memory)
+/*
+ * memory-heat-map-window.js - Real-time memory access heat map visualization
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
  */
+
 import { BaseWindow } from "../windows/base-window.js";
 
 // Memory region labels for main memory

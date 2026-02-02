@@ -1,3 +1,10 @@
+/*
+ * mouse-handler.js - Mouse input handling via Pointer Lock API
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
 /**
  * MouseHandler - Browser mouse capture for Apple Mouse Interface Card
  *

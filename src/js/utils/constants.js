@@ -1,5 +1,8 @@
-/**
- * Constants - Centralized constants for the Apple //e Emulator
+/*
+ * constants.js - Shared constants
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
  */
 
 // localStorage key constants

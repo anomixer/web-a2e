@@ -1,3 +1,10 @@
+/*
+ * release-notes.js - Release notes content data
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
 /**
  * Release notes data generated from git history
  * Run: git log --pretty=format:"%h|%ad|%s" --date=short

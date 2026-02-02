@@ -1,5 +1,9 @@
-// Disk Operations - Load, save, and eject disk images
-// Handles WASM memory allocation and file system interactions
+/*
+ * disk-operations.js - Disk image loading and management operations
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
 
 import {
   saveDiskToStorage,

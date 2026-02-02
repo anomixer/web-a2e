@@ -1,9 +1,12 @@
+/*
+ * mockingboard-scope-window.js - Mockingboard oscilloscope with waveforms, level meters, and mute controls
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
 import { BaseWindow } from "../windows/base-window.js";
 
-/**
- * MockingboardScopeWindow - Channel output waveforms, level meters, and mute controls
- * Shows real-time audio visualization for both Mockingboard PSGs
- */
 export class MockingboardScopeWindow extends BaseWindow {
   constructor(wasmModule) {
     super({

@@ -1,3 +1,10 @@
+/*
+ * memory-map-window.js - Memory bank configuration overview window
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
 import { BaseWindow } from "../windows/base-window.js";
 
 /**

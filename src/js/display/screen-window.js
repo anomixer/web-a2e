@@ -1,6 +1,9 @@
-// Screen Window
-// Hosts the emulator canvas inside a standard BaseWindow.
-// Maintains 4:3 aspect ratio during resize.
+/*
+ * screen-window.js - Main emulator screen window
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
 
 import { BaseWindow } from '../windows/base-window.js';
 

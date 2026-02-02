@@ -1,5 +1,9 @@
-// State Persistence - Save and restore emulator state using IndexedDB
-// Allows machine state to persist across browser sessions
+/*
+ * state-persistence.js - State persistence to IndexedDB
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
 
 import { createDatabaseManager } from "../utils/indexeddb-helper.js";
 

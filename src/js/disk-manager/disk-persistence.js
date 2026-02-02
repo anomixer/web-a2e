@@ -1,5 +1,9 @@
-// Disk Persistence - Save and restore disk images using IndexedDB
-// Allows disks to persist across browser sessions
+/*
+ * disk-persistence.js - Disk image persistence to IndexedDB
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
 
 import { createDatabaseManager } from "../utils/indexeddb-helper.js";
 

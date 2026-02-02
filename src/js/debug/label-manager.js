@@ -1,3 +1,10 @@
+/*
+ * label-manager.js - User-defined label and imported symbol management
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
 /**
  * LabelManager - Manages user-defined labels, imported symbols, and inline comments.
  * Provides a unified lookup layer on top of the built-in symbols.js data.

@@ -1,4 +1,9 @@
-// IndexedDB Helper - Shared utilities for IndexedDB operations
+/*
+ * indexeddb-helper.js - IndexedDB helper utilities
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
 
 /**
  * Creates a database manager for a specific IndexedDB database.

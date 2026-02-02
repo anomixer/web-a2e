@@ -1,5 +1,9 @@
-// Drive Sounds - Audio synthesis for Disk II drive sounds
-// Includes seek/step sounds and motor running sounds
+/*
+ * drive-sounds.js - Disk drive sound effects
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
 
 export class DriveSounds {
   constructor() {

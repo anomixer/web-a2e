@@ -1,3 +1,10 @@
+/*
+ * wasm_interface.cpp - WebAssembly binding layer exposing the emulator API to JavaScript
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
 #include "../core/emulator.hpp"
 #include "../core/disassembler/disassembler.hpp"
 #include "../core/debug/condition_evaluator.hpp"

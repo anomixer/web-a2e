@@ -1,3 +1,10 @@
+/*
+ * file-viewer.js - File content viewer for disk images
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
 /**
  * File Viewer - Formats and displays file contents
  * Supports different Apple II file types

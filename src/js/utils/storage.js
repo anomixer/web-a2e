@@ -1,5 +1,8 @@
-/**
- * Storage - Safe localStorage wrapper with error handling
+/*
+ * storage.js - Local storage utilities
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
  */
 
 /**

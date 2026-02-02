@@ -1,3 +1,10 @@
+/*
+ * dos33.js - DOS 3.3 filesystem parser
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
 /**
  * DOS 3.3 Filesystem Parser
  * Parses DOS 3.3 disk images to read catalog and file contents

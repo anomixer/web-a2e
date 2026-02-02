@@ -1,3 +1,10 @@
+/*
+ * ui-controller.js - Main UI controller and menu wiring
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
 /**
  * UIController - Manages all toolbar and control UI interactions
  * Handles button clicks, popups, menus, and UI state updates

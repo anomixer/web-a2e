@@ -1,4 +1,9 @@
-// Shared utilities for file explorer modules
+/*
+ * utils.js - Filename parsing utilities for Apple II disk formats
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
 
 /**
  * Parse Apple II filename from bytes (strips high bit ASCII)

@@ -1,8 +1,12 @@
+/*
+ * soft-switch-window.js - Soft switch monitor window displaying switch states and addresses
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
 import { BaseWindow } from "../windows/base-window.js";
 
-/**
- * SoftSwitchWindow - Display all soft switches with descriptions and addresses
- */
 export class SoftSwitchWindow extends BaseWindow {
   constructor(wasmModule) {
     super({

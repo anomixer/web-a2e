@@ -1,6 +1,10 @@
-/**
- * BaseWindow - Base class for draggable/resizable windows
+/*
+ * base-window.js - Base window class for all windows
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
  */
+
 export class BaseWindow {
   constructor(config) {
     this.id = config.id;

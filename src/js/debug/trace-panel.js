@@ -1,3 +1,10 @@
+/*
+ * trace-panel.js - CPU instruction execution trace panel
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
 import { BaseWindow } from "../windows/base-window.js";
 import { getSymbolInfo } from "./symbols.js";
 

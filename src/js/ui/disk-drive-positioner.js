@@ -1,3 +1,10 @@
+/*
+ * disk-drive-positioner.js - Disk drive window positioning
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
 /**
  * DiskDrivePositioner - Handles drag-to-move for the disk drives container
  * Supports dragging to reposition and double-click to reset to default position

@@ -1,7 +1,9 @@
-// Disk Drives Window
-// Hosts the disk drive UI inside a standard BaseWindow
-// Maintains aspect ratio during resize so disk panels fill the window.
-// Includes collapsible technical detail panels per drive.
+/*
+ * disk-drives-window.js - Disk drives window UI
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
 
 import { BaseWindow } from '../windows/base-window.js';
 

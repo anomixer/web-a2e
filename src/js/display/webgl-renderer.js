@@ -1,5 +1,9 @@
-// WebGL Renderer for Apple //e display with CRT effects
-// Inspired by cool-retro-term (https://github.com/Swordfish90/cool-retro-term)
+/*
+ * webgl-renderer.js - WebGL renderer for emulator display
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
 
 export class WebGLRenderer {
   constructor(canvas) {

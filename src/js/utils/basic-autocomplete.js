@@ -1,7 +1,8 @@
-/**
- * Applesoft BASIC Autocomplete
- * Provides IntelliSense-like autocomplete for the BASIC editor
- * with context-aware suggestions for variables, line numbers, etc.
+/*
+ * basic-autocomplete.js - BASIC keyword autocomplete
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
  */
 
 import { APPLESOFT_TOKENS } from "./basic-tokens.js";

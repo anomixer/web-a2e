@@ -1,5 +1,9 @@
-// Keyboard Input Handler for Apple //e Emulator
-// Key translation is handled in C++ core, this just passes raw browser events
+/*
+ * input-handler.js - Keyboard input handling for the emulator
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
 
 export class InputHandler {
   constructor(wasmModule) {

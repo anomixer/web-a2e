@@ -1,3 +1,10 @@
+/*
+ * release-notes-window.js - Release notes display window
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
 import { BaseWindow } from '../windows/base-window.js';
 import { RELEASE_NOTES, groupByDate, formatDate } from './release-notes.js';
 

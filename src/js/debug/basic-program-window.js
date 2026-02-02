@@ -1,6 +1,10 @@
-/**
- * BasicProgramWindow - Window for loading BASIC programs directly into memory
+/*
+ * basic-program-window.js - BASIC program viewer and editor window
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
  */
+
 import { BaseWindow } from "../windows/base-window.js";
 import { highlightBasicSource } from "../utils/basic-highlighting.js";
 import { BasicAutocomplete } from "../utils/basic-autocomplete.js";

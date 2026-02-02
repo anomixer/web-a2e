@@ -1,6 +1,8 @@
-/**
- * Apple IIe Symbol Table
- * Maps known addresses to symbolic names with descriptions for disassembly display
+/*
+ * symbols.js - Apple IIe address symbol table for disassembly display
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
  */
 
 // Symbol categories for color coding

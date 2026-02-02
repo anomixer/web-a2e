@@ -1,3 +1,10 @@
+/*
+ * prodos.js - ProDOS filesystem parser
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
 /**
  * ProDOS Filesystem Parser
  * Parses ProDOS disk images to read catalog and file contents
