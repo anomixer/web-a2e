@@ -1811,12 +1811,7 @@ CMakeFiles/thunderclock_mmu_test.dir/src/core/mmu/mmu.cpp.o
  /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/stdarg.h
  /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/stddef.h
  /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/stdint.h
- /Users/michaeldaley/Source/web-a2e/src/core/disk-image/disk_image.hpp
- /Users/michaeldaley/Source/web-a2e/src/core/cards/disk2_card.hpp
  /Users/michaeldaley/Source/web-a2e/src/core/cards/expansion_card.hpp
- /Users/michaeldaley/Source/web-a2e/src/core/cards/mockingboard/ay8910.hpp
- /Users/michaeldaley/Source/web-a2e/src/core/cards/mockingboard/via6522.hpp
- /Users/michaeldaley/Source/web-a2e/src/core/cards/mockingboard_card.hpp
  /Users/michaeldaley/Source/web-a2e/src/core/types.hpp
  /Users/michaeldaley/Source/web-a2e/src/core/mmu/mmu.hpp
 

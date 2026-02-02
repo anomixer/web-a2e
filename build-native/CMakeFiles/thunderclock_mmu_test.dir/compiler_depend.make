@@ -1809,12 +1809,7 @@ CMakeFiles/thunderclock_mmu_test.dir/src/core/mmu/mmu.cpp.o: /Users/michaeldaley
   /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/stdarg.h \
   /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/stddef.h \
   /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/clang/17/include/stdint.h \
-  /Users/michaeldaley/Source/web-a2e/src/core/disk-image/disk_image.hpp \
-  /Users/michaeldaley/Source/web-a2e/src/core/cards/disk2_card.hpp \
   /Users/michaeldaley/Source/web-a2e/src/core/cards/expansion_card.hpp \
-  /Users/michaeldaley/Source/web-a2e/src/core/cards/mockingboard/ay8910.hpp \
-  /Users/michaeldaley/Source/web-a2e/src/core/cards/mockingboard/via6522.hpp \
-  /Users/michaeldaley/Source/web-a2e/src/core/cards/mockingboard_card.hpp \
   /Users/michaeldaley/Source/web-a2e/src/core/types.hpp \
   /Users/michaeldaley/Source/web-a2e/src/core/mmu/mmu.hpp
 
@@ -2852,14 +2847,6 @@ CMakeFiles/thunderclock_mmu_test.dir/tests/thunderclock/thunderclock_mmu_test.cp
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk/usr/include/c++/v1/__charconv/chars_format.h:
 
 /Users/michaeldaley/Source/web-a2e/src/core/types.hpp:
-
-/Users/michaeldaley/Source/web-a2e/src/core/cards/mockingboard_card.hpp:
-
-/Users/michaeldaley/Source/web-a2e/src/core/cards/mockingboard/via6522.hpp:
-
-/Users/michaeldaley/Source/web-a2e/src/core/cards/disk2_card.hpp:
-
-/Users/michaeldaley/Source/web-a2e/src/core/disk-image/disk_image.hpp:
 
 /Users/michaeldaley/Source/web-a2e/src/core/mmu/mmu.cpp:
 
@@ -4038,8 +4025,6 @@ generated/roms.cpp:
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk/usr/include/c++/v1/__fwd/ostream.h:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk/usr/include/c++/v1/__atomic/memory_order.h:
-
-/Users/michaeldaley/Source/web-a2e/src/core/cards/mockingboard/ay8910.hpp:
 
 /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk/usr/include/c++/v1/__algorithm/pop_heap.h:
 

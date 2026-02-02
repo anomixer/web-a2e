@@ -903,9 +903,4 @@ CMakeFiles/thunderclock_mmu_test.dir/src/core/mmu/mmu.cpp.o: \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk/usr/include/sys/_types/_fsfilcnt_t.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk/usr/include/_types/_nl_item.h \
   /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.2.sdk/usr/include/c++/v1/cstdarg \
-  /Users/michaeldaley/Source/web-a2e/src/core/mmu/../cards/disk2_card.hpp \
-  /Users/michaeldaley/Source/web-a2e/src/core/mmu/../cards/expansion_card.hpp \
-  /Users/michaeldaley/Source/web-a2e/src/core/mmu/../cards/../disk-image/disk_image.hpp \
-  /Users/michaeldaley/Source/web-a2e/src/core/mmu/../cards/mockingboard_card.hpp \
-  /Users/michaeldaley/Source/web-a2e/src/core/mmu/../cards/mockingboard/via6522.hpp \
-  /Users/michaeldaley/Source/web-a2e/src/core/mmu/../cards/mockingboard/ay8910.hpp
+  /Users/michaeldaley/Source/web-a2e/src/core/mmu/../cards/expansion_card.hpp

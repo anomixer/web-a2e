@@ -45,7 +45,7 @@ export class SlotConfigurationWindow extends BaseWindow {
       {
         slot: 2,
         label: "Slot 2",
-        available: ["empty", "mouse"],
+        available: ["empty"],
         note: "Serial / Modem",
       },
       {
@@ -59,16 +59,26 @@ export class SlotConfigurationWindow extends BaseWindow {
         slot: 4,
         label: "Slot 4",
         available: ["empty", "mockingboard", "mouse"],
-        note: "Sound cards",
+        note: "Sound cards/ Mouse",
       },
-      { slot: 5, label: "Slot 5", available: ["empty", "thunderclock"], note: "Clock / Hard drive" },
+      {
+        slot: 5,
+        label: "Slot 5",
+        available: ["empty", "thunderclock"],
+        note: "Clock / Hard drive",
+      },
       {
         slot: 6,
         label: "Slot 6",
         available: ["empty", "disk2"],
         note: "Disk drives",
       },
-      { slot: 7, label: "Slot 7", available: ["empty", "thunderclock", "mouse"], note: "RAM disk / Clock" },
+      {
+        slot: 7,
+        label: "Slot 7",
+        available: ["empty", "thunderclock"],
+        note: "RAM disk / Clock",
+      },
     ];
 
     // Track pending changes
