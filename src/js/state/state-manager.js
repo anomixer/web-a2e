@@ -33,6 +33,7 @@ const PREVIEW_HEIGHT = 384;
  * @property {Object} uiController - UI controller for notifications
  * @property {Object} diskManager - Disk manager for state sync
  * @property {Object} reminderController - Reminder controller
+ * @property {Object} [cpuDebuggerWindow] - CPU debugger window (for resync after import)
  */
 
 export class StateManager {
@@ -45,6 +46,7 @@ export class StateManager {
     this.uiController = deps.uiController;
     this.diskManager = deps.diskManager;
     this.reminderController = deps.reminderController;
+    this.cpuDebuggerWindow = deps.cpuDebuggerWindow || null;
 
     this.autoSaveEnabled = true;
     this.autoSaveInterval = null;
@@ -219,6 +221,12 @@ export class StateManager {
       }
       if (this.diskManager) {
         this.diskManager.syncWithEmulatorState();
+      }
+      // Re-push JS-side breakpoints/watchpoints/beam breakpoints to C++
+      // since importState() calls reset() which clears them on the WASM side
+      if (this.cpuDebuggerWindow) {
+        this.cpuDebuggerWindow.bpManager.resyncToWasm();
+        this.cpuDebuggerWindow.resyncBeamToWasm();
       }
       return true;
     } else {

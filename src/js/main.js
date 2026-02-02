@@ -282,6 +282,7 @@ class AppleIIeEmulator {
         uiController: this.uiController,
         diskManager: this.diskManager,
         reminderController: this.reminderController,
+        cpuDebuggerWindow: cpuWindow,
       });
       this.stateManager.init();
 

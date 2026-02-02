@@ -44,6 +44,7 @@ export class CPUDebuggerWindow extends BaseWindow {
     this.bookmarks = []; // Array of addresses
     this.loadBookmarks();
     this.beamBreakpoints = []; // Array of { id, scanline, hPos, enabled, mode }
+    this.loadBeamBreakpoints();
     this.activeTab = "breakpoints"; // Active tab panel (breakpoints, watch, beam)
     this._hitBpAddr = -1; // Address of the breakpoint/watchpoint that triggered a pause
     this._lastHitBpAddr = -2; // Previous value for change detection
@@ -1045,6 +1046,7 @@ export class CPUDebuggerWindow extends BaseWindow {
     if (id < 0) return; // full
 
     this.beamBreakpoints.push({ id, scanline, hPos, enabled: true, mode });
+    this.saveBeamBreakpoints();
     this.updateBeamList();
   }
 
@@ -1054,6 +1056,7 @@ export class CPUDebuggerWindow extends BaseWindow {
   removeBeamBreakpoint(id) {
     this.wasmModule._removeBeamBreakpoint(id);
     this.beamBreakpoints = this.beamBreakpoints.filter((bp) => bp.id !== id);
+    this.saveBeamBreakpoints();
     this.updateBeamList();
   }
 
@@ -1064,6 +1067,7 @@ export class CPUDebuggerWindow extends BaseWindow {
     this.wasmModule._enableBeamBreakpoint(id, enabled);
     const bp = this.beamBreakpoints.find((b) => b.id === id);
     if (bp) bp.enabled = enabled;
+    this.saveBeamBreakpoints();
     this.updateBeamList();
   }
 
@@ -1892,6 +1896,68 @@ export class CPUDebuggerWindow extends BaseWindow {
     }
     this.saveBookmarks();
     this.updateDisassembly();
+  }
+
+  // ---- Beam Breakpoint Persistence ----
+
+  static BEAM_STORAGE_KEY = "a2e-beam-breakpoints";
+
+  loadBeamBreakpoints() {
+    try {
+      const saved = localStorage.getItem(CPUDebuggerWindow.BEAM_STORAGE_KEY);
+      if (!saved) return;
+      const data = JSON.parse(saved);
+      for (const bp of data) {
+        const id = this.wasmModule._addBeamBreakpoint(bp.scanline, bp.hPos);
+        if (id < 0) continue;
+        if (!bp.enabled) {
+          this.wasmModule._enableBeamBreakpoint(id, false);
+        }
+        this.beamBreakpoints.push({
+          id,
+          scanline: bp.scanline,
+          hPos: bp.hPos,
+          enabled: bp.enabled,
+          mode: bp.mode,
+        });
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  saveBeamBreakpoints() {
+    try {
+      const data = this.beamBreakpoints.map((bp) => ({
+        scanline: bp.scanline,
+        hPos: bp.hPos,
+        enabled: bp.enabled,
+        mode: bp.mode,
+      }));
+      localStorage.setItem(
+        CPUDebuggerWindow.BEAM_STORAGE_KEY,
+        JSON.stringify(data),
+      );
+    } catch (e) { /* ignore */ }
+  }
+
+  /**
+   * Re-push all beam breakpoints from JS state to C++.
+   * Called after state import since importState() calls reset() which
+   * clears all WASM-side beam breakpoints.
+   */
+  resyncBeamToWasm() {
+    if (this.wasmModule._clearAllBeamBreakpoints) {
+      this.wasmModule._clearAllBeamBreakpoints();
+    }
+    for (const bp of this.beamBreakpoints) {
+      const newId = this.wasmModule._addBeamBreakpoint(bp.scanline, bp.hPos);
+      if (newId >= 0) {
+        bp.id = newId;
+        if (!bp.enabled) {
+          this.wasmModule._enableBeamBreakpoint(newId, false);
+        }
+      }
+    }
+    this.updateBeamList();
   }
 
   /**

@@ -391,6 +391,22 @@ export class BreakpointManager {
     }
   }
 
+  /**
+   * Re-push all breakpoints and watchpoints from JS state to C++.
+   * Called after state import since importState() calls reset() which
+   * clears all WASM-side breakpoints.
+   */
+  resyncToWasm() {
+    for (const [address, entry] of this.breakpoints) {
+      if (entry.isTemp) continue;
+      if (entry.type === "exec") {
+        this._syncWasmAdd(address, entry.enabled);
+      } else {
+        this._syncWatchpointAdd(entry);
+      }
+    }
+  }
+
   // ---- Persistence ----
 
   save() {
