@@ -45,6 +45,7 @@ export class UIController {
     this.reminderController = deps.reminderController;
     this.inputHandler = deps.inputHandler;
     this.themeManager = deps.themeManager;
+    this.windowSwitcher = deps.windowSwitcher;
 
     this.isFullPageMode = false;
     this.canvas = null;
@@ -69,6 +70,7 @@ export class UIController {
     this.setupDebugMenuActions();
     this.setupHelpMenuActions();
     this.setupThemeSelector();
+    this.setupWindowSwitcher();
   }
 
   /**
@@ -367,6 +369,28 @@ export class UIController {
     });
 
     updateActive();
+  }
+
+  /**
+   * Set up Ctrl+` shortcut to toggle the window switcher
+   */
+  setupWindowSwitcher() {
+    if (!this.windowSwitcher) return;
+
+    document.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.code === 'Backquote') {
+        e.preventDefault();
+        e.stopPropagation();
+
+        // Exit full-page mode first so the selected window is visible
+        if (this.isFullPageMode) {
+          const fullscreenBtn = document.getElementById('btn-fullscreen');
+          if (fullscreenBtn) fullscreenBtn.click();
+        }
+
+        this.windowSwitcher.toggle();
+      }
+    }, { capture: true });
   }
 
   /**

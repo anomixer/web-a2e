@@ -1,0 +1,150 @@
+/* Apple //e Emulator - Window Switcher Styles
+   Ctrl+` overlay for quick window switching
+*/
+
+/* Backdrop */
+.window-switcher-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    z-index: 1950;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.window-switcher-backdrop.hidden {
+    display: none;
+}
+
+/* Panel */
+.window-switcher-panel {
+    background: var(--glass-bg-solid);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg);
+    width: 380px;
+    max-height: 70vh;
+    overflow-y: auto;
+    box-shadow: var(--shadow-lg);
+    animation: modalSlideIn 0.2s ease-out;
+}
+
+/* Header */
+.window-switcher-header {
+    padding: var(--space-md) var(--space-lg);
+    border-bottom: 1px solid var(--glass-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.window-switcher-title {
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.window-switcher-hints {
+    font-family: var(--font-sans);
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    display: flex;
+    gap: var(--space-sm);
+    align-items: center;
+}
+
+.window-switcher-hints kbd {
+    display: inline-block;
+    padding: 1px 5px;
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--bg-light);
+    border: 1px solid var(--border-default);
+    border-radius: 3px;
+    box-shadow: 0 1px 0 var(--border-default);
+}
+
+/* Category groups */
+.window-switcher-group {
+    padding: var(--space-xs) 0;
+}
+
+.window-switcher-group-label {
+    font-family: var(--font-sans);
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    padding: var(--space-xs) var(--space-lg);
+    margin-top: var(--space-xs);
+}
+
+/* Items */
+.window-switcher-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 6px var(--space-lg);
+    border: none;
+    background: none;
+    font-family: var(--font-sans);
+    font-size: 0.8rem;
+    color: var(--text-primary);
+    cursor: pointer;
+    outline: none;
+    text-align: left;
+}
+
+.window-switcher-item:hover,
+.window-switcher-item.selected {
+    background: var(--accent-blue-bg);
+}
+
+.window-switcher-item-title {
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Visibility dot */
+.window-switcher-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    margin-left: var(--space-sm);
+}
+
+.window-switcher-dot.visible {
+    background: var(--accent-green);
+    box-shadow: 0 0 4px var(--accent-green);
+}
+
+/* Scrollbar styling */
+.window-switcher-panel::-webkit-scrollbar {
+    width: 6px;
+}
+
+.window-switcher-panel::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.window-switcher-panel::-webkit-scrollbar-thumb {
+    background: var(--border-default);
+    border-radius: 3px;
+}
+
+.window-switcher-panel::-webkit-scrollbar-thumb:hover {
+    background: var(--text-muted);
+}

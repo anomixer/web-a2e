@@ -18,6 +18,7 @@ import { ReminderController } from "./ui/reminder-controller.js";
 import { UIController } from "./ui/ui-controller.js";
 import { ThemeManager } from "./ui/theme-manager.js";
 import { SlotConfigurationWindow } from "./ui/slot-configuration-window.js";
+import { WindowSwitcher } from "./ui/window-switcher.js";
 import { StateManager } from "./state/state-manager.js";
 import { SaveStatesWindow } from "./state/save-states-window.js";
 import {
@@ -253,6 +254,10 @@ class AppleIIeEmulator {
       // Position/size windows for first-time users
       this.showDefaultWindows();
 
+      // Set up window switcher (Ctrl+`)
+      this.windowSwitcher = new WindowSwitcher(this.windowManager);
+      this.windowSwitcher.create();
+
       // Set up UI controller
       this.uiController = new UIController({
         emulator: this,
@@ -265,6 +270,7 @@ class AppleIIeEmulator {
         reminderController: this.reminderController,
         inputHandler: this.inputHandler,
         themeManager: this.themeManager,
+        windowSwitcher: this.windowSwitcher,
       });
       this.uiController.init();
 
