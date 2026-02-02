@@ -321,9 +321,21 @@
                 </div>
             </main>
 
-            <!-- Full page mode exit hint -->
-            <div class="full-page-exit-hint">
-                Press Ctrl+Escape or click to exit full page
+            <!-- Full page mode toolbar (auto-hiding) -->
+            <div class="full-page-toolbar-wrapper">
+                <div class="full-page-toolbar-trigger"></div>
+                <div class="full-page-toolbar" id="full-page-toolbar">
+                    <button id="fp-power" class="fp-toolbar-btn fp-power-btn off" title="Power">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2v10M18.4 6.6a9 9 0 1 1-12.8 0" />
+                        </svg>
+                    </button>
+                    <div class="fp-toolbar-separator"></div>
+                    <button id="fp-warm-reset" class="fp-toolbar-btn fp-text-btn" title="Ctrl+Reset (warm reset)">Ctrl+Reset</button>
+                    <button id="fp-cold-reset" class="fp-toolbar-btn fp-text-btn" title="Cold Reset (full restart)">Reboot</button>
+                    <div class="fp-toolbar-separator"></div>
+                    <button id="fp-exit" class="fp-toolbar-btn fp-text-btn fp-exit-btn" title="Exit Full Page Mode">Exit</button>
+                </div>
             </div>
 
             <footer>

@@ -409,6 +409,22 @@ export class UIController {
   }
 
   /**
+   * Sync the full-page toolbar power button with emulator state
+   */
+  syncFullPagePowerButton() {
+    const fpPower = document.getElementById("fp-power");
+    if (!fpPower) return;
+
+    if (this.emulator.isRunning()) {
+      fpPower.classList.remove("off");
+      fpPower.title = "Power Off";
+    } else {
+      fpPower.classList.add("off");
+      fpPower.title = "Power On";
+    }
+  }
+
+  /**
    * Set up fullscreen/full page mode controls
    */
   setupFullPageModeControls() {
@@ -453,6 +469,7 @@ export class UIController {
       this.windowManager.hideAll();
       document.body.classList.add("full-page-mode");
       this.isFullPageMode = true;
+      this.syncFullPagePowerButton();
       this.refocusCanvas();
     };
 
@@ -479,6 +496,52 @@ export class UIController {
         if (this.isFullPageMode && e.target.tagName !== "CANVAS") {
           exitFullPageMode();
         }
+      });
+    }
+
+    // --- Full-page toolbar button handlers ---
+
+    const fpPower = document.getElementById("fp-power");
+    if (fpPower) {
+      fpPower.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.reminderController.dismissPowerReminder();
+        if (this.emulator.isRunning()) {
+          this.emulator.stop();
+        } else {
+          this.emulator.start();
+        }
+        this.syncFullPagePowerButton();
+        this.refocusCanvas();
+      });
+    }
+
+    const fpWarmReset = document.getElementById("fp-warm-reset");
+    if (fpWarmReset) {
+      fpWarmReset.addEventListener("click", (e) => {
+        e.stopPropagation();
+        if (this.inputHandler) this.inputHandler.cancelPaste();
+        this.wasmModule._warmReset();
+        this.refocusCanvas();
+      });
+    }
+
+    const fpColdReset = document.getElementById("fp-cold-reset");
+    if (fpColdReset) {
+      fpColdReset.addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (this.inputHandler) this.inputHandler.cancelPaste();
+        this.wasmModule._reset();
+        await clearStateFromStorage();
+        this.refocusCanvas();
+      });
+    }
+
+    const fpExit = document.getElementById("fp-exit");
+    if (fpExit) {
+      fpExit.addEventListener("click", (e) => {
+        e.stopPropagation();
+        exitFullPageMode();
       });
     }
   }
@@ -628,6 +691,8 @@ export class UIController {
       powerBtn?.classList.add("off");
       if (powerBtn) powerBtn.title = "Power On";
     }
+
+    this.syncFullPagePowerButton();
   }
 
   /**
