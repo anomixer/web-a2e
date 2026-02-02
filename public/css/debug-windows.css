@@ -301,7 +301,7 @@
 }
 
 @keyframes reg-flash {
-    0% { color: #ffff00; background: rgba(255, 255, 0, 0.3); }
+    0% { color: var(--reg-flash-color); background: var(--reg-flash-bg); }
     100% { color: var(--accent-green); background: transparent; }
 }
 
@@ -344,7 +344,7 @@
     background: var(--accent-green-bg-strong);
     border-color: var(--accent-green-border);
     color: var(--accent-green);
-    box-shadow: 0 0 6px rgba(63, 185, 80, 0.25);
+    box-shadow: 0 0 6px var(--flag-active-glow);
 }
 
 .cpu-dbg-meta {
@@ -2904,15 +2904,15 @@
     flex: 1;
     position: relative;
     min-height: 150px;
-    background: rgba(0, 0, 0, 0.4);
+    background: var(--editor-bg);
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-sm);
     overflow: hidden;
 }
 
 .basic-editor-container:focus-within {
-    border-color: rgba(63, 185, 80, 0.6);
-    box-shadow: 0 0 0 2px rgba(63, 185, 80, 0.15);
+    border-color: var(--editor-focus-border);
+    box-shadow: 0 0 0 2px var(--editor-focus-shadow);
 }
 
 /* Shared styles for textarea and highlight overlay */
@@ -2955,12 +2955,12 @@
 }
 
 .basic-textarea::placeholder {
-    color: rgba(51, 255, 51, 0.4);
+    color: var(--editor-placeholder);
 }
 
 /* Syntax highlighting colors */
 .basic-highlight .bas-linenum {
-    color: #6e7681;
+    color: var(--editor-linenum);
 }
 
 .basic-highlight .bas-flow {
@@ -2991,7 +2991,7 @@
 }
 
 .basic-highlight .bas-var {
-    color: #ff9492;
+    color: var(--editor-var);
 }
 
 .basic-highlight .bas-misc {

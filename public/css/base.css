@@ -121,6 +121,21 @@
     --accent-purple-bg: rgba(188, 140, 255, 0.15);
     --accent-purple-bg-strong: rgba(188, 140, 255, 0.2);
 
+    /* Register flash (CPU debugger change highlight) */
+    --reg-flash-color: #ffff00;
+    --reg-flash-bg: rgba(255, 255, 0, 0.3);
+
+    /* Editor container (BASIC program window) */
+    --editor-bg: rgba(0, 0, 0, 0.4);
+    --editor-focus-border: rgba(63, 185, 80, 0.6);
+    --editor-focus-shadow: rgba(63, 185, 80, 0.15);
+    --editor-placeholder: rgba(51, 255, 51, 0.4);
+    --editor-linenum: #6e7681;
+    --editor-var: #ff9492;
+
+    /* Flag glow (CPU debugger active flags) */
+    --flag-active-glow: rgba(63, 185, 80, 0.25);
+
     /* Miscellaneous */
     --badge-dim-bg: rgba(110, 118, 129, 0.2);
     --badge-dim-border: rgba(110, 118, 129, 0.3);
@@ -290,6 +305,21 @@ html[data-theme="light"] {
     --accent-red-border: rgba(207, 34, 46, 0.3);
     --accent-purple-bg: rgba(130, 80, 223, 0.08);
     --accent-purple-bg-strong: rgba(130, 80, 223, 0.12);
+
+    /* Register flash (CPU debugger change highlight) */
+    --reg-flash-color: #7c4d00;
+    --reg-flash-bg: rgba(154, 103, 0, 0.15);
+
+    /* Editor container (BASIC program window) */
+    --editor-bg: rgba(246, 248, 250, 0.8);
+    --editor-focus-border: rgba(26, 127, 55, 0.5);
+    --editor-focus-shadow: rgba(26, 127, 55, 0.1);
+    --editor-placeholder: rgba(26, 127, 55, 0.4);
+    --editor-linenum: #656d76;
+    --editor-var: #cf222e;
+
+    /* Flag glow (CPU debugger active flags) */
+    --flag-active-glow: rgba(26, 127, 55, 0.2);
 
     /* Miscellaneous */
     --badge-dim-bg: rgba(139, 148, 158, 0.15);
