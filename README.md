@@ -1,77 +1,70 @@
-# Apple //e Browser Emulator
+# Apple //e Browser Based Emulator
 
-A cycle-accurate Apple //e Enhanced emulator that runs in the browser using WebAssembly and WebGL.
+A cycle-accurate Apple //e Enhanced emulator running in the browser using WebAssembly and WebGL. No JavaScript frameworks — vanilla ES6 modules with Vite for bundling. Having built native emulators in the past, this is my first attempt at a browser-based emulator, hopefully making it easier to allow cross platform users from making use of it :)
 
 ## Features
 
-- **Cycle-accurate 65C02 CPU emulation** - All legal opcodes plus 65C02 extensions
-- **Full Apple //e memory architecture** - 128KB RAM, language card, auxiliary memory, soft switches
-- **Multiple display modes** - Text (40/80 col), LoRes, Double LoRes, HiRes, Double HiRes
-- **Audio-driven timing** - Speaker emulation with Web Audio API driving frame timing
-- **WebGL rendering** - Hardware-accelerated display with optional CRT effects
-- **Disk II controller** - DSK, DO, PO, NIB, and WOZ format support with write support
-- **State persistence** - Auto-save and manual save/restore of complete emulator state
-- **Built-in debugger** - CPU debugger, memory browser, heat map, soft switch monitor, and more
+- **Cycle-accurate 65C02 CPU** — All legal 6502 opcodes plus 65C02 extensions at 1.023 MHz
+- **Full Apple //e memory architecture** — 128KB RAM (64KB main + 64KB auxiliary), language card, soft switches
+- **Multiple display modes** — Text (40/80 col), LoRes, Double LoRes, HiRes, Double HiRes, monochrome
+- **WebGL rendering** — Hardware-accelerated display with configurable CRT shader effects
+- **Audio-driven timing** — Web Audio API AudioWorklet drives frame timing at 48kHz
+- **Disk II controller** — DSK, DO, PO, NIB, and WOZ format support with write capability
+- **Expansion cards** — Mockingboard sound card, Thunderclock Plus, Apple Mouse Interface Card
+- **File explorer** — Browse DOS 3.3 and ProDOS disk contents with BASIC detokenizer and disassembler
+- **Save states** — Autosave slot plus 5 manual save slots, stored in IndexedDB
+- **Built-in debugger** — CPU debugger, memory browser, heat map, soft switch monitor, and more
+- **PWA support** — Install as a standalone app with offline functionality
 
 ## Prerequisites
 
 - [Emscripten SDK](https://emscripten.org/docs/getting_started/downloads.html) (3.0+)
 - CMake 3.20+
-- Node.js 18+ (for development server)
+- Node.js 18+
+
+## ROM Files
+
+Place the following ROM files in the `roms/` directory before building. ROMs are embedded into the WASM binary at compile time via `scripts/generate_roms.sh`.
+
+| File | Size | Description |
+|------|------|-------------|
+| `342-0349-B-C0-FF.bin` | 16KB | Apple IIe system ROM |
+| `342-0273-A-US-UK.bin` | 4KB | Character generator ROM (US/UK enhanced) |
+| `341-0027.bin` | 256 bytes | Disk II controller ROM |
+| `Thunderclock Plus ROM.bin` | 2KB | Thunderclock card ROM |
+| `Apple Mouse Interface Card ROM - 342-0270-C.bin` | 2KB | Mouse Interface Card ROM |
+
+An alternate character ROM variant `341-0160-A-US-UK.bin` (8KB) is also supported.
 
 ## Building
 
 ### Install Emscripten
 
 ```bash
-# Clone emsdk
 git clone https://github.com/emscripten-core/emsdk.git
 cd emsdk
-
-# Install and activate latest version
 ./emsdk install latest
 ./emsdk activate latest
-
-# Add to PATH (add to your shell profile for persistence)
 source ./emsdk_env.sh
 ```
 
-### Build the Emulator
+### Build and Run
 
 ```bash
-# Install npm dependencies
-npm install
-
-# Build WASM module
-npm run build:wasm
-
-# Or manually:
-mkdir -p build
-cd build
-emcmake cmake ..
-emmake make -j$(sysctl -n hw.ncpu)
-```
-
-### Development
-
-```bash
-# Start development server
-npm run dev
+npm install           # Install dependencies
+npm run build:wasm    # Build WASM module (required first time and after C++ changes)
+npm run dev           # Start dev server at localhost:3000 (hot-reload for JS only)
 ```
 
 Open http://localhost:3000 in your browser.
 
-## ROM Files
+### Other Commands
 
-Place the following ROM files in the `roms/` directory:
-
-| File | Size | Description |
-|------|------|-------------|
-| `342-0349-B-C0-FF.bin` | 16KB | Combined Apple IIe system ROM (C0-FF) |
-| `342-0273-A-US-UK.bin` | 4KB | Character generator ROM (US/UK enhanced) |
-| `341-0027.bin` | 256 bytes | Disk II controller ROM |
-
-ROMs are embedded into the WASM binary at build time via `scripts/generate_roms.sh`.
+```bash
+npm run build         # Full production build (WASM + Vite bundle)
+npm run clean         # Clean build artifacts
+npm run deploy        # Deploy to VPS via rsync
+```
 
 ## Usage
 
@@ -79,51 +72,9 @@ ROMs are embedded into the WASM binary at build time via `scripts/generate_roms.
 
 1. Click **Power** to start the emulator
 2. Click on the screen to give it keyboard focus
-3. Use **Insert** buttons to load disk images (DSK, WOZ, DO, PO, NIB formats)
+3. Use **Insert** buttons to load disk images (DSK, DO, PO, NIB, WOZ)
 4. Type `PR#6` and press Return to boot from drive 1
 5. Or press **Ctrl+Reset** to enter Applesoft BASIC
-
-### Controls
-
-| Button | Function |
-|--------|----------|
-| Power | Start/stop the emulator |
-| Ctrl+Reset | Warm reset (preserves memory) |
-| Reboot | Cold reset (full restart) |
-| Full Page | Expand display to fill browser window |
-| Drives | Show/hide the disk drive panel |
-| State | Save/restore emulator state |
-| Sound | Volume and mute controls |
-| Display | CRT effects and image settings |
-| Debug | CPU debugger and memory tools |
-| Help | In-app documentation (F1) |
-
-### State Management
-
-The emulator can save and restore its complete state, including CPU registers, all memory (main + auxiliary), soft switch states, and disk contents.
-
-**Auto-Save**: When enabled (default), the emulator automatically saves state every 5 seconds while running. This allows you to close the browser and resume exactly where you left off.
-
-**Manual Save/Restore**:
-- Click **Save Now** to immediately save the current state
-- Click **Restore** to reload the last saved state (performs a full power cycle)
-- State is stored in browser IndexedDB storage
-
-**How It Works**:
-1. State is serialized to a binary format with version control
-2. Includes: CPU state, 128KB RAM, Language Card RAM, all soft switches, disk images with modifications
-3. Restore performs a full power cycle (stop → start → import state)
-4. Disk filenames are preserved and displayed in the drive UI after restore
-
-### Disk Drives
-
-Each drive supports:
-- **Insert** - Load a disk image from file
-- **Recent** - Quick access to last 20 used disks (per drive)
-- **Blank** - Create a new formatted blank disk
-- **Eject** - Remove disk (prompts to save if modified)
-
-Drag and drop disk files directly onto drives. Modified disks can be saved when ejecting.
 
 ### Keyboard Mapping
 
@@ -138,134 +89,285 @@ Drag and drop disk files directly onto drives. Modified disks can be saved when 
 | Enter | Return |
 | Ctrl+Break | Reset (Ctrl+Reset) |
 
+### Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| F1 | Open help and documentation |
+| Ctrl+Escape | Toggle full-page mode |
+| Ctrl+V | Paste text into keyboard buffer |
+
 ### Text Selection
 
 Click and drag on the screen to select text. The selection is automatically copied to the clipboard when you release the mouse.
 
+### Disk Drives
+
+Each drive supports:
+- **Insert** — Load a disk image from file
+- **Recent** — Quick access to last 20 used disks (tracked per drive)
+- **Blank** — Create a new formatted blank disk
+- **Eject** — Remove disk (prompts to save if modified)
+
+Drag and drop disk files directly onto drives. Drive seek and motor sounds can be toggled on or off.
+
+### File Explorer
+
+Browse the contents of inserted disks:
+- **DOS 3.3** — Catalog listing with file type icons (Text, Integer BASIC, Applesoft BASIC, Binary, etc.)
+- **ProDOS** — Folder navigation with full ProDOS file type support
+- **File viewer** — View files as hex, BASIC listing (detokenized), or disassembly
+- **Disassembler** — Recursive descent flow analysis with symbol resolution
+
+### Save States
+
+- **Autosave** — Saves every 5 seconds while running (enabled by default)
+- **5 manual slots** — Save and restore at any time from the Save States window
+- State includes CPU registers, 128KB RAM, language card, soft switches, disk images with modifications, and filenames
+- Stored in browser IndexedDB
+
+### Display Settings
+
+The display settings window provides configurable CRT shader effects:
+
+- Screen curvature, scanlines, shadow mask
+- Phosphor glow, vignette, NTSC fringing
+- Flicker, static noise, jitter, horizontal sync lines
+- Brightness, contrast, saturation
+- Sharp pixels toggle, overscan/border control
+- Monochrome modes: Green, Amber, White
+
+### Expansion Cards
+
+Cards are configured via the slot configuration window (File menu).
+
+| Slot | Default | Available Cards |
+|------|---------|-----------------|
+| 1 | Empty | — |
+| 2 | Empty | Mouse Card |
+| 3 | 80-Column | Built-in (fixed) |
+| 4 | Mockingboard | Mouse Card, Empty |
+| 5 | Thunderclock Plus | Empty |
+| 6 | Disk II | Empty |
+| 7 | Empty | Thunderclock Plus, Mouse Card |
+
+**Mockingboard** — Dual AY-3-8910 sound chips with VIA 6522 timers. Stereo output with per-channel mute controls.
+
+**Thunderclock Plus** — ProDOS-compatible real-time clock card.
+
+**Apple Mouse Interface Card** — Mouse input via MC6821 PIA command protocol.
+
+### Joystick
+
+A floating joystick window provides visual paddle/joystick controls that map to the Apple II game ports ($C064-$C067).
+
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────┐
-│            Browser Environment               │
-├─────────────────────────────────────────────┤
-│  WebGL Renderer │ Web Audio │ IndexedDB     │
-├─────────────────────────────────────────────┤
-│           JavaScript Bridge                  │
-│  ┌─────────────────────────────────────┐    │
-│  │ Emulator │ DiskManager │ Debugger   │    │
-│  └─────────────────────────────────────┘    │
-├─────────────────────────────────────────────┤
-│           WebAssembly Module                 │
-│  ┌─────┬─────┬───────┬──────┬────────┐     │
-│  │ CPU │ MMU │ Video │Audio │ Disk II│     │
-│  │65C02│     │       │      │        │     │
-│  └─────┴─────┴───────┴──────┴────────┘     │
-│  ┌─────────────────────────────────────┐    │
-│  │     State Serialization (Binary)    │    │
-│  └─────────────────────────────────────┘    │
-└─────────────────────────────────────────────┘
++---------------------------------------------+
+|            Browser Environment              |
+|---------------------------------------------|
+|  WebGL Renderer | Web Audio | IndexedDB     |
+|---------------------------------------------|
+|           JavaScript Layer (ES6)            |
+|  +-------------------------------------+    |
+|  | Emulator | DiskManager | Debugger   |    |
+|  | Display  | FileExplorer| SaveStates |    |
+|  +-------------------------------------+    |
+|---------------------------------------------|
+|           WebAssembly Module (C++)          |
+|  +------+-----+-------+------+--------+     |
+|  | CPU  | MMU | Video | Audio| Disk II|     |
+|  |65C02 |128KB|       |      |        |     |
+|  +------+-----+-------+------+--------+     |
+|                                             |
+|  +-------+------------+-------+-------+     |
+|  | Cards | Filesystem | BASIC | Disasm|     |
+|  +-------+------------+-------+-------+     |
++---------------------------------------------+
 ```
 
 ### Audio-Driven Timing
 
-The emulator uses the Web Audio API to drive timing:
+The emulator uses Web Audio API to drive timing:
 
-1. AudioWorklet requests samples at 48kHz sample rate
-2. WASM runs CPU for required cycles (~21.3 cycles per sample)
-3. Speaker toggle events ($C030) generate audio waveform
-4. Video frame rendered when cycle count crosses ~17030 cycles (60 Hz)
+1. AudioWorklet requests samples at 48kHz
+2. WASM runs CPU for ~21.3 cycles per audio sample
+3. Speaker toggle events ($C030) generate the audio waveform
+4. Video frame rendered when cycle count crosses ~17,030 cycles (60 Hz)
 
-This approach ensures:
-- Consistent emulation speed tied to audio playback
-- No audio drift or crackling
-- Works even when browser tab is in background (AudioWorklet)
+This ensures consistent emulation speed, no audio drift, and operation even when the browser tab is backgrounded.
 
-### State Serialization
+### WASM Interface
 
-The emulator state is serialized to a versioned binary format:
-
-```
-┌──────────────────────────────────────┐
-│ Header: Magic (4) + Version (4)      │
-├──────────────────────────────────────┤
-│ CPU: PC, SP, A, X, Y, P, Cycles      │
-├──────────────────────────────────────┤
-│ MMU: Soft switches, banking state    │
-├──────────────────────────────────────┤
-│ Memory: 64KB Main + 64KB Aux RAM     │
-├──────────────────────────────────────┤
-│ Language Card: 16KB RAM banks        │
-├──────────────────────────────────────┤
-│ Disk Controller: Drive state, data   │
-│ - Track/phase positions              │
-│ - Motor state, Q6/Q7 latches         │
-│ - Full disk images with modifications│
-│ - Filenames for UI restoration       │
-└──────────────────────────────────────┘
-```
-
-State version is incremented when format changes to ensure compatibility.
-
-## Project Structure
-
-```
-web-a2e/
-├── src/
-│   ├── core/           # C++ emulator core
-│   │   ├── cpu/        # 65C02 CPU emulation
-│   │   ├── mmu/        # Memory management unit
-│   │   ├── video/      # Display rendering
-│   │   ├── audio/      # Speaker emulation
-│   │   ├── disk/       # Disk II controller
-│   │   └── input/      # Keyboard handling
-│   ├── bindings/       # WASM interface (wasm_interface.cpp)
-│   └── js/             # JavaScript layer
-│       ├── main.js           # Main emulator controller
-│       ├── disk-manager/     # Disk drive UI management
-│       ├── display-settings/ # Display configuration
-│       ├── sound-settings/   # Audio configuration
-│       ├── state-storage.js  # IndexedDB state persistence
-│       └── debug/            # Debug window implementations
-├── public/             # Static assets and built WASM
-│   ├── css/            # Stylesheets
-│   └── assets/         # Images and sounds
-├── roms/               # ROM files (not included)
-├── tests/              # Klaus Dormann CPU tests
-└── scripts/            # Build scripts
-```
+Single global `Emulator` instance in C++ (`wasm_interface.cpp`). JavaScript allocates WASM heap memory with `_malloc`/`_free` and uses `stringToUTF8()`/`UTF8ToString()` for string conversion. New WASM exports must be added to the `EXPORTED_FUNCTIONS` list in `CMakeLists.txt`.
 
 ## Debug Tools
 
-The emulator includes comprehensive debugging capabilities:
+All debug windows are accessible from the Debug menu.
 
 | Tool | Description |
 |------|-------------|
-| **CPU Debugger** | View registers (A, X, Y, SP, PC, flags), step through instructions, set breakpoints |
-| **Drive Monitor** | Watch disk drive activity, track position, motor state, read/write operations |
-| **Soft Switches** | Monitor Apple II soft switches for memory banking, display modes, I/O |
-| **Memory Browser** | Examine full 128KB address space with hex and ASCII views |
-| **Memory Heat Map** | Real-time visualization of memory read/write activity |
-| **Stack Viewer** | Monitor 6502 stack page ($0100-$01FF) |
-| **Zero Page Watch** | Track changes to zero page locations ($00-$FF) |
+| **CPU Debugger** | Registers, breakpoints, step/over/out, disassembly with symbols |
+| **Memory Browser** | Full 128KB hex/ASCII view with search |
+| **Memory Heat Map** | Real-time memory access visualization (read/write/combined) |
+| **Memory Map** | Address space layout overview |
+| **Stack Viewer** | Monitor stack page ($0100-$01FF) |
+| **Zero Page Watch** | Monitor zero page locations with predefined and custom watches |
+| **Soft Switch Monitor** | Apple II soft switch states ($C000-$C0FF) |
+| **Mockingboard** | AY-3-8910 and VIA 6522 register inspection |
+| **Mockingboard Scope** | Per-channel waveforms, level meters, mute controls |
+| **Mouse Card** | PIA registers, position, mode, interrupt state |
+| **BASIC Program Viewer** | View and load BASIC programs in memory |
+| **Rule Builder** | Complex conditional breakpoints with C-style expressions |
+
+The CPU debugger supports breakpoints (conditional with expression evaluation), watchpoints, beam breakpoints (video position), execution tracing, and a call stack viewer. Labels and symbols are supported for both system routines and user-defined addresses.
 
 ## Testing
 
-The project includes Klaus Dormann's comprehensive 6502/65C02 test suites:
+### CPU Compliance Tests
+
+Klaus Dormann's 6502/65C02 functional test suites:
 
 ```bash
-# Build and run native tests
 mkdir -p build-native && cd build-native
 cmake ..
 make -j$(sysctl -n hw.ncpu)
 ctest --verbose
 ```
 
+Test executables: `klaus_6502_test` (NMOS 6502), `klaus_65c02_test` (65C02 extended opcodes).
+
+### Thunderclock Tests
+
+Native C++ tests for Thunderclock card emulation, including MMU integration:
+
+```bash
+# Built and run via the same native CMake build above
+```
+
+### GCR Encoding Tests
+
+Native C++ tests for Group Code Recording disk encoding logic.
+
+### Integration Tests
+
+JavaScript tests for disk boot, memory, and debugging:
+
+```bash
+node tests/integration/disk-boot-test.js
+```
+
+## Project Structure
+
+```
+web-a2e/
+├── src/
+│   ├── core/                # C++ emulator core (namespace a2e::)
+│   │   ├── cpu/             # 65C02 CPU emulation
+│   │   ├── mmu/             # Memory management, soft switches
+│   │   ├── video/           # Per-scanline video rendering
+│   │   ├── audio/           # Speaker emulation
+│   │   ├── disk-image/      # Disk formats (DSK/DO/PO/NIB/WOZ), GCR encoding
+│   │   ├── disassembler/    # 65C02 disassembler
+│   │   ├── input/           # Keyboard handling
+│   │   ├── cards/           # Expansion card system
+│   │   │   └── mockingboard/  # AY-3-8910 + VIA 6522
+│   │   ├── filesystem/      # DOS 3.3 and ProDOS parsers
+│   │   ├── basic/           # BASIC detokenizer
+│   │   ├── debug/           # Condition evaluator
+│   │   ├── emulator.cpp     # Core coordinator, state serialization
+│   │   └── types.hpp        # Shared constants
+│   ├── bindings/            # wasm_interface.cpp (WASM exports)
+│   └── js/                  # ES6 modules
+│       ├── main.js          # AppleIIeEmulator entry point
+│       ├── audio/           # Web Audio API driver and AudioWorklet
+│       ├── config/          # App version
+│       ├── debug/           # Debug window implementations
+│       ├── disk-manager/    # Drive UI, persistence, surface renderer, sounds
+│       ├── display/         # WebGL renderer, CRT shaders, display settings
+│       ├── file-explorer/   # DOS 3.3/ProDOS browser, file viewer, disassembler
+│       ├── help/            # Documentation and release notes
+│       ├── input/           # Keyboard, text selection, joystick, mouse
+│       ├── state/           # Save state manager and persistence
+│       ├── ui/              # Menu wiring, reminders, slot configuration
+│       ├── utils/           # Storage, string, BASIC utilities
+│       └── windows/         # Base window class and window manager
+├── public/                  # Static assets, built WASM, shaders
+│   ├── css/                 # Stylesheets
+│   ├── shaders/             # CRT vertex/fragment shaders
+│   ├── assets/              # Images and sounds
+│   └── index.html           # Main HTML entry point
+├── roms/                    # ROM files (not included)
+├── tests/
+│   ├── klaus/               # Klaus Dormann CPU compliance tests
+│   ├── thunderclock/        # Thunderclock card tests
+│   ├── integration/         # JS integration tests
+│   └── gcr/                 # GCR encoding tests
+├── scripts/                 # Build scripts (generate_roms.sh)
+├── CMakeLists.txt           # C++ build configuration
+├── vite.config.js           # Vite bundler configuration
+└── package.json
+```
+
+## Development Workflow
+
+**C++ changes** require rebuilding WASM: `npm run build:wasm`
+
+**JavaScript changes** auto-reload via the Vite dev server.
+
+**Full build** for production: `npm run build` (outputs to `dist/`).
+
+## Browser Compatibility
+
+Requires WebAssembly, WebGL 2.0, Web Audio API (AudioWorklet), IndexedDB, and Service Worker support. Works in current versions of Chrome, Firefox, Safari, and Edge.
+
+## TODO
+
+### Expansion Cards
+- **Microsoft Softcard (Z80)** — Z80 co-processor card for running CP/M software
+- **Super Serial Card** — RS-232 serial interface for printer and modem emulation
+- **Parallel Printer Card** — Centronics parallel port for printing to file/PDF
+
+### Input
+- **Host game controller support** — Map physical USB/Bluetooth gamepads to Apple II joystick via the Gamepad API
+- **Configurable key bindings** — Allow remapping of Apple II keys and shortcuts
+
+### Disk & Storage
+- **Improved WOZ copy protection compatibility** — Better support for timing-sensitive copy protection schemes (quarter-track stepping, weak/flux bits, cross-track sync)
+- **2IMG format support** — Universal disk image format with metadata
+- **SmartPort / 3.5" drive emulation** — ProDOS block devices and 800KB disk support
+- **Hard disk emulation** — Virtual hard disk image for large ProDOS volumes
+
+### Development Tools
+- **Integrated assembler** — Edit, assemble, and load 6502/65C02 code directly within the emulator
+- **Source-level debugging** — Load symbol files and step through assembly source
+- **Profiler** — Cycle-accurate performance profiling with per-routine breakdown and heat maps
+- **I/O trace log** — Record and replay soft switch and card I/O activity
+
+### Audio
+- **Mockingboard speech synthesis** — SC-01 Votrax speech chip emulation
+- **SAM speech synthesizer** — Software Automatic Mouth support
+
+### Display
+- **Video recording** — Capture emulator screen to video file
+- **Screenshot export** — Save screen contents as PNG
+
+### Networking
+- **Uthernet / Ethernet emulation** — TCP/IP networking via WebSocket bridge for Contiki, etc.
+
+### Platform
+- **Disk image library** — Browse and load from a curated online software archive
+- **URL disk loading** — Load disk images directly from a URL parameter
+- **Mobile touch controls** — On-screen keyboard and virtual joystick optimized for touch devices
+
 ## License
 
-This is a hobby project for educational purposes.
+MIT License. See [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
 - Based on the native [a2e](https://github.com/mikedaley/a2e) emulator
 - CPU emulation derived from [MOS6502](https://github.com/mikedaley/MOS6502)
 - Klaus Dormann's [6502 functional tests](https://github.com/Klaus2m5/6502_65C02_functional_tests)
+- Inspired by [AppleWin](https://github.com/AppleWin/AppleWin) and [Apple2TS](https://github.com/nickmcummins/apple2ts), both outstanding Apple II emulators that have been invaluable references for hardware accuracy and feature direction
