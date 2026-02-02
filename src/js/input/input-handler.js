@@ -21,6 +21,10 @@ export class InputHandler {
     this.pasteTimer = null;
     this.pasteSpeedUp = false; // whether we've set a speed multiplier for paste
     this.savedSpeedMultiplier = 1; // speed before paste started
+
+    // MessageChannel for zero-delay batch scheduling (avoids setTimeout's ~4ms minimum)
+    this.pasteChannel = new MessageChannel();
+    this.pasteChannel.port1.onmessage = () => this.processPasteQueue();
   }
 
   init() {
@@ -186,7 +190,7 @@ export class InputHandler {
     }
 
     const BOOST_BATCH = 500; // small cycle batch for immediate key processing
-    const TIME_BUDGET_MS = 50;
+    const TIME_BUDGET_MS = 30;
     const batchEnd = performance.now() + TIME_BUDGET_MS;
 
     while (this.pasteQueue.length > 0 && performance.now() < batchEnd) {
@@ -210,9 +214,8 @@ export class InputHandler {
 
     // Schedule next batch if more characters remain
     if (this.pasteQueue.length > 0) {
-      this.pasteTimer = setTimeout(() => {
-        this.processPasteQueue();
-      }, 0);
+      this.pasteTimer = true;
+      this.pasteChannel.port2.postMessage(null);
     } else {
       this.restorePasteSpeed();
       this.pasteTimer = null;
@@ -240,10 +243,7 @@ export class InputHandler {
 
   // Cancel any pending paste operation
   cancelPaste() {
-    if (this.pasteTimer) {
-      clearTimeout(this.pasteTimer);
-      this.pasteTimer = null;
-    }
+    this.pasteTimer = null;
     this.pasteQueue = [];
     this.restorePasteSpeed();
   }
