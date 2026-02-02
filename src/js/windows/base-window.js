@@ -332,6 +332,17 @@ export class BaseWindow {
       newHeight = maxBottom - newTop;
     }
 
+    // Re-apply minimum constraints after viewport clamping, shifting
+    // position if needed so the window stays on screen at its min size
+    if (newWidth < this.minWidth) {
+      newWidth = this.minWidth;
+      newLeft = Math.max(0, Math.min(newLeft, window.innerWidth - newWidth));
+    }
+    if (newHeight < this.minHeight) {
+      newHeight = this.minHeight;
+      newTop = Math.max(minTop, Math.min(newTop, maxBottom - newHeight));
+    }
+
     this.element.style.width = `${newWidth}px`;
     this.element.style.height = `${newHeight}px`;
     this.element.style.left = `${newLeft}px`;

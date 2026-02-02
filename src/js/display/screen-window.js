@@ -22,7 +22,6 @@ export class ScreenWindow extends BaseWindow {
 
     this.renderer = renderer;
     this.textSelection = textSelection;
-    this._layoutMetrics = null;
     this._viewportLocked = false;
   }
 
@@ -31,7 +30,8 @@ export class ScreenWindow extends BaseWindow {
   }
 
   /**
-   * After create(), inject the charset toggle into the header.
+   * After create(), inject the charset toggle into the header and
+   * set up a ResizeObserver so the canvas tracks container size.
    */
   onContentRendered() {
     const charsetSwitch = document.createElement('div');
@@ -73,6 +73,14 @@ export class ScreenWindow extends BaseWindow {
     this._lockBtn.addEventListener('click', () => {
       this.setViewportLocked(!this._viewportLocked);
     });
+
+    // Observe the content container so _fitCanvas runs whenever
+    // the window is resized, restored, arranged, etc.
+    const container = this.contentElement.querySelector('.screen-window-content');
+    if (container) {
+      this._resizeObserver = new ResizeObserver(() => this._fitCanvas());
+      this._resizeObserver.observe(container);
+    }
   }
 
   /**
@@ -113,12 +121,7 @@ export class ScreenWindow extends BaseWindow {
       this.textSelection.reattach();
     }
 
-    this._layoutMetrics = null;
-    this._fitToWindow();
-
-    // _fitToWindow skips _updateRendererSize when viewport-locked, but the
-    // renderer always needs to know the canvas display size after attach.
-    this._updateRendererSize();
+    this._fitCanvas();
   }
 
   /**
@@ -143,15 +146,11 @@ export class ScreenWindow extends BaseWindow {
   }
 
   /**
-   * After showing, invalidate metrics and fit canvas.
+   * After showing, fit the canvas to the content area.
    */
   show() {
     super.show();
-    this._layoutMetrics = null;
-    // Defer fit so layout is settled (skip if viewport-locked — constrainToViewport handles sizing)
-    if (!this._viewportLocked) {
-      requestAnimationFrame(() => this._fitToWindow());
-    }
+    requestAnimationFrame(() => this._fitCanvas());
   }
 
   /**
@@ -164,82 +163,36 @@ export class ScreenWindow extends BaseWindow {
   }
 
   /**
-   * After restoring persisted state, derive height from width to maintain 4:3.
+   * Restore persisted state.
    */
   restoreState(state) {
     if (state.viewportLocked) {
       this.setViewportLocked(true);
     }
-
-    if (state.x !== undefined) {
-      this.element.style.left = `${state.x}px`;
-      this.currentX = state.x;
-    }
-    if (state.y !== undefined) {
-      this.element.style.top = `${state.y}px`;
-      this.currentY = state.y;
-    }
-    if (state.width !== undefined) {
-      const width = Math.max(state.width, this.minWidth);
-      this.element.style.width = `${width}px`;
-      this.currentWidth = width;
-    }
-
-    // Derive height from width for 4:3 aspect ratio
-    const h = Math.max(this.minHeight, this._heightForWidth(this.currentWidth));
-    this.element.style.height = `${h}px`;
-    this.currentHeight = h;
-
-    this.constrainToViewport();
-    this.updateEdgeDistances();
-
-    if (state.visible) {
-      this.show();
-    }
+    super.restoreState(state);
   }
 
   /**
-   * Constrain to viewport.  When viewport-locked, resize to fill the
-   * available area at 4:3 and centre.  Otherwise just shrink if needed.
-   * Called by WindowManager on browser resize.
+   * Constrain to viewport.  When viewport-locked, fill the available
+   * area and centre.  The canvas handles its own 4:3 aspect ratio
+   * via _fitCanvas.
    */
   constrainToViewport() {
     if (!this.element) return;
 
-    const vpW = window.innerWidth;
-    const vpH = window.innerHeight;
-    const header = document.querySelector('header');
-    const footer = document.querySelector('footer');
-    const minTop = header ? header.offsetHeight : 0;
-    const footerH = footer ? footer.offsetHeight : 0;
-    const maxBottom = vpH - footerH;
-    const availW = vpW;
-    const availH = maxBottom - minTop;
-    const margin = 8;
-
-    const m = this._layoutMetrics || { hPad: 4, vFixed: 34 };
-    let w = this.currentWidth;
-    let h = this.currentHeight;
-
     if (this._viewportLocked) {
-      // Fill the available viewport at 4:3
-      const maxCanvasW = availW - margin * 2 - m.hPad;
-      const maxCanvasH = availH - margin * 2 - m.vFixed;
+      const vpW = window.innerWidth;
+      const vpH = window.innerHeight;
+      const header = document.querySelector('header');
+      const footer = document.querySelector('footer');
+      const minTop = header ? header.offsetHeight : 0;
+      const footerH = footer ? footer.offsetHeight : 0;
+      const margin = 8;
 
-      let canvasW, canvasH;
-      if (maxCanvasW * 3 / 4 <= maxCanvasH) {
-        canvasW = maxCanvasW;
-        canvasH = canvasW * 3 / 4;
-      } else {
-        canvasH = maxCanvasH;
-        canvasW = canvasH * 4 / 3;
-      }
-
-      w = Math.max(this.minWidth, Math.round(canvasW + m.hPad));
-      h = Math.max(this.minHeight, Math.round(canvasH + m.vFixed));
-
-      const x = Math.round((vpW - w) / 2);
-      const y = minTop + Math.round((availH - h) / 2);
+      const w = vpW - margin * 2;
+      const h = vpH - minTop - footerH - margin * 2;
+      const x = margin;
+      const y = minTop + margin;
 
       this.element.style.width = `${w}px`;
       this.element.style.height = `${h}px`;
@@ -249,230 +202,76 @@ export class ScreenWindow extends BaseWindow {
       this.currentHeight = h;
       this.currentX = x;
       this.currentY = y;
-      this._updateRendererSize();
+
+      this.lastViewportWidth = vpW;
+      this.lastViewportHeight = vpH;
     } else {
-      // Only shrink if the window exceeds the available space
-      if (w > availW || h > availH) {
-        const maxCanvasW = availW - m.hPad;
-        const maxCanvasH = availH - m.vFixed;
-
-        let canvasW, canvasH;
-        if (maxCanvasW * 3 / 4 <= maxCanvasH) {
-          canvasW = maxCanvasW;
-          canvasH = canvasW * 3 / 4;
-        } else {
-          canvasH = maxCanvasH;
-          canvasW = canvasH * 4 / 3;
-        }
-
-        w = Math.max(this.minWidth, Math.round(canvasW + m.hPad));
-        h = Math.max(this.minHeight, Math.round(canvasH + m.vFixed));
-
-        this.element.style.width = `${w}px`;
-        this.element.style.height = `${h}px`;
-        this.currentWidth = w;
-        this.currentHeight = h;
-        this._updateRendererSize();
-      }
-
-      // Clamp position within bounds
-      let x = this.currentX;
-      let y = this.currentY;
-
-      if (x + w > vpW) x = vpW - w;
-      if (x < 0) x = 0;
-      if (y + h > maxBottom) y = maxBottom - h;
-      if (y < minTop) y = minTop;
-
-      if (x !== this.currentX || y !== this.currentY) {
-        this.element.style.left = `${x}px`;
-        this.element.style.top = `${y}px`;
-        this.currentX = x;
-        this.currentY = y;
-      }
+      super.constrainToViewport();
     }
-
-    this.lastViewportWidth = vpW;
-    this.lastViewportHeight = vpH;
   }
 
   /**
-   * At resize start, ensure layout metrics exist.
-   */
-  startResize(e, direction) {
-    if (!this._layoutMetrics) this._measureLayout();
-    super.startResize(e, direction);
-  }
-
-  /**
-   * Width-driven resize maintaining 4:3 canvas aspect ratio.
+   * After standard resize, update the canvas to fit the new content area.
    */
   resize(e) {
-    const dx = e.clientX - this.resizeStart.x;
-    const dy = e.clientY - this.resizeStart.y;
-    const dir = this.resizeDirection;
-
-    // Get header and footer heights for bounds checking
-    const header = document.querySelector('header');
-    const footer = document.querySelector('footer');
-    const minTop = header ? header.offsetHeight : 0;
-    const footerHeight = footer ? footer.offsetHeight : 0;
-    const maxBottom = window.innerHeight - footerHeight;
-
-    let newWidth = this.resizeStart.width;
-    let newLeft = this.resizeStart.left;
-    let newTop = this.resizeStart.top;
-
-    // Horizontal drag changes width
-    if (dir.includes('e')) {
-      newWidth = this.resizeStart.width + dx;
-    }
-    if (dir.includes('w')) {
-      const proposed = this.resizeStart.width - dx;
-      if (proposed >= this.minWidth) {
-        newWidth = proposed;
-        newLeft = this.resizeStart.left + dx;
-      }
-    }
-
-    // Pure vertical drag — reverse-derive width from height
-    if (!dir.includes('e') && !dir.includes('w')) {
-      let proposedHeight = this.resizeStart.height;
-      if (dir.includes('s')) proposedHeight = this.resizeStart.height + dy;
-      if (dir.includes('n')) proposedHeight = this.resizeStart.height - dy;
-      const m = this._layoutMetrics || { hPad: 4, vFixed: 34 };
-      const canvasH = Math.max(0, proposedHeight - m.vFixed);
-      const canvasW = canvasH * (4 / 3);
-      newWidth = canvasW + m.hPad;
-    }
-
-    // Clamp width
-    newLeft = Math.max(0, newLeft);
-    if (newLeft + newWidth > window.innerWidth) {
-      newWidth = window.innerWidth - newLeft;
-    }
-    newWidth = Math.max(this.minWidth, newWidth);
-
-    // Derive height from width
-    let newHeight = Math.max(this.minHeight, this._heightForWidth(newWidth));
-
-    // Adjust top for north drags
-    if (dir.includes('n')) {
-      newTop = this.resizeStart.top + this.resizeStart.height - newHeight;
-    }
-
-    // Clamp vertically (respect header and footer)
-    newTop = Math.max(minTop, newTop);
-    if (newTop + newHeight > maxBottom) {
-      newHeight = maxBottom - newTop;
-    }
-
-    // If height was clamped below what 4:3 requires, re-derive width to match
-    const idealHeight = Math.max(this.minHeight, this._heightForWidth(newWidth));
-    if (newHeight < idealHeight) {
-      const m = this._layoutMetrics || { hPad: 4, vFixed: 34 };
-      const canvasH = Math.max(0, newHeight - m.vFixed);
-      const canvasW = canvasH * (4 / 3);
-      newWidth = Math.max(this.minWidth, Math.round(canvasW + m.hPad));
-      newHeight = Math.max(this.minHeight, this._heightForWidth(newWidth));
-      if (dir.includes('w')) {
-        newLeft = this.resizeStart.left + this.resizeStart.width - newWidth;
-      }
-    }
-
-    this.element.style.width = `${newWidth}px`;
-    this.element.style.height = `${newHeight}px`;
-    this.element.style.left = `${newLeft}px`;
-    this.element.style.top = `${newTop}px`;
-    this.currentWidth = newWidth;
-    this.currentHeight = newHeight;
-    this.currentX = newLeft;
-    this.currentY = newTop;
-
-    // Resize the WebGL renderer to match the new canvas size
-    this._updateRendererSize();
+    super.resize(e);
+    this._fitCanvas();
   }
 
   /**
-   * After resize completes, update renderer.
+   * After resize completes, do a final canvas fit.
    */
   handleMouseUp(e) {
     const wasResizing = this.isResizing;
     super.handleMouseUp(e);
     if (wasResizing) {
-      this._updateRendererSize();
+      this._fitCanvas();
     }
   }
 
   /**
-   * Compute correct window height for a given width (4:3 canvas).
-   *   canvasW = windowW - hPad
-   *   canvasH = canvasW / (4/3)
-   *   windowH = canvasH + vFixed
+   * Compute the largest 4:3 rectangle that fits within the content
+   * container and apply it to the canvas display size and renderer.
    */
-  _heightForWidth(w) {
-    if (!this._layoutMetrics) this._measureLayout();
-    const m = this._layoutMetrics;
-    const canvasW = w - m.hPad;
-    const canvasH = canvasW / (4 / 3);
-    return Math.round(canvasH + m.vFixed);
-  }
+  _fitCanvas() {
+    const container = this.contentElement?.querySelector('.screen-window-content');
+    const canvas = document.getElementById('screen');
+    if (!container || !canvas) return;
 
-  /**
-   * Measure the fixed padding/chrome once while visible.
-   */
-  _measureLayout() {
-    const canvas = this.element.querySelector('#screen');
-    if (!canvas) {
-      // Fallback if canvas hasn't been attached yet
-      this._layoutMetrics = { hPad: 4, vFixed: 34 };
-      return;
+    const cw = container.clientWidth;
+    const ch = container.clientHeight;
+    if (cw <= 0 || ch <= 0) return;
+
+    let w, h;
+    if (cw * 3 / 4 <= ch) {
+      w = cw;
+      h = cw * 3 / 4;
+    } else {
+      h = ch;
+      w = ch * 4 / 3;
     }
+    w = Math.floor(w);
+    h = Math.floor(h);
 
-    const canvasRect = canvas.getBoundingClientRect();
-    const windowRect = this.element.getBoundingClientRect();
+    canvas.style.width = `${w}px`;
+    canvas.style.height = `${h}px`;
 
-    if (canvasRect.width === 0 || canvasRect.height === 0) {
-      // Canvas not visible yet, use fallback
-      this._layoutMetrics = { hPad: 4, vFixed: 34 };
-      return;
+    if (this.renderer) {
+      this.renderer.resize(w, h);
     }
-
-    const hPad = windowRect.width - canvasRect.width;
-    const vFixed = windowRect.height - canvasRect.height;
-
-    this._layoutMetrics = { hPad, vFixed };
-  }
-
-  /**
-   * Set window height to match current width at 4:3.
-   * Skipped when viewport-locked (constrainToViewport manages sizing).
-   */
-  _fitToWindow() {
-    if (!this.isVisible || this._viewportLocked) return;
-
-    this._measureLayout();
-    const h = Math.max(this.minHeight, this._heightForWidth(this.currentWidth));
-    this.element.style.height = `${h}px`;
-    this.currentHeight = h;
-
-    this._updateRendererSize();
-  }
-
-  /**
-   * Tell the WebGL renderer about the current canvas display size.
-   */
-  _updateRendererSize() {
-    const canvas = this.element.querySelector('#screen');
-    if (!canvas || !this.renderer) return;
-
-    const rect = canvas.getBoundingClientRect();
-    if (rect.width > 0 && rect.height > 0) {
-      this.renderer.resize(rect.width, rect.height);
-    }
-
     if (this.textSelection) {
       this.textSelection.resize();
     }
+  }
+
+  /**
+   * Clean up ResizeObserver.
+   */
+  destroy() {
+    if (this._resizeObserver) {
+      this._resizeObserver.disconnect();
+      this._resizeObserver = null;
+    }
+    super.destroy();
   }
 }

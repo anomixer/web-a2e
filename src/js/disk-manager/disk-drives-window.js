@@ -266,6 +266,14 @@ export class DiskDrivesWindow extends BaseWindow {
     return Math.round(canvasH + m.vFixed);
   }
 
+  _widthForHeight(h) {
+    if (!this._layoutMetrics) this._measureLayout();
+    const m = this._layoutMetrics;
+    const canvasH = Math.max(0, h - m.vFixed);
+    const canvasW = canvasH * (280 / 240);
+    return Math.round(canvasW * 2 + m.hPad);
+  }
+
   /**
    * Measure the fixed horizontal padding and vertical overhead once.
    * Must be called while the window is visible.

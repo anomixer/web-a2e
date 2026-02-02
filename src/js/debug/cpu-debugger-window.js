@@ -1317,8 +1317,8 @@ export class CPUDebuggerWindow extends BaseWindow {
       addr += this.getInstructionLength(opcode);
     }
 
-    // Scroll to keep PC visible
-    if (pcLineElement) {
+    // Scroll to keep PC visible only while running — when paused, let user scroll freely
+    if (pcLineElement && !this.wasmModule._isPaused()) {
       const viewRect = view.getBoundingClientRect();
       const lineRect = pcLineElement.getBoundingClientRect();
 

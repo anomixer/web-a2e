@@ -342,37 +342,21 @@ class AppleIIeEmulator {
     const margin = 8;
 
     const sw = this.screenWindow;
-    const swM = sw._layoutMetrics || { hPad: 4, vFixed: 34 };
 
-    // Largest 4:3 canvas that fits within the available space
-    const maxCanvasW = availW - margin * 2 - swM.hPad;
-    const maxCanvasH = availH - margin * 2 - swM.vFixed;
+    // Fill the available viewport; canvas maintains its own 4:3 ratio
+    const w = availW - margin * 2;
+    const h = availH - margin * 2;
+    const x = margin;
+    const y = headerH + margin;
 
-    let canvasW, canvasH;
-    if (maxCanvasW * 3 / 4 <= maxCanvasH) {
-      // Width is the limiting dimension
-      canvasW = maxCanvasW;
-      canvasH = canvasW * 3 / 4;
-    } else {
-      // Height is the limiting dimension
-      canvasH = maxCanvasH;
-      canvasW = canvasH * 4 / 3;
-    }
-
-    const screenW = Math.max(sw.minWidth, Math.round(canvasW + swM.hPad));
-    const screenH = Math.max(sw.minHeight, Math.round(canvasH + swM.vFixed));
-    const screenX = Math.round((vpW - screenW) / 2);
-    const screenY = headerH + Math.round((availH - screenH) / 2);
-
-    sw.element.style.left = `${screenX}px`;
-    sw.element.style.top = `${screenY}px`;
-    sw.element.style.width = `${screenW}px`;
-    sw.element.style.height = `${screenH}px`;
-    sw.currentX = screenX;
-    sw.currentY = screenY;
-    sw.currentWidth = screenW;
-    sw.currentHeight = screenH;
-    sw._updateRendererSize();
+    sw.element.style.left = `${x}px`;
+    sw.element.style.top = `${y}px`;
+    sw.element.style.width = `${w}px`;
+    sw.element.style.height = `${h}px`;
+    sw.currentX = x;
+    sw.currentY = y;
+    sw.currentWidth = w;
+    sw.currentHeight = h;
 
     // Lock to viewport by default so the window tracks browser resizes
     sw.setViewportLocked(true);

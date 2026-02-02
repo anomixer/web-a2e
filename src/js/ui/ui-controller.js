@@ -266,6 +266,15 @@ export class UIController {
         this.refocusCanvas();
       });
     }
+
+    const arrangeBtn = document.getElementById("btn-arrange-windows");
+    if (arrangeBtn) {
+      arrangeBtn.addEventListener("click", () => {
+        this.windowManager.arrangeWindows();
+        this.closeAllMenus();
+        this.refocusCanvas();
+      });
+    }
   }
 
 
@@ -389,6 +398,13 @@ export class UIController {
         }
 
         this.windowSwitcher.toggle();
+      }
+
+      // Ctrl+Shift+A to arrange windows
+      if (e.ctrlKey && e.shiftKey && e.code === 'KeyA') {
+        e.preventDefault();
+        e.stopPropagation();
+        this.windowManager.arrangeWindows();
       }
     }, { capture: true });
   }
