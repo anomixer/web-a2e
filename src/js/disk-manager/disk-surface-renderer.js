@@ -44,7 +44,29 @@ export class DiskSurfaceRenderer {
     // Previous state for dirty checking
     this._prev = {};
 
+    // Theme colors (read from CSS variables)
+    this._lastTheme = null;
+    this._updateThemeColors();
+
     this._drawEmpty();
+  }
+
+  _updateThemeColors() {
+    const s = getComputedStyle(document.documentElement);
+    const v = (name, fallback) => s.getPropertyValue(name).trim() || fallback;
+    this._colors = {
+      bg:             v('--disk-bg', '#161b22'),
+      medium:         v('--disk-medium', '#1a1308'),
+      sectorLine:     v('--disk-sector-line', 'rgba(255,255,255,0.08)'),
+      ghostOutline:   v('--disk-ghost-outline', 'rgba(255,255,255,0.06)'),
+      ghostSector:    v('--disk-ghost-sector', 'rgba(255,255,255,0.03)'),
+      ghostHub:       v('--disk-ghost-hub', 'rgba(210,208,200,0.08)'),
+      hubRing:        v('--disk-hub-ring', 'rgba(210,208,200,0.85)'),
+      hubEdge:        v('--disk-hub-edge', 'rgba(255,255,255,0.12)'),
+      hubEdgeInner:   v('--disk-hub-edge-inner', 'rgba(255,255,255,0.08)'),
+      holeEdge:       v('--disk-hole-edge', 'rgba(0,0,0,0.3)'),
+      diskEdge:       v('--disk-edge', 'rgba(255,255,255,0.06)'),
+    };
   }
 
   update(state) {
@@ -52,6 +74,14 @@ export class DiskSurfaceRenderer {
       hasDisk, isActive, isWriteMode, quarterTrack, track,
       trackAccessCounts, maxAccessCount, diskColor, timestamp
     } = state;
+
+    // Check for theme changes
+    const currentTheme = document.documentElement.dataset.theme;
+    if (this._lastTheme !== currentTheme) {
+      this._lastTheme = currentTheme;
+      this._updateThemeColors();
+      this._prev = {};  // force full redraw
+    }
 
     // Rotation physics
     const dt = this.lastTimestamp > 0 ? timestamp - this.lastTimestamp : 0;
@@ -121,15 +151,16 @@ export class DiskSurfaceRenderer {
 
   _drawEmpty() {
     const ctx = this.ctx;
+    const c = this._colors;
     ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
-    ctx.fillStyle = '#161b22';
+    ctx.fillStyle = c.bg;
     ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
     // Ghost disk — faint outline of the platter
     ctx.beginPath();
     ctx.arc(CENTER_X, CENTER_Y, OUTER_RADIUS, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.strokeStyle = c.ghostOutline;
     ctx.lineWidth = 1;
     ctx.stroke();
 
@@ -139,7 +170,7 @@ export class DiskSurfaceRenderer {
     ctx.translate(CENTER_X, CENTER_Y);
     for (let s = 0; s < NUM_SECTORS; s++) {
       const a = (s / NUM_SECTORS) * TWO_PI;
-      ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+      ctx.strokeStyle = c.ghostSector;
       ctx.lineWidth = 0.5;
       ctx.beginPath();
       ctx.moveTo(Math.cos(a) * TRACK_INNER, Math.sin(a) * TRACK_INNER);
@@ -152,13 +183,13 @@ export class DiskSurfaceRenderer {
     ctx.beginPath();
     ctx.arc(CENTER_X, CENTER_Y, HUB_RING_OUTER, 0, Math.PI * 2);
     ctx.arc(CENTER_X, CENTER_Y, HUB_RING_INNER, TWO_PI, 0, true);
-    ctx.fillStyle = 'rgba(210,208,200,0.08)';
+    ctx.fillStyle = c.ghostHub;
     ctx.fill();
 
     // Ghost center hole
     ctx.beginPath();
     ctx.arc(CENTER_X, CENTER_Y, HUB_HOLE_RADIUS, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.strokeStyle = c.ghostOutline;
     ctx.lineWidth = 0.5;
     ctx.stroke();
 
@@ -171,20 +202,21 @@ export class DiskSurfaceRenderer {
     } = state;
 
     const ctx = this.ctx;
+    const c = this._colors;
     ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
     // Background
-    ctx.fillStyle = '#161b22';
+    ctx.fillStyle = c.bg;
     ctx.fillRect(0, 0, CANVAS_W, CANVAS_H);
 
     // 1. Magnetic medium — dark brown disk
     ctx.beginPath();
     ctx.arc(CENTER_X, CENTER_Y, OUTER_RADIUS, 0, Math.PI * 2);
-    ctx.fillStyle = '#1a1308';
+    ctx.fillStyle = c.medium;
     ctx.fill();
 
     // Subtle edge
-    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.strokeStyle = c.diskEdge;
     ctx.lineWidth = 0.5;
     ctx.stroke();
 
@@ -242,7 +274,7 @@ export class DiskSurfaceRenderer {
   _drawSectorLines(ctx) {
     const TWO_PI = Math.PI * 2;
 
-    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.strokeStyle = this._colors.sectorLine;
     ctx.lineWidth = 0.5;
     for (let s = 0; s < NUM_SECTORS; s++) {
       const a = (s / NUM_SECTORS) * TWO_PI;
@@ -306,34 +338,36 @@ export class DiskSurfaceRenderer {
   }
 
   _drawHub(ctx) {
+    const c = this._colors;
+
     // White reinforcement hub ring
     ctx.beginPath();
     ctx.arc(CENTER_X, CENTER_Y, HUB_RING_OUTER, 0, Math.PI * 2);
     ctx.arc(CENTER_X, CENTER_Y, HUB_RING_INNER, Math.PI * 2, 0, true);
-    ctx.fillStyle = 'rgba(210,208,200,0.85)';
+    ctx.fillStyle = c.hubRing;
     ctx.fill();
 
     // Ring edge lines
     ctx.beginPath();
     ctx.arc(CENTER_X, CENTER_Y, HUB_RING_OUTER, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.strokeStyle = c.hubEdge;
     ctx.lineWidth = 0.5;
     ctx.stroke();
 
     ctx.beginPath();
     ctx.arc(CENTER_X, CENTER_Y, HUB_RING_INNER, 0, Math.PI * 2);
-    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.strokeStyle = c.hubEdgeInner;
     ctx.lineWidth = 0.5;
     ctx.stroke();
 
     // Center hole — see through to background
     ctx.beginPath();
     ctx.arc(CENTER_X, CENTER_Y, HUB_HOLE_RADIUS, 0, Math.PI * 2);
-    ctx.fillStyle = '#161b22';
+    ctx.fillStyle = c.bg;
     ctx.fill();
 
     // Hole edge
-    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.strokeStyle = c.holeEdge;
     ctx.lineWidth = 0.5;
     ctx.stroke();
   }

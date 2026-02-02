@@ -156,20 +156,20 @@ body.full-page-mode #screen {
 .screen-window-lock:hover {
     opacity: 1;
     color: var(--text-primary);
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.1);
+    background: var(--overlay-hover);
+    border-color: var(--overlay-white-10);
 }
 
 .screen-window-lock.active {
     opacity: 1;
     color: var(--accent-green);
-    background: rgba(63, 185, 80, 0.1);
-    border-color: rgba(63, 185, 80, 0.25);
+    background: var(--accent-green-bg);
+    border-color: var(--accent-green-border-light);
 }
 
 .screen-window-lock.active:hover {
-    background: rgba(63, 185, 80, 0.18);
-    border-color: rgba(63, 185, 80, 0.35);
+    background: var(--accent-green-bg-strong);
+    border-color: var(--accent-green-border);
 }
 
 /* Stack both icons in the same grid cell so they overlap */
@@ -206,7 +206,7 @@ body.full-page-mode #screen {
 .screen-window-charset-switch .charset-label {
     font-size: 9px;
     font-weight: 600;
-    color: rgba(255, 255, 255, 0.4);
+    color: var(--text-muted);
     text-transform: uppercase;
     letter-spacing: 0.5px;
     transition: color 0.2s;
@@ -234,8 +234,8 @@ body.full-page-mode #screen {
 .screen-window-charset-switch .charset-slider {
     position: absolute;
     inset: 0;
-    background: rgba(0, 0, 0, 0.4);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: var(--input-bg-deeper);
+    border: 1px solid var(--overlay-active);
     border-radius: 7px;
     transition: all 0.2s;
 }
@@ -247,7 +247,7 @@ body.full-page-mode #screen {
     left: 2px;
     width: 8px;
     height: 8px;
-    background: rgba(255, 255, 255, 0.5);
+    background: var(--text-muted);
     border-radius: 50%;
     transition: all 0.2s;
 }
@@ -262,7 +262,7 @@ body.full-page-mode #screen {
 }
 
 .screen-window-charset-switch .charset-toggle:hover .charset-slider {
-    border-color: rgba(255, 255, 255, 0.4);
+    border-color: var(--text-muted);
 }
 
 /* Exit hint overlay */

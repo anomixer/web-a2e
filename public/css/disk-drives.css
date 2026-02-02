@@ -43,7 +43,7 @@
     gap: var(--space-sm);
     padding: var(--space-xs) 6px;
     min-width: 0;
-    background: rgba(0, 0, 0, 0.15);
+    background: var(--input-bg);
     border-radius: var(--radius-sm);
 }
 
@@ -54,7 +54,7 @@
     font-family: var(--font-mono);
     font-size: 0.875rem;
     font-weight: 700;
-    color: rgba(255, 255, 255, 0.45);
+    color: var(--disk-label-color);
     pointer-events: none;
     z-index: 1;
 }
@@ -95,7 +95,7 @@
     color: var(--text-primary);
     font-family: var(--font-mono);
     font-weight: 600;
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--overlay-white-10);
     padding: 1px 4px;
     border-radius: 3px;
     min-width: 28px;
@@ -104,7 +104,7 @@
 }
 
 .disk-track.active {
-    color: #ff6a33;
+    color: var(--accent-orange);
     background: rgba(255, 100, 50, 0.25);
     box-shadow: 0 0 4px rgba(255, 100, 50, 0.4);
 }
@@ -120,8 +120,8 @@
 .disk-recent {
     flex: 1;
     padding: var(--space-xs) var(--space-sm);
-    background: rgba(33, 38, 45, 0.6);
-    border: 1px solid rgba(48, 54, 61, 0.4);
+    background: var(--control-bg-solid);
+    border: 1px solid var(--control-border);
     border-radius: var(--radius-sm);
     color: var(--text-secondary);
     font-family: var(--font-sans);
@@ -134,19 +134,19 @@
 .disk-insert:hover,
 .disk-blank:hover,
 .disk-eject:hover:not(:disabled) {
-    background: rgba(48, 54, 61, 0.6);
+    background: var(--control-bg-hover);
     color: var(--text-primary);
 }
 
 .disk-blank:hover {
-    background: rgba(88, 166, 255, 0.2);
-    border-color: rgba(88, 166, 255, 0.5);
+    background: var(--accent-blue-bg-strong);
+    border-color: var(--accent-blue-border);
     color: var(--accent-blue);
 }
 
 .disk-eject:hover:not(:disabled) {
-    background: rgba(210, 153, 34, 0.2);
-    border-color: rgba(210, 153, 34, 0.5);
+    background: var(--accent-orange-bg-strong);
+    border-color: var(--accent-orange-border-stronger);
     color: var(--accent-orange);
 }
 
@@ -163,8 +163,8 @@
 }
 
 .disk-recent:hover {
-    background: rgba(48, 54, 61, 0.6);
-    border-color: rgba(63, 185, 80, 0.5);
+    background: var(--control-bg-hover);
+    border-color: var(--accent-green-border);
     color: var(--accent-green);
 }
 
@@ -268,20 +268,20 @@
 .drive-graphics-btn:hover {
     opacity: 1;
     color: var(--text-primary);
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.1);
+    background: var(--overlay-hover);
+    border-color: var(--overlay-white-10);
 }
 
 .drive-graphics-btn.active {
     opacity: 1;
     color: var(--accent-green);
-    background: rgba(63, 185, 80, 0.1);
-    border-color: rgba(63, 185, 80, 0.25);
+    background: var(--accent-green-bg);
+    border-color: var(--accent-green-border-light);
 }
 
 .drive-graphics-btn.active:hover {
-    background: rgba(63, 185, 80, 0.18);
-    border-color: rgba(63, 185, 80, 0.35);
+    background: var(--accent-green-bg-strong);
+    border-color: var(--accent-green-border);
 }
 
 /* Detail toggle button in window header */
@@ -303,20 +303,20 @@
 .drive-detail-btn:hover {
     opacity: 1;
     color: var(--text-primary);
-    background: rgba(255, 255, 255, 0.08);
-    border-color: rgba(255, 255, 255, 0.1);
+    background: var(--overlay-hover);
+    border-color: var(--overlay-white-10);
 }
 
 .drive-detail-btn.active {
     opacity: 1;
     color: var(--accent-green);
-    background: rgba(63, 185, 80, 0.1);
-    border-color: rgba(63, 185, 80, 0.25);
+    background: var(--accent-green-bg);
+    border-color: var(--accent-green-border-light);
 }
 
 .drive-detail-btn.active:hover {
-    background: rgba(63, 185, 80, 0.18);
-    border-color: rgba(63, 185, 80, 0.35);
+    background: var(--accent-green-bg-strong);
+    border-color: var(--accent-green-border);
 }
 
 /* Hide graphics mode — collapse disk surface canvases */
@@ -349,7 +349,7 @@
     grid-template-columns: auto 1fr auto 1fr;
     gap: 2px 6px;
     padding: var(--space-xs) 6px;
-    background: rgba(0, 0, 0, 0.15);
+    background: var(--input-bg);
     border-radius: var(--radius-sm);
     font-size: 0.625rem;
     font-family: var(--font-mono);

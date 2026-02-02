@@ -37,6 +37,10 @@ export class MockingboardScopeWindow extends BaseWindow {
     this.channelColors = {
       a: "#00b4d8", b: "#4ade80", c: "#f472b6"
     };
+
+    // Canvas drawing colors (updated on theme changes)
+    this.canvasBg = "#05050a";
+    this.canvasLine = "#1a1a2a";
   }
 
   renderContent() {
@@ -73,26 +77,26 @@ export class MockingboardScopeWindow extends BaseWindow {
     return `<style>
       .mb-scope-content { font-family: 'Monaco', 'Menlo', monospace; font-size: 11px; padding: 6px; height: 100%; display: flex; gap: 6px; }
       .mb-psg-col { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; min-height: 0; }
-      .mb-channel { flex: 1; display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: rgba(255,255,255,0.02); border-radius: 4px; min-height: 26px; }
+      .mb-channel { flex: 1; display: flex; align-items: center; gap: 6px; padding: 3px 6px; background: var(--overlay-white-02); border-radius: 4px; min-height: 26px; }
       .mb-channel-label { width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; font-size: 9px; font-weight: bold; border-radius: 3px; color: #fff; flex-shrink: 0; }
       .mb-channel[data-channel="a"] .mb-channel-label { background: #0077b6; }
       .mb-channel[data-channel="b"] .mb-channel-label { background: #22c55e; }
       .mb-channel[data-channel="c"] .mb-channel-label { background: #ec4899; }
       .mb-meter-container { width: 40px; flex-shrink: 0; }
-      .mb-meter { height: 8px; background: #0a0a12; border-radius: 2px; position: relative; overflow: hidden; border: 1px solid #1a1a2a; }
+      .mb-meter { height: 8px; background: var(--input-bg-deeper); border-radius: 2px; position: relative; overflow: hidden; border: 1px solid var(--border-muted); }
       .mb-meter-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; border-radius: 1px; }
       .mb-channel[data-channel="a"] .mb-meter-fill { background: #00b4d8; }
       .mb-channel[data-channel="b"] .mb-meter-fill { background: #4ade80; }
       .mb-channel[data-channel="c"] .mb-meter-fill { background: #f472b6; }
-      .mb-mute-btn { width: 16px; height: 16px; border: none; border-radius: 3px; background: #2a2a3a; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; flex-shrink: 0; }
-      .mb-mute-btn:hover { background: #3a3a4a; }
+      .mb-mute-btn { width: 16px; height: 16px; border: none; border-radius: 3px; background: var(--badge-dim-bg); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; flex-shrink: 0; }
+      .mb-mute-btn:hover { background: var(--overlay-hover); }
       .mb-mute-icon { width: 10px; height: 10px; position: relative; }
-      .mb-mute-icon::before { content: ""; position: absolute; left: 1px; top: 2px; width: 3px; height: 5px; background: #8a8aaa; border-radius: 1px; }
-      .mb-mute-icon::after { content: ""; position: absolute; left: 4px; top: 1px; width: 0; height: 0; border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-left: 5px solid #8a8aaa; }
-      .mb-mute-btn.muted { background: #4a2a2a; }
-      .mb-mute-btn.muted .mb-mute-icon::before, .mb-mute-btn.muted .mb-mute-icon::after { background: #ff6666; border-left-color: #ff6666; }
+      .mb-mute-icon::before { content: ""; position: absolute; left: 1px; top: 2px; width: 3px; height: 5px; background: var(--text-muted); border-radius: 1px; }
+      .mb-mute-icon::after { content: ""; position: absolute; left: 4px; top: 1px; width: 0; height: 0; border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-left: 5px solid var(--text-muted); }
+      .mb-mute-btn.muted { background: var(--accent-red-bg-stronger); }
+      .mb-mute-btn.muted .mb-mute-icon::before, .mb-mute-btn.muted .mb-mute-icon::after { background: var(--accent-red); border-left-color: var(--accent-red); }
       .mb-channel.muted { opacity: 0.5; }
-      .mb-waveform { flex: 1; min-width: 60px; min-height: 0; height: 100%; background: #05050a; border-radius: 3px; border: 1px solid #1a1a2a; display: block; }
+      .mb-waveform { flex: 1; min-width: 60px; min-height: 0; height: 100%; background: var(--input-bg-deeper); border-radius: 3px; border: 1px solid var(--border-muted); display: block; }
     </style>`;
   }
 
@@ -163,6 +167,15 @@ export class MockingboardScopeWindow extends BaseWindow {
   }
 
   /**
+   * Read canvas drawing colors from current theme
+   */
+  updateCanvasColors() {
+    const style = getComputedStyle(document.documentElement);
+    this.canvasBg = style.getPropertyValue("--canvas-bg").trim() || "#05050a";
+    this.canvasLine = style.getPropertyValue("--canvas-line").trim() || "#1a1a2a";
+  }
+
+  /**
    * Free WASM buffer when window is destroyed
    */
   destroy() {
@@ -202,6 +215,14 @@ export class MockingboardScopeWindow extends BaseWindow {
     if (!this.elements) {
       this.cacheElements();
       this.allocateWaveformBuffer();
+      this.updateCanvasColors();
+    }
+
+    // Update canvas colors when theme changes
+    const currentTheme = document.documentElement.dataset.theme;
+    if (this._lastTheme !== currentTheme) {
+      this._lastTheme = currentTheme;
+      this.updateCanvasColors();
     }
 
     // Apply pending mute state from session restore
@@ -299,11 +320,11 @@ export class MockingboardScopeWindow extends BaseWindow {
         wasmModule._getMockingboardWaveform(psg, ch, this.waveformBufferPtr, sampleCount);
 
         // Clear canvas
-        ctx.fillStyle = "#05050a";
+        ctx.fillStyle = this.canvasBg;
         ctx.fillRect(0, 0, width, height);
 
         // Draw center line
-        ctx.strokeStyle = "#1a1a2a";
+        ctx.strokeStyle = this.canvasLine;
         ctx.beginPath();
         ctx.moveTo(0, height / 2);
         ctx.lineTo(width, height / 2);

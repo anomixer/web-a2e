@@ -139,27 +139,27 @@ export class MouseCardWindow extends BaseWindow {
   renderStyles() {
     return `<style>
       .mouse-card-content { font-family: 'Monaco', 'Menlo', monospace; font-size: 11px; padding: 8px; overflow-y: auto; height: 100%; }
-      .mc-status { margin-bottom: 8px; padding: 4px 8px; background: #1a1a2e; border-radius: 4px; display: flex; align-items: center; gap: 4px; }
-      .mc-section { margin-bottom: 8px; padding: 8px; background: #1a1a2e; border-radius: 4px; }
-      .mc-section-title { color: #88f; font-weight: bold; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid #333; }
+      .mc-status { margin-bottom: 8px; padding: 4px 8px; background: var(--input-bg-dark); border-radius: 4px; display: flex; align-items: center; gap: 4px; }
+      .mc-section { margin-bottom: 8px; padding: 8px; background: var(--input-bg-dark); border-radius: 4px; }
+      .mc-section-title { color: var(--accent-blue); font-weight: bold; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid var(--border-default); }
       .mc-row { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap; }
-      .mc-label { color: #888; }
-      .mc-value { color: #7f7; font-family: monospace; }
-      .mc-coord { color: #888; font-size: 10px; }
-      .mc-coord span { color: #7f7; margin-left: 2px; }
-      .mc-badge { padding: 2px 6px; border-radius: 3px; background: #333; color: #666; font-size: 10px; }
-      .mc-badge.active { background: #2d5a27; color: #7fff7f; }
-      .mc-badge.irq-active { background: #5a2727; color: #ff7f7f; }
-      .mc-flag { padding: 1px 4px; border-radius: 2px; background: #333; color: #555; font-size: 9px; }
-      .mc-flag.active { background: #3a3a2a; color: #ff7; }
-      .mc-cmd-name { color: #f7f; font-size: 10px; }
+      .mc-label { color: var(--text-muted); }
+      .mc-value { color: var(--accent-green); font-family: monospace; }
+      .mc-coord { color: var(--text-muted); font-size: 10px; }
+      .mc-coord span { color: var(--accent-green); margin-left: 2px; }
+      .mc-badge { padding: 2px 6px; border-radius: 3px; background: var(--badge-dim-bg); color: var(--text-muted); font-size: 10px; }
+      .mc-badge.active { background: var(--accent-green-bg-stronger); color: var(--accent-green); }
+      .mc-badge.irq-active { background: var(--accent-red-bg-stronger); color: var(--accent-red); }
+      .mc-flag { padding: 1px 4px; border-radius: 2px; background: var(--badge-dim-bg); color: var(--text-muted); font-size: 9px; }
+      .mc-flag.active { background: var(--accent-orange-bg-strong); color: var(--accent-orange); }
+      .mc-cmd-name { color: var(--accent-purple); font-size: 10px; }
       .mc-pia-table { width: 100%; border-collapse: collapse; }
-      .mc-pia-table th { color: #666; font-weight: normal; font-size: 10px; text-align: left; padding: 2px 4px; }
-      .mc-pia-table td { padding: 2px 4px; border-bottom: 1px solid #222; }
-      .mc-pia-sep td { border-bottom: 1px solid #444; height: 2px; padding: 0; }
-      .mc-reg-name { color: #aaa; width: 45px; }
-      .mc-reg-hex { color: #7f7; font-family: monospace; width: 35px; }
-      .mc-reg-bin { color: #77f; font-family: monospace; font-size: 10px; letter-spacing: 0.5px; }
+      .mc-pia-table th { color: var(--text-muted); font-weight: normal; font-size: 10px; text-align: left; padding: 2px 4px; }
+      .mc-pia-table td { padding: 2px 4px; border-bottom: 1px solid var(--border-muted); }
+      .mc-pia-sep td { border-bottom: 1px solid var(--border-default); height: 2px; padding: 0; }
+      .mc-reg-name { color: var(--text-secondary); width: 45px; }
+      .mc-reg-hex { color: var(--accent-green); font-family: monospace; width: 35px; }
+      .mc-reg-bin { color: var(--accent-blue); font-family: monospace; font-size: 10px; letter-spacing: 0.5px; }
     </style>`;
   }
 

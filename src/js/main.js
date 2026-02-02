@@ -16,6 +16,7 @@ import { DisplaySettingsWindow, ScreenWindow } from "./display/index.js";
 import { DocumentationWindow, ReleaseNotesWindow } from "./help/index.js";
 import { ReminderController } from "./ui/reminder-controller.js";
 import { UIController } from "./ui/ui-controller.js";
+import { ThemeManager } from "./ui/theme-manager.js";
 import { SlotConfigurationWindow } from "./ui/slot-configuration-window.js";
 import { StateManager } from "./state/state-manager.js";
 import { SaveStatesWindow } from "./state/save-states-window.js";
@@ -51,11 +52,15 @@ class AppleIIeEmulator {
     this.uiController = null;
     this.stateManager = null;
     this.mouseHandler = null;
+    this.themeManager = null;
 
     this.running = false;
   }
 
   async init() {
+    // Apply theme before any rendering to prevent flash of wrong theme
+    this.themeManager = new ThemeManager();
+
     this.showLoading(true);
 
     try {
@@ -259,6 +264,7 @@ class AppleIIeEmulator {
         screenWindow: this.screenWindow,
         reminderController: this.reminderController,
         inputHandler: this.inputHandler,
+        themeManager: this.themeManager,
       });
       this.uiController.init();
 
@@ -507,6 +513,11 @@ class AppleIIeEmulator {
       this.audioDriver = null;
     }
 
+    if (this.themeManager) {
+      this.themeManager.destroy();
+      this.themeManager = null;
+    }
+
     this.renderer = null;
     this.diskManager = null;
     if (this.fileExplorer) {
@@ -586,16 +597,16 @@ function showUpdateNotification() {
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background: rgba(13, 17, 23, 0.95);
+    background: var(--glass-bg-solid);
     backdrop-filter: blur(12px);
-    border: 1px solid rgba(48, 54, 61, 0.6);
+    border: 1px solid var(--glass-border);
     border-radius: 8px;
     padding: 20px 30px;
     z-index: 10000;
-    color: #e6edf3;
+    color: var(--text-primary);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
     font-size: 14px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+    box-shadow: var(--shadow-lg);
   `;
   document.body.appendChild(notification);
 }

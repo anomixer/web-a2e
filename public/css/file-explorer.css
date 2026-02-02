@@ -4,7 +4,7 @@
 
 .file-explorer-window {
     position: fixed;
-    background: rgba(13, 17, 23, 0.95);
+    background: var(--glass-bg-solid);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border: 1px solid var(--border-default);
@@ -42,7 +42,7 @@
     align-items: center;
     justify-content: space-between;
     padding: 8px 12px;
-    background: rgba(33, 38, 45, 0.6);
+    background: var(--glass-bg-header);
     border-bottom: 1px solid var(--border-subtle);
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
     cursor: move;
@@ -70,7 +70,7 @@
 }
 
 .fe-close:hover {
-    background: rgba(248, 81, 73, 0.2);
+    background: var(--accent-red-bg-stronger);
     color: var(--accent-red);
 }
 
@@ -80,7 +80,7 @@
     align-items: center;
     gap: 12px;
     padding: 8px 12px;
-    background: rgba(48, 54, 61, 0.6);
+    background: var(--glass-border);
     border-bottom: 1px solid var(--border-subtle);
 }
 
@@ -166,7 +166,7 @@
 
 .fe-panel-header {
     padding: 6px 10px;
-    background: rgba(33, 38, 45, 0.6);
+    background: var(--glass-bg-header);
     border-bottom: 1px solid var(--border-subtle);
     font-family: var(--font-sans);
     font-size: 10px;
@@ -184,7 +184,7 @@
     overflow-y: auto;
     font-family: var(--font-mono);
     font-size: 12px;
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--input-bg-dark);
 }
 
 .fe-catalog-item {
@@ -201,7 +201,7 @@
 }
 
 .fe-catalog-item.selected {
-    background: rgba(88, 166, 255, 0.15);
+    background: var(--accent-blue-bg);
     border-color: var(--accent-blue);
 }
 
@@ -237,7 +237,7 @@
 /* ProDOS Path Bar */
 .fe-path-bar {
     padding: 6px 10px;
-    background: rgba(33, 38, 45, 0.4);
+    background: var(--control-bg);
     border-bottom: 1px solid var(--border-subtle);
     font-family: var(--font-mono);
     font-size: 11px;
@@ -279,11 +279,11 @@
 }
 
 .fe-catalog-item.fe-parent-dir {
-    background: rgba(33, 38, 45, 0.4);
+    background: var(--control-bg);
 }
 
 .fe-catalog-item.fe-parent-dir:hover {
-    background: rgba(48, 54, 61, 0.5);
+    background: var(--control-bg-hover);
 }
 
 /* File panel */
@@ -327,7 +327,7 @@
 .fe-view-toggle {
     display: flex;
     gap: 2px;
-    background: rgba(0, 0, 0, 0.3);
+    background: var(--input-bg-deeper);
     border-radius: var(--radius-sm);
     padding: 2px;
 }
@@ -379,7 +379,7 @@
     flex-wrap: wrap;
     gap: 8px 16px;
     padding: 6px 10px;
-    background: rgba(0, 0, 0, 0.15);
+    background: var(--input-bg);
     border-bottom: 1px solid var(--border-subtle);
     font-family: var(--font-mono);
     font-size: 10px;
@@ -404,35 +404,35 @@
 }
 
 .fe-asm-legend .dis-branch::before {
-    background: #ff7b72;
+    background: var(--syntax-flow);
 }
 
 .fe-asm-legend .dis-load::before {
-    background: #7ee787;
+    background: var(--syntax-load);
 }
 
 .fe-asm-legend .dis-math::before {
-    background: #ffa657;
+    background: var(--syntax-math);
 }
 
 .fe-asm-legend .dis-stack::before {
-    background: #d2a8ff;
+    background: var(--syntax-stack);
 }
 
 .fe-asm-legend .dis-address::before {
-    background: #ffa657;
+    background: var(--syntax-math);
 }
 
 .fe-asm-legend .dis-immediate::before {
-    background: #a5d6ff;
+    background: var(--syntax-flag);
 }
 
 .fe-asm-legend .dis-comment::before {
-    background: #8b949e;
+    background: var(--syntax-comment);
 }
 
 .fe-asm-legend .dis-data::before {
-    background: #8b949e;
+    background: var(--syntax-data);
 }
 
 /* Hex dump legend */
@@ -441,7 +441,7 @@
     flex-wrap: wrap;
     gap: 8px 16px;
     padding: 6px 10px;
-    background: rgba(0, 0, 0, 0.15);
+    background: var(--input-bg);
     border-bottom: 1px solid var(--border-subtle);
     font-family: var(--font-mono);
     font-size: 10px;
@@ -466,26 +466,26 @@
 }
 
 .fe-hex-legend .hex-legend-printable::before {
-    background: #7ee787;
+    background: var(--syntax-hex-printable);
 }
 
 .fe-hex-legend .hex-legend-control::before {
-    background: #79c0ff;
+    background: var(--syntax-hex-byte);
 }
 
 .fe-hex-legend .hex-legend-highbit::before {
-    background: #d2a8ff;
+    background: var(--syntax-hex-highbit);
 }
 
 .fe-hex-legend .hex-legend-zero::before {
-    background: #4a5568;
+    background: var(--syntax-hex-zero);
 }
 
 .fe-file-content {
     flex: 1;
     overflow: auto;
     padding: 8px;
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--input-bg-dark);
     border-radius: 0 0 var(--radius-lg) 0;
     /* Isolate layout calculations to improve resize performance */
     contain: strict;
@@ -524,35 +524,35 @@
 }
 
 .hex-line:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--overlay-faint);
 }
 
 .hex-addr {
-    color: #7c8799;
+    color: var(--syntax-addr);
     font-weight: 500;
     flex-shrink: 0;
 }
 
 .hex-separator {
-    color: #4a5568;
+    color: var(--syntax-separator);
     flex-shrink: 0;
     margin-right: 0.5em;
 }
 
 .hex-byte {
-    color: #79c0ff;
+    color: var(--syntax-hex-byte);
 }
 
 .hex-byte.hex-zero {
-    color: #4a5568;
+    color: var(--syntax-hex-zero);
 }
 
 .hex-byte.hex-printable {
-    color: #7ee787;
+    color: var(--syntax-hex-printable);
 }
 
 .hex-byte.hex-highbit {
-    color: #d2a8ff;
+    color: var(--syntax-hex-highbit);
 }
 
 .hex-bytes {
@@ -567,7 +567,7 @@
 }
 
 .hex-ascii-separator {
-    color: #3a4556;
+    color: var(--syntax-ascii-separator);
     flex-shrink: 0;
     margin: 0 0.4em;
 }
@@ -579,15 +579,15 @@
 }
 
 .hex-ascii-printable {
-    color: #ffa657;
+    color: var(--syntax-ascii-printable);
 }
 
 .hex-ascii-dot {
-    color: #3a4556;
+    color: var(--syntax-ascii-dot);
 }
 
 .hex-truncated {
-    color: #7c8799;
+    color: var(--syntax-addr);
     font-style: italic;
     margin-top: 8px;
     display: block;
@@ -608,27 +608,27 @@
 }
 
 .dis-branch {
-    color: #ff7b72; /* Red-ish for jumps/branches */
+    color: var(--syntax-flow);
     font-weight: 500;
 }
 
 .dis-load {
-    color: #7ee787; /* Green for load/store */
+    color: var(--syntax-load);
     font-weight: 500;
 }
 
 .dis-math {
-    color: #ffa657; /* Orange for math/logic */
+    color: var(--syntax-math);
     font-weight: 500;
 }
 
 .dis-stack {
-    color: #d2a8ff; /* Purple for stack/register */
+    color: var(--syntax-stack);
     font-weight: 500;
 }
 
 .dis-flag {
-    color: #a5d6ff; /* Light blue for flags */
+    color: var(--syntax-flag);
     font-weight: 500;
 }
 
@@ -638,23 +638,23 @@
 }
 
 .dis-directive {
-    color: #d2a8ff; /* Purple for assembler directives */
+    color: var(--syntax-stack);
 }
 
 .dis-data {
-    color: #8b949e; /* Grey for unvisited data bytes */
+    color: var(--syntax-data);
 }
 
 .dis-immediate {
-    color: #a5d6ff; /* Light blue for immediate values */
+    color: var(--syntax-flag);
 }
 
 .dis-address {
-    color: #ffa657; /* Orange for addresses */
+    color: var(--syntax-math);
 }
 
 .dis-target {
-    color: #ff7b72; /* Red for branch targets */
+    color: var(--syntax-flow);
 }
 
 .dis-clickable {
@@ -670,7 +670,7 @@
 }
 
 .dis-highlight {
-    background: rgba(88, 166, 255, 0.25);
+    background: var(--accent-blue-bg-strong);
     display: inline-block;
     width: 100%;
     margin: 0 -8px;
@@ -678,7 +678,7 @@
 }
 
 .dis-register {
-    color: #7ee787; /* Green for registers */
+    color: var(--syntax-register);
 }
 
 .dis-punct {
@@ -686,12 +686,12 @@
 }
 
 .dis-comment {
-    color: #8b949e; /* Grey for comments */
+    color: var(--syntax-comment);
     font-style: italic;
 }
 
 .dis-number {
-    color: #a5d6ff; /* Light blue for numbers */
+    color: var(--syntax-number);
 }
 
 .dis-unknown {
@@ -718,7 +718,7 @@
 .bas-var,
 .bas-misc,
 .bas-keyword {
-    color: #79c0ff; /* Blue for all commands */
+    color: var(--syntax-keyword);
     font-weight: 500;
 }
 
@@ -727,28 +727,28 @@
 }
 
 .bas-string {
-    color: #7ee787; /* Green for strings */
+    color: var(--syntax-string);
 }
 
 .bas-number {
-    color: #ffa657; /* Orange for numbers */
+    color: var(--syntax-math);
 }
 
 .bas-comment {
-    color: #8b949e; /* Grey for comments */
+    color: var(--syntax-comment);
     font-style: italic;
 }
 
 .bas-data {
-    color: #7ee787; /* Same as strings for DATA values */
+    color: var(--syntax-string);
 }
 
 .bas-operator {
-    color: #d2a8ff; /* Purple for operators (+, -, *, /, =, <, >) */
+    color: var(--syntax-operator);
 }
 
 .bas-punct {
-    color: #d2a8ff; /* Purple for punctuation (:, ;, etc.) */
+    color: var(--syntax-operator);
 }
 
 .bas-lineref {
@@ -764,7 +764,7 @@
 }
 
 .bas-highlight {
-    background: rgba(88, 166, 255, 0.25);
+    background: var(--accent-blue-bg-strong);
     display: inline-block;
     width: 100%;
     margin: 0 -8px;

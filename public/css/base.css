@@ -66,6 +66,312 @@
     /* Text selection colors (for screen text copy feature) */
     --selection-highlight: rgba(88, 166, 255, 0.35);
     --selection-copy-flash: rgba(63, 185, 80, 0.5);
+
+    /* Glassmorphism / overlay semantic tokens */
+    --glass-bg: rgba(13, 17, 23, 0.85);
+    --glass-bg-solid: rgba(13, 17, 23, 0.95);
+    --glass-bg-header: rgba(33, 38, 45, 0.6);
+    --glass-border: rgba(48, 54, 61, 0.6);
+    --glass-border-light: rgba(48, 54, 61, 0.4);
+    --glass-border-subtle: rgba(48, 54, 61, 0.3);
+
+    /* Control backgrounds */
+    --control-bg: rgba(33, 38, 45, 0.5);
+    --control-bg-solid: rgba(33, 38, 45, 0.6);
+    --control-bg-hover: rgba(48, 54, 61, 0.6);
+    --control-bg-active: rgba(48, 54, 61, 0.8);
+    --control-border: rgba(48, 54, 61, 0.4);
+    --control-border-hover: rgba(48, 54, 61, 0.7);
+    --separator-bg: rgba(48, 54, 61, 0.5);
+
+    /* Input fields */
+    --input-bg: rgba(0, 0, 0, 0.15);
+    --input-bg-deep: rgba(0, 0, 0, 0.25);
+    --input-bg-deeper: rgba(0, 0, 0, 0.3);
+    --input-bg-dark: rgba(0, 0, 0, 0.2);
+
+    /* Overlay/hover layers */
+    --overlay-subtle: rgba(255, 255, 255, 0.04);
+    --overlay-hover: rgba(255, 255, 255, 0.08);
+    --overlay-active: rgba(255, 255, 255, 0.15);
+    --overlay-faint: rgba(255, 255, 255, 0.05);
+    --overlay-white-10: rgba(255, 255, 255, 0.1);
+    --overlay-white-02: rgba(255, 255, 255, 0.02);
+
+    /* Accent-tinted backgrounds */
+    --accent-green-bg: rgba(63, 185, 80, 0.15);
+    --accent-green-bg-strong: rgba(63, 185, 80, 0.2);
+    --accent-green-bg-stronger: rgba(63, 185, 80, 0.3);
+    --accent-green-border: rgba(63, 185, 80, 0.4);
+    --accent-green-border-light: rgba(63, 185, 80, 0.25);
+    --accent-blue-bg: rgba(88, 166, 255, 0.15);
+    --accent-blue-bg-strong: rgba(88, 166, 255, 0.2);
+    --accent-blue-bg-stronger: rgba(88, 166, 255, 0.3);
+    --accent-blue-border: rgba(88, 166, 255, 0.4);
+    --accent-blue-border-light: rgba(88, 166, 255, 0.3);
+    --accent-orange-bg: rgba(210, 153, 34, 0.15);
+    --accent-orange-bg-strong: rgba(210, 153, 34, 0.2);
+    --accent-orange-border: rgba(210, 153, 34, 0.3);
+    --accent-orange-border-strong: rgba(210, 153, 34, 0.4);
+    --accent-orange-border-stronger: rgba(210, 153, 34, 0.5);
+    --accent-red-bg: rgba(248, 81, 73, 0.12);
+    --accent-red-bg-strong: rgba(248, 81, 73, 0.15);
+    --accent-red-bg-stronger: rgba(248, 81, 73, 0.2);
+    --accent-red-border: rgba(248, 81, 73, 0.4);
+    --accent-purple-bg: rgba(188, 140, 255, 0.15);
+    --accent-purple-bg-strong: rgba(188, 140, 255, 0.2);
+
+    /* Miscellaneous */
+    --badge-dim-bg: rgba(110, 118, 129, 0.2);
+    --badge-dim-border: rgba(110, 118, 129, 0.3);
+    --irq-dim-bg: rgba(128, 128, 128, 0.1);
+    --irq-dim-border: rgba(128, 128, 128, 0.2);
+    --muted-bg: rgba(139, 148, 158, 0.2);
+    --reference-border: rgba(255, 255, 255, 0.1);
+    --body-gradient-end: #0a0e14;
+
+    /* Canvas drawing backgrounds (opaque, for JS canvas clearing) */
+    --canvas-bg: #05050a;
+    --canvas-line: #1a1a2a;
+
+    /* Disk surface rendering */
+    --disk-bg: #161b22;
+    --disk-medium: #1a1308;
+    --disk-sector-line: rgba(255, 255, 255, 0.08);
+    --disk-ghost-outline: rgba(255, 255, 255, 0.06);
+    --disk-ghost-sector: rgba(255, 255, 255, 0.03);
+    --disk-ghost-hub: rgba(210, 208, 200, 0.08);
+    --disk-hub-ring: rgba(210, 208, 200, 0.85);
+    --disk-hub-edge: rgba(255, 255, 255, 0.12);
+    --disk-hub-edge-inner: rgba(255, 255, 255, 0.08);
+    --disk-hole-edge: rgba(0, 0, 0, 0.3);
+    --disk-edge: rgba(255, 255, 255, 0.06);
+    --disk-label-color: rgba(255, 255, 255, 0.45);
+
+    /* Reminder gradient backgrounds */
+    --reminder-bg-start: #1e3a5f;
+    --reminder-bg-end: #0d2137;
+
+    /* Syntax highlighting (dark theme defaults) */
+    --syntax-flow: #ff7b72;
+    --syntax-load: #7ee787;
+    --syntax-math: #ffa657;
+    --syntax-stack: #d2a8ff;
+    --syntax-flag: #a5d6ff;
+    --syntax-data: #8b949e;
+    --syntax-comment: #8b949e;
+    --syntax-number: #a5d6ff;
+    --syntax-keyword: #79c0ff;
+    --syntax-string: #7ee787;
+    --syntax-operator: #d2a8ff;
+    --syntax-register: #7ee787;
+    --syntax-addr: #7c8799;
+    --syntax-separator: #4a5568;
+    --syntax-hex-byte: #79c0ff;
+    --syntax-hex-zero: #4a5568;
+    --syntax-hex-printable: #7ee787;
+    --syntax-hex-highbit: #d2a8ff;
+    --syntax-ascii-printable: #ffa657;
+    --syntax-ascii-dot: #3a4556;
+    --syntax-ascii-separator: #3a4556;
+    --syntax-flow-bright: #7ee787;
+    --syntax-const: #f0a0f0;
+    --syntax-const-bright: #ffb0ff;
+    --syntax-symbol-zp: #7ddc7d;
+    --syntax-symbol-sw: #f0a040;
+    --syntax-symbol-disk: #e0d060;
+    --syntax-symbol-rom: #7ec8e3;
+    --syntax-symbol-basic: #c0a0f0;
+    --syntax-symbol-vec: #f08080;
+    --syntax-symbol-io: #60d0c0;
+    --syntax-symbol-zp-bright: #a0ffa0;
+    --syntax-symbol-sw-bright: #ffc060;
+    --syntax-symbol-disk-bright: #ffec80;
+    --syntax-symbol-rom-bright: #9ee0f8;
+    --syntax-symbol-basic-bright: #d8c0ff;
+    --syntax-symbol-vec-bright: #ffa0a0;
+    --syntax-symbol-io-bright: #80f0e0;
+
+    /* Memory browser */
+    --mem-byte: #79c0ff;
+    --mem-zero: #4a5568;
+    --mem-printable: #7ee787;
+    --mem-highbit: #d2a8ff;
+    --mem-ascii: #ffa657;
+    --mem-addr: #7c8799;
+    --mem-separator: #4a5568;
+    --mem-scrollbar-thumb: rgba(88, 166, 255, 0.4);
+    --mem-scrollbar-thumb-hover: rgba(88, 166, 255, 0.6);
+}
+
+/* ============================================
+   LIGHT THEME
+   ============================================ */
+html[data-theme="light"] {
+    --bg-dark: #ffffff;
+    --bg-medium: #f6f8fa;
+    --bg-light: #e8ecf0;
+    --bg-panel: #eef1f5;
+    --bg-primary: #ffffff;
+
+    --text-primary: #1f2328;
+    --text-secondary: #656d76;
+    --text-muted: #8b949e;
+
+    --accent-green: #1a7f37;
+    --accent-green-dim: #dafbe1;
+    --accent-blue: #0969da;
+    --accent-orange: #9a6700;
+    --accent-red: #cf222e;
+    --accent-purple: #8250df;
+
+    --border-default: #d0d7de;
+    --border-muted: #e8ecf0;
+
+    /* Shadows - much lighter in light theme */
+    --shadow-sm: 0 1px 2px rgba(31, 35, 40, 0.08);
+    --shadow-md: 0 4px 12px rgba(31, 35, 40, 0.12);
+    --shadow-lg: 0 8px 24px rgba(31, 35, 40, 0.16);
+    --shadow-glow: 0 0 20px rgba(26, 127, 55, 0.2);
+
+    --selection-highlight: rgba(9, 105, 218, 0.2);
+    --selection-copy-flash: rgba(26, 127, 55, 0.3);
+
+    /* Glassmorphism */
+    --glass-bg: rgba(255, 255, 255, 0.92);
+    --glass-bg-solid: rgba(255, 255, 255, 0.97);
+    --glass-bg-header: rgba(246, 248, 250, 0.8);
+    --glass-border: rgba(208, 215, 222, 0.8);
+    --glass-border-light: rgba(208, 215, 222, 0.6);
+    --glass-border-subtle: rgba(208, 215, 222, 0.4);
+
+    /* Control backgrounds */
+    --control-bg: rgba(246, 248, 250, 0.8);
+    --control-bg-solid: rgba(232, 236, 240, 0.8);
+    --control-bg-hover: rgba(208, 215, 222, 0.6);
+    --control-bg-active: rgba(208, 215, 222, 0.8);
+    --control-border: rgba(208, 215, 222, 0.6);
+    --control-border-hover: rgba(208, 215, 222, 0.9);
+    --separator-bg: rgba(208, 215, 222, 0.6);
+
+    /* Input fields */
+    --input-bg: rgba(246, 248, 250, 0.6);
+    --input-bg-deep: rgba(232, 236, 240, 0.6);
+    --input-bg-deeper: rgba(232, 236, 240, 0.8);
+    --input-bg-dark: rgba(246, 248, 250, 0.8);
+
+    /* Overlay/hover layers */
+    --overlay-subtle: rgba(31, 35, 40, 0.04);
+    --overlay-hover: rgba(31, 35, 40, 0.08);
+    --overlay-active: rgba(31, 35, 40, 0.12);
+    --overlay-faint: rgba(31, 35, 40, 0.04);
+    --overlay-white-10: rgba(31, 35, 40, 0.06);
+    --overlay-white-02: rgba(31, 35, 40, 0.02);
+
+    /* Accent-tinted backgrounds */
+    --accent-green-bg: rgba(26, 127, 55, 0.1);
+    --accent-green-bg-strong: rgba(26, 127, 55, 0.15);
+    --accent-green-bg-stronger: rgba(26, 127, 55, 0.2);
+    --accent-green-border: rgba(26, 127, 55, 0.3);
+    --accent-green-border-light: rgba(26, 127, 55, 0.2);
+    --accent-blue-bg: rgba(9, 105, 218, 0.1);
+    --accent-blue-bg-strong: rgba(9, 105, 218, 0.15);
+    --accent-blue-bg-stronger: rgba(9, 105, 218, 0.2);
+    --accent-blue-border: rgba(9, 105, 218, 0.3);
+    --accent-blue-border-light: rgba(9, 105, 218, 0.2);
+    --accent-orange-bg: rgba(154, 103, 0, 0.08);
+    --accent-orange-bg-strong: rgba(154, 103, 0, 0.12);
+    --accent-orange-border: rgba(154, 103, 0, 0.2);
+    --accent-orange-border-strong: rgba(154, 103, 0, 0.3);
+    --accent-orange-border-stronger: rgba(154, 103, 0, 0.4);
+    --accent-red-bg: rgba(207, 34, 46, 0.08);
+    --accent-red-bg-strong: rgba(207, 34, 46, 0.1);
+    --accent-red-bg-stronger: rgba(207, 34, 46, 0.15);
+    --accent-red-border: rgba(207, 34, 46, 0.3);
+    --accent-purple-bg: rgba(130, 80, 223, 0.08);
+    --accent-purple-bg-strong: rgba(130, 80, 223, 0.12);
+
+    /* Miscellaneous */
+    --badge-dim-bg: rgba(139, 148, 158, 0.15);
+    --badge-dim-border: rgba(139, 148, 158, 0.25);
+    --irq-dim-bg: rgba(139, 148, 158, 0.1);
+    --irq-dim-border: rgba(139, 148, 158, 0.2);
+    --muted-bg: rgba(139, 148, 158, 0.15);
+    --reference-border: rgba(31, 35, 40, 0.08);
+    --body-gradient-end: #f0f3f6;
+
+    /* Canvas drawing backgrounds */
+    --canvas-bg: #f0f2f5;
+    --canvas-line: #d0d7de;
+
+    /* Disk surface rendering */
+    --disk-bg: #e8ecf0;
+    --disk-medium: #3a2f1a;
+    --disk-sector-line: rgba(255, 255, 255, 0.25);
+    --disk-ghost-outline: rgba(0, 0, 0, 0.1);
+    --disk-ghost-sector: rgba(0, 0, 0, 0.06);
+    --disk-ghost-hub: rgba(210, 208, 200, 0.4);
+    --disk-hub-ring: rgba(210, 208, 200, 0.95);
+    --disk-hub-edge: rgba(0, 0, 0, 0.12);
+    --disk-hub-edge-inner: rgba(0, 0, 0, 0.08);
+    --disk-hole-edge: rgba(0, 0, 0, 0.2);
+    --disk-edge: rgba(0, 0, 0, 0.1);
+    --disk-label-color: rgba(0, 0, 0, 0.4);
+
+    /* Reminder backgrounds */
+    --reminder-bg-start: #dbeafe;
+    --reminder-bg-end: #eff6ff;
+
+    /* Syntax highlighting (light theme) */
+    --syntax-flow: #cf222e;
+    --syntax-load: #116329;
+    --syntax-math: #953800;
+    --syntax-stack: #8250df;
+    --syntax-flag: #0550ae;
+    --syntax-data: #656d76;
+    --syntax-comment: #656d76;
+    --syntax-number: #0550ae;
+    --syntax-keyword: #0550ae;
+    --syntax-string: #116329;
+    --syntax-operator: #8250df;
+    --syntax-register: #116329;
+    --syntax-addr: #656d76;
+    --syntax-separator: #afb8c1;
+    --syntax-hex-byte: #0550ae;
+    --syntax-hex-zero: #afb8c1;
+    --syntax-hex-printable: #116329;
+    --syntax-hex-highbit: #8250df;
+    --syntax-ascii-printable: #953800;
+    --syntax-ascii-dot: #afb8c1;
+    --syntax-ascii-separator: #afb8c1;
+    --syntax-flow-bright: #116329;
+    --syntax-const: #8250df;
+    --syntax-const-bright: #6639ba;
+    --syntax-symbol-zp: #116329;
+    --syntax-symbol-sw: #953800;
+    --syntax-symbol-disk: #7c4d00;
+    --syntax-symbol-rom: #0550ae;
+    --syntax-symbol-basic: #8250df;
+    --syntax-symbol-vec: #cf222e;
+    --syntax-symbol-io: #0969da;
+    --syntax-symbol-zp-bright: #0d5a1e;
+    --syntax-symbol-sw-bright: #7c3900;
+    --syntax-symbol-disk-bright: #5a3700;
+    --syntax-symbol-rom-bright: #033d8b;
+    --syntax-symbol-basic-bright: #6639ba;
+    --syntax-symbol-vec-bright: #a40e26;
+    --syntax-symbol-io-bright: #0757b5;
+
+    /* Memory browser */
+    --mem-byte: #0550ae;
+    --mem-zero: #afb8c1;
+    --mem-printable: #116329;
+    --mem-highbit: #8250df;
+    --mem-ascii: #953800;
+    --mem-addr: #656d76;
+    --mem-separator: #afb8c1;
+    --mem-scrollbar-thumb: rgba(9, 105, 218, 0.3);
+    --mem-scrollbar-thumb-hover: rgba(9, 105, 218, 0.5);
 }
 
 /* Utility classes */
@@ -79,7 +385,7 @@ html {
 
 body {
     font-family: var(--font-sans);
-    background: linear-gradient(135deg, var(--bg-dark) 0%, #0a0e14 100%);
+    background: linear-gradient(135deg, var(--bg-dark) 0%, var(--body-gradient-end) 100%);
     color: var(--text-primary);
     min-height: 100vh;
     line-height: 1.5;

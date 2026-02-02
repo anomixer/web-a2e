@@ -11,6 +11,7 @@
  */
 
 import { clearStateFromStorage } from "../state/state-persistence.js";
+import { ThemeManager } from "./theme-manager.js";
 
 // Timing constants
 const REMINDER_DISMISS_DELAY_MS = 2000;
@@ -43,6 +44,7 @@ export class UIController {
     this.screenWindow = deps.screenWindow;
     this.reminderController = deps.reminderController;
     this.inputHandler = deps.inputHandler;
+    this.themeManager = deps.themeManager;
 
     this.isFullPageMode = false;
     this.canvas = null;
@@ -66,6 +68,7 @@ export class UIController {
     this.setupHardwareMenuActions();
     this.setupDebugMenuActions();
     this.setupHelpMenuActions();
+    this.setupThemeSelector();
   }
 
   /**
@@ -339,6 +342,31 @@ export class UIController {
         }
       });
     }
+  }
+
+  /**
+   * Set up theme selector buttons in View menu
+   */
+  setupThemeSelector() {
+    const buttons = document.querySelectorAll(".theme-btn");
+    if (!buttons.length || !this.themeManager) return;
+
+    const updateActive = () => {
+      const pref = this.themeManager.getPreference();
+      buttons.forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.theme === pref);
+      });
+    };
+
+    buttons.forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.themeManager.setPreference(btn.dataset.theme);
+        updateActive();
+      });
+    });
+
+    updateActive();
   }
 
   /**

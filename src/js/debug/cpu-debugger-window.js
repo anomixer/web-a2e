@@ -600,13 +600,13 @@ export class CPUDebuggerWindow extends BaseWindow {
       left: ${x}px;
       top: ${y}px;
       z-index: 10000;
-      background: rgba(22, 27, 34, 0.95);
-      border: 1px solid rgba(48, 54, 61, 0.6);
+      background: var(--glass-bg-solid);
+      border: 1px solid var(--glass-border);
       border-radius: 4px;
       padding: 4px 0;
       font-family: var(--font-mono);
       font-size: 11px;
-      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+      box-shadow: var(--shadow-md);
       min-width: 160px;
     `;
 
@@ -617,7 +617,7 @@ export class CPUDebuggerWindow extends BaseWindow {
         cursor: pointer;
       `;
       item.addEventListener("mouseenter", () => {
-        item.style.background = "rgba(88, 166, 255, 0.2)";
+        item.style.background = "var(--accent-blue-bg-strong)";
         item.style.color = "var(--text-primary)";
       });
       item.addEventListener("mouseleave", () => {
@@ -798,7 +798,7 @@ export class CPUDebuggerWindow extends BaseWindow {
           font-size: 12px;
           font-weight: 600;
           color: var(--accent-green);
-          background: rgba(0, 0, 0, 0.4);
+          background: var(--input-bg-deeper);
           border: 1px solid var(--accent-blue);
           border-radius: 2px;
           padding: 0 2px;

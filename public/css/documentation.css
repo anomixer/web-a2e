@@ -20,7 +20,7 @@
 .documentation-nav {
     width: 200px;
     flex-shrink: 0;
-    background: rgba(0, 0, 0, 0.15);
+    background: var(--input-bg);
     border-right: 1px solid var(--border-default);
     padding: var(--space-md);
     overflow-y: auto;
@@ -45,12 +45,12 @@
 }
 
 .documentation-nav button:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--overlay-faint);
     color: var(--text-primary);
 }
 
 .documentation-nav button.active {
-    background: rgba(88, 166, 255, 0.2);
+    background: var(--accent-blue-bg-strong);
     color: var(--accent-blue);
 }
 
@@ -153,7 +153,7 @@
 }
 
 .key-table tr:hover td {
-    background: rgba(255, 255, 255, 0.02);
+    background: var(--overlay-white-02);
 }
 
 /* Keyboard key styling */
@@ -215,7 +215,7 @@ kbd {
 }
 
 .info-box.tip {
-    background: rgba(63, 185, 80, 0.1);
+    background: var(--accent-green-bg);
     border-left: 3px solid var(--accent-green);
 }
 
@@ -224,7 +224,7 @@ kbd {
 }
 
 .info-box.warning {
-    background: rgba(210, 153, 34, 0.1);
+    background: var(--accent-orange-bg);
     border-left: 3px solid var(--accent-orange);
 }
 
@@ -233,7 +233,7 @@ kbd {
 }
 
 .info-box.info {
-    background: rgba(88, 166, 255, 0.1);
+    background: var(--accent-blue-bg);
     border-left: 3px solid var(--accent-blue);
 }
 

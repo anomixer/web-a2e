@@ -146,30 +146,30 @@ export class MockingboardWindow extends BaseWindow {
   renderStyles() {
     return `<style>
       .mockingboard-content { font-family: 'Monaco', 'Menlo', monospace; font-size: 11px; padding: 8px; overflow-y: auto; height: 100%; }
-      .mb-status { margin-bottom: 10px; padding: 4px 8px; background: #1a1a2e; border-radius: 4px; }
-      .mb-label { color: #888; margin-right: 8px; }
-      .mb-badge { padding: 2px 6px; border-radius: 3px; background: #333; color: #666; font-size: 10px; }
-      .mb-badge.active { background: #2d5a27; color: #7fff7f; }
-      .mb-badge.irq-active { background: #5a2727; color: #ff7f7f; }
+      .mb-status { margin-bottom: 10px; padding: 4px 8px; background: var(--input-bg-dark); border-radius: 4px; }
+      .mb-label { color: var(--text-muted); margin-right: 8px; }
+      .mb-badge { padding: 2px 6px; border-radius: 3px; background: var(--badge-dim-bg); color: var(--text-muted); font-size: 10px; }
+      .mb-badge.active { background: var(--accent-green-bg-stronger); color: var(--accent-green); }
+      .mb-badge.irq-active { background: var(--accent-red-bg-stronger); color: var(--accent-red); }
       .mb-psg-container { display: flex; gap: 8px; margin-bottom: 12px; }
       .mb-psg-panel { flex: 1; min-width: 0; }
-      .mb-section { margin-bottom: 12px; padding: 8px; background: #1a1a2e; border-radius: 4px; }
-      .mb-section-title { color: #88f; font-weight: bold; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid #333; }
+      .mb-section { margin-bottom: 12px; padding: 8px; background: var(--input-bg-dark); border-radius: 4px; }
+      .mb-section-title { color: var(--accent-blue); font-weight: bold; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--border-default); }
       .mb-psg table { width: 100%; border-collapse: collapse; }
-      .mb-psg th, .mb-psg td { padding: 2px 4px; text-align: left; border-bottom: 1px solid #222; }
-      .mb-psg th { color: #666; font-weight: normal; font-size: 10px; }
-      .mb-psg .reg-num { color: #666; width: 25px; }
-      .mb-psg .reg-name { color: #aaa; width: 90px; }
-      .mb-psg .reg-hex { color: #7f7; font-family: monospace; width: 35px; }
-      .mb-psg .reg-dec { color: #77f; width: 35px; }
-      .mb-psg .reg-info { color: #f77; font-size: 10px; }
-      .mb-via-status { margin-top: 8px; padding-top: 4px; border-top: 1px solid #333; }
+      .mb-psg th, .mb-psg td { padding: 2px 4px; text-align: left; border-bottom: 1px solid var(--border-muted); }
+      .mb-psg th { color: var(--text-muted); font-weight: normal; font-size: 10px; }
+      .mb-psg .reg-num { color: var(--text-muted); width: 25px; }
+      .mb-psg .reg-name { color: var(--text-secondary); width: 90px; }
+      .mb-psg .reg-hex { color: var(--accent-green); font-family: monospace; width: 35px; }
+      .mb-psg .reg-dec { color: var(--accent-blue); width: 35px; }
+      .mb-psg .reg-info { color: var(--accent-red); font-size: 10px; }
+      .mb-via-status { margin-top: 8px; padding-top: 4px; border-top: 1px solid var(--border-default); }
       .mb-via-ports, .mb-timer-info { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-      .mb-port, .mb-timer { color: #888; font-size: 10px; }
-      .mb-port span { color: #7f7; margin-left: 2px; }
-      .mb-timer span { color: #f7f; margin-left: 2px; }
-      .mb-timer-flag { padding: 1px 4px; border-radius: 2px; background: #333; color: #555; font-size: 9px; }
-      .mb-timer-flag.active { background: #3a3a2a; color: #ff7; }
+      .mb-port, .mb-timer { color: var(--text-muted); font-size: 10px; }
+      .mb-port span { color: var(--accent-green); margin-left: 2px; }
+      .mb-timer span { color: var(--accent-purple); margin-left: 2px; }
+      .mb-timer-flag { padding: 1px 4px; border-radius: 2px; background: var(--badge-dim-bg); color: var(--text-muted); font-size: 9px; }
+      .mb-timer-flag.active { background: var(--accent-orange-bg-strong); color: var(--accent-orange); }
     </style>`;
   }
 
