@@ -215,6 +215,12 @@ export class DiskDrivesWindow extends BaseWindow {
       this.element.style.width = `${width}px`;
       this.currentWidth = width;
     }
+    // Use saved height for viewport clamping so the position isn't
+    // adjusted against the stale default height. _fitHeight() will
+    // recalculate the real height once the window is shown.
+    if (state.height !== undefined) {
+      this.currentHeight = state.height;
+    }
 
     this.constrainToViewport();
     this.updateEdgeDistances();

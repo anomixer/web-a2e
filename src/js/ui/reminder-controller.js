@@ -13,8 +13,9 @@
 export class ReminderController {
   constructor() {
     this.isPowerReminderVisible = false;
-    this.isDrivesReminderVisible = false;
     this.isBasicReminderVisible = false;
+
+    window.addEventListener("resize", () => this.repositionAll());
   }
 
   /**
@@ -82,38 +83,6 @@ export class ReminderController {
     localStorage.setItem("a2e-power-reminder-dismissed", "true");
   }
 
-  // Drives toggle reminder methods
-
-  showDrivesReminder(show) {
-    const reminder = document.getElementById("drives-reminder");
-    if (!reminder) return;
-
-    // Check if already dismissed
-    if (show && localStorage.getItem("a2e-drives-reminder-dismissed")) {
-      return;
-    }
-
-    if (show) {
-      this.isDrivesReminderVisible = true;
-      reminder.classList.remove("hidden");
-      requestAnimationFrame(() => {
-        this.repositionDrivesReminder();
-      });
-    } else {
-      this.isDrivesReminderVisible = false;
-      reminder.classList.add("hidden");
-    }
-  }
-
-  repositionDrivesReminder() {
-    this.positionReminderBelowElement("drives-reminder", "btn-view-menu", 180);
-  }
-
-  dismissDrivesReminder() {
-    this.showDrivesReminder(false);
-    localStorage.setItem("a2e-drives-reminder-dismissed", "true");
-  }
-
   // BASIC reminder methods (shows when powered on without a disk)
 
   showBasicReminder(show) {
@@ -152,9 +121,6 @@ export class ReminderController {
   repositionAll() {
     if (this.isPowerReminderVisible) {
       requestAnimationFrame(() => this.repositionPowerReminder());
-    }
-    if (this.isDrivesReminderVisible) {
-      requestAnimationFrame(() => this.repositionDrivesReminder());
     }
     if (this.isBasicReminderVisible) {
       requestAnimationFrame(() => this.repositionBasicReminder());

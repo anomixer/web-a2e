@@ -45,6 +45,8 @@ export class CPUDebuggerWindow extends BaseWindow {
     this.loadBookmarks();
     this.beamBreakpoints = []; // Array of { id, scanline, hPos, enabled, mode }
     this.activeTab = "breakpoints"; // Active tab panel (breakpoints, watch, beam)
+    this._hitBpAddr = -1; // Address of the breakpoint/watchpoint that triggered a pause
+    this._lastHitBpAddr = -2; // Previous value for change detection
 
     // Re-render breakpoint list when breakpoints change
     this.bpManager.onChange(() => {
@@ -123,6 +125,10 @@ export class CPUDebuggerWindow extends BaseWindow {
           </div>
           <div class="cpu-dbg-tab-content active" data-tab="breakpoints">
             <div class="cpu-dbg-tab-toolbar">
+              <select id="bp-source-select" title="Breakpoint source">
+                <option value="addr">Addr</option>
+                <option value="switch">Switch</option>
+              </select>
               <select id="bp-type-select" title="Breakpoint type">
                 <option value="exec">Exec</option>
                 <option value="read">Read</option>
@@ -130,6 +136,7 @@ export class CPUDebuggerWindow extends BaseWindow {
                 <option value="readwrite">R/W</option>
               </select>
               <input type="text" id="breakpoint-input" placeholder="$XXXX" spellcheck="false">
+              <select id="bp-switch-select" title="Soft switch" style="display:none"></select>
               <button class="cpu-dbg-add-btn" id="breakpoint-add-btn" title="Add breakpoint">+</button>
             </div>
             <div class="cpu-bp-list" id="breakpoint-list"></div>
@@ -299,6 +306,52 @@ export class CPUDebuggerWindow extends BaseWindow {
       });
     }
 
+    // Breakpoint source mode switching (addr/switch)
+    const bpSourceSelect = this.contentElement.querySelector("#bp-source-select");
+    const bpTypeSelect = this.contentElement.querySelector("#bp-type-select");
+    const bpSwitchSelect = this.contentElement.querySelector("#bp-switch-select");
+
+    if (bpSourceSelect && bpSwitchSelect) {
+      // Populate soft switch dropdown with optgroups
+      for (const group of CPUDebuggerWindow.SOFT_SWITCH_GROUPS) {
+        const optgroup = document.createElement("optgroup");
+        optgroup.label = group.category;
+        for (const sw of group.switches) {
+          const option = document.createElement("option");
+          option.value = `${sw.start}:${sw.end}:${sw.name}`;
+          const startHex = sw.start.toString(16).toUpperCase();
+          const endHex = sw.end.toString(16).toUpperCase();
+          const range = sw.start === sw.end ? `$${startHex}` : `$${startHex}-${endHex}`;
+          option.textContent = `${sw.name} (${range})`;
+          option.title = sw.desc;
+          optgroup.appendChild(option);
+        }
+        bpSwitchSelect.appendChild(optgroup);
+      }
+
+      bpSourceSelect.addEventListener("change", () => {
+        const isSwitch = bpSourceSelect.value === "switch";
+        const bpInput = this.contentElement.querySelector("#breakpoint-input");
+        if (bpInput) bpInput.style.display = isSwitch ? "none" : "";
+        bpSwitchSelect.style.display = isSwitch ? "" : "none";
+
+        if (isSwitch) {
+          // Hide Exec option, auto-select R/W
+          if (bpTypeSelect) {
+            const execOption = bpTypeSelect.querySelector('option[value="exec"]');
+            if (execOption) execOption.style.display = "none";
+            if (bpTypeSelect.value === "exec") bpTypeSelect.value = "readwrite";
+          }
+        } else {
+          // Show Exec option again
+          if (bpTypeSelect) {
+            const execOption = bpTypeSelect.querySelector('option[value="exec"]');
+            if (execOption) execOption.style.display = "";
+          }
+        }
+      });
+    }
+
     // Breakpoint add
     const bpInput = this.contentElement.querySelector("#breakpoint-input");
     const bpAddBtn = this.contentElement.querySelector("#breakpoint-add-btn");
@@ -397,6 +450,7 @@ export class CPUDebuggerWindow extends BaseWindow {
         const tabName = tab.dataset.tab;
         tabBar.querySelectorAll(".cpu-dbg-tab").forEach((t) => t.classList.remove("active"));
         tab.classList.add("active");
+        tab.classList.remove("hit-alert");
         this.contentElement.querySelectorAll(".cpu-dbg-tab-content").forEach((c) => {
           c.classList.toggle("active", c.dataset.tab === tabName);
         });
@@ -434,6 +488,7 @@ export class CPUDebuggerWindow extends BaseWindow {
     this.setupKeyboardShortcuts();
     this.setupRegisterEditing();
     this.setupBeamBreakTabEvents();
+    this.updateBreakpointList();
   }
 
   destroy() {
@@ -484,17 +539,39 @@ export class CPUDebuggerWindow extends BaseWindow {
    * Add breakpoint from input field
    */
   addBreakpointFromInput() {
-    const input = this.contentElement.querySelector("#breakpoint-input");
+    const sourceSelect = this.contentElement.querySelector("#bp-source-select");
     const typeSelect = this.contentElement.querySelector("#bp-type-select");
-    if (!input) return;
-
-    const text = input.value.trim();
-    const addr = this.resolveAddress(text) ?? parseInt(text, 16);
     const type = typeSelect ? typeSelect.value : "exec";
 
-    if (!isNaN(addr) && addr >= 0 && addr <= 0xffff) {
-      this.bpManager.add(addr, { type });
-      input.value = "";
+    if (sourceSelect && sourceSelect.value === "switch") {
+      // Switch mode: parse the switch dropdown value
+      const switchSelect = this.contentElement.querySelector("#bp-switch-select");
+      if (!switchSelect || !switchSelect.value) return;
+
+      const parts = switchSelect.value.split(":");
+      const startAddr = parseInt(parts[0], 10);
+      const endAddr = parseInt(parts[1], 10);
+      const name = parts.slice(2).join(":");
+
+      if (!isNaN(startAddr) && !isNaN(endAddr)) {
+        this.bpManager.add(startAddr, {
+          type,
+          endAddress: endAddr,
+          name,
+        });
+      }
+    } else {
+      // Address mode: parse the text input
+      const input = this.contentElement.querySelector("#breakpoint-input");
+      if (!input) return;
+
+      const text = input.value.trim();
+      const addr = this.resolveAddress(text) ?? parseInt(text, 16);
+
+      if (!isNaN(addr) && addr >= 0 && addr <= 0xffff) {
+        this.bpManager.add(addr, { type });
+        input.value = "";
+      }
     }
   }
 
@@ -691,13 +768,23 @@ export class CPUDebuggerWindow extends BaseWindow {
     // Check temp breakpoint
     this.bpManager.checkTemp(pc);
 
-    // Check if a watchpoint was hit - evaluate conditions/hit counts
+    // Check if a watchpoint was hit - evaluate conditions/hit counts (range-aware)
     if (isPaused && this.wasmModule._isWatchpointHit && this.wasmModule._isWatchpointHit()) {
       const wpAddr = this.wasmModule._getWatchpointAddress();
-      if (!this.bpManager.shouldBreak(wpAddr)) {
-        // Condition not met or hit target not reached - resume
+      const entry = this.bpManager.findByAddress(wpAddr);
+      if (entry) {
+        if (!this.bpManager.shouldBreakEntry(entry)) {
+          // Condition not met or hit target not reached - resume
+          this.wasmModule._setPaused(false);
+          return;
+        }
+        this._hitBpAddr = entry.address;
+      } else if (!this.bpManager.shouldBreak(wpAddr)) {
+        // Fallback for direct-address match
         this.wasmModule._setPaused(false);
         return;
+      } else {
+        this._hitBpAddr = wpAddr;
       }
     }
 
@@ -709,6 +796,12 @@ export class CPUDebuggerWindow extends BaseWindow {
         this.wasmModule._setPaused(false);
         return;
       }
+      this._hitBpAddr = bpAddr;
+    }
+
+    // Clear hit address when running
+    if (!isPaused) {
+      this._hitBpAddr = -1;
     }
 
     // If PC changed, snap disassembly back to follow PC
@@ -724,6 +817,7 @@ export class CPUDebuggerWindow extends BaseWindow {
     }
     this.updateDisassembly();
     this.updateWatchList();
+    this.updateBreakpointHitHighlight();
     this.updateBeamHitHighlight();
   }
 
@@ -1020,6 +1114,36 @@ export class CPUDebuggerWindow extends BaseWindow {
   }
 
   /**
+   * Highlight the breakpoint/watchpoint that triggered a pause
+   */
+  updateBreakpointHitHighlight() {
+    const addr = this._hitBpAddr;
+    if (addr === this._lastHitBpAddr) return;
+    this._lastHitBpAddr = addr;
+
+    const list = this.contentElement.querySelector("#breakpoint-list");
+    if (list) {
+      let hitItem = null;
+      const items = list.querySelectorAll(".cpu-bp-item");
+      for (const item of items) {
+        const isHit = parseInt(item.dataset.addr, 10) === addr;
+        if (isHit && !item.classList.contains("hit")) {
+          item.classList.remove("hit");
+          void item.offsetWidth; // force reflow to restart animation
+          hitItem = item;
+        }
+        item.classList.toggle("hit", isHit);
+      }
+      if (hitItem) {
+        hitItem.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
+    }
+
+    // Pulse tab header if breakpoints panel is not active
+    this._pulseTabHeader("breakpoints", addr >= 0);
+  }
+
+  /**
    * Lightweight hit highlight update — toggles .hit class without rebuilding DOM
    */
   updateBeamHitHighlight() {
@@ -1039,6 +1163,24 @@ export class CPUDebuggerWindow extends BaseWindow {
       const id = parseInt(item.dataset.id, 10);
       item.classList.toggle("hit", id === hitId);
     }
+
+    // Pulse tab header if beam panel is not active
+    this._pulseTabHeader("beam", hitId >= 0);
+  }
+
+  /**
+   * Pulse a tab header to draw attention when its panel is not active
+   */
+  _pulseTabHeader(tabName, isHit) {
+    const tab = this.contentElement.querySelector(`.cpu-dbg-tab[data-tab="${tabName}"]`);
+    if (!tab) return;
+
+    if (isHit && this.activeTab !== tabName) {
+      if (!tab.classList.contains("hit-alert")) {
+        tab.classList.add("hit-alert");
+      }
+    }
+    // hit-alert is cleared only when the user clicks the tab
   }
 
   /**
@@ -1357,6 +1499,57 @@ export class CPUDebuggerWindow extends BaseWindow {
     readwrite: "Read/Write watchpoint",
   };
 
+  static SOFT_SWITCH_GROUPS = [
+    { category: "Display", switches: [
+      { name: "TEXT",    start: 0xC050, end: 0xC051, desc: "Text/Graphics mode" },
+      { name: "MIXED",   start: 0xC052, end: 0xC053, desc: "Mixed text+graphics" },
+      { name: "PAGE2",   start: 0xC054, end: 0xC055, desc: "Display page 2" },
+      { name: "HIRES",   start: 0xC056, end: 0xC057, desc: "Hi-res graphics" },
+      { name: "80COL",   start: 0xC00C, end: 0xC00D, desc: "80-column display" },
+      { name: "ALTCHAR", start: 0xC00E, end: 0xC00F, desc: "Alt charset (MouseText)" },
+    ]},
+    { category: "Memory Banking", switches: [
+      { name: "80STORE", start: 0xC000, end: 0xC001, desc: "PAGE2 selects aux memory" },
+      { name: "RAMRD",   start: 0xC002, end: 0xC003, desc: "Read from aux RAM" },
+      { name: "RAMWRT",  start: 0xC004, end: 0xC005, desc: "Write to aux RAM" },
+      { name: "INTCXROM",start: 0xC006, end: 0xC007, desc: "$Cxxx ROM source" },
+      { name: "ALTZP",   start: 0xC008, end: 0xC009, desc: "Aux zero page/stack" },
+      { name: "SLOTC3ROM", start: 0xC00A, end: 0xC00B, desc: "Slot 3 ROM" },
+    ]},
+    { category: "Language Card", switches: [
+      { name: "LANGCARD", start: 0xC080, end: 0xC08F, desc: "Language card control" },
+    ]},
+    { category: "Annunciators", switches: [
+      { name: "AN0", start: 0xC058, end: 0xC059, desc: "Annunciator 0" },
+      { name: "AN1", start: 0xC05A, end: 0xC05B, desc: "Annunciator 1" },
+      { name: "AN2", start: 0xC05C, end: 0xC05D, desc: "Annunciator 2" },
+      { name: "AN3", start: 0xC05E, end: 0xC05F, desc: "Annunciator 3 / DHIRES" },
+    ]},
+    { category: "I/O", switches: [
+      { name: "KBD",     start: 0xC000, end: 0xC000, desc: "Keyboard data" },
+      { name: "KBDSTRB", start: 0xC010, end: 0xC010, desc: "Clear keyboard strobe" },
+      { name: "SPKR",    start: 0xC030, end: 0xC030, desc: "Speaker toggle" },
+      { name: "PTRIG",   start: 0xC070, end: 0xC070, desc: "Paddle trigger" },
+    ]},
+    { category: "Status Registers", switches: [
+      { name: "RDLCBNK2",  start: 0xC011, end: 0xC011, desc: "LC bank 2 status" },
+      { name: "RDLCRAM",   start: 0xC012, end: 0xC012, desc: "LC RAM read status" },
+      { name: "RDRAMRD",   start: 0xC013, end: 0xC013, desc: "RAMRD status" },
+      { name: "RDRAMWRT",  start: 0xC014, end: 0xC014, desc: "RAMWRT status" },
+      { name: "RDCXROM",   start: 0xC015, end: 0xC015, desc: "INTCXROM status" },
+      { name: "RDALTZP",   start: 0xC016, end: 0xC016, desc: "ALTZP status" },
+      { name: "RDC3ROM",   start: 0xC017, end: 0xC017, desc: "SLOTC3ROM status" },
+      { name: "RD80STORE", start: 0xC018, end: 0xC018, desc: "80STORE status" },
+      { name: "RDVBL",     start: 0xC019, end: 0xC019, desc: "Vertical blank status" },
+      { name: "RDTEXT",    start: 0xC01A, end: 0xC01A, desc: "TEXT mode status" },
+      { name: "RDMIXED",   start: 0xC01B, end: 0xC01B, desc: "MIXED mode status" },
+      { name: "RDPAGE2",   start: 0xC01C, end: 0xC01C, desc: "PAGE2 status" },
+      { name: "RDHIRES",   start: 0xC01D, end: 0xC01D, desc: "HIRES mode status" },
+      { name: "RDALTCHAR", start: 0xC01E, end: 0xC01E, desc: "ALTCHAR status" },
+      { name: "RD80COL",   start: 0xC01F, end: 0xC01F, desc: "80COL status" },
+    ]},
+  ];
+
   /**
    * Update breakpoint list with rich UI
    */
@@ -1376,25 +1569,37 @@ export class CPUDebuggerWindow extends BaseWindow {
       item.className = "cpu-bp-item";
       item.dataset.addr = addr;
       if (!entry.enabled) item.classList.add("disabled");
+      if (addr === this._hitBpAddr) item.classList.add("hit");
 
       const typeIcon = CPUDebuggerWindow.BP_TYPE_ICONS[entry.type] || "●";
       const typeTitle = CPUDebuggerWindow.BP_TYPE_TITLES[entry.type] || "";
       const typeClass = entry.type === "exec" ? "bp-type-exec" : "bp-type-watch";
 
-      // Symbol name for address
-      const symbolInfo = getSymbolInfo(addr);
-      const label = symbolInfo ? symbolInfo.name : "";
+      // Check if this is a named soft switch breakpoint with a range
+      const isRange = entry.endAddress != null && entry.endAddress !== entry.address;
+      const hasName = !!entry.name;
 
       let html = `
         <span class="bp-enable" title="Toggle enable">
           <input type="checkbox" ${entry.enabled ? "checked" : ""}>
         </span>
         <span class="bp-type ${typeClass}" title="${typeTitle}">${typeIcon}</span>
-        <span class="bp-addr">${this.formatAddr(addr)}</span>
       `;
 
-      if (label) {
-        html += `<span class="bp-label" title="${label}">${label}</span>`;
+      if (hasName) {
+        const startHex = this.formatHex(entry.address, 4);
+        const endHex = this.formatHex(entry.endAddress, 4);
+        const rangeStr = isRange ? `$${startHex}-${endHex}` : `$${startHex}`;
+        html += `<span class="bp-name" title="${rangeStr}">${entry.name}</span>`;
+        html += `<span class="bp-range">${rangeStr}</span>`;
+      } else {
+        html += `<span class="bp-addr">${this.formatAddr(addr)}</span>`;
+        // Symbol name for address
+        const symbolInfo = getSymbolInfo(addr);
+        const label = symbolInfo ? symbolInfo.name : "";
+        if (label) {
+          html += `<span class="bp-label" title="${label}">${label}</span>`;
+        }
       }
 
       if (entry.condition) {

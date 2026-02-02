@@ -13,7 +13,6 @@ export const STORAGE_KEYS = {
   SHOW_DRIVES: "a2e-show-drives",
   DRIVE_SOUNDS: "a2e-drive-sounds",
   CHARSET: "a2e-charset",
-  DRIVES_REMINDER_DISMISSED: "a2e-drives-reminder-dismissed",
   DEBUG_WINDOWS: "a2e-debug-windows",
   ZP_CUSTOM_WATCHES: "zp-custom-watches",
   THEME: "a2e-theme",

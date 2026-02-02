@@ -6,6 +6,7 @@
  */
 
 import { VERSION } from "./config/version.js";
+import { DEFAULT_LAYOUT } from "./config/default-layout.js";
 import { WebGLRenderer } from "./display/webgl-renderer.js";
 import { AudioDriver } from "./audio/audio-driver.js";
 import { InputHandler, TextSelection, JoystickWindow, MouseHandler } from "./input/index.js";
@@ -251,8 +252,8 @@ class AppleIIeEmulator {
       this.screenWindow.show();
       this.screenWindow.attachCanvas();
 
-      // Position/size windows for first-time users
-      this.showDefaultWindows();
+      // Position/size windows for first-time users (no saved state)
+      this.windowManager.applyDefaultLayout(DEFAULT_LAYOUT);
 
       // Set up window switcher (Ctrl+`)
       this.windowSwitcher = new WindowSwitcher(this.windowManager);
@@ -304,7 +305,6 @@ class AppleIIeEmulator {
 
       this.showLoading(false);
       this.reminderController.showPowerReminder(true);
-      this.reminderController.showDrivesReminder(true);
 
       console.log("Apple //e Emulator initialized");
     } catch (error) {
@@ -312,54 +312,6 @@ class AppleIIeEmulator {
       this.showLoading(false);
       alert("Failed to initialize emulator: " + error.message);
     }
-  }
-
-  /**
-   * For first-time users (no saved window state), size the screen window
-   * to fill the available viewport at 4:3 and center it.  Disk drives
-   * stay hidden until the user opens them.
-   *
-   * Called after screenWindow.show() + attachCanvas() so the screen
-   * window already has accurate layout metrics.
-   */
-  showDefaultWindows() {
-    const savedState = localStorage.getItem('a2e-debug-windows');
-    if (savedState) {
-      try {
-        const parsed = JSON.parse(savedState);
-        if (parsed && parsed['screen-window']) return;
-      } catch (e) { /* proceed with defaults */ }
-    }
-
-    const header = document.querySelector('header');
-    const footer = document.querySelector('footer');
-    const headerH = header ? header.offsetHeight : 0;
-    const footerH = footer ? footer.offsetHeight : 0;
-    const vpW = window.innerWidth;
-    const vpH = window.innerHeight;
-    const availW = vpW;
-    const availH = vpH - headerH - footerH;
-    const margin = 8;
-
-    const sw = this.screenWindow;
-
-    // Fill the available viewport; canvas maintains its own 4:3 ratio
-    const w = availW - margin * 2;
-    const h = availH - margin * 2;
-    const x = margin;
-    const y = headerH + margin;
-
-    sw.element.style.left = `${x}px`;
-    sw.element.style.top = `${y}px`;
-    sw.element.style.width = `${w}px`;
-    sw.element.style.height = `${h}px`;
-    sw.currentX = x;
-    sw.currentY = y;
-    sw.currentWidth = w;
-    sw.currentHeight = h;
-
-    // Lock to viewport by default so the window tracks browser resizes
-    sw.setViewportLocked(true);
   }
 
   /**

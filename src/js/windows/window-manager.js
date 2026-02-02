@@ -215,6 +215,74 @@ export class WindowManager {
   }
 
   /**
+   * Apply default layout for first-time users (no saved state).
+   * Each entry: { id, x, y, width, height, visible, position, viewportLocked }
+   * Use position: "viewport-fill" for a window that should fill the viewport.
+   */
+  applyDefaultLayout(layout) {
+    const savedState = localStorage.getItem(this.storageKey);
+    if (savedState) {
+      try {
+        const parsed = JSON.parse(savedState);
+        if (parsed && Object.keys(parsed).length > 0) return;
+      } catch (e) { /* proceed with defaults */ }
+    }
+
+    for (const entry of layout) {
+      const win = this.windows.get(entry.id);
+      if (!win) continue;
+
+      if (entry.position === 'viewport-fill') {
+        const header = document.querySelector('header');
+        const footer = document.querySelector('footer');
+        const headerH = header ? header.offsetHeight : 0;
+        const footerH = footer ? footer.offsetHeight : 0;
+        const margin = 8;
+
+        const w = window.innerWidth - margin * 2;
+        const h = window.innerHeight - headerH - footerH - margin * 2;
+        const x = margin;
+        const y = headerH + margin;
+
+        win.element.style.left = `${x}px`;
+        win.element.style.top = `${y}px`;
+        win.element.style.width = `${w}px`;
+        win.element.style.height = `${h}px`;
+        win.currentX = x;
+        win.currentY = y;
+        win.currentWidth = w;
+        win.currentHeight = h;
+      } else {
+        if (entry.x !== undefined) {
+          win.element.style.left = `${entry.x}px`;
+          win.currentX = entry.x;
+        }
+        if (entry.y !== undefined) {
+          win.element.style.top = `${entry.y}px`;
+          win.currentY = entry.y;
+        }
+        if (entry.width !== undefined) {
+          win.element.style.width = `${entry.width}px`;
+          win.currentWidth = entry.width;
+        }
+        if (entry.height !== undefined) {
+          win.element.style.height = `${entry.height}px`;
+          win.currentHeight = entry.height;
+        }
+      }
+
+      if (entry.viewportLocked && typeof win.setViewportLocked === 'function') {
+        win.setViewportLocked(true);
+      }
+
+      if (entry.visible) {
+        win.show();
+        this.bringToFront(entry.id);
+      }
+    }
+  }
+
+  /**
    * Arrange all visible windows in a grid layout
    */
   arrangeWindows() {

@@ -236,6 +236,9 @@ export class BaseWindow {
   updateEdgeDistances() {
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
+    const footer = document.querySelector("footer");
+    const footerHeight = footer ? footer.offsetHeight : 0;
+    const maxBottom = viewportHeight - footerHeight;
     const centerX = this.currentX + this.currentWidth / 2;
     const centerY = this.currentY + this.currentHeight / 2;
 
@@ -247,10 +250,10 @@ export class BaseWindow {
       this.distanceFromRight = null;
     }
 
-    // Track distance from bottom edge if window is on the bottom half
+    // Track distance from bottom edge (above footer) if window is on the bottom half
     if (centerY > viewportHeight / 2) {
       this.distanceFromBottom =
-        viewportHeight - (this.currentY + this.currentHeight);
+        maxBottom - (this.currentY + this.currentHeight);
     } else {
       this.distanceFromBottom = null;
     }

@@ -40,6 +40,8 @@ export class BreakpointManager {
 
     const entry = {
       address,
+      endAddress: opts.endAddress ?? address,
+      name: opts.name || null,
       enabled: opts.enabled !== false,
       condition: opts.condition || null,
       conditionRules: opts.conditionRules || null,
@@ -280,6 +282,47 @@ export class BreakpointManager {
   }
 
   /**
+   * Find a breakpoint entry whose address range contains the given address.
+   * For non-exec types, checks if addr falls within [address, endAddress].
+   * Returns the matching entry or null.
+   */
+  findByAddress(addr) {
+    for (const entry of this.breakpoints.values()) {
+      if (entry.type === "exec") continue;
+      const end = entry.endAddress ?? entry.address;
+      if (addr >= entry.address && addr <= end) {
+        return entry;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Evaluate whether a given breakpoint entry should actually fire.
+   * Like shouldBreak() but accepts an entry directly (for range-based lookups).
+   */
+  shouldBreakEntry(entry) {
+    if (!entry || !entry.enabled) return false;
+
+    entry.hitCount++;
+
+    if (entry.hitTarget > 0 && entry.hitCount < entry.hitTarget) {
+      return false;
+    }
+
+    if (entry.condition) {
+      try {
+        const result = this.evaluateCondition(entry.condition);
+        if (!result) return false;
+      } catch (e) {
+        console.warn("Breakpoint condition error:", e.message);
+      }
+    }
+
+    return true;
+  }
+
+  /**
    * Evaluate a breakpoint condition expression via C++ evaluator.
    */
   evaluateCondition(expr) {
@@ -329,7 +372,7 @@ export class BreakpointManager {
         const typeMap = { read: 1, write: 2, readwrite: 3 };
         this.wasmModule._addWatchpoint(
           entry.address,
-          entry.address,
+          entry.endAddress ?? entry.address,
           typeMap[entry.type] || 3,
         );
       } catch (e) {
@@ -357,6 +400,8 @@ export class BreakpointManager {
         if (entry.isTemp) continue;
         data.push({
           address: addr,
+          endAddress: entry.endAddress ?? addr,
+          name: entry.name || null,
           enabled: entry.enabled,
           condition: entry.condition,
           conditionRules: entry.conditionRules,
@@ -381,6 +426,8 @@ export class BreakpointManager {
         const data = JSON.parse(saved);
         for (const entry of data) {
           this.add(entry.address, {
+            endAddress: entry.endAddress,
+            name: entry.name,
             enabled: entry.enabled,
             condition: entry.condition,
             conditionRules: entry.conditionRules,

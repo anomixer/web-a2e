@@ -18,6 +18,9 @@ export class WebGLRenderer {
     this.burnInTextures = [null, null];
     this.currentBurnInIndex = 0;
 
+    // Edge overlay program (second pass)
+    this.edgeProgram = null;
+
     // Selection overlay texture
     this.selectionTexture = null;
 
@@ -106,10 +109,11 @@ export class WebGLRenderer {
     const gl = this.gl;
 
     // Load shader sources from files
-    const [vertexSource, fragmentSource, burnInSource] = await Promise.all([
+    const [vertexSource, fragmentSource, burnInSource, edgeSource] = await Promise.all([
       this.loadShader("shaders/vertex.glsl"),
       this.loadShader("shaders/crt.glsl"),
       this.loadShader("shaders/burnin.glsl"),
+      this.loadShader("shaders/edge.glsl"),
     ]);
 
     // Create main shaders
@@ -154,6 +158,23 @@ export class WebGLRenderer {
       );
     }
 
+    // Create edge overlay shaders
+    const edgeVertexShader = this.compileShader(gl.VERTEX_SHADER, vertexSource);
+    const edgeFragmentShader = this.compileShader(gl.FRAGMENT_SHADER, edgeSource);
+
+    // Create edge overlay program
+    this.edgeProgram = gl.createProgram();
+    gl.attachShader(this.edgeProgram, edgeVertexShader);
+    gl.attachShader(this.edgeProgram, edgeFragmentShader);
+    gl.linkProgram(this.edgeProgram);
+
+    if (!gl.getProgramParameter(this.edgeProgram, gl.LINK_STATUS)) {
+      throw new Error(
+        "Edge shader program failed to link: " +
+          gl.getProgramInfoLog(this.edgeProgram),
+      );
+    }
+
     // Get attribute locations
     this.positionLoc = gl.getAttribLocation(this.program, "a_position");
     this.texCoordLoc = gl.getAttribLocation(this.program, "a_texCoord");
@@ -167,6 +188,10 @@ export class WebGLRenderer {
       this.burnInProgram,
       "a_texCoord",
     );
+
+    // Get edge overlay attribute locations
+    this.edgePositionLoc = gl.getAttribLocation(this.edgeProgram, "a_position");
+    this.edgeTexCoordLoc = gl.getAttribLocation(this.edgeProgram, "a_texCoord");
 
     // Get all uniform locations for main program
     this.uniforms = {
@@ -202,7 +227,6 @@ export class WebGLRenderer {
       monochromeMode: gl.getUniformLocation(this.program, "u_monochromeMode"),
       cornerRadius: gl.getUniformLocation(this.program, "u_cornerRadius"),
       screenMargin: gl.getUniformLocation(this.program, "u_screenMargin"),
-      edgeHighlight: gl.getUniformLocation(this.program, "u_edgeHighlight"),
       beamY: gl.getUniformLocation(this.program, "u_beamY"),
       beamX: gl.getUniformLocation(this.program, "u_beamX"),
       selectionTexture: gl.getUniformLocation(this.program, "u_selectionTexture"),
@@ -219,6 +243,15 @@ export class WebGLRenderer {
         "u_previousTexture",
       ),
       burnInDecay: gl.getUniformLocation(this.burnInProgram, "u_burnInDecay"),
+    };
+
+    // Get edge overlay program uniform locations
+    this.edgeUniforms = {
+      curvature: gl.getUniformLocation(this.edgeProgram, "u_curvature"),
+      cornerRadius: gl.getUniformLocation(this.edgeProgram, "u_cornerRadius"),
+      edgeHighlight: gl.getUniformLocation(this.edgeProgram, "u_edgeHighlight"),
+      textureSize: gl.getUniformLocation(this.edgeProgram, "u_textureSize"),
+      resolution: gl.getUniformLocation(this.edgeProgram, "u_resolution"),
     };
 
     // Create vertex buffer (full-screen quad)
@@ -494,12 +527,33 @@ export class WebGLRenderer {
     gl.uniform1i(this.uniforms.monochromeMode, this.crtParams.monochromeMode);
     gl.uniform1f(this.uniforms.cornerRadius, this.crtParams.cornerRadius);
     gl.uniform1f(this.uniforms.screenMargin, this.crtParams.screenMargin);
-    gl.uniform1f(this.uniforms.edgeHighlight, this.crtParams.edgeHighlight);
     gl.uniform1f(this.uniforms.beamY, this.crtParams.beamY);
     gl.uniform1f(this.uniforms.beamX, this.crtParams.beamX);
 
-    // Draw
+    // Draw main CRT pass
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+    // --- Second pass: edge overlay (unaffected by CRT effects) ---
+    if (this.crtParams.edgeHighlight > 0.001) {
+      gl.useProgram(this.edgeProgram);
+
+      // Reuse the same vertex buffer (same full-screen quad)
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.vertexBuffer);
+      gl.enableVertexAttribArray(this.edgePositionLoc);
+      gl.vertexAttribPointer(this.edgePositionLoc, 2, gl.FLOAT, false, 16, 0);
+      gl.enableVertexAttribArray(this.edgeTexCoordLoc);
+      gl.vertexAttribPointer(this.edgeTexCoordLoc, 2, gl.FLOAT, false, 16, 8);
+
+      // Set edge uniforms
+      gl.uniform1f(this.edgeUniforms.curvature, this.crtParams.curvature);
+      gl.uniform1f(this.edgeUniforms.cornerRadius, this.crtParams.cornerRadius);
+      gl.uniform1f(this.edgeUniforms.edgeHighlight, this.crtParams.edgeHighlight);
+      gl.uniform2f(this.edgeUniforms.textureSize, this.width, this.height);
+      gl.uniform2f(this.edgeUniforms.resolution, this.canvas.width, this.canvas.height);
+
+      // Draw edge overlay (alpha-blended on top of CRT output)
+      gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    }
   }
 
   clear() {

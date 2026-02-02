@@ -32,6 +32,7 @@ export class BasicProgramWindow extends BaseWindow {
           <span class="basic-chars">0 chars</span>
         </div>
         <div class="basic-editor-container">
+          <div class="basic-line-highlight"></div>
           <pre class="basic-highlight" aria-hidden="true"></pre>
           <textarea class="basic-textarea" placeholder="Paste or type your BASIC program here...
 
@@ -40,7 +41,7 @@ Example:
 20 GOTO 10" spellcheck="false"></textarea>
         </div>
         <div class="basic-actions">
-          <button class="basic-btn basic-insert-btn">Load into Memory</button>
+          <button class="basic-btn basic-insert-btn">Paste into Emulator</button>
           <button class="basic-btn basic-clear-btn">Clear</button>
         </div>
       </div>
@@ -50,6 +51,7 @@ Example:
   onContentRendered() {
     this.textarea = this.contentElement.querySelector(".basic-textarea");
     this.highlight = this.contentElement.querySelector(".basic-highlight");
+    this.lineHighlight = this.contentElement.querySelector(".basic-line-highlight");
     this.linesSpan = this.contentElement.querySelector(".basic-lines");
     this.charsSpan = this.contentElement.querySelector(".basic-chars");
     this.insertBtn = this.contentElement.querySelector(".basic-insert-btn");
@@ -59,12 +61,25 @@ Example:
     this.textarea.addEventListener("input", () => {
       this.updateHighlighting();
       this.updateStats();
+      this.updateCurrentLineHighlight();
     });
 
     // Sync scroll position
     this.textarea.addEventListener("scroll", () => {
       this.highlight.scrollTop = this.textarea.scrollTop;
       this.highlight.scrollLeft = this.textarea.scrollLeft;
+      this.updateCurrentLineHighlight();
+    });
+
+    // Track cursor movement
+    this.textarea.addEventListener("keydown", () => requestAnimationFrame(() => this.updateCurrentLineHighlight()));
+    this.textarea.addEventListener("click", () => this.updateCurrentLineHighlight());
+    this.textarea.addEventListener("focus", () => {
+      this.lineHighlight.classList.add("visible");
+      this.updateCurrentLineHighlight();
+    });
+    this.textarea.addEventListener("blur", () => {
+      this.lineHighlight.classList.remove("visible");
     });
 
     // Insert button
@@ -80,11 +95,25 @@ Example:
     });
 
     // Initialize autocomplete
-    const editorContainer = this.contentElement.querySelector(".basic-editor-container");
+    const editorContainer = this.contentElement.querySelector(
+      ".basic-editor-container",
+    );
     this.autocomplete = new BasicAutocomplete(this.textarea, editorContainer);
 
     this.updateHighlighting();
     this.updateStats();
+  }
+
+  updateCurrentLineHighlight() {
+    if (!this.lineHighlight || !this.textarea) return;
+    const text = this.textarea.value.substring(0, this.textarea.selectionStart);
+    const lineIndex = text.split("\n").length - 1;
+    const style = getComputedStyle(this.textarea);
+    const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.4;
+    const paddingTop = parseFloat(style.paddingTop) || 0;
+    const top = paddingTop + lineIndex * lineHeight - this.textarea.scrollTop;
+    this.lineHighlight.style.top = `${top}px`;
+    this.lineHighlight.style.height = `${lineHeight}px`;
   }
 
   updateHighlighting() {
@@ -96,7 +125,7 @@ Example:
 
   updateStats() {
     const text = this.textarea.value;
-    const lines = text ? text.split(/\r?\n/).filter(l => l.trim()).length : 0;
+    const lines = text ? text.split(/\r?\n/).filter((l) => l.trim()).length : 0;
     const chars = text.length;
 
     this.linesSpan.textContent = `${lines} line${lines !== 1 ? "s" : ""}`;

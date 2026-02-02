@@ -50,9 +50,6 @@ uniform float u_beamX;
 // Screen margin/padding for rounded corners (content is inset by this amount)
 uniform float u_screenMargin;
 
-// Edge highlight
-uniform float u_edgeHighlight;
-
 varying vec2 v_texCoord;
 
 // Constants
@@ -176,7 +173,7 @@ float staticNoise(vec2 uv, float time) {
 
 vec3 noSignalStatic(vec2 uv, float time) {
     // Blocky TV static - sized for authentic CRT look
-    vec2 blockSize = vec2(3.0, 3.0);
+    vec2 blockSize = vec2(2.0, 2.0);
     vec2 pixelCoord = floor(uv * u_textureSize / blockSize);
 
     // Animate for that classic TV static feel
@@ -501,34 +498,6 @@ vec2 applyScreenMargin(vec2 uv) {
     return centered * scale + 0.5;
 }
 
-// Calculate edge highlight - sharp 1-pixel line around the edge
-float edgeHighlightIntensity(vec2 uv, float radius) {
-    if (u_edgeHighlight < 0.001) return 0.0;
-
-    // Distance from edge (0 at edge, increases toward center)
-    vec2 centered = abs(uv - 0.5);
-
-    // Line thickness in UV space (approximately 1-2 pixels)
-    float lineWidth = 1.5 / u_textureSize.y;
-
-    // Calculate distance from the rounded rectangle edge
-    vec2 cornerDist = centered - (0.5 - radius);
-    float distFromEdge;
-
-    if (cornerDist.x > 0.0 && cornerDist.y > 0.0) {
-        // In corner region - distance from arc
-        distFromEdge = radius - length(cornerDist);
-    } else {
-        // On straight edge - distance from nearest edge
-        distFromEdge = min(0.5 - centered.x, 0.5 - centered.y);
-    }
-
-    // Sharp line: only show when very close to edge
-    float highlight = step(distFromEdge, lineWidth) * step(0.0, distFromEdge);
-
-    return highlight * u_edgeHighlight;
-}
-
 // ============================================
 // Beam position crosshair overlay
 // ============================================
@@ -565,45 +534,39 @@ vec3 beamOverlay(vec2 uv) {
 void main() {
     vec2 uv = v_texCoord;
 
-    // Apply coordinate distortions
-    uv = applyHorizontalSync(uv, u_time);
-    uv = applyJitter(uv, u_time);
+    // Stable screen boundary from undistorted coordinates.
+    // The physical CRT mask doesn't wobble — only the beam does.
+    // All clipping and alpha use this so nothing renders outside the edge.
+    vec2 stableCurvedUV = curveUV(uv);
 
-    // Apply screen curvature
-    vec2 curvedUV = curveUV(uv);
-
-    // Calculate corner alpha using curved coordinates so corners follow the curvature
-    float cornerAlpha = roundedRectAlpha(curvedUV, u_cornerRadius);
-
-    // Outside rounded corners - transparent
+    float cornerAlpha = roundedRectAlpha(stableCurvedUV, u_cornerRadius);
     if (cornerAlpha < 0.001) {
         gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
         return;
     }
 
-    // Apply overscan (adds border around content)
-    vec2 contentUV = applyOverscan(curvedUV);
-
-    // Apply screen margin - insets content so rounded corners don't clip it
-    contentUV = applyScreenMargin(contentUV);
-
-    // Dark bezel color for areas outside content
-    vec3 darkBezelColor = vec3(0.0); // Black
-
-    // Calculate edge factor for curvature effects
-    float edgeFactor = smoothEdge(curvedUV);
-
-    // Outside corners from curvature - transparent
+    float edgeFactor = smoothEdge(stableCurvedUV);
     if (edgeFactor < 0.001) {
         gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
         return;
     }
 
-    // Outside screen area (including overscan border) - transparent
-    if (curvedUV.x < 0.0 || curvedUV.x > 1.0 || curvedUV.y < 0.0 || curvedUV.y > 1.0) {
+    if (stableCurvedUV.x < 0.0 || stableCurvedUV.x > 1.0 || stableCurvedUV.y < 0.0 || stableCurvedUV.y > 1.0) {
         gl_FragColor = vec4(0.0, 0.0, 0.0, 0.0);
         return;
     }
+
+    // Apply signal distortions — the beam wobbles, the mask does not
+    vec2 distortedUV = applyHorizontalSync(uv, u_time);
+    distortedUV = applyJitter(distortedUV, u_time);
+    vec2 curvedUV = curveUV(distortedUV);
+
+    // Content coordinates use the distorted beam position
+    vec2 contentUV = applyOverscan(curvedUV);
+    contentUV = applyScreenMargin(contentUV);
+
+    // Dark bezel color for areas outside content
+    vec3 darkBezelColor = vec3(0.0); // Black
 
     // Check if we're in the margin area (outside content but inside screen)
     bool inMargin = contentUV.x < 0.0 || contentUV.x > 1.0 || contentUV.y < 0.0 || contentUV.y > 1.0;
@@ -677,9 +640,9 @@ void main() {
     // Apply vignette
     color *= vignette(curvedUV);
 
-    // Apply edge fade for curved screens
+    // Apply edge fade for curved screens (uses stable coords — physical screen property)
     if (u_curvature > 0.001) {
-        color *= edgeFade(curvedUV);
+        color *= edgeFade(stableCurvedUV);
     }
 
     // Apply flicker
@@ -693,11 +656,6 @@ void main() {
 
     // Apply ambient light
     color = applyAmbientLight(color, curvedUV);
-
-    // Apply edge highlight - lighter color around the screen edge
-    float edgeGlow = edgeHighlightIntensity(curvedUV, u_cornerRadius);
-    vec3 highlightColor = vec3(0.55, 0.55, 0.5); // Light gray edge highlight
-    color = mix(color, highlightColor, edgeGlow);
 
     // Beam position crosshair (additive blend, uses content UV)
     if (!inMargin) {

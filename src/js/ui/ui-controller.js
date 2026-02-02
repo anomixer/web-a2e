@@ -226,7 +226,6 @@ export class UIController {
     if (drivesBtn) {
       drivesBtn.addEventListener("click", () => {
         this.windowManager.toggleWindow("disk-drives");
-        this.reminderController.dismissDrivesReminder();
         this.closeAllMenus();
         this.refocusCanvas();
       });

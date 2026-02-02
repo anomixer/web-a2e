@@ -23,7 +23,8 @@
         justify-content: center;
     }
 
-    .tagline {
+    .tagline,
+    .retro-brand {
         display: none;
     }
 
@@ -66,8 +67,8 @@
         margin-bottom: var(--space-xs);
     }
 
-    .logo-text {
-        font-size: 1.25rem;
+    .logo-image {
+        height: 26px;
     }
 
     .header-controls {
@@ -185,8 +186,8 @@
 
 /* Extra small mobile (very small phones) */
 @media (max-width: 400px) {
-    .logo-text {
-        font-size: 1.1rem;
+    .logo-image {
+        height: 22px;
     }
 
     .control-btn {
@@ -230,11 +231,12 @@
         margin-bottom: 0;
     }
 
-    .logo-text {
-        font-size: 1rem;
+    .logo-image {
+        height: 22px;
     }
 
-    .tagline {
+    .tagline,
+    .retro-brand {
         display: none;
     }
 

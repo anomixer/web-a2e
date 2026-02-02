@@ -5,15 +5,15 @@
  *  Mike Daley <michael_daley@icloud.com>
  */
 
-import { BaseWindow } from '../windows/base-window.js';
+import { BaseWindow } from "../windows/base-window.js";
 
 export class ScreenWindow extends BaseWindow {
   constructor(renderer, textSelection) {
     super({
-      id: 'screen-window',
-      title: 'Apple //e',
-      minWidth: 284,    // 280 min canvas + 4px padding/border
-      minHeight: 244,   // 210 min canvas + ~34px header
+      id: "screen-window",
+      title: "Monitor",
+      minWidth: 284, // 280 min canvas + 4px padding/border
+      minHeight: 244, // 210 min canvas + ~34px header
       defaultWidth: 480,
       defaultHeight: 394,
       defaultPosition: { x: 100, y: 50 },
@@ -34,9 +34,9 @@ export class ScreenWindow extends BaseWindow {
    * set up a ResizeObserver so the canvas tracks container size.
    */
   onContentRendered() {
-    const charsetSwitch = document.createElement('div');
-    charsetSwitch.className = 'screen-window-charset-switch';
-    charsetSwitch.title = 'Character Set (US/UK)';
+    const charsetSwitch = document.createElement("div");
+    charsetSwitch.className = "screen-window-charset-switch";
+    charsetSwitch.title = "Character Set (US/UK)";
     charsetSwitch.innerHTML = `
       <span class="charset-label">US</span>
       <label class="charset-toggle">
@@ -47,9 +47,9 @@ export class ScreenWindow extends BaseWindow {
     `;
 
     // Viewport lock button
-    this._lockBtn = document.createElement('button');
-    this._lockBtn.className = 'screen-window-lock';
-    this._lockBtn.title = 'Fit to viewport';
+    this._lockBtn = document.createElement("button");
+    this._lockBtn.className = "screen-window-lock";
+    this._lockBtn.title = "Fit to viewport";
     this._lockBtn.innerHTML = `
       <svg class="lock-icon-unlocked" viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
         <path d="M4 7V5a4 4 0 0 1 8 0v1h-2V5a2 2 0 0 0-4 0v2H3a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1H4z"/>
@@ -64,19 +64,21 @@ export class ScreenWindow extends BaseWindow {
     this.headerElement.appendChild(this._lockBtn);
 
     // Prevent clicks from starting a window drag
-    charsetSwitch.addEventListener('mousedown', (e) => {
+    charsetSwitch.addEventListener("mousedown", (e) => {
       e.stopPropagation();
     });
-    this._lockBtn.addEventListener('mousedown', (e) => {
+    this._lockBtn.addEventListener("mousedown", (e) => {
       e.stopPropagation();
     });
-    this._lockBtn.addEventListener('click', () => {
+    this._lockBtn.addEventListener("click", () => {
       this.setViewportLocked(!this._viewportLocked);
     });
 
     // Observe the content container so _fitCanvas runs whenever
     // the window is resized, restored, arranged, etc.
-    const container = this.contentElement.querySelector('.screen-window-content');
+    const container = this.contentElement.querySelector(
+      ".screen-window-content",
+    );
     if (container) {
       this._resizeObserver = new ResizeObserver(() => this._fitCanvas());
       this._resizeObserver.observe(container);
@@ -89,10 +91,8 @@ export class ScreenWindow extends BaseWindow {
   setViewportLocked(locked) {
     this._viewportLocked = locked;
     if (this._lockBtn) {
-      this._lockBtn.classList.toggle('active', locked);
-      this._lockBtn.title = locked
-        ? 'Unlock from viewport'
-        : 'Fit to viewport';
+      this._lockBtn.classList.toggle("active", locked);
+      this._lockBtn.title = locked ? "Unlock from viewport" : "Fit to viewport";
     }
     if (locked) {
       this.constrainToViewport();
@@ -104,16 +104,18 @@ export class ScreenWindow extends BaseWindow {
    * Move #screen canvas from #monitor-frame into this window's content area.
    */
   attachCanvas() {
-    const canvas = document.getElementById('screen');
+    const canvas = document.getElementById("screen");
     if (!canvas) return;
 
-    const container = this.contentElement.querySelector('.screen-window-content');
+    const container = this.contentElement.querySelector(
+      ".screen-window-content",
+    );
     if (!container) return;
 
     // Clear any inline sizing
-    canvas.style.width = '';
-    canvas.style.height = '';
-    canvas.style.marginTop = '';
+    canvas.style.width = "";
+    canvas.style.height = "";
+    canvas.style.marginTop = "";
 
     container.appendChild(canvas);
 
@@ -128,17 +130,17 @@ export class ScreenWindow extends BaseWindow {
    * Move #screen canvas back into #monitor-frame (used by full-page mode).
    */
   detachCanvas() {
-    const canvas = document.getElementById('screen');
+    const canvas = document.getElementById("screen");
     if (!canvas) return;
 
-    const frame = document.getElementById('monitor-frame');
+    const frame = document.getElementById("monitor-frame");
     if (!frame) return;
 
     frame.appendChild(canvas);
 
     // Clear inline styles
-    canvas.style.width = '';
-    canvas.style.height = '';
+    canvas.style.width = "";
+    canvas.style.height = "";
 
     if (this.textSelection) {
       this.textSelection.reattach();
@@ -183,8 +185,8 @@ export class ScreenWindow extends BaseWindow {
     if (this._viewportLocked) {
       const vpW = window.innerWidth;
       const vpH = window.innerHeight;
-      const header = document.querySelector('header');
-      const footer = document.querySelector('footer');
+      const header = document.querySelector("header");
+      const footer = document.querySelector("footer");
       const minTop = header ? header.offsetHeight : 0;
       const footerH = footer ? footer.offsetHeight : 0;
       const margin = 8;
@@ -211,10 +213,71 @@ export class ScreenWindow extends BaseWindow {
   }
 
   /**
-   * After standard resize, update the canvas to fit the new content area.
+   * Override resize to enforce 4:3 aspect ratio on the content area.
+   * Whichever dimension the user drags drives the other so the window
+   * always holds an exact 4:3 content rectangle.
    */
   resize(e) {
+    const dir = this.resizeDirection;
+
+    // Let the base class compute unconstrained new dimensions
     super.resize(e);
+
+    // Enforce 4:3 on the content area (window height = content + header)
+    const headerHeight = this.headerElement
+      ? this.headerElement.offsetHeight
+      : 0;
+    const ASPECT = 4 / 3; // width / height
+
+    // Anchor edges: resizing from n keeps bottom fixed, from w keeps right fixed
+    const bottom = this.currentY + this.currentHeight;
+    const right = this.currentX + this.currentWidth;
+
+    let newWidth = this.currentWidth;
+    let newHeight;
+
+    if (dir === "n" || dir === "s") {
+      // Pure vertical drag: width follows height
+      const contentHeight = this.currentHeight - headerHeight;
+      newWidth = Math.round(contentHeight * ASPECT);
+      newHeight = this.currentHeight;
+    } else {
+      // Has horizontal component (e, w, corners): height follows width
+      const targetContentHeight = Math.round(this.currentWidth / ASPECT);
+      newHeight = targetContentHeight + headerHeight;
+    }
+
+    // Enforce minimums while maintaining ratio
+    if (newWidth < this.minWidth) {
+      newWidth = this.minWidth;
+      newHeight = Math.round(newWidth / ASPECT) + headerHeight;
+    }
+    if (newHeight < this.minHeight) {
+      newHeight = this.minHeight;
+      newWidth = Math.round((newHeight - headerHeight) * ASPECT);
+    }
+
+    // Adjust position so the anchored edge stays fixed
+    let newLeft = this.currentX;
+    let newTop = this.currentY;
+
+    if (dir.includes("n")) {
+      newTop = bottom - newHeight;
+    }
+    if (dir.includes("w")) {
+      newLeft = right - newWidth;
+    }
+
+    // Apply the aspect-corrected dimensions and position
+    this.element.style.width = `${newWidth}px`;
+    this.element.style.height = `${newHeight}px`;
+    this.element.style.left = `${newLeft}px`;
+    this.element.style.top = `${newTop}px`;
+    this.currentWidth = newWidth;
+    this.currentHeight = newHeight;
+    this.currentX = newLeft;
+    this.currentY = newTop;
+
     this._fitCanvas();
   }
 
@@ -234,8 +297,10 @@ export class ScreenWindow extends BaseWindow {
    * container and apply it to the canvas display size and renderer.
    */
   _fitCanvas() {
-    const container = this.contentElement?.querySelector('.screen-window-content');
-    const canvas = document.getElementById('screen');
+    const container = this.contentElement?.querySelector(
+      ".screen-window-content",
+    );
+    const canvas = document.getElementById("screen");
     if (!container || !canvas) return;
 
     const cw = container.clientWidth;
@@ -243,12 +308,12 @@ export class ScreenWindow extends BaseWindow {
     if (cw <= 0 || ch <= 0) return;
 
     let w, h;
-    if (cw * 3 / 4 <= ch) {
+    if ((cw * 3) / 4 <= ch) {
       w = cw;
-      h = cw * 3 / 4;
+      h = (cw * 3) / 4;
     } else {
       h = ch;
-      w = ch * 4 / 3;
+      w = (ch * 4) / 3;
     }
     w = Math.floor(w);
     h = Math.floor(h);
