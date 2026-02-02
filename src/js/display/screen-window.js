@@ -364,6 +364,19 @@ export class ScreenWindow extends BaseWindow {
       newHeight = maxBottom - newTop;
     }
 
+    // If height was clamped below what 4:3 requires, re-derive width to match
+    const idealHeight = Math.max(this.minHeight, this._heightForWidth(newWidth));
+    if (newHeight < idealHeight) {
+      const m = this._layoutMetrics || { hPad: 4, vFixed: 34 };
+      const canvasH = Math.max(0, newHeight - m.vFixed);
+      const canvasW = canvasH * (4 / 3);
+      newWidth = Math.max(this.minWidth, Math.round(canvasW + m.hPad));
+      newHeight = Math.max(this.minHeight, this._heightForWidth(newWidth));
+      if (dir.includes('w')) {
+        newLeft = this.resizeStart.left + this.resizeStart.width - newWidth;
+      }
+    }
+
     this.element.style.width = `${newWidth}px`;
     this.element.style.height = `${newHeight}px`;
     this.element.style.left = `${newLeft}px`;
