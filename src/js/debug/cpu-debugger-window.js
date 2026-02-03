@@ -490,6 +490,7 @@ export class CPUDebuggerWindow extends BaseWindow {
     this.setupRegisterEditing();
     this.setupBeamBreakTabEvents();
     this.updateBreakpointList();
+    this.updateBeamList();
   }
 
   destroy() {

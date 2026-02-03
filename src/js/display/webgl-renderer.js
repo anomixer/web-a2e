@@ -31,12 +31,12 @@ export class WebGLRenderer {
     // CRT effect parameters (0.0 to 1.0 unless noted)
     this.crtParams = {
       // Screen geometry
-      curvature: 0.0,
+      curvature: 0.2,
 
       // Scanlines and rasterization
-      scanlineIntensity: 0.0,
-      scanlineWidth: 0.5,
-      shadowMask: 0.0,
+      scanlineIntensity: 0.03,
+      scanlineWidth: 0.25,
+      shadowMask: 1.0,
 
       // Glow/bloom
       glowIntensity: 0.0,
@@ -69,7 +69,7 @@ export class WebGLRenderer {
       noSignal: 0.0, // 1.0 = full static, 0.0 = normal display
 
       // NTSC color fringing (simulates chroma bandwidth limiting)
-      ntscFringing: 0.67, // 0.0 to 1.0
+      ntscFringing: 0.5, // 0.0 to 1.0
 
       // Monochrome mode (0=color, 1=green, 2=amber, 3=white)
       monochromeMode: 0,
@@ -99,9 +99,14 @@ export class WebGLRenderer {
 
   async init() {
     // Get WebGL context
-    const ctxAttrs = { alpha: true, premultipliedAlpha: false, preserveDrawingBuffer: true };
+    const ctxAttrs = {
+      alpha: true,
+      premultipliedAlpha: false,
+      preserveDrawingBuffer: true,
+    };
     this.gl =
-      this.canvas.getContext("webgl2", ctxAttrs) || this.canvas.getContext("webgl", ctxAttrs);
+      this.canvas.getContext("webgl2", ctxAttrs) ||
+      this.canvas.getContext("webgl", ctxAttrs);
     if (!this.gl) {
       throw new Error("WebGL not supported");
     }
@@ -109,12 +114,13 @@ export class WebGLRenderer {
     const gl = this.gl;
 
     // Load shader sources from files
-    const [vertexSource, fragmentSource, burnInSource, edgeSource] = await Promise.all([
-      this.loadShader("shaders/vertex.glsl"),
-      this.loadShader("shaders/crt.glsl"),
-      this.loadShader("shaders/burnin.glsl"),
-      this.loadShader("shaders/edge.glsl"),
-    ]);
+    const [vertexSource, fragmentSource, burnInSource, edgeSource] =
+      await Promise.all([
+        this.loadShader("shaders/vertex.glsl"),
+        this.loadShader("shaders/crt.glsl"),
+        this.loadShader("shaders/burnin.glsl"),
+        this.loadShader("shaders/edge.glsl"),
+      ]);
 
     // Create main shaders
     const vertexShader = this.compileShader(gl.VERTEX_SHADER, vertexSource);
@@ -160,7 +166,10 @@ export class WebGLRenderer {
 
     // Create edge overlay shaders
     const edgeVertexShader = this.compileShader(gl.VERTEX_SHADER, vertexSource);
-    const edgeFragmentShader = this.compileShader(gl.FRAGMENT_SHADER, edgeSource);
+    const edgeFragmentShader = this.compileShader(
+      gl.FRAGMENT_SHADER,
+      edgeSource,
+    );
 
     // Create edge overlay program
     this.edgeProgram = gl.createProgram();
@@ -229,7 +238,10 @@ export class WebGLRenderer {
       screenMargin: gl.getUniformLocation(this.program, "u_screenMargin"),
       beamY: gl.getUniformLocation(this.program, "u_beamY"),
       beamX: gl.getUniformLocation(this.program, "u_beamX"),
-      selectionTexture: gl.getUniformLocation(this.program, "u_selectionTexture"),
+      selectionTexture: gl.getUniformLocation(
+        this.program,
+        "u_selectionTexture",
+      ),
     };
 
     // Get burn-in program uniform locations
@@ -339,7 +351,17 @@ export class WebGLRenderer {
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, this.width, this.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, emptyData);
+    gl.texImage2D(
+      gl.TEXTURE_2D,
+      0,
+      gl.RGBA,
+      this.width,
+      this.height,
+      0,
+      gl.RGBA,
+      gl.UNSIGNED_BYTE,
+      emptyData,
+    );
 
     // Set initial canvas size if not already set
     if (!this.canvas.width || !this.canvas.height) {
@@ -547,9 +569,16 @@ export class WebGLRenderer {
       // Set edge uniforms
       gl.uniform1f(this.edgeUniforms.curvature, this.crtParams.curvature);
       gl.uniform1f(this.edgeUniforms.cornerRadius, this.crtParams.cornerRadius);
-      gl.uniform1f(this.edgeUniforms.edgeHighlight, this.crtParams.edgeHighlight);
+      gl.uniform1f(
+        this.edgeUniforms.edgeHighlight,
+        this.crtParams.edgeHighlight,
+      );
       gl.uniform2f(this.edgeUniforms.textureSize, this.width, this.height);
-      gl.uniform2f(this.edgeUniforms.resolution, this.canvas.width, this.canvas.height);
+      gl.uniform2f(
+        this.edgeUniforms.resolution,
+        this.canvas.width,
+        this.canvas.height,
+      );
 
       // Draw edge overlay (alpha-blended on top of CRT output)
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
