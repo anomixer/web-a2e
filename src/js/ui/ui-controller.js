@@ -405,6 +405,13 @@ export class UIController {
         e.stopPropagation();
         this.windowManager.arrangeWindows();
       }
+
+      // Option+Tab / Option+Shift+Tab to cycle through visible windows
+      if (e.altKey && e.code === 'Tab') {
+        e.preventDefault();
+        e.stopPropagation();
+        this.windowManager.cycleWindow(e.shiftKey);
+      }
     }, { capture: true });
   }
 

@@ -60,6 +60,8 @@ export class WindowManager {
     const window = this.windows.get(id);
     if (window) {
       window.hide();
+      window.element.classList.remove('focused');
+      this.focusTopWindow();
       this.saveState();
     }
   }
@@ -73,6 +75,9 @@ export class WindowManager {
       window.toggle();
       if (window.isVisible) {
         this.bringToFront(id);
+      } else {
+        window.element.classList.remove('focused');
+        this.focusTopWindow();
       }
       this.saveState();
     }
@@ -92,6 +97,7 @@ export class WindowManager {
   hideAll() {
     for (const window of this.windows.values()) {
       window.hide();
+      window.element.classList.remove('focused');
     }
     this.saveState();
   }
@@ -104,11 +110,42 @@ export class WindowManager {
     this.highestZIndex++;
     if (this.highestZIndex >= 1900) {
       this.normalizeZIndices(id);
-      return;
+    } else {
+      const window = this.windows.get(id);
+      if (window) {
+        window.setZIndex(this.highestZIndex);
+      }
     }
-    const window = this.windows.get(id);
-    if (window) {
-      window.setZIndex(this.highestZIndex);
+    this.setFocused(id);
+  }
+
+  /**
+   * Mark a window as focused, removing focus from all others
+   */
+  setFocused(id) {
+    for (const [winId, win] of this.windows) {
+      if (winId === id) {
+        win.element.classList.add('focused');
+      } else {
+        win.element.classList.remove('focused');
+      }
+    }
+  }
+
+  /**
+   * Focus the topmost visible window by z-index
+   */
+  focusTopWindow() {
+    let topWin = null;
+    let topZ = -1;
+    for (const win of this.windows.values()) {
+      if (win.isVisible && (win.zIndex || 0) > topZ) {
+        topZ = win.zIndex || 0;
+        topWin = win;
+      }
+    }
+    if (topWin) {
+      topWin.element.classList.add('focused');
     }
   }
 
@@ -202,6 +239,32 @@ export class WindowManager {
       }
     }
     return ids;
+  }
+
+  /**
+   * Cycle focus to the next visible window in z-index order.
+   * If reverse is true, cycle to the previous window instead.
+   */
+  cycleWindow(reverse = false) {
+    const visible = [...this.windows.values()]
+      .filter(w => w.isVisible)
+      .sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+    if (visible.length === 0) return;
+
+    // The focused window is the one with the highest z-index (last in sorted order)
+    const focusedIndex = visible.length - 1;
+
+    // Cycling forward brings the bottom window to the top;
+    // cycling in reverse brings the second-from-top to the top
+    let nextIndex;
+    if (reverse) {
+      nextIndex = focusedIndex - 1;
+      if (nextIndex < 0) nextIndex = visible.length - 1;
+    } else {
+      nextIndex = 0;
+    }
+
+    this.bringToFront(visible[nextIndex].id);
   }
 
   /**
