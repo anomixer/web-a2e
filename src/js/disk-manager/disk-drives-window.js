@@ -234,22 +234,35 @@ export class DiskDrivesWindow extends BaseWindow {
    * Measure layout then set the correct height for the current width.
    */
   _fitHeight() {
+    const oldHeight = this.currentHeight;
+
     // First pass: auto-height so we can measure the real layout
     this.element.style.height = "auto";
     // Force layout so measurements are valid
     this.element.offsetHeight; // eslint-disable-line no-unused-expressions
 
+    let newHeight;
     if (this._graphicsHidden) {
       // No canvas to scale — just use auto height
-      const h = Math.max(this.minHeight, this.element.offsetHeight);
-      this.element.style.height = `${h}px`;
-      this.currentHeight = h;
+      newHeight = Math.max(this.minHeight, this.element.offsetHeight);
     } else {
       this._measureLayout();
-      const h = Math.max(this.minHeight, this._heightForWidth(this.currentWidth));
-      this.element.style.height = `${h}px`;
-      this.currentHeight = h;
+      newHeight = Math.max(this.minHeight, this._heightForWidth(this.currentWidth));
     }
+
+    // Grow upward: keep the bottom edge pinned by adjusting top
+    const delta = newHeight - oldHeight;
+    if (delta !== 0) {
+      const header = document.querySelector('header');
+      const minTop = header ? header.offsetHeight : 0;
+      const newTop = Math.max(minTop, this.currentY - delta);
+      this.element.style.top = `${newTop}px`;
+      this.currentY = newTop;
+      this.updateEdgeDistances();
+    }
+
+    this.element.style.height = `${newHeight}px`;
+    this.currentHeight = newHeight;
   }
 
   /**
