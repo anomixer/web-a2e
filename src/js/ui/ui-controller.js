@@ -285,7 +285,6 @@ export class UIController {
       stack: "stack-viewer",
       zeropage: "zeropage-watch",
       mockingboard: "mockingboard-debug",
-      "mockingboard-scope": "mockingboard-scope",
       "mouse-card": "mouse-card-debug",
       basic: "basic-program",
     };

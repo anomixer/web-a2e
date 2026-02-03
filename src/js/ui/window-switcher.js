@@ -21,7 +21,6 @@ const WINDOW_CATEGORIES = [
       { id: 'joystick', title: 'Joystick' },
       { id: 'slot-configuration', title: 'Expansion Slots' },
       { id: 'mockingboard-debug', title: 'Mockingboard' },
-      { id: 'mockingboard-scope', title: 'Mockingboard Scope' },
       { id: 'mouse-card-debug', title: 'Mouse Card' },
     ],
   },

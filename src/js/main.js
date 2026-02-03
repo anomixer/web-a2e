@@ -32,7 +32,6 @@ import {
   StackViewerWindow,
   ZeroPageWatchWindow,
   MockingboardWindow,
-  MockingboardScopeWindow,
   MouseCardWindow,
   BasicProgramWindow,
   RuleBuilderWindow,
@@ -178,10 +177,6 @@ class AppleIIeEmulator {
       const mockingboardWindow = new MockingboardWindow(this.wasmModule);
       mockingboardWindow.create();
       this.windowManager.register(mockingboardWindow);
-
-      const mockingboardScopeWindow = new MockingboardScopeWindow(this.wasmModule);
-      mockingboardScopeWindow.create();
-      this.windowManager.register(mockingboardScopeWindow);
 
       const mouseCardWindow = new MouseCardWindow(this.wasmModule);
       mouseCardWindow.create();
