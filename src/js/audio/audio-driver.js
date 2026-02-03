@@ -32,6 +32,14 @@ export class AudioDriver {
 
     // Frame synchronization callback
     this.onFrameReady = null;
+
+    // Sync C++ audio state with saved JS settings
+    if (this.wasmModule._setAudioVolume) {
+      this.wasmModule._setAudioVolume(this.volume);
+    }
+    if (this.wasmModule._setAudioMuted) {
+      this.wasmModule._setAudioMuted(this.muted);
+    }
   }
 
   async start() {
@@ -313,6 +321,9 @@ export class AudioDriver {
     if (this.gainNode) {
       this.gainNode.gain.value = this.muted ? 0 : this.volume;
     }
+    if (this.wasmModule._setAudioMuted) {
+      this.wasmModule._setAudioMuted(this.muted);
+    }
     this.saveMuted();
   }
 
@@ -325,6 +336,9 @@ export class AudioDriver {
     if (this.gainNode) {
       this.gainNode.gain.value = 0;
     }
+    if (this.wasmModule._setAudioMuted) {
+      this.wasmModule._setAudioMuted(true);
+    }
     this.saveMuted();
   }
 
@@ -332,6 +346,9 @@ export class AudioDriver {
     this.muted = false;
     if (this.gainNode) {
       this.gainNode.gain.value = this.volume;
+    }
+    if (this.wasmModule._setAudioMuted) {
+      this.wasmModule._setAudioMuted(false);
     }
     this.saveMuted();
   }
@@ -361,6 +378,10 @@ export class AudioDriver {
     this.volume = Math.max(0, Math.min(1, volume));
     if (this.gainNode) {
       this.gainNode.gain.value = this.muted ? 0 : this.volume;
+    }
+    // Sync C++ audio volume for speaker and Mockingboard pre-mix scaling
+    if (this.wasmModule._setAudioVolume) {
+      this.wasmModule._setAudioVolume(this.volume);
     }
     this.saveVolume();
   }

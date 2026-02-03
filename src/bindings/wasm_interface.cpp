@@ -64,6 +64,18 @@ int generateStereoAudioSamples(float *buffer, int sampleCount) {
 }
 
 EMSCRIPTEN_KEEPALIVE
+void setAudioVolume(float volume) {
+  REQUIRE_EMULATOR();
+  g_emulator->getAudio().setVolume(volume);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void setAudioMuted(bool muted) {
+  REQUIRE_EMULATOR();
+  g_emulator->getAudio().setMuted(muted);
+}
+
+EMSCRIPTEN_KEEPALIVE
 int consumeFrameSamples() {
   REQUIRE_EMULATOR_OR(0);
   return g_emulator->consumeFrameSamples();
