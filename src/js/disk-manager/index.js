@@ -578,6 +578,10 @@ export class DiskManager {
     this.sounds.setMotorVolume(volume);
   }
 
+  setMasterVolume(volume) {
+    this.sounds.setMasterVolume(volume);
+  }
+
   // Recent disks dropdown
 
   /**

@@ -10,6 +10,9 @@ export class DriveSounds {
     // Audio context (lazily created)
     this.audioContext = null;
 
+    // Master volume (mirrors the main volume slider, 0.0-1.0)
+    this.masterVolume = 1.0;
+
     // Seek sound settings
     this.seekSoundEnabled = true;
     this.seekVolume = 0.3;
@@ -127,7 +130,7 @@ export class DriveSounds {
     filter.Q.value = 0.5;
 
     const gain = ctx.createGain();
-    gain.gain.value = this.seekVolume * 0.8;
+    gain.gain.value = this.seekVolume * 0.8 * this.masterVolume;
 
     source.connect(filter);
     filter.connect(gain);
@@ -178,7 +181,7 @@ export class DriveSounds {
     this.motorOscFilter.Q.value = 1;
 
     this.motorGain = ctx.createGain();
-    this.motorGain.gain.value = this.motorVolume * 0.5;
+    this.motorGain.gain.value = this.motorVolume * 0.5 * this.masterVolume;
 
     this.motorOscillator.connect(this.motorOscFilter);
     this.motorOscFilter.connect(this.motorGain);
@@ -203,7 +206,7 @@ export class DriveSounds {
     this.motorNoiseFilter.Q.value = this.whirQ;
 
     this.motorNoiseGain = ctx.createGain();
-    this.motorNoiseGain.gain.value = this.motorVolume * 0.25;
+    this.motorNoiseGain.gain.value = this.motorVolume * 0.25 * this.masterVolume;
 
     this.motorNoiseSource.connect(this.motorNoiseFilter);
     this.motorNoiseFilter.connect(this.motorNoiseGain);
@@ -238,7 +241,7 @@ export class DriveSounds {
 
     // Create a gain node for the final swish volume
     this.swishVolumeGain = ctx.createGain();
-    this.swishVolumeGain.gain.value = this.motorVolume * 0.4;
+    this.swishVolumeGain.gain.value = this.motorVolume * 0.4 * this.masterVolume;
 
     // Connect swish audio path
     this.swishNoiseSource.connect(this.swishFilter);
@@ -292,11 +295,11 @@ export class DriveSounds {
       this.swishLFO.frequency.value = this.swishLFOFreq;
     }
     // Update volumes
-    if (this.motorGain) this.motorGain.gain.value = this.motorVolume * 0.5;
+    if (this.motorGain) this.motorGain.gain.value = this.motorVolume * 0.5 * this.masterVolume;
     if (this.motorNoiseGain)
-      this.motorNoiseGain.gain.value = this.motorVolume * 0.25;
+      this.motorNoiseGain.gain.value = this.motorVolume * 0.25 * this.masterVolume;
     if (this.swishVolumeGain)
-      this.swishVolumeGain.gain.value = this.motorVolume * 0.4;
+      this.swishVolumeGain.gain.value = this.motorVolume * 0.4 * this.masterVolume;
   }
 
   /**
@@ -406,11 +409,22 @@ export class DriveSounds {
     this.motorVolume = Math.max(0, Math.min(1, volume));
     // Update live if motor is running
     if (this.motorRunning) {
-      if (this.motorGain) this.motorGain.gain.value = this.motorVolume * 0.5;
+      if (this.motorGain) this.motorGain.gain.value = this.motorVolume * 0.5 * this.masterVolume;
       if (this.motorNoiseGain)
-        this.motorNoiseGain.gain.value = this.motorVolume * 0.25;
+        this.motorNoiseGain.gain.value = this.motorVolume * 0.25 * this.masterVolume;
       if (this.swishVolumeGain)
-        this.swishVolumeGain.gain.value = this.motorVolume * 0.4;
+        this.swishVolumeGain.gain.value = this.motorVolume * 0.4 * this.masterVolume;
+    }
+  }
+
+  /**
+   * Set the master volume level (0.0 - 1.0), mirroring the main volume slider.
+   * Scales all drive sounds proportionally.
+   */
+  setMasterVolume(volume) {
+    this.masterVolume = Math.max(0, Math.min(1, volume));
+    if (this.motorRunning) {
+      this.updateMotorSoundParams();
     }
   }
 }

@@ -585,11 +585,15 @@ export class UIController {
       const initialVolume = Math.round(this.audioDriver.getVolume() * 100);
       volumeSlider.value = initialVolume;
       volumeValue.textContent = `${initialVolume}%`;
+      this.diskManager.setMasterVolume(this.audioDriver.isMuted() ? 0 : this.audioDriver.getVolume());
 
       volumeSlider.addEventListener("input", (e) => {
         const volume = parseInt(e.target.value, 10);
         volumeValue.textContent = `${volume}%`;
         this.audioDriver.setVolume(volume / 100);
+        if (!this.audioDriver.isMuted()) {
+          this.diskManager.setMasterVolume(volume / 100);
+        }
       });
     }
 
@@ -599,8 +603,10 @@ export class UIController {
       muteToggle.addEventListener("change", (e) => {
         if (e.target.checked) {
           this.audioDriver.mute();
+          this.diskManager.setMasterVolume(0);
         } else {
           this.audioDriver.unmute();
+          this.diskManager.setMasterVolume(this.audioDriver.getVolume());
         }
         this.updateSoundButton();
       });
