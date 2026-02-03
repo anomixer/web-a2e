@@ -99,12 +99,16 @@ export class CPUDebuggerWindow extends BaseWindow {
               <span class="irq-indicator" id="nmi-edge" title="NMI Edge Detected">EDGE</span>
             </div>
           </div>
+        </div>
+
+        <div class="cpu-dbg-beam">
+          <span class="cpu-dbg-beam-label">BEAM</span>
           <div class="cpu-dbg-scanline-row">
-            <span class="scanline-item"><span class="scanline-label">SCAN</span> <span class="scanline-value" id="scan-line">0</span></span>
-            <span class="scanline-item"><span class="scanline-label">H</span> <span class="scanline-value" id="scan-hpos">0</span></span>
+            <span class="scanline-item"><span class="scanline-label">SCAN</span> <span class="scanline-value" id="scan-line">--</span></span>
+            <span class="scanline-item"><span class="scanline-label">H</span> <span class="scanline-value" id="scan-hpos">--</span></span>
             <span class="scanline-item"><span class="scanline-label">COL</span> <span class="scanline-value" id="scan-col">--</span></span>
-            <span class="scanline-item"><span class="scanline-label">FCYC</span> <span class="scanline-value" id="scan-fcyc">0</span></span>
-            <span class="scanline-badge" id="scan-badge">VISIBLE</span>
+            <span class="scanline-item"><span class="scanline-label">FCYC</span> <span class="scanline-value" id="scan-fcyc">--</span></span>
+            <span class="scanline-badge scanline-badge-idle" id="scan-badge">--</span>
           </div>
         </div>
 
@@ -816,6 +820,8 @@ export class CPUDebuggerWindow extends BaseWindow {
     this.updateIRQState();
     if (isPaused) {
       this.updateScanline();
+    } else {
+      this.clearScanline();
     }
     this.updateDisassembly();
     this.updateWatchList();
@@ -1277,7 +1283,26 @@ export class CPUDebuggerWindow extends BaseWindow {
         badgeEl.className = "scanline-badge scanline-badge-visible";
       }
     }
+  }
 
+  /**
+   * Clear scanline / beam position display to "--" while running
+   */
+  clearScanline() {
+    const scanEl = this.contentElement.querySelector("#scan-line");
+    const hPosEl = this.contentElement.querySelector("#scan-hpos");
+    const colEl = this.contentElement.querySelector("#scan-col");
+    const fcycEl = this.contentElement.querySelector("#scan-fcyc");
+    const badgeEl = this.contentElement.querySelector("#scan-badge");
+
+    if (scanEl) scanEl.textContent = "--";
+    if (hPosEl) hPosEl.textContent = "--";
+    if (colEl) colEl.textContent = "--";
+    if (fcycEl) fcycEl.textContent = "--";
+    if (badgeEl) {
+      badgeEl.textContent = "--";
+      badgeEl.className = "scanline-badge scanline-badge-idle";
+    }
   }
 
   /**

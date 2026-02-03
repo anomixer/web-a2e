@@ -390,15 +390,35 @@
     color: var(--accent-red);
 }
 
+/* ---- Beam Section ---- */
+.cpu-dbg-beam {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 6px;
+    border: 1px solid var(--glass-border-subtle);
+    border-radius: 4px;
+    background: var(--input-bg);
+    margin-bottom: 6px;
+}
+
+.cpu-dbg-beam-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
 /* ---- Scanline Row ---- */
 .cpu-dbg-scanline-row {
     display: flex;
     align-items: center;
     gap: 10px;
-    margin-top: 4px;
     padding: 3px 4px;
     background: var(--input-bg-dark);
     border-radius: 3px;
+    flex: 1;
 }
 
 .scanline-item {
@@ -443,6 +463,12 @@
     background: var(--accent-orange-bg-strong);
     border: 1px solid var(--accent-orange-border-strong);
     color: var(--accent-orange);
+}
+
+.scanline-badge-idle {
+    background: var(--input-bg-deep);
+    border: 1px solid var(--glass-border-subtle);
+    color: var(--text-muted);
 }
 
 /* ---- Beam Breakpoint List ---- */
