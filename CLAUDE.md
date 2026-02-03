@@ -228,3 +228,18 @@ Built-in debug windows accessible via Debug menu:
 - Mouse Card: PIA registers, position, mode, interrupt state, protocol activity
 - BASIC Program Viewer: view and load BASIC programs from memory
 - Rule Builder: complex conditional breakpoints with C-style expressions
+
+## Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| F1 | Open/close Help window |
+| Ctrl+Escape | Exit full page mode |
+| Ctrl+V | Paste text into emulator |
+| Ctrl+` | Open window switcher |
+| Option+Tab | Cycle to next window |
+| Option+Shift+Tab | Cycle to previous window |
+| F5 | Run / Continue execution |
+| F10 | Step Over |
+| F11 | Step Into |
+| Shift+F11 | Step Out |
