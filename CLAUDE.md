@@ -82,6 +82,10 @@ node tests/integration/disk-boot-test.js
 - `utils/` - Shared utilities (storage, string, BASIC)
 - `windows/` - Base window class and window manager
 
+### Theming
+
+Light, dark, and system-follow themes controlled by `ThemeManager` (`src/js/ui/theme-manager.js`). Sets `data-theme` attribute on `<html>` for CSS variable switching. All accent and syntax highlighting colours are derived from the six-stripe Apple rainbow logo palette (Green `#61BB46`, Yellow `#FDB827`, Orange `#F5821F`, Red `#E03A3E`, Purple `#963D97`, Blue `#009DDC`), with brightness adjusted per theme for contrast. Speaker, Mockingboard, and disk drive sound volumes are all wired to a single main volume slider with a unified mute toggle.
+
 ### Audio-Driven Timing
 
 The emulator uses Web Audio API for precise timing:
@@ -202,12 +206,12 @@ class ExpansionCard {
 
 - `Disk2Card` - Wraps Disk2Controller (slot 6)
 - `MockingboardCard` - Dual AY-3-8910 + VIA 6522, stereo output (slot 4)
-- `MouseCard` - Apple Mouse Interface Card via MC6821 PIA command protocol (slots 2, 4, 7)
+- `MouseCard` - Apple Mouse Interface Card via MC6821 PIA command protocol (slot 4)
 - `ThunderclockCard` - ProDOS-compatible real-time clock (slots 5, 7)
 
 ## State Serialization
 
-Binary format with versioned header. Includes CPU state, 128KB RAM, Language Card (16KB), soft switches, disk images with modifications, and filenames. Autosave slot plus 5 manual save slots. Stored in browser IndexedDB. Window option state (toggles, view modes, mute states) is persisted separately via localStorage.
+Binary format with versioned header. Includes CPU state, 128KB RAM, Language Card (16KB), soft switches, disk images with modifications, filenames, and debugger state. Autosave slot plus 5 manual save slots. Stored in browser IndexedDB. Window option state (toggles, view modes, mute states) is persisted separately via localStorage.
 
 ## Git Commits
 
@@ -216,15 +220,14 @@ Do not add `Co-Authored-By` or any other attribution lines for Claude in commit 
 ## Debugging
 
 Built-in debug windows accessible via Debug menu:
-- CPU Debugger: registers, breakpoints, stepping, disassembly with symbols
+- CPU Debugger: registers (REGS, FLAGS, TIMING, BEAM sections), breakpoints, stepping, disassembly with symbols
 - Memory Browser: hex/ASCII view of 128KB address space with search
 - Memory Heat Map: real-time memory access visualization (read/write/combined modes)
 - Memory Map: address space layout overview
 - Stack Viewer: live stack contents
 - Zero Page Watch: monitor zero page locations with predefined and custom watches
 - Soft Switch Monitor: Apple II switch states ($C000-$C0FF)
-- Mockingboard Detail: AY-3-8910 and VIA register inspection
-- Mockingboard Scope: per-channel waveforms, level meters, and mute controls
+- Mockingboard: unified channel-centric view with AY-3-8910 and VIA registers, inline waveforms, level meters, and per-channel mute controls
 - Mouse Card: PIA registers, position, mode, interrupt state, protocol activity
 - BASIC Program Viewer: view and load BASIC programs from memory
 - Rule Builder: complex conditional breakpoints with C-style expressions

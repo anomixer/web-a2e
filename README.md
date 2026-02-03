@@ -14,6 +14,7 @@ A cycle-accurate Apple //e Enhanced emulator running in the browser using WebAss
 - **File explorer** — Browse DOS 3.3 and ProDOS disk contents with BASIC detokenizer and disassembler
 - **Save states** — Autosave slot plus 5 manual save slots, stored in IndexedDB
 - **Built-in debugger** — CPU debugger, memory browser, heat map, soft switch monitor, and more
+- **Light/Dark/System themes** — Switchable colour scheme with Apple rainbow logo accent palette
 - **PWA support** — Install as a standalone app with offline functionality
 
 ## Prerequisites
@@ -126,7 +127,7 @@ Browse the contents of inserted disks:
 
 - **Autosave** — Saves every 5 seconds while running (enabled by default)
 - **5 manual slots** — Save and restore at any time from the Save States window
-- State includes CPU registers, 128KB RAM, language card, soft switches, disk images with modifications, and filenames
+- State includes CPU registers, 128KB RAM, language card, soft switches, disk images with modifications, filenames, and debugger state
 - Stored in browser IndexedDB
 
 ### Display Settings
@@ -147,14 +148,14 @@ Cards are configured via the slot configuration window (File menu).
 | Slot | Default | Available Cards |
 |------|---------|-----------------|
 | 1 | Empty | — |
-| 2 | Empty | Mouse Card |
+| 2 | Empty | — |
 | 3 | 80-Column | Built-in (fixed) |
 | 4 | Mockingboard | Mouse Card, Empty |
 | 5 | Thunderclock Plus | Empty |
 | 6 | Disk II | Empty |
-| 7 | Empty | Thunderclock Plus, Mouse Card |
+| 7 | Empty | Thunderclock Plus |
 
-**Mockingboard** — Dual AY-3-8910 sound chips with VIA 6522 timers. Stereo output with per-channel mute controls.
+**Mockingboard** — Dual AY-3-8910 sound chips with VIA 6522 timers. Stereo output with per-channel mute controls. All audio (speaker, Mockingboard, drive sounds) is unified under a single volume slider and mute toggle.
 
 **Thunderclock Plus** — ProDOS-compatible real-time clock card.
 
@@ -211,20 +212,19 @@ All debug windows are accessible from the Debug menu.
 
 | Tool | Description |
 |------|-------------|
-| **CPU Debugger** | Registers, breakpoints, step/over/out, disassembly with symbols |
+| **CPU Debugger** | Registers (REGS, FLAGS, TIMING, BEAM sections), breakpoints, step/over/out, disassembly with symbols |
 | **Memory Browser** | Full 128KB hex/ASCII view with search |
 | **Memory Heat Map** | Real-time memory access visualization (read/write/combined) |
 | **Memory Map** | Address space layout overview |
 | **Stack Viewer** | Monitor stack page ($0100-$01FF) |
 | **Zero Page Watch** | Monitor zero page locations with predefined and custom watches |
 | **Soft Switch Monitor** | Apple II soft switch states ($C000-$C0FF) |
-| **Mockingboard** | AY-3-8910 and VIA 6522 register inspection |
-| **Mockingboard Scope** | Per-channel waveforms, level meters, mute controls |
+| **Mockingboard** | Unified channel-centric view: AY-3-8910 and VIA registers, inline waveforms, level meters, per-channel mute controls |
 | **Mouse Card** | PIA registers, position, mode, interrupt state |
 | **BASIC Program Viewer** | View and load BASIC programs in memory |
 | **Rule Builder** | Complex conditional breakpoints with C-style expressions |
 
-The CPU debugger supports breakpoints (conditional with expression evaluation), watchpoints, beam breakpoints (video position), execution tracing, and a call stack viewer. Labels and symbols are supported for both system routines and user-defined addresses.
+The CPU debugger supports breakpoints (conditional with expression evaluation), watchpoints, beam breakpoints (video position with wildcard-scanline support), execution tracing, and a call stack viewer. Labels and symbols are supported for both system routines and user-defined addresses. Debugger state (breakpoints, watches, settings) persists across save/load.
 
 ## Testing
 
