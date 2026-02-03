@@ -393,6 +393,7 @@ class AppleIIeEmulator {
   startRenderLoop() {
     const render = () => {
       this.windowManager.updateAll(this.wasmModule);
+      this.diskManager.drivesWindowVisible = this.windowManager.isWindowVisible('disk-drives');
       this.diskManager.updateLEDs();
 
       // Beam crosshair overlay — only when CPU debugger is open and CPU is paused

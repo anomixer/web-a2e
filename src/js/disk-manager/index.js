@@ -68,6 +68,9 @@ export class DiskManager {
 
     // Callback for when a disk is loaded
     this.onDiskLoaded = null;
+
+    // Set by main.js so surface rendering can be skipped when hidden
+    this.drivesWindowVisible = true;
   }
 
   init() {
@@ -535,8 +538,8 @@ export class DiskManager {
         }
       }
 
-      // Update surface renderer
-      if (drive.surfaceRenderer) {
+      // Update surface renderer (skip when window is hidden)
+      if (drive.surfaceRenderer && this.drivesWindowVisible) {
         const diskColor =
           hasDisk && drive.filename
             ? this._getStickerColor(drive.filename)

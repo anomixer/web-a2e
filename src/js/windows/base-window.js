@@ -536,7 +536,8 @@ export class BaseWindow {
   }
 
   /**
-   * Override in subclasses to update window content
+   * Override in subclasses to update window content.
+   * Only called when the window is visible.
    */
   update(wasmModule) {
     // Override in subclasses
