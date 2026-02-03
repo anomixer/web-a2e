@@ -13,7 +13,7 @@ header {
     backdrop-filter: blur(10px);
     position: sticky;
     top: 0;
-    z-index: 1100;
+    z-index: 2000;
 }
 
 .header-left {
