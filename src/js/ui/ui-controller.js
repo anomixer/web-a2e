@@ -234,8 +234,9 @@ export class UIController {
     const fileExplorerBtn = document.getElementById("btn-file-explorer");
     if (fileExplorerBtn) {
       fileExplorerBtn.addEventListener("click", () => {
-        this.fileExplorer.toggle();
+        this.windowManager.toggleWindow("file-explorer-window");
         this.closeAllMenus();
+        this.refocusCanvas();
       });
     }
 

@@ -92,12 +92,13 @@ class AppleIIeEmulator {
       this.mouseHandler = new MouseHandler(this.wasmModule);
       this.mouseHandler.init();
 
-      // Set up file explorer
-      this.fileExplorer = new FileExplorerWindow(this.wasmModule);
-      this.fileExplorer.create();
-
       // Set up window manager
       this.windowManager = new WindowManager();
+
+      // Set up file explorer (registered with window manager for proper z-index/focus)
+      this.fileExplorer = new FileExplorerWindow(this.wasmModule);
+      this.fileExplorer.create();
+      this.windowManager.register(this.fileExplorer);
 
       // Create disk drives window first so DiskManager can find its DOM elements
       const diskDrivesWindow = new DiskDrivesWindow();

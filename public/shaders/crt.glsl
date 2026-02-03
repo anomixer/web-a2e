@@ -657,9 +657,12 @@ void main() {
     // Apply ambient light
     color = applyAmbientLight(color, curvedUV);
 
-    // Beam position crosshair (additive blend, uses content UV)
-    if (!inMargin) {
-        color += beamOverlay(contentUV);
+    // Beam position crosshair (opaque overlay, stable UV — only curve applied)
+    {
+        vec2 beamUV = applyOverscan(stableCurvedUV);
+        beamUV = applyScreenMargin(beamUV);
+        vec3 beam = beamOverlay(beamUV);
+        color = mix(color, vec3(1.0, 0.0, 0.0), beam.r);
     }
 
     // Clamp final color

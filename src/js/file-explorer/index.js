@@ -213,13 +213,6 @@ export class FileExplorerWindow extends BaseWindow {
     this.loadDisk();
   }
 
-  /**
-   * Bring window to front (simple z-index bump)
-   */
-  bringToFront() {
-    this.element.style.zIndex = '10001';
-  }
-
   loadDisk() {
     const wasm = this.wasmModule;
     const diskInfo = this.element.querySelector('.fe-disk-info');
