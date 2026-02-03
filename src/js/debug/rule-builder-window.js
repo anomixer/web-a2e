@@ -105,7 +105,7 @@ export class RuleBuilderWindow extends BaseWindow {
     div.className = "rb-group";
     div.dataset.depth = depth;
 
-    const accentColors = ["#58a6ff", "#bc8cff", "#f0883e", "#3fb950", "#f778ba"];
+    const accentColors = ["#18ABEA", "#B55DB6", "#F68D35", "#6EC94F", "#E5504F", "#FDBE34"];
     div.style.borderLeftColor = accentColors[depth % accentColors.length];
 
     // Group header

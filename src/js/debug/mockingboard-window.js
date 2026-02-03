@@ -12,10 +12,10 @@ import { BaseWindow } from "../windows/base-window.js";
 const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 
 // Channel badge background colors
-const CHANNEL_BADGE_COLORS = { a: "#0077b6", b: "#22c55e", c: "#ec4899" };
+const CHANNEL_BADGE_COLORS = { a: "#006FA3", b: "#3D8F2B", c: "#B42D31" };
 
 // Channel waveform / meter colors
-const CHANNEL_COLORS = { a: "#00b4d8", b: "#4ade80", c: "#f472b6" };
+const CHANNEL_COLORS = { a: "#18ABEA", b: "#6EC94F", c: "#E5504F" };
 
 // Envelope shape SVG paths (48x16 viewBox)
 const ENVELOPE_SVGS = {

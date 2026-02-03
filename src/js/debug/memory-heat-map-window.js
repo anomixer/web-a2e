@@ -319,38 +319,38 @@ export class MemoryHeatMapWindow extends BaseWindow {
 
       switch (this.viewMode) {
         case "reads":
-          // Cyan/blue for reads
-          r = bgLevel;
-          g = Math.min(255, bgLevel + Math.floor(readIntensity * 0.7));
+          // Apple Blue (#18ABEA) for reads
+          r = Math.min(255, bgLevel + Math.floor(readIntensity * 0.1));
+          g = Math.min(255, bgLevel + Math.floor(readIntensity * 0.73));
           b = Math.min(255, bgLevel + readIntensity);
           break;
         case "writes":
-          // Orange/red for writes
+          // Apple Orange (#F68D35) for writes
           r = Math.min(255, bgLevel + writeIntensity);
-          g = Math.min(255, bgLevel + Math.floor(writeIntensity * 0.4));
-          b = bgLevel;
+          g = Math.min(255, bgLevel + Math.floor(writeIntensity * 0.57));
+          b = Math.min(255, bgLevel + Math.floor(writeIntensity * 0.22));
           break;
         case "combined":
         default:
           if (readCount > 0 && writeCount > 0) {
-            // Purple/magenta for both
+            // Apple Purple (#B55DB6) for both
             r = Math.min(255, bgLevel + writeIntensity);
             g = Math.min(
               255,
               bgLevel +
-                Math.floor(Math.min(readIntensity, writeIntensity) * 0.3),
+                Math.floor(Math.min(readIntensity, writeIntensity) * 0.51),
             );
             b = Math.min(255, bgLevel + readIntensity);
           } else if (readCount > 0) {
-            // Cyan/blue for reads only
-            r = bgLevel;
-            g = Math.min(255, bgLevel + Math.floor(readIntensity * 0.7));
+            // Apple Blue (#18ABEA) for reads only
+            r = Math.min(255, bgLevel + Math.floor(readIntensity * 0.1));
+            g = Math.min(255, bgLevel + Math.floor(readIntensity * 0.73));
             b = Math.min(255, bgLevel + readIntensity);
           } else if (writeCount > 0) {
-            // Orange/red for writes only
+            // Apple Orange (#F68D35) for writes only
             r = Math.min(255, bgLevel + writeIntensity);
-            g = Math.min(255, bgLevel + Math.floor(writeIntensity * 0.4));
-            b = bgLevel;
+            g = Math.min(255, bgLevel + Math.floor(writeIntensity * 0.57));
+            b = Math.min(255, bgLevel + Math.floor(writeIntensity * 0.22));
           } else {
             // No activity - gray background
             r = bgLevel;
@@ -399,38 +399,38 @@ export class MemoryHeatMapWindow extends BaseWindow {
 
       switch (this.viewMode) {
         case "reads":
-          // Cyan/blue for reads
-          r = bgLevel;
-          g = Math.min(255, bgLevel + Math.floor(readIntensity * 0.7));
+          // Apple Blue (#18ABEA) for reads
+          r = Math.min(255, bgLevel + Math.floor(readIntensity * 0.1));
+          g = Math.min(255, bgLevel + Math.floor(readIntensity * 0.73));
           b = Math.min(255, bgLevel + readIntensity);
           break;
         case "writes":
-          // Orange/red for writes
+          // Apple Orange (#F68D35) for writes
           r = Math.min(255, bgLevel + writeIntensity);
-          g = Math.min(255, bgLevel + Math.floor(writeIntensity * 0.4));
-          b = bgLevel;
+          g = Math.min(255, bgLevel + Math.floor(writeIntensity * 0.57));
+          b = Math.min(255, bgLevel + Math.floor(writeIntensity * 0.22));
           break;
         case "combined":
         default:
           if (readCount > 0 && writeCount > 0) {
-            // Purple/magenta for both
+            // Apple Purple (#B55DB6) for both
             r = Math.min(255, bgLevel + writeIntensity);
             g = Math.min(
               255,
               bgLevel +
-                Math.floor(Math.min(readIntensity, writeIntensity) * 0.3),
+                Math.floor(Math.min(readIntensity, writeIntensity) * 0.51),
             );
             b = Math.min(255, bgLevel + readIntensity);
           } else if (readCount > 0) {
-            // Cyan/blue for reads only
-            r = bgLevel;
-            g = Math.min(255, bgLevel + Math.floor(readIntensity * 0.7));
+            // Apple Blue (#18ABEA) for reads only
+            r = Math.min(255, bgLevel + Math.floor(readIntensity * 0.1));
+            g = Math.min(255, bgLevel + Math.floor(readIntensity * 0.73));
             b = Math.min(255, bgLevel + readIntensity);
           } else if (writeCount > 0) {
-            // Orange/red for writes only
+            // Apple Orange (#F68D35) for writes only
             r = Math.min(255, bgLevel + writeIntensity);
-            g = Math.min(255, bgLevel + Math.floor(writeIntensity * 0.4));
-            b = bgLevel;
+            g = Math.min(255, bgLevel + Math.floor(writeIntensity * 0.57));
+            b = Math.min(255, bgLevel + Math.floor(writeIntensity * 0.22));
           } else {
             // No activity - gray background
             r = bgLevel;

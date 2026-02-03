@@ -2190,15 +2190,15 @@
 }
 
 .legend-color.reads {
-    background: #00ccff;
+    background: #18ABEA;
 }
 
 .legend-color.writes {
-    background: #ff6622;
+    background: #F68D35;
 }
 
 .legend-color.both {
-    background: #cc44ff;
+    background: #B55DB6;
 }
 
 .heatmap-info {
@@ -2842,11 +2842,11 @@
     position: absolute;
     width: 24px;
     height: 24px;
-    background: linear-gradient(135deg, var(--accent-blue), #388bfd);
+    background: linear-gradient(135deg, var(--accent-blue), #4DC4F0);
     border: 2px solid var(--accent-blue);
     border-radius: 50%;
     cursor: grab;
-    box-shadow: 0 2px 8px rgba(56, 139, 253, 0.4);
+    box-shadow: 0 2px 8px rgba(24, 171, 234, 0.4);
     transition: transform 0.1s ease, box-shadow 0.1s ease;
 }
 

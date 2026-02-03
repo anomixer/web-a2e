@@ -271,11 +271,11 @@
 
 /* ProDOS Directory entries */
 .fe-catalog-item.fe-directory .fe-file-type {
-    color: var(--accent-cyan);
+    color: var(--accent-blue);
 }
 
 .fe-catalog-item.fe-directory .fe-file-name {
-    color: var(--accent-cyan);
+    color: var(--accent-blue);
 }
 
 .fe-catalog-item.fe-parent-dir {
@@ -604,7 +604,7 @@
 }
 
 .dis-bytes {
-    color: var(--accent-cyan, #79c0ff);
+    color: var(--accent-blue);
 }
 
 .dis-branch {
@@ -695,7 +695,7 @@
 }
 
 .dis-unknown {
-    color: var(--accent-red, #f85149);
+    color: var(--accent-red);
 }
 
 /* BASIC syntax highlighting */
