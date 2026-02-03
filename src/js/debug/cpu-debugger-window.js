@@ -6,11 +6,7 @@
  */
 
 import { BaseWindow } from "../windows/base-window.js";
-import {
-  getSymbolInfo,
-  getCategoryClass,
-  ALL_SYMBOLS,
-} from "./symbols.js";
+import { getSymbolInfo, getCategoryClass, ALL_SYMBOLS } from "./symbols.js";
 import { BreakpointManager } from "./breakpoint-manager.js";
 import { LabelManager } from "./label-manager.js";
 
@@ -73,7 +69,8 @@ export class CPUDebuggerWindow extends BaseWindow {
           <span class="cpu-dbg-status" id="dbg-status">PAUSED</span>
         </div>
 
-        <div class="cpu-dbg-state">
+        <div class="cpu-dbg-section">
+          <span class="cpu-dbg-section-label">REGS</span>
           <div class="cpu-dbg-regs">
             <div class="cpu-dbg-reg"><span class="reg-label">A</span><span class="reg-value" id="reg-a">00</span></div>
             <div class="cpu-dbg-reg"><span class="reg-label">X</span><span class="reg-value" id="reg-x">00</span></div>
@@ -81,33 +78,39 @@ export class CPUDebuggerWindow extends BaseWindow {
             <div class="cpu-dbg-reg"><span class="reg-label">SP</span><span class="reg-value" id="reg-sp">FF</span></div>
             <div class="cpu-dbg-reg reg-wide"><span class="reg-label">PC</span><span class="reg-value" id="reg-pc">0000</span></div>
           </div>
-          <div class="cpu-dbg-status-row">
-            <div class="cpu-flags" id="flags">
-              <span class="flag" id="flag-n" title="Negative">N</span>
-              <span class="flag" id="flag-v" title="Overflow">V</span>
-              <span class="flag separator">-</span>
-              <span class="flag" id="flag-b" title="Break">B</span>
-              <span class="flag" id="flag-d" title="Decimal">D</span>
-              <span class="flag" id="flag-i" title="Interrupt Disable">I</span>
-              <span class="flag" id="flag-z" title="Zero">Z</span>
-              <span class="flag" id="flag-c" title="Carry">C</span>
-            </div>
-            <div class="cpu-dbg-meta">
-              <span class="cpu-dbg-cycles"><span class="meta-dim">CYC</span> <span id="cycle-count">0</span></span>
-              <span class="irq-indicator" id="irq-pending" title="IRQ Pending">IRQ</span>
-              <span class="irq-indicator" id="nmi-pending" title="NMI Pending">NMI</span>
-              <span class="irq-indicator" id="nmi-edge" title="NMI Edge Detected">EDGE</span>
-            </div>
+        </div>
+
+        <div class="cpu-dbg-section">
+          <span class="cpu-dbg-section-label">FLAGS</span>
+          <div class="cpu-flags" id="flags">
+            <span class="flag" id="flag-n" title="Negative">N</span>
+            <span class="flag" id="flag-v" title="Overflow">V</span>
+            <span class="flag separator">-</span>
+            <span class="flag" id="flag-b" title="Break">B</span>
+            <span class="flag" id="flag-d" title="Decimal">D</span>
+            <span class="flag" id="flag-i" title="Interrupt Disable">I</span>
+            <span class="flag" id="flag-z" title="Zero">Z</span>
+            <span class="flag" id="flag-c" title="Carry">C</span>
           </div>
         </div>
 
-        <div class="cpu-dbg-beam">
-          <span class="cpu-dbg-beam-label">BEAM</span>
+        <div class="cpu-dbg-section">
+          <span class="cpu-dbg-section-label">TIMING</span>
+          <div class="cpu-dbg-timing-row">
+            <span class="cpu-dbg-cycles" title="Total CPU cycles since reset"><span class="meta-dim">CYC</span> <span id="cycle-count">0</span></span>
+            <span class="irq-indicator" id="irq-pending" title="IRQ Pending">IRQ</span>
+            <span class="irq-indicator" id="nmi-pending" title="NMI Pending">NMI</span>
+            <span class="irq-indicator" id="nmi-edge" title="NMI Edge Detected">EDGE</span>
+          </div>
+        </div>
+
+        <div class="cpu-dbg-section">
+          <span class="cpu-dbg-section-label">BEAM</span>
           <div class="cpu-dbg-scanline-row">
-            <span class="scanline-item"><span class="scanline-label">SCAN</span> <span class="scanline-value" id="scan-line">--</span></span>
-            <span class="scanline-item"><span class="scanline-label">H</span> <span class="scanline-value" id="scan-hpos">--</span></span>
-            <span class="scanline-item"><span class="scanline-label">COL</span> <span class="scanline-value" id="scan-col">--</span></span>
-            <span class="scanline-item"><span class="scanline-label">FCYC</span> <span class="scanline-value" id="scan-fcyc">--</span></span>
+            <span class="scanline-item" title="Current scanline (0-261)"><span class="scanline-label">SCAN</span> <span class="scanline-value" id="scan-line">--</span></span>
+            <span class="scanline-item" title="Horizontal position within scanline (0-64), includes visible and blanking portions"><span class="scanline-label">H</span> <span class="scanline-value" id="scan-hpos">--</span></span>
+            <span class="scanline-item" title="Visible screen column (0-39), only valid during the visible portion of the scanline"><span class="scanline-label">COL</span> <span class="scanline-value" id="scan-col">--</span></span>
+            <span class="scanline-item" title="CPU cycle count within the current frame"><span class="scanline-label">FCYC</span> <span class="scanline-value" id="scan-fcyc">--</span></span>
             <span class="scanline-badge scanline-badge-idle" id="scan-badge">--</span>
           </div>
         </div>
@@ -295,7 +298,8 @@ export class CPUDebuggerWindow extends BaseWindow {
     }
 
     // Import symbols button
-    const importSymBtn = this.contentElement.querySelector("#disasm-import-sym");
+    const importSymBtn =
+      this.contentElement.querySelector("#disasm-import-sym");
     if (importSymBtn) {
       importSymBtn.addEventListener("click", () => this.importSymbolFile());
     }
@@ -312,9 +316,11 @@ export class CPUDebuggerWindow extends BaseWindow {
     }
 
     // Breakpoint source mode switching (addr/switch)
-    const bpSourceSelect = this.contentElement.querySelector("#bp-source-select");
+    const bpSourceSelect =
+      this.contentElement.querySelector("#bp-source-select");
     const bpTypeSelect = this.contentElement.querySelector("#bp-type-select");
-    const bpSwitchSelect = this.contentElement.querySelector("#bp-switch-select");
+    const bpSwitchSelect =
+      this.contentElement.querySelector("#bp-switch-select");
 
     if (bpSourceSelect && bpSwitchSelect) {
       // Populate soft switch dropdown with optgroups
@@ -326,7 +332,8 @@ export class CPUDebuggerWindow extends BaseWindow {
           option.value = `${sw.start}:${sw.end}:${sw.name}`;
           const startHex = sw.start.toString(16).toUpperCase();
           const endHex = sw.end.toString(16).toUpperCase();
-          const range = sw.start === sw.end ? `$${startHex}` : `$${startHex}-${endHex}`;
+          const range =
+            sw.start === sw.end ? `$${startHex}` : `$${startHex}-${endHex}`;
           option.textContent = `${sw.name} (${range})`;
           option.title = sw.desc;
           optgroup.appendChild(option);
@@ -343,14 +350,18 @@ export class CPUDebuggerWindow extends BaseWindow {
         if (isSwitch) {
           // Hide Exec option, auto-select R/W
           if (bpTypeSelect) {
-            const execOption = bpTypeSelect.querySelector('option[value="exec"]');
+            const execOption = bpTypeSelect.querySelector(
+              'option[value="exec"]',
+            );
             if (execOption) execOption.style.display = "none";
             if (bpTypeSelect.value === "exec") bpTypeSelect.value = "readwrite";
           }
         } else {
           // Show Exec option again
           if (bpTypeSelect) {
-            const execOption = bpTypeSelect.querySelector('option[value="exec"]');
+            const execOption = bpTypeSelect.querySelector(
+              'option[value="exec"]',
+            );
             if (execOption) execOption.style.display = "";
           }
         }
@@ -420,18 +431,29 @@ export class CPUDebuggerWindow extends BaseWindow {
     }
 
     // Watch source/detail switching
-    const watchSourceSelect = this.contentElement.querySelector("#watch-source-select");
-    const watchDetailReg = this.contentElement.querySelector("#watch-detail-reg");
-    const watchDetailFlag = this.contentElement.querySelector("#watch-detail-flag");
-    const watchDetailAddr = this.contentElement.querySelector("#watch-detail-addr");
+    const watchSourceSelect = this.contentElement.querySelector(
+      "#watch-source-select",
+    );
+    const watchDetailReg =
+      this.contentElement.querySelector("#watch-detail-reg");
+    const watchDetailFlag =
+      this.contentElement.querySelector("#watch-detail-flag");
+    const watchDetailAddr =
+      this.contentElement.querySelector("#watch-detail-addr");
     const watchAddBtn = this.contentElement.querySelector("#watch-add-btn");
 
     if (watchSourceSelect) {
       watchSourceSelect.addEventListener("change", () => {
         const source = watchSourceSelect.value;
-        if (watchDetailReg) watchDetailReg.classList.toggle("active", source === "reg");
-        if (watchDetailFlag) watchDetailFlag.classList.toggle("active", source === "flag");
-        if (watchDetailAddr) watchDetailAddr.classList.toggle("active", source === "byte" || source === "word");
+        if (watchDetailReg)
+          watchDetailReg.classList.toggle("active", source === "reg");
+        if (watchDetailFlag)
+          watchDetailFlag.classList.toggle("active", source === "flag");
+        if (watchDetailAddr)
+          watchDetailAddr.classList.toggle(
+            "active",
+            source === "byte" || source === "word",
+          );
       });
     }
 
@@ -453,12 +475,16 @@ export class CPUDebuggerWindow extends BaseWindow {
         const tab = e.target.closest(".cpu-dbg-tab");
         if (!tab) return;
         const tabName = tab.dataset.tab;
-        tabBar.querySelectorAll(".cpu-dbg-tab").forEach((t) => t.classList.remove("active"));
+        tabBar
+          .querySelectorAll(".cpu-dbg-tab")
+          .forEach((t) => t.classList.remove("active"));
         tab.classList.add("active");
         tab.classList.remove("hit-alert");
-        this.contentElement.querySelectorAll(".cpu-dbg-tab-content").forEach((c) => {
-          c.classList.toggle("active", c.dataset.tab === tabName);
-        });
+        this.contentElement
+          .querySelectorAll(".cpu-dbg-tab-content")
+          .forEach((c) => {
+            c.classList.toggle("active", c.dataset.tab === tabName);
+          });
         this.activeTab = tabName;
         if (this.onStateChange) this.onStateChange();
       });
@@ -551,7 +577,8 @@ export class CPUDebuggerWindow extends BaseWindow {
 
     if (sourceSelect && sourceSelect.value === "switch") {
       // Switch mode: parse the switch dropdown value
-      const switchSelect = this.contentElement.querySelector("#bp-switch-select");
+      const switchSelect =
+        this.contentElement.querySelector("#bp-switch-select");
       if (!switchSelect || !switchSelect.value) return;
 
       const parts = switchSelect.value.split(":");
@@ -585,7 +612,9 @@ export class CPUDebuggerWindow extends BaseWindow {
    * Build expression string from the watch form and add it
    */
   addWatchFromForm() {
-    const source = this.contentElement.querySelector("#watch-source-select")?.value;
+    const source = this.contentElement.querySelector(
+      "#watch-source-select",
+    )?.value;
     if (!source) return;
 
     let expr = null;
@@ -775,7 +804,11 @@ export class CPUDebuggerWindow extends BaseWindow {
     this.bpManager.checkTemp(pc);
 
     // Check if a watchpoint was hit - evaluate conditions/hit counts (range-aware)
-    if (isPaused && this.wasmModule._isWatchpointHit && this.wasmModule._isWatchpointHit()) {
+    if (
+      isPaused &&
+      this.wasmModule._isWatchpointHit &&
+      this.wasmModule._isWatchpointHit()
+    ) {
       const wpAddr = this.wasmModule._getWatchpointAddress();
       const entry = this.bpManager.findByAddress(wpAddr);
       if (entry) {
@@ -795,7 +828,11 @@ export class CPUDebuggerWindow extends BaseWindow {
     }
 
     // Check conditional breakpoint evaluation
-    if (isPaused && this.wasmModule._isBreakpointHit && this.wasmModule._isBreakpointHit()) {
+    if (
+      isPaused &&
+      this.wasmModule._isBreakpointHit &&
+      this.wasmModule._isBreakpointHit()
+    ) {
       const bpAddr = this.wasmModule._getBreakpointAddress();
       if (!this.bpManager.shouldBreak(bpAddr)) {
         // Condition not met - resume execution
@@ -958,8 +995,12 @@ export class CPUDebuggerWindow extends BaseWindow {
 
     const updateInputVisibility = () => {
       const mode = modeSelect.value;
-      if (scanInput) scanInput.style.display = (mode === "scanline" || mode === "scancol") ? "" : "none";
-      if (colInput) colInput.style.display = (mode === "column" || mode === "scancol") ? "" : "none";
+      if (scanInput)
+        scanInput.style.display =
+          mode === "scanline" || mode === "scancol" ? "" : "none";
+      if (colInput)
+        colInput.style.display =
+          mode === "column" || mode === "scancol" ? "" : "none";
     };
 
     modeSelect.addEventListener("change", updateInputVisibility);
@@ -996,7 +1037,10 @@ export class CPUDebuggerWindow extends BaseWindow {
         if (checkbox) {
           const item = checkbox.closest(".cpu-beam-item");
           if (item && item.dataset.id) {
-            this.enableBeamBreakpoint(parseInt(item.dataset.id, 10), checkbox.checked);
+            this.enableBeamBreakpoint(
+              parseInt(item.dataset.id, 10),
+              checkbox.checked,
+            );
           }
         }
       });
@@ -1087,9 +1131,12 @@ export class CPUDebuggerWindow extends BaseWindow {
 
     list.innerHTML = "";
     const isPaused = this.wasmModule._isPaused();
-    const hitId = (isPaused && this.wasmModule._isBeamBreakpointHit && this.wasmModule._isBeamBreakpointHit())
-      ? this.wasmModule._getBeamBreakpointHitId()
-      : -1;
+    const hitId =
+      isPaused &&
+      this.wasmModule._isBeamBreakpointHit &&
+      this.wasmModule._isBeamBreakpointHit()
+        ? this.wasmModule._getBeamBreakpointHitId()
+        : -1;
 
     for (const bp of this.beamBreakpoints) {
       const item = document.createElement("div");
@@ -1098,7 +1145,8 @@ export class CPUDebuggerWindow extends BaseWindow {
       if (!bp.enabled) item.classList.add("disabled");
       if (bp.id === hitId) item.classList.add("hit");
 
-      const { typeLabel, typeClass, detail } = this.getBeamBreakpointDisplay(bp);
+      const { typeLabel, typeClass, detail } =
+        this.getBeamBreakpointDisplay(bp);
 
       item.innerHTML = `
         <span class="beam-enable"><input type="checkbox" ${bp.enabled ? "checked" : ""}></span>
@@ -1112,7 +1160,8 @@ export class CPUDebuggerWindow extends BaseWindow {
     if (this.beamBreakpoints.length === 0) {
       const empty = document.createElement("div");
       empty.className = "cpu-dbg-empty-state";
-      empty.textContent = "Add beam breakpoints to pause at specific raster positions.";
+      empty.textContent =
+        "Add beam breakpoints to pause at specific raster positions.";
       list.appendChild(empty);
     }
 
@@ -1162,9 +1211,12 @@ export class CPUDebuggerWindow extends BaseWindow {
     if (!list) return;
 
     const isPaused = this.wasmModule._isPaused();
-    const hitId = (isPaused && this.wasmModule._isBeamBreakpointHit && this.wasmModule._isBeamBreakpointHit())
-      ? this.wasmModule._getBeamBreakpointHitId()
-      : -1;
+    const hitId =
+      isPaused &&
+      this.wasmModule._isBeamBreakpointHit &&
+      this.wasmModule._isBeamBreakpointHit()
+        ? this.wasmModule._getBeamBreakpointHitId()
+        : -1;
 
     if (hitId === this._lastBeamHitId) return;
     this._lastBeamHitId = hitId;
@@ -1183,7 +1235,9 @@ export class CPUDebuggerWindow extends BaseWindow {
    * Pulse a tab header to draw attention when its panel is not active
    */
   _pulseTabHeader(tabName, isHit) {
-    const tab = this.contentElement.querySelector(`.cpu-dbg-tab[data-tab="${tabName}"]`);
+    const tab = this.contentElement.querySelector(
+      `.cpu-dbg-tab[data-tab="${tabName}"]`,
+    );
     if (!tab) return;
 
     if (isHit && this.activeTab !== tabName) {
@@ -1199,13 +1253,39 @@ export class CPUDebuggerWindow extends BaseWindow {
    */
   getBeamBreakpointDisplay(bp) {
     const modeMap = {
-      vbl: { typeLabel: "VBL", typeClass: "beam-type-vbl", detail: "Scanline 192" },
-      hblank: { typeLabel: "HBL", typeClass: "beam-type-hbl", detail: "HPos 0" },
-      scanline: { typeLabel: "SCAN", typeClass: "beam-type-scan", detail: `Row ${bp.scanline}` },
-      column: { typeLabel: "COL", typeClass: "beam-type-col", detail: `Col ${bp.hPos - 25}` },
-      scancol: { typeLabel: "S+C", typeClass: "beam-type-sc", detail: `Row ${bp.scanline}, Col ${bp.hPos - 25}` },
+      vbl: {
+        typeLabel: "VBL",
+        typeClass: "beam-type-vbl",
+        detail: "Scanline 192",
+      },
+      hblank: {
+        typeLabel: "HBL",
+        typeClass: "beam-type-hbl",
+        detail: "HPos 0",
+      },
+      scanline: {
+        typeLabel: "SCAN",
+        typeClass: "beam-type-scan",
+        detail: `Row ${bp.scanline}`,
+      },
+      column: {
+        typeLabel: "COL",
+        typeClass: "beam-type-col",
+        detail: `Col ${bp.hPos - 25}`,
+      },
+      scancol: {
+        typeLabel: "S+C",
+        typeClass: "beam-type-sc",
+        detail: `Row ${bp.scanline}, Col ${bp.hPos - 25}`,
+      },
     };
-    return modeMap[bp.mode] || { typeLabel: "?", typeClass: "", detail: `Scan ${bp.scanline}, HPos ${bp.hPos}` };
+    return (
+      modeMap[bp.mode] || {
+        typeLabel: "?",
+        typeClass: "",
+        detail: `Scan ${bp.scanline}, HPos ${bp.hPos}`,
+      }
+    );
   }
 
   /**
@@ -1250,7 +1330,24 @@ export class CPUDebuggerWindow extends BaseWindow {
   }
 
   /**
-   * Update scanline / beam position display
+   * Cache beam element references to avoid querySelector every frame
+   */
+  getBeamElements() {
+    if (!this._beamEls) {
+      this._beamEls = {
+        scan: this.contentElement.querySelector("#scan-line"),
+        hPos: this.contentElement.querySelector("#scan-hpos"),
+        col: this.contentElement.querySelector("#scan-col"),
+        fcyc: this.contentElement.querySelector("#scan-fcyc"),
+        badge: this.contentElement.querySelector("#scan-badge"),
+      };
+    }
+    return this._beamEls;
+  }
+
+  /**
+   * Update scanline / beam position display.
+   * Skips redundant DOM writes so browser title tooltips aren't interrupted.
    */
   updateScanline() {
     const frameCycle = this.wasmModule._getFrameCycle();
@@ -1260,48 +1357,49 @@ export class CPUDebuggerWindow extends BaseWindow {
     const inVBL = this.wasmModule._isInVBL();
     const inHBLANK = this.wasmModule._isInHBLANK();
 
-    const scanEl = this.contentElement.querySelector("#scan-line");
-    const hPosEl = this.contentElement.querySelector("#scan-hpos");
-    const colEl = this.contentElement.querySelector("#scan-col");
-    const fcycEl = this.contentElement.querySelector("#scan-fcyc");
-    const badgeEl = this.contentElement.querySelector("#scan-badge");
+    const els = this.getBeamElements();
 
-    if (scanEl) scanEl.textContent = scanline;
-    if (hPosEl) hPosEl.textContent = hPos;
-    if (colEl) colEl.textContent = col >= 0 ? col.toString().padStart(2, "0") : "--";
-    if (fcycEl) fcycEl.textContent = frameCycle;
+    const scanText = String(scanline);
+    const hPosText = String(hPos);
+    const colText = col >= 0 ? col.toString().padStart(2, "0") : "--";
+    const fcycText = String(frameCycle);
 
-    if (badgeEl) {
+    if (els.scan && els.scan.textContent !== scanText) els.scan.textContent = scanText;
+    if (els.hPos && els.hPos.textContent !== hPosText) els.hPos.textContent = hPosText;
+    if (els.col && els.col.textContent !== colText) els.col.textContent = colText;
+    if (els.fcyc && els.fcyc.textContent !== fcycText) els.fcyc.textContent = fcycText;
+
+    if (els.badge) {
+      let text, cls;
       if (inVBL) {
-        badgeEl.textContent = "VBL";
-        badgeEl.className = "scanline-badge scanline-badge-vbl";
+        text = "VBL";
+        cls = "scanline-badge scanline-badge-vbl";
       } else if (inHBLANK) {
-        badgeEl.textContent = "HBLANK";
-        badgeEl.className = "scanline-badge scanline-badge-hblank";
+        text = "HBLANK";
+        cls = "scanline-badge scanline-badge-hblank";
       } else {
-        badgeEl.textContent = "VISIBLE";
-        badgeEl.className = "scanline-badge scanline-badge-visible";
+        text = "VISIBLE";
+        cls = "scanline-badge scanline-badge-visible";
       }
+      if (els.badge.textContent !== text) els.badge.textContent = text;
+      if (els.badge.className !== cls) els.badge.className = cls;
     }
   }
 
   /**
-   * Clear scanline / beam position display to "--" while running
+   * Clear scanline / beam position display to "--" while running.
+   * Skips redundant DOM writes so browser title tooltips aren't interrupted.
    */
   clearScanline() {
-    const scanEl = this.contentElement.querySelector("#scan-line");
-    const hPosEl = this.contentElement.querySelector("#scan-hpos");
-    const colEl = this.contentElement.querySelector("#scan-col");
-    const fcycEl = this.contentElement.querySelector("#scan-fcyc");
-    const badgeEl = this.contentElement.querySelector("#scan-badge");
+    const els = this.getBeamElements();
 
-    if (scanEl) scanEl.textContent = "--";
-    if (hPosEl) hPosEl.textContent = "--";
-    if (colEl) colEl.textContent = "--";
-    if (fcycEl) fcycEl.textContent = "--";
-    if (badgeEl) {
-      badgeEl.textContent = "--";
-      badgeEl.className = "scanline-badge scanline-badge-idle";
+    if (els.scan && els.scan.textContent !== "--") els.scan.textContent = "--";
+    if (els.hPos && els.hPos.textContent !== "--") els.hPos.textContent = "--";
+    if (els.col && els.col.textContent !== "--") els.col.textContent = "--";
+    if (els.fcyc && els.fcyc.textContent !== "--") els.fcyc.textContent = "--";
+    if (els.badge && els.badge.textContent !== "--") {
+      els.badge.textContent = "--";
+      els.badge.className = "scanline-badge scanline-badge-idle";
     }
   }
 
@@ -1451,7 +1549,8 @@ export class CPUDebuggerWindow extends BaseWindow {
 
       // Split mnemonic from operand for proper column alignment and color coding
       const spaceIdx = instrPart.indexOf(" ");
-      const mnemonic = spaceIdx >= 0 ? instrPart.substring(0, spaceIdx) : instrPart;
+      const mnemonic =
+        spaceIdx >= 0 ? instrPart.substring(0, spaceIdx) : instrPart;
       const operandStr = spaceIdx >= 0 ? instrPart.substring(spaceIdx + 1) : "";
 
       const mnemonicSpan = document.createElement("span");
@@ -1511,8 +1610,20 @@ export class CPUDebuggerWindow extends BaseWindow {
    * to help developers track execution flow at a glance.
    */
   static FLOW_MNEMONICS = new Set([
-    "JMP", "JSR", "RTS", "RTI", "BRK",
-    "BPL", "BMI", "BVC", "BVS", "BCC", "BCS", "BNE", "BEQ", "BRA",
+    "JMP",
+    "JSR",
+    "RTS",
+    "RTI",
+    "BRK",
+    "BPL",
+    "BMI",
+    "BVC",
+    "BVS",
+    "BCC",
+    "BCS",
+    "BNE",
+    "BEQ",
+    "BRA",
   ]);
 
   static BP_TYPE_ICONS = {
@@ -1530,54 +1641,182 @@ export class CPUDebuggerWindow extends BaseWindow {
   };
 
   static SOFT_SWITCH_GROUPS = [
-    { category: "Display", switches: [
-      { name: "TEXT",    start: 0xC050, end: 0xC051, desc: "Text/Graphics mode" },
-      { name: "MIXED",   start: 0xC052, end: 0xC053, desc: "Mixed text+graphics" },
-      { name: "PAGE2",   start: 0xC054, end: 0xC055, desc: "Display page 2" },
-      { name: "HIRES",   start: 0xC056, end: 0xC057, desc: "Hi-res graphics" },
-      { name: "80COL",   start: 0xC00C, end: 0xC00D, desc: "80-column display" },
-      { name: "ALTCHAR", start: 0xC00E, end: 0xC00F, desc: "Alt charset (MouseText)" },
-    ]},
-    { category: "Memory Banking", switches: [
-      { name: "80STORE", start: 0xC000, end: 0xC001, desc: "PAGE2 selects aux memory" },
-      { name: "RAMRD",   start: 0xC002, end: 0xC003, desc: "Read from aux RAM" },
-      { name: "RAMWRT",  start: 0xC004, end: 0xC005, desc: "Write to aux RAM" },
-      { name: "INTCXROM",start: 0xC006, end: 0xC007, desc: "$Cxxx ROM source" },
-      { name: "ALTZP",   start: 0xC008, end: 0xC009, desc: "Aux zero page/stack" },
-      { name: "SLOTC3ROM", start: 0xC00A, end: 0xC00B, desc: "Slot 3 ROM" },
-    ]},
-    { category: "Language Card", switches: [
-      { name: "LANGCARD", start: 0xC080, end: 0xC08F, desc: "Language card control" },
-    ]},
-    { category: "Annunciators", switches: [
-      { name: "AN0", start: 0xC058, end: 0xC059, desc: "Annunciator 0" },
-      { name: "AN1", start: 0xC05A, end: 0xC05B, desc: "Annunciator 1" },
-      { name: "AN2", start: 0xC05C, end: 0xC05D, desc: "Annunciator 2" },
-      { name: "AN3", start: 0xC05E, end: 0xC05F, desc: "Annunciator 3 / DHIRES" },
-    ]},
-    { category: "I/O", switches: [
-      { name: "KBD",     start: 0xC000, end: 0xC000, desc: "Keyboard data" },
-      { name: "KBDSTRB", start: 0xC010, end: 0xC010, desc: "Clear keyboard strobe" },
-      { name: "SPKR",    start: 0xC030, end: 0xC030, desc: "Speaker toggle" },
-      { name: "PTRIG",   start: 0xC070, end: 0xC070, desc: "Paddle trigger" },
-    ]},
-    { category: "Status Registers", switches: [
-      { name: "RDLCBNK2",  start: 0xC011, end: 0xC011, desc: "LC bank 2 status" },
-      { name: "RDLCRAM",   start: 0xC012, end: 0xC012, desc: "LC RAM read status" },
-      { name: "RDRAMRD",   start: 0xC013, end: 0xC013, desc: "RAMRD status" },
-      { name: "RDRAMWRT",  start: 0xC014, end: 0xC014, desc: "RAMWRT status" },
-      { name: "RDCXROM",   start: 0xC015, end: 0xC015, desc: "INTCXROM status" },
-      { name: "RDALTZP",   start: 0xC016, end: 0xC016, desc: "ALTZP status" },
-      { name: "RDC3ROM",   start: 0xC017, end: 0xC017, desc: "SLOTC3ROM status" },
-      { name: "RD80STORE", start: 0xC018, end: 0xC018, desc: "80STORE status" },
-      { name: "RDVBL",     start: 0xC019, end: 0xC019, desc: "Vertical blank status" },
-      { name: "RDTEXT",    start: 0xC01A, end: 0xC01A, desc: "TEXT mode status" },
-      { name: "RDMIXED",   start: 0xC01B, end: 0xC01B, desc: "MIXED mode status" },
-      { name: "RDPAGE2",   start: 0xC01C, end: 0xC01C, desc: "PAGE2 status" },
-      { name: "RDHIRES",   start: 0xC01D, end: 0xC01D, desc: "HIRES mode status" },
-      { name: "RDALTCHAR", start: 0xC01E, end: 0xC01E, desc: "ALTCHAR status" },
-      { name: "RD80COL",   start: 0xC01F, end: 0xC01F, desc: "80COL status" },
-    ]},
+    {
+      category: "Display",
+      switches: [
+        {
+          name: "TEXT",
+          start: 0xc050,
+          end: 0xc051,
+          desc: "Text/Graphics mode",
+        },
+        {
+          name: "MIXED",
+          start: 0xc052,
+          end: 0xc053,
+          desc: "Mixed text+graphics",
+        },
+        { name: "PAGE2", start: 0xc054, end: 0xc055, desc: "Display page 2" },
+        { name: "HIRES", start: 0xc056, end: 0xc057, desc: "Hi-res graphics" },
+        {
+          name: "80COL",
+          start: 0xc00c,
+          end: 0xc00d,
+          desc: "80-column display",
+        },
+        {
+          name: "ALTCHAR",
+          start: 0xc00e,
+          end: 0xc00f,
+          desc: "Alt charset (MouseText)",
+        },
+      ],
+    },
+    {
+      category: "Memory Banking",
+      switches: [
+        {
+          name: "80STORE",
+          start: 0xc000,
+          end: 0xc001,
+          desc: "PAGE2 selects aux memory",
+        },
+        {
+          name: "RAMRD",
+          start: 0xc002,
+          end: 0xc003,
+          desc: "Read from aux RAM",
+        },
+        {
+          name: "RAMWRT",
+          start: 0xc004,
+          end: 0xc005,
+          desc: "Write to aux RAM",
+        },
+        {
+          name: "INTCXROM",
+          start: 0xc006,
+          end: 0xc007,
+          desc: "$Cxxx ROM source",
+        },
+        {
+          name: "ALTZP",
+          start: 0xc008,
+          end: 0xc009,
+          desc: "Aux zero page/stack",
+        },
+        { name: "SLOTC3ROM", start: 0xc00a, end: 0xc00b, desc: "Slot 3 ROM" },
+      ],
+    },
+    {
+      category: "Language Card",
+      switches: [
+        {
+          name: "LANGCARD",
+          start: 0xc080,
+          end: 0xc08f,
+          desc: "Language card control",
+        },
+      ],
+    },
+    {
+      category: "Annunciators",
+      switches: [
+        { name: "AN0", start: 0xc058, end: 0xc059, desc: "Annunciator 0" },
+        { name: "AN1", start: 0xc05a, end: 0xc05b, desc: "Annunciator 1" },
+        { name: "AN2", start: 0xc05c, end: 0xc05d, desc: "Annunciator 2" },
+        {
+          name: "AN3",
+          start: 0xc05e,
+          end: 0xc05f,
+          desc: "Annunciator 3 / DHIRES",
+        },
+      ],
+    },
+    {
+      category: "I/O",
+      switches: [
+        { name: "KBD", start: 0xc000, end: 0xc000, desc: "Keyboard data" },
+        {
+          name: "KBDSTRB",
+          start: 0xc010,
+          end: 0xc010,
+          desc: "Clear keyboard strobe",
+        },
+        { name: "SPKR", start: 0xc030, end: 0xc030, desc: "Speaker toggle" },
+        { name: "PTRIG", start: 0xc070, end: 0xc070, desc: "Paddle trigger" },
+      ],
+    },
+    {
+      category: "Status Registers",
+      switches: [
+        {
+          name: "RDLCBNK2",
+          start: 0xc011,
+          end: 0xc011,
+          desc: "LC bank 2 status",
+        },
+        {
+          name: "RDLCRAM",
+          start: 0xc012,
+          end: 0xc012,
+          desc: "LC RAM read status",
+        },
+        { name: "RDRAMRD", start: 0xc013, end: 0xc013, desc: "RAMRD status" },
+        { name: "RDRAMWRT", start: 0xc014, end: 0xc014, desc: "RAMWRT status" },
+        {
+          name: "RDCXROM",
+          start: 0xc015,
+          end: 0xc015,
+          desc: "INTCXROM status",
+        },
+        { name: "RDALTZP", start: 0xc016, end: 0xc016, desc: "ALTZP status" },
+        {
+          name: "RDC3ROM",
+          start: 0xc017,
+          end: 0xc017,
+          desc: "SLOTC3ROM status",
+        },
+        {
+          name: "RD80STORE",
+          start: 0xc018,
+          end: 0xc018,
+          desc: "80STORE status",
+        },
+        {
+          name: "RDVBL",
+          start: 0xc019,
+          end: 0xc019,
+          desc: "Vertical blank status",
+        },
+        {
+          name: "RDTEXT",
+          start: 0xc01a,
+          end: 0xc01a,
+          desc: "TEXT mode status",
+        },
+        {
+          name: "RDMIXED",
+          start: 0xc01b,
+          end: 0xc01b,
+          desc: "MIXED mode status",
+        },
+        { name: "RDPAGE2", start: 0xc01c, end: 0xc01c, desc: "PAGE2 status" },
+        {
+          name: "RDHIRES",
+          start: 0xc01d,
+          end: 0xc01d,
+          desc: "HIRES mode status",
+        },
+        {
+          name: "RDALTCHAR",
+          start: 0xc01e,
+          end: 0xc01e,
+          desc: "ALTCHAR status",
+        },
+        { name: "RD80COL", start: 0xc01f, end: 0xc01f, desc: "80COL status" },
+      ],
+    },
   ];
 
   /**
@@ -1603,10 +1842,12 @@ export class CPUDebuggerWindow extends BaseWindow {
 
       const typeIcon = CPUDebuggerWindow.BP_TYPE_ICONS[entry.type] || "●";
       const typeTitle = CPUDebuggerWindow.BP_TYPE_TITLES[entry.type] || "";
-      const typeClass = entry.type === "exec" ? "bp-type-exec" : "bp-type-watch";
+      const typeClass =
+        entry.type === "exec" ? "bp-type-exec" : "bp-type-watch";
 
       // Check if this is a named soft switch breakpoint with a range
-      const isRange = entry.endAddress != null && entry.endAddress !== entry.address;
+      const isRange =
+        entry.endAddress != null && entry.endAddress !== entry.address;
       const hasName = !!entry.name;
 
       let html = `
@@ -1637,9 +1878,10 @@ export class CPUDebuggerWindow extends BaseWindow {
       }
 
       if (entry.hitCount > 0 || entry.hitTarget > 0) {
-        const hitText = entry.hitTarget > 0
-          ? `${entry.hitCount}/${entry.hitTarget}`
-          : `${entry.hitCount}`;
+        const hitText =
+          entry.hitTarget > 0
+            ? `${entry.hitCount}/${entry.hitTarget}`
+            : `${entry.hitCount}`;
         html += `<span class="bp-hits" title="Hit count">${hitText}</span>`;
       }
 
@@ -1653,7 +1895,8 @@ export class CPUDebuggerWindow extends BaseWindow {
     if (count === 0) {
       const empty = document.createElement("div");
       empty.className = "cpu-dbg-empty-state";
-      empty.textContent = "Click a disassembly line to toggle a breakpoint, or add one above.";
+      empty.textContent =
+        "Click a disassembly line to toggle a breakpoint, or add one above.";
       list.appendChild(empty);
     }
 
@@ -1685,8 +1928,8 @@ export class CPUDebuggerWindow extends BaseWindow {
       // Fallback to prompt if Rule Builder not wired
       const condition = prompt(
         `Condition for breakpoint at $${this.formatHex(addr, 4)}:\n` +
-        `Examples: A==#$FF, PEEK($00)==#$42, C==1 && X>=#$10`,
-        entry.condition || ""
+          `Examples: A==#$FF, PEEK($00)==#$42, C==1 && X>=#$10`,
+        entry.condition || "",
       );
       if (condition !== null) {
         this.bpManager.setCondition(addr, condition);
@@ -1706,7 +1949,10 @@ export class CPUDebuggerWindow extends BaseWindow {
       if (!file) return;
       const reader = new FileReader();
       reader.onload = () => {
-        const count = this.labelManager.importSymbolFile(reader.result, file.name);
+        const count = this.labelManager.importSymbolFile(
+          reader.result,
+          file.name,
+        );
         this.updateDisassembly();
         console.log(`Imported ${count} symbols from ${file.name}`);
       };
@@ -1724,7 +1970,7 @@ export class CPUDebuggerWindow extends BaseWindow {
 
     const comment = prompt(
       `Comment for $${this.formatHex(addr, 4)}:`,
-      currentComment
+      currentComment,
     );
 
     if (comment !== null) {
@@ -1746,7 +1992,9 @@ export class CPUDebuggerWindow extends BaseWindow {
     try {
       const saved = localStorage.getItem(CPUDebuggerWindow.WATCH_STORAGE_KEY);
       if (saved) this.watchExpressions = JSON.parse(saved);
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      /* ignore */
+    }
   }
 
   saveWatchExpressions() {
@@ -1755,7 +2003,9 @@ export class CPUDebuggerWindow extends BaseWindow {
         CPUDebuggerWindow.WATCH_STORAGE_KEY,
         JSON.stringify(this.watchExpressions),
       );
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      /* ignore */
+    }
   }
 
   static REGISTER_NAMES = new Set(["A", "X", "Y", "SP", "PC", "P"]);
@@ -1780,17 +2030,29 @@ export class CPUDebuggerWindow extends BaseWindow {
     }
     // Flag: single letter N/V/B/D/I/Z/C
     if (CPUDebuggerWindow.FLAG_LABELS[expr]) {
-      return { icon: "F", iconClass: "watch-icon-flag", label: CPUDebuggerWindow.FLAG_LABELS[expr] };
+      return {
+        icon: "F",
+        iconClass: "watch-icon-flag",
+        label: CPUDebuggerWindow.FLAG_LABELS[expr],
+      };
     }
     // PEEK($XXXX) → byte
     const peekMatch = expr.match(/^PEEK\(\$([0-9A-Fa-f]{1,4})\)$/);
     if (peekMatch) {
-      return { icon: "B", iconClass: "watch-icon-byte", label: `$${peekMatch[1].toUpperCase()} byte` };
+      return {
+        icon: "B",
+        iconClass: "watch-icon-byte",
+        label: `$${peekMatch[1].toUpperCase()} byte`,
+      };
     }
     // DEEK($XXXX) → word
     const deekMatch = expr.match(/^DEEK\(\$([0-9A-Fa-f]{1,4})\)$/);
     if (deekMatch) {
-      return { icon: "W", iconClass: "watch-icon-word", label: `$${deekMatch[1].toUpperCase()} word` };
+      return {
+        icon: "W",
+        iconClass: "watch-icon-word",
+        label: `$${deekMatch[1].toUpperCase()} word`,
+      };
     }
     // Legacy / custom expression
     return { icon: "E", iconClass: "watch-icon-expr", label: expr };
@@ -1855,7 +2117,8 @@ export class CPUDebuggerWindow extends BaseWindow {
       if (this.watchExpressions.length === 0) {
         const empty = document.createElement("div");
         empty.className = "cpu-dbg-empty-state";
-        empty.textContent = "Add watch expressions to monitor values during execution.";
+        empty.textContent =
+          "Add watch expressions to monitor values during execution.";
         list.appendChild(empty);
       }
     } else {
@@ -1899,9 +2162,13 @@ export class CPUDebuggerWindow extends BaseWindow {
 
   loadBookmarks() {
     try {
-      const saved = localStorage.getItem(CPUDebuggerWindow.BOOKMARK_STORAGE_KEY);
+      const saved = localStorage.getItem(
+        CPUDebuggerWindow.BOOKMARK_STORAGE_KEY,
+      );
       if (saved) this.bookmarks = JSON.parse(saved);
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      /* ignore */
+    }
   }
 
   saveBookmarks() {
@@ -1910,7 +2177,9 @@ export class CPUDebuggerWindow extends BaseWindow {
         CPUDebuggerWindow.BOOKMARK_STORAGE_KEY,
         JSON.stringify(this.bookmarks),
       );
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      /* ignore */
+    }
   }
 
   toggleBookmark(addr) {
@@ -1947,7 +2216,9 @@ export class CPUDebuggerWindow extends BaseWindow {
           mode: bp.mode,
         });
       }
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      /* ignore */
+    }
   }
 
   saveBeamBreakpoints() {
@@ -1962,7 +2233,9 @@ export class CPUDebuggerWindow extends BaseWindow {
         CPUDebuggerWindow.BEAM_STORAGE_KEY,
         JSON.stringify(data),
       );
-    } catch (e) { /* ignore */ }
+    } catch (e) {
+      /* ignore */
+    }
   }
 
   /**
@@ -1993,7 +2266,11 @@ export class CPUDebuggerWindow extends BaseWindow {
   lookupSymbol(addr) {
     const label = this.labelManager.getLabel(addr);
     if (label && label.name) {
-      return { name: label.name, desc: label.comment || label.name, category: "user" };
+      return {
+        name: label.name,
+        desc: label.comment || label.name,
+        category: "user",
+      };
     }
     return getSymbolInfo(addr);
   }
@@ -2011,7 +2288,10 @@ export class CPUDebuggerWindow extends BaseWindow {
         const addr = parseInt(hexAddr, 16);
         const info = this.lookupSymbol(addr);
         if (info) {
-          const cssClass = info.category === "user" ? "cpu-disasm-user-label" : getCategoryClass(info.category);
+          const cssClass =
+            info.category === "user"
+              ? "cpu-disasm-user-label"
+              : getCategoryClass(info.category);
           return `<span class="cpu-disasm-symbol ${cssClass}" data-tooltip="${info.desc}">${info.name}</span>`;
         }
         return match;
@@ -2025,7 +2305,10 @@ export class CPUDebuggerWindow extends BaseWindow {
         const addr = parseInt(hexAddr, 16);
         const info = this.lookupSymbol(addr);
         if (info) {
-          const cssClass = info.category === "user" ? "cpu-disasm-user-label" : getCategoryClass(info.category);
+          const cssClass =
+            info.category === "user"
+              ? "cpu-disasm-user-label"
+              : getCategoryClass(info.category);
           return `<span class="cpu-disasm-symbol ${cssClass}" data-tooltip="${info.desc}">${info.name}</span>`;
         }
         return match;
@@ -2069,9 +2352,11 @@ export class CPUDebuggerWindow extends BaseWindow {
         tabBar.querySelectorAll(".cpu-dbg-tab").forEach((t) => {
           t.classList.toggle("active", t.dataset.tab === this.activeTab);
         });
-        this.contentElement.querySelectorAll(".cpu-dbg-tab-content").forEach((c) => {
-          c.classList.toggle("active", c.dataset.tab === this.activeTab);
-        });
+        this.contentElement
+          .querySelectorAll(".cpu-dbg-tab-content")
+          .forEach((c) => {
+            c.classList.toggle("active", c.dataset.tab === this.activeTab);
+          });
       }
     }
   }

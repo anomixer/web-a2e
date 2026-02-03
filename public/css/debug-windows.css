@@ -251,18 +251,30 @@
 }
 
 /* ---- CPU State ---- */
-.cpu-dbg-state {
-    padding: 6px;
+.cpu-dbg-section {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 6px;
     border: 1px solid var(--glass-border-subtle);
     border-radius: 4px;
     background: var(--input-bg);
-    margin-bottom: 6px;
+    margin-bottom: 4px;
+}
+
+.cpu-dbg-section-label {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    min-width: 34px;
 }
 
 .cpu-dbg-regs {
     display: flex;
     gap: 3px;
-    margin-bottom: 6px;
+    flex: 1;
 }
 
 .cpu-dbg-reg {
@@ -312,16 +324,11 @@
     100% { color: var(--accent-green); background: transparent; }
 }
 
-/* ---- Flags & Meta ---- */
-.cpu-dbg-status-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-
+/* ---- Flags ---- */
 .cpu-flags {
     display: flex;
     gap: 2px;
+    flex: 1;
 }
 
 .cpu-flags .flag {
@@ -354,10 +361,11 @@
     box-shadow: 0 0 6px var(--flag-active-glow);
 }
 
-.cpu-dbg-meta {
+.cpu-dbg-timing-row {
     display: flex;
     align-items: center;
     gap: 6px;
+    flex: 1;
 }
 
 .cpu-dbg-cycles {
@@ -390,26 +398,6 @@
     color: var(--accent-red);
 }
 
-/* ---- Beam Section ---- */
-.cpu-dbg-beam {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 5px 6px;
-    border: 1px solid var(--glass-border-subtle);
-    border-radius: 4px;
-    background: var(--input-bg);
-    margin-bottom: 6px;
-}
-
-.cpu-dbg-beam-label {
-    font-family: var(--font-mono);
-    font-size: 9px;
-    font-weight: 600;
-    color: var(--text-muted);
-    flex-shrink: 0;
-}
-
 /* ---- Scanline Row ---- */
 .cpu-dbg-scanline-row {
     display: flex;
@@ -434,7 +422,8 @@
 }
 
 .scanline-value {
-    color: var(--text-secondary);
+    color: var(--accent-blue);
+    font-weight: 600;
 }
 
 .scanline-badge {
