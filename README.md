@@ -96,6 +96,9 @@ npm run deploy        # Deploy to VPS via rsync
 | F1 | Open help and documentation |
 | Ctrl+Escape | Toggle full-page mode |
 | Ctrl+V | Paste text into keyboard buffer |
+| Ctrl+` | Open window switcher |
+| Option+Tab | Cycle to next window |
+| Option+Shift+Tab | Cycle to previous window |
 
 ### Text Selection
 
