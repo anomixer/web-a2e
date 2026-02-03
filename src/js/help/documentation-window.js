@@ -290,7 +290,7 @@ export class DocumentationWindow extends BaseWindow {
             <tr><td><kbd>F1</kbd></td><td>Open/close this Help window</td></tr>
             <tr><td><kbd>Ctrl</kbd>+<kbd>Escape</kbd></td><td>Exit full page mode</td></tr>
             <tr><td><kbd>Ctrl</kbd>+<kbd>V</kbd></td><td>Paste text into emulator</td></tr>
-            <tr><td><kbd>Ctrl</kbd>+<kbd>`</kbd></td><td>Open window switcher</td></tr>
+            <tr><td><kbd>Ctrl</kbd>+<kbd>\`</kbd></td><td>Open window switcher</td></tr>
             <tr><td><kbd>Option</kbd>+<kbd>Tab</kbd></td><td>Cycle to next window</td></tr>
             <tr><td><kbd>Option</kbd>+<kbd>Shift</kbd>+<kbd>Tab</kbd></td><td>Cycle to previous window</td></tr>
           </tbody>
