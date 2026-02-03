@@ -50,7 +50,8 @@ export class MockingboardScopeWindow extends BaseWindow {
         ${channels.map(ch => `
           <div class="mb-channel" data-channel="${ch}" data-psg="${psgNum}">
             <button class="mb-mute-btn" data-psg="${psgNum}" data-ch="${channels.indexOf(ch)}" title="Mute/Unmute Channel ${ch.toUpperCase()}">
-              <span class="mb-mute-icon"></span>
+              <svg class="mb-icon-on" viewBox="0 0 12 12" width="12" height="12"><path d="M1 4.2h2l2.5-2.5v8.6L3 7.8H1z" fill="currentColor"/><path d="M8 3.5q2 2.5 0 5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+              <svg class="mb-icon-off" viewBox="0 0 12 12" width="12" height="12"><path d="M1 4.2h2l2.5-2.5v8.6L3 7.8H1z" fill="currentColor"/><line x1="7.5" y1="3.5" x2="11" y2="8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><line x1="11" y1="3.5" x2="7.5" y2="8.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
             </button>
             <div class="mb-channel-label">${ch.toUpperCase()}</div>
             <div class="mb-meter-container">
@@ -88,13 +89,12 @@ export class MockingboardScopeWindow extends BaseWindow {
       .mb-channel[data-channel="a"] .mb-meter-fill { background: #00b4d8; }
       .mb-channel[data-channel="b"] .mb-meter-fill { background: #4ade80; }
       .mb-channel[data-channel="c"] .mb-meter-fill { background: #f472b6; }
-      .mb-mute-btn { width: 16px; height: 16px; border: none; border-radius: 3px; background: var(--badge-dim-bg); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; flex-shrink: 0; }
+      .mb-mute-btn { width: 16px; height: 16px; border: none; border-radius: 3px; background: var(--badge-dim-bg); cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 0; flex-shrink: 0; color: var(--text-muted); }
       .mb-mute-btn:hover { background: var(--overlay-hover); }
-      .mb-mute-icon { width: 10px; height: 10px; position: relative; }
-      .mb-mute-icon::before { content: ""; position: absolute; left: 1px; top: 2px; width: 3px; height: 5px; background: var(--text-muted); border-radius: 1px; }
-      .mb-mute-icon::after { content: ""; position: absolute; left: 4px; top: 1px; width: 0; height: 0; border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-left: 5px solid var(--text-muted); }
-      .mb-mute-btn.muted { background: var(--accent-red-bg-stronger); }
-      .mb-mute-btn.muted .mb-mute-icon::before, .mb-mute-btn.muted .mb-mute-icon::after { background: var(--accent-red); border-left-color: var(--accent-red); }
+      .mb-mute-btn .mb-icon-off { display: none; }
+      .mb-mute-btn.muted .mb-icon-on { display: none; }
+      .mb-mute-btn.muted .mb-icon-off { display: block; }
+      .mb-mute-btn.muted { background: var(--accent-red-bg-stronger); color: var(--accent-red); }
       .mb-channel.muted { opacity: 0.5; }
       .mb-waveform { flex: 1; min-width: 60px; min-height: 0; height: 100%; background: var(--input-bg-deeper); border-radius: 3px; border: 1px solid var(--border-muted); display: block; }
     </style>`;
