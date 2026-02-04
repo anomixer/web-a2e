@@ -1,82 +1,19 @@
 /**
  * File Explorer Window Styles
+ *
+ * Window chrome (container, header, title, close, resize handles,
+ * hidden/focused/dragging states) is inherited from BaseWindow via
+ * the debug-window classes in debug-windows.css.
+ * This file only contains file-explorer-specific content styles.
  */
 
-.file-explorer-window {
-    position: fixed;
-    background: var(--glass-bg-solid);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border: 1px solid var(--border-default);
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-window);
+/* Override the BaseWindow content wrapper for file explorer layout:
+   remove default padding and overflow so the internal panels handle it */
+#file-explorer-window > .debug-window-content {
+    padding: 0;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
-    min-width: 400px;
-    min-height: 300px;
-    z-index: 1000;
-    overflow: hidden;
-}
-
-.file-explorer-window.focused {
-    border-color: var(--accent-blue-border-light);
-    box-shadow: var(--shadow-window-focused);
-}
-
-/* BaseWindow content wrapper - must fill remaining height */
-.file-explorer-window .fe-body {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    min-height: 0;
-}
-
-.file-explorer-window.hidden {
-    display: none;
-}
-
-.file-explorer-window.dragging,
-.file-explorer-window.resizing {
-    user-select: none;
-}
-
-/* Header */
-.fe-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 12px;
-    background: var(--glass-bg-header);
-    border-bottom: 1px solid var(--border-subtle);
-    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    cursor: move;
-}
-
-.fe-title {
-    font-family: var(--font-sans);
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-primary);
-}
-
-.fe-close {
-    width: 24px;
-    height: 24px;
-    border: none;
-    background: transparent;
-    color: var(--text-muted);
-    font-size: 18px;
-    cursor: pointer;
-    border-radius: var(--radius-sm);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.fe-close:hover {
-    background: var(--accent-red-bg-stronger);
-    color: var(--accent-red);
 }
 
 /* Toolbar */
@@ -87,6 +24,7 @@
     padding: 8px 12px;
     background: var(--glass-border);
     border-bottom: 1px solid var(--border-subtle);
+    flex-shrink: 0;
 }
 
 .fe-drive-selector {
@@ -166,6 +104,7 @@
     border-right: 1px solid var(--border-subtle);
     display: flex;
     flex-direction: column;
+    overflow: hidden;
     background: transparent;
 }
 
@@ -182,6 +121,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-shrink: 0;
 }
 
 .fe-catalog-list {
@@ -297,6 +237,7 @@
     display: flex;
     flex-direction: column;
     min-width: 0;
+    overflow: hidden;
     background: transparent;
 }
 
@@ -328,8 +269,9 @@
     color: var(--text-muted);
 }
 
-/* View toggle (ASM/HEX) */
-.fe-view-toggle {
+/* View toggle (ASM/HEX/MERLIN, TEXT/MERLIN) */
+.fe-view-toggle,
+.fe-text-view-toggle {
     display: flex;
     gap: 2px;
     background: var(--input-bg-deeper);
@@ -337,7 +279,8 @@
     padding: 2px;
 }
 
-.fe-view-toggle.hidden {
+.fe-view-toggle.hidden,
+.fe-text-view-toggle.hidden {
     display: none;
 }
 
@@ -388,6 +331,7 @@
     border-bottom: 1px solid var(--border-subtle);
     font-family: var(--font-mono);
     font-size: 10px;
+    flex-shrink: 0;
 }
 
 .fe-asm-legend.hidden {
@@ -450,6 +394,7 @@
     border-bottom: 1px solid var(--border-subtle);
     font-family: var(--font-mono);
     font-size: 10px;
+    flex-shrink: 0;
 }
 
 .fe-hex-legend.hidden {
@@ -491,7 +436,6 @@
     overflow: auto;
     padding: 8px;
     background: var(--input-bg-dark);
-    border-radius: 0 0 var(--radius-lg) 0;
     /* Isolate layout calculations to improve resize performance */
     contain: strict;
 }
@@ -784,36 +728,6 @@
     color: var(--accent-red);
     padding: 20px;
     text-align: center;
-}
-
-/* Resize handles */
-.fe-resize-handle {
-    position: absolute;
-    background: transparent;
-}
-
-.fe-resize-handle.se {
-    bottom: 0;
-    right: 0;
-    width: 16px;
-    height: 16px;
-    cursor: se-resize;
-}
-
-.fe-resize-handle.e {
-    top: 50px;
-    right: 0;
-    width: 6px;
-    bottom: 16px;
-    cursor: e-resize;
-}
-
-.fe-resize-handle.s {
-    bottom: 0;
-    left: 16px;
-    right: 16px;
-    height: 6px;
-    cursor: s-resize;
 }
 
 /* Merlin assembler source view */

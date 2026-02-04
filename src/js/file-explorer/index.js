@@ -10,51 +10,67 @@
  * Extends BaseWindow to inherit drag/resize/show/hide functionality
  */
 
-import { BaseWindow } from '../windows/base-window.js';
-import { formatFileContents, formatFileSize, formatHexDump, formatMerlinFile, checkIsMerlinFile, setFileViewerWasm } from './file-viewer.js';
-import { disassemble, setWasmModule } from './disassembler.js';
-import { escapeHtml } from '../utils/string-utils.js';
+import { BaseWindow } from "../windows/base-window.js";
+import {
+  formatFileContents,
+  formatFileSize,
+  formatHexDump,
+  formatMerlinFile,
+  checkIsMerlinFile,
+  setFileViewerWasm,
+} from "./file-viewer.js";
+import { disassemble, setWasmModule } from "./disassembler.js";
+import { escapeHtml } from "../utils/string-utils.js";
 
 // File type description tables (UI display only - parsing logic is in C++)
 const DOS33_FILE_DESCRIPTIONS = {
-  0x00: 'Text', 0x01: 'Integer BASIC', 0x02: 'Applesoft BASIC',
-  0x04: 'Binary', 0x08: 'Type S', 0x10: 'Relocatable',
-  0x20: 'Type a', 0x40: 'Type b',
+  0x00: "Text",
+  0x01: "Integer BASIC",
+  0x02: "Applesoft BASIC",
+  0x04: "Binary",
+  0x08: "Type S",
+  0x10: "Relocatable",
+  0x20: "Type a",
+  0x40: "Type b",
 };
 
 const PRODOS_FILE_DESCRIPTIONS = {
-  0x00: 'Unknown', 0x01: 'Bad Block', 0x04: 'Text', 0x06: 'Binary',
-  0x0F: 'Directory', 0x19: 'AppleWorks DB', 0x1A: 'AppleWorks WP',
-  0x1B: 'AppleWorks SS', 0xB0: 'Source Code', 0xB3: 'GS/OS App',
-  0xBF: 'Document', 0xC0: 'Packed HiRes', 0xC1: 'HiRes Picture',
-  0xE0: 'ShrinkIt Archive', 0xEF: 'Pascal', 0xF0: 'Command',
-  0xFA: 'Integer BASIC', 0xFB: 'Integer Vars', 0xFC: 'Applesoft BASIC',
-  0xFD: 'Applesoft Vars', 0xFE: 'Relocatable', 0xFF: 'System',
+  0x00: "Unknown",
+  0x01: "Bad Block",
+  0x04: "Text",
+  0x06: "Binary",
+  0x0f: "Directory",
+  0x19: "AppleWorks DB",
+  0x1a: "AppleWorks WP",
+  0x1b: "AppleWorks SS",
+  0xb0: "Source Code",
+  0xb3: "GS/OS App",
+  0xbf: "Document",
+  0xc0: "Packed HiRes",
+  0xc1: "HiRes Picture",
+  0xe0: "ShrinkIt Archive",
+  0xef: "Pascal",
+  0xf0: "Command",
+  0xfa: "Integer BASIC",
+  0xfb: "Integer Vars",
+  0xfc: "Applesoft BASIC",
+  0xfd: "Applesoft Vars",
+  0xfe: "Relocatable",
+  0xff: "System",
 };
 
 export class FileExplorerWindow extends BaseWindow {
   constructor(wasmModule) {
     // Configure BaseWindow with file explorer specific settings
     super({
-      id: 'file-explorer-window',
-      title: 'File Explorer',
+      id: "file-explorer-window",
+      title: "File Explorer",
       minWidth: 400,
       minHeight: 300,
       defaultWidth: 700,
       defaultHeight: 500,
       defaultPosition: { x: 150, y: 100 },
-      storageKey: 'a2e-file-explorer',
-      // Use file explorer CSS classes
-      cssClasses: {
-        window: 'file-explorer-window',
-        header: 'fe-header',
-        title: 'fe-title',
-        close: 'fe-close',
-        content: 'fe-body', // We'll handle content differently
-        resizeHandle: 'fe-resize-handle',
-      },
-      // Only SE, E, S resize handles
-      resizeDirections: ['se', 'e', 's'],
+      storageKey: "a2e-file-explorer",
     });
 
     this.wasmModule = wasmModule;
@@ -67,12 +83,12 @@ export class FileExplorerWindow extends BaseWindow {
     this.selectedDrive = 0;
     this.catalog = [];
     this.selectedFile = null;
-    this.diskDataPtr = 0;    // Pointer to disk data in WASM heap
-    this.diskDataSize = 0;   // Size of disk data
+    this.diskDataPtr = 0; // Pointer to disk data in WASM heap
+    this.diskDataSize = 0; // Size of disk data
     this.diskFormat = null; // 'dos33' | 'prodos' | null
-    this.currentPath = ''; // Current directory path for ProDOS navigation
-    this.binaryViewMode = 'asm'; // 'asm', 'hex', or 'merlin'
-    this.textViewMode = 'text'; // 'text' or 'merlin'
+    this.currentPath = ""; // Current directory path for ProDOS navigation
+    this.binaryViewMode = "asm"; // 'asm', 'hex', or 'merlin'
+    this.textViewMode = "text"; // 'text' or 'merlin'
     this.currentFileData = null; // Cache for current file data
     this.basicLineNumToIndex = null; // For BASIC GOTO/GOSUB navigation
     this.basicOriginalHtml = null; // Original unhighlighted BASIC content
@@ -111,7 +127,7 @@ export class FileExplorerWindow extends BaseWindow {
             <span class="fe-file-title">Select a file</span>
             <span class="fe-file-info"></span>
             <div class="fe-view-toggle hidden">
-              <button class="fe-view-btn active" data-view="asm" title="Disassembly">ASM<span class="fe-experimental">experimental</span></button>
+              <button class="fe-view-btn active" data-view="asm" title="DISASSEMBLE">Disassemble</button>
               <button class="fe-view-btn" data-view="hex" title="Hex dump">HEX</button>
               <button class="fe-view-btn" data-view="merlin" title="Merlin source">MERLIN</button>
             </div>
@@ -149,30 +165,30 @@ export class FileExplorerWindow extends BaseWindow {
     this.loadSettings();
 
     // Drive selector
-    const driveBtns = this.element.querySelectorAll('.fe-drive-btn');
-    driveBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        driveBtns.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
+    const driveBtns = this.element.querySelectorAll(".fe-drive-btn");
+    driveBtns.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        driveBtns.forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
         this.selectedDrive = parseInt(btn.dataset.drive, 10);
         this.loadDisk();
       });
     });
 
     // Refresh button
-    const refreshBtn = this.element.querySelector('.fe-refresh-btn');
-    refreshBtn.addEventListener('click', () => this.loadDisk());
+    const refreshBtn = this.element.querySelector(".fe-refresh-btn");
+    refreshBtn.addEventListener("click", () => this.loadDisk());
 
     // Catalog item selection
-    const catalogList = this.element.querySelector('.fe-catalog-list');
-    catalogList.addEventListener('click', (e) => {
-      const item = e.target.closest('.fe-catalog-item');
+    const catalogList = this.element.querySelector(".fe-catalog-list");
+    catalogList.addEventListener("click", (e) => {
+      const item = e.target.closest(".fe-catalog-item");
       if (item) {
         // Check for parent directory navigation
-        if (item.dataset.action === 'parent') {
-          const parts = this.currentPath.split('/');
+        if (item.dataset.action === "parent") {
+          const parts = this.currentPath.split("/");
           parts.pop();
-          this.navigateToPath(parts.join('/'));
+          this.navigateToPath(parts.join("/"));
           return;
         }
         const index = parseInt(item.dataset.index, 10);
@@ -183,42 +199,46 @@ export class FileExplorerWindow extends BaseWindow {
     });
 
     // Path bar breadcrumb navigation (ProDOS)
-    const pathBar = this.element.querySelector('.fe-path-bar');
-    pathBar.addEventListener('click', (e) => {
-      const pathItem = e.target.closest('.fe-path-item');
-      if (pathItem && !pathItem.matches(':last-child')) {
-        const path = pathItem.dataset.path || '';
+    const pathBar = this.element.querySelector(".fe-path-bar");
+    pathBar.addEventListener("click", (e) => {
+      const pathItem = e.target.closest(".fe-path-item");
+      if (pathItem && !pathItem.matches(":last-child")) {
+        const path = pathItem.dataset.path || "";
         this.navigateToPath(path);
       }
     });
 
     // View toggle for binary files
-    const viewToggle = this.element.querySelector('.fe-view-toggle');
-    viewToggle.addEventListener('click', (e) => {
-      const btn = e.target.closest('.fe-view-btn');
+    const viewToggle = this.element.querySelector(".fe-view-toggle");
+    viewToggle.addEventListener("click", (e) => {
+      const btn = e.target.closest(".fe-view-btn");
       if (btn) {
         const view = btn.dataset.view;
         if (view !== this.binaryViewMode) {
           this._binaryViewManuallySet = true;
           this.binaryViewMode = view;
-          viewToggle.querySelectorAll('.fe-view-btn').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
+          viewToggle
+            .querySelectorAll(".fe-view-btn")
+            .forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
           this.showFileContents();
         }
       }
     });
 
     // View toggle for text files (TEXT/MERLIN)
-    const textViewToggle = this.element.querySelector('.fe-text-view-toggle');
-    textViewToggle.addEventListener('click', (e) => {
-      const btn = e.target.closest('.fe-view-btn');
+    const textViewToggle = this.element.querySelector(".fe-text-view-toggle");
+    textViewToggle.addEventListener("click", (e) => {
+      const btn = e.target.closest(".fe-view-btn");
       if (btn) {
         const view = btn.dataset.view;
         if (view !== this.textViewMode) {
           this._textViewManuallySet = true;
           this.textViewMode = view;
-          textViewToggle.querySelectorAll('.fe-view-btn').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
+          textViewToggle
+            .querySelectorAll(".fe-view-btn")
+            .forEach((b) => b.classList.remove("active"));
+          btn.classList.add("active");
           this.showFileContents();
         }
       }
@@ -238,12 +258,12 @@ export class FileExplorerWindow extends BaseWindow {
 
   loadDisk() {
     const wasm = this.wasmModule;
-    const diskInfo = this.element.querySelector('.fe-disk-info');
-    const catalogList = this.element.querySelector('.fe-catalog-list');
+    const diskInfo = this.element.querySelector(".fe-disk-info");
+    const catalogList = this.element.querySelector(".fe-catalog-list");
 
     // Check if disk is inserted
     if (!wasm._isDiskInserted(this.selectedDrive)) {
-      diskInfo.textContent = 'No disk inserted';
+      diskInfo.textContent = "No disk inserted";
       catalogList.innerHTML = '<div class="fe-empty">No disk in drive</div>';
       this.catalog = [];
       this.diskDataPtr = 0;
@@ -261,9 +281,10 @@ export class FileExplorerWindow extends BaseWindow {
 
     if (!dataPtr || size === 0) {
       const filenamePtr = wasm._getDiskFilename(this.selectedDrive);
-      const filename = filenamePtr ? wasm.UTF8ToString(filenamePtr) : 'Disk';
+      const filename = filenamePtr ? wasm.UTF8ToString(filenamePtr) : "Disk";
       diskInfo.textContent = filename;
-      catalogList.innerHTML = '<div class="fe-empty">Cannot read sector data<br><small>Copy-protected or non-standard disk format</small></div>';
+      catalogList.innerHTML =
+        '<div class="fe-empty">Cannot read sector data<br><small>Copy-protected or non-standard disk format</small></div>';
       this.catalog = [];
       this.diskDataPtr = 0;
       this.diskDataSize = 0;
@@ -277,11 +298,11 @@ export class FileExplorerWindow extends BaseWindow {
 
     // Get filename
     const filenamePtr = wasm._getDiskFilename(this.selectedDrive);
-    const filename = filenamePtr ? wasm.UTF8ToString(filenamePtr) : 'Unknown';
+    const filename = filenamePtr ? wasm.UTF8ToString(filenamePtr) : "Unknown";
 
     // Check disk format using WASM - try ProDOS first, then DOS 3.3
     if (wasm._isProDOSFormat(dataPtr, size)) {
-      this.diskFormat = 'prodos';
+      this.diskFormat = "prodos";
       wasm._getProDOSVolumeInfo(dataPtr, size);
       const volumeName = wasm.UTF8ToString(wasm._getProDOSVolumeName());
       this.volumeInfo = { volumeName };
@@ -296,7 +317,9 @@ export class FileExplorerWindow extends BaseWindow {
           path: wasm.UTF8ToString(wasm._getProDOSEntryPath(i)),
           fileType: wasm._getProDOSEntryFileType(i),
           fileTypeName: wasm.UTF8ToString(wasm._getProDOSEntryFileTypeName(i)),
-          fileTypeDescription: PRODOS_FILE_DESCRIPTIONS[wasm._getProDOSEntryFileType(i)] || 'Unknown',
+          fileTypeDescription:
+            PRODOS_FILE_DESCRIPTIONS[wasm._getProDOSEntryFileType(i)] ||
+            "Unknown",
           storageType: wasm._getProDOSEntryStorageType(i),
           eof: wasm._getProDOSEntryEOF(i),
           auxType: wasm._getProDOSEntryAuxType(i),
@@ -308,10 +331,10 @@ export class FileExplorerWindow extends BaseWindow {
       }
 
       // Reset to root directory and render
-      this.currentPath = '';
+      this.currentPath = "";
       this.renderProDOSCatalog();
     } else if (wasm._isDOS33Format(dataPtr, size)) {
-      this.diskFormat = 'dos33';
+      this.diskFormat = "dos33";
       diskInfo.textContent = `${filename} (DOS 3.3)`;
 
       // Read DOS 3.3 catalog via WASM
@@ -322,7 +345,9 @@ export class FileExplorerWindow extends BaseWindow {
           filename: wasm.UTF8ToString(wasm._getDOS33EntryFilename(i)),
           fileType: wasm._getDOS33EntryFileType(i),
           fileTypeName: wasm.UTF8ToString(wasm._getDOS33EntryFileTypeName(i)),
-          fileTypeDescription: DOS33_FILE_DESCRIPTIONS[wasm._getDOS33EntryFileType(i)] || 'Unknown',
+          fileTypeDescription:
+            DOS33_FILE_DESCRIPTIONS[wasm._getDOS33EntryFileType(i)] ||
+            "Unknown",
           isLocked: wasm._getDOS33EntryIsLocked(i),
           sectorCount: wasm._getDOS33EntrySectorCount(i),
           _wasmIndex: i,
@@ -333,13 +358,17 @@ export class FileExplorerWindow extends BaseWindow {
       if (this.catalog.length === 0) {
         catalogList.innerHTML = '<div class="fe-empty">Disk is empty</div>';
       } else {
-        catalogList.innerHTML = this.catalog.map((entry, index) => `
+        catalogList.innerHTML = this.catalog
+          .map(
+            (entry, index) => `
           <div class="fe-catalog-item" data-index="${index}">
-            <span class="fe-file-type ${entry.isLocked ? 'locked' : ''}">${entry.isLocked ? '*' : ' '}${entry.fileTypeName}</span>
+            <span class="fe-file-type ${entry.isLocked ? "locked" : ""}">${entry.isLocked ? "*" : " "}${entry.fileTypeName}</span>
             <span class="fe-file-name">${escapeHtml(entry.filename)}</span>
             <span class="fe-file-sectors">${entry.sectorCount}</span>
           </div>
-        `).join('');
+        `,
+          )
+          .join("");
       }
     } else {
       this.diskFormat = null;
@@ -358,24 +387,24 @@ export class FileExplorerWindow extends BaseWindow {
    * Render the ProDOS catalog for the current directory path
    */
   renderProDOSCatalog() {
-    const catalogList = this.element.querySelector('.fe-catalog-list');
-    const pathBar = this.element.querySelector('.fe-path-bar');
+    const catalogList = this.element.querySelector(".fe-catalog-list");
+    const pathBar = this.element.querySelector(".fe-path-bar");
 
     // Show/hide path bar based on whether we're in a subdirectory
     if (this.currentPath) {
-      pathBar.classList.remove('hidden');
+      pathBar.classList.remove("hidden");
       // Build clickable breadcrumb path
-      const parts = this.currentPath.split('/');
+      const parts = this.currentPath.split("/");
       let pathHtml = `<span class="fe-path-item" data-path="">/${this.volumeInfo.volumeName}</span>`;
-      let builtPath = '';
+      let builtPath = "";
       for (const part of parts) {
-        builtPath += (builtPath ? '/' : '') + part;
+        builtPath += (builtPath ? "/" : "") + part;
         pathHtml += `/<span class="fe-path-item" data-path="${escapeHtml(builtPath)}">${escapeHtml(part)}</span>`;
       }
       pathBar.innerHTML = pathHtml;
     } else {
-      pathBar.classList.add('hidden');
-      pathBar.innerHTML = '';
+      pathBar.classList.add("hidden");
+      pathBar.innerHTML = "";
     }
 
     // Filter catalog entries to show only direct children of currentPath.
@@ -384,17 +413,17 @@ export class FileExplorerWindow extends BaseWindow {
     // - At root (currentPath=''): show entries with no '/' in their path
     // - In subdirectory: show entries whose path starts with "currentPath/"
     //   and have no additional '/' after that prefix (direct children only)
-    const entriesInPath = this.catalog.filter(entry => {
-      if (this.currentPath === '') {
+    const entriesInPath = this.catalog.filter((entry) => {
+      if (this.currentPath === "") {
         // Root: show entries without a path separator (direct children)
-        return !entry.path.includes('/');
+        return !entry.path.includes("/");
       } else {
         // Subdirectory: show entries whose path starts with currentPath/
         // and have exactly one more component
-        const prefix = this.currentPath + '/';
+        const prefix = this.currentPath + "/";
         if (!entry.path.startsWith(prefix)) return false;
         const remainder = entry.path.slice(prefix.length);
-        return !remainder.includes('/');
+        return !remainder.includes("/");
       }
     });
 
@@ -409,7 +438,7 @@ export class FileExplorerWindow extends BaseWindow {
       });
 
       // Add parent directory entry if in subdirectory
-      let html = '';
+      let html = "";
       if (this.currentPath) {
         html += `
           <div class="fe-catalog-item fe-directory fe-parent-dir" data-action="parent">
@@ -420,17 +449,19 @@ export class FileExplorerWindow extends BaseWindow {
         `;
       }
 
-      html += entriesInPath.map(entry => {
-        const originalIndex = this.catalog.indexOf(entry);
-        const isDir = entry.isDirectory;
-        return `
-          <div class="fe-catalog-item ${isDir ? 'fe-directory' : ''}" data-index="${originalIndex}" ${isDir ? 'data-action="enter"' : ''}>
-            <span class="fe-file-type ${entry.isLocked ? 'locked' : ''}">${entry.isLocked ? '*' : ' '}${isDir ? 'DIR' : entry.fileTypeName}</span>
-            <span class="fe-file-name">${escapeHtml(entry.filename)}${isDir ? '/' : ''}</span>
+      html += entriesInPath
+        .map((entry) => {
+          const originalIndex = this.catalog.indexOf(entry);
+          const isDir = entry.isDirectory;
+          return `
+          <div class="fe-catalog-item ${isDir ? "fe-directory" : ""}" data-index="${originalIndex}" ${isDir ? 'data-action="enter"' : ""}>
+            <span class="fe-file-type ${entry.isLocked ? "locked" : ""}">${entry.isLocked ? "*" : " "}${isDir ? "DIR" : entry.fileTypeName}</span>
+            <span class="fe-file-name">${escapeHtml(entry.filename)}${isDir ? "/" : ""}</span>
             <span class="fe-file-sectors">${entry.blocksUsed}</span>
           </div>
         `;
-      }).join('');
+        })
+        .join("");
 
       catalogList.innerHTML = html;
     }
@@ -458,28 +489,28 @@ export class FileExplorerWindow extends BaseWindow {
     }
 
     // Update selection UI - compare with data-index attribute since items may be filtered
-    const items = this.element.querySelectorAll('.fe-catalog-item');
+    const items = this.element.querySelectorAll(".fe-catalog-item");
     items.forEach((item) => {
       const itemIndex = parseInt(item.dataset.index, 10);
-      item.classList.toggle('selected', itemIndex === index);
+      item.classList.toggle("selected", itemIndex === index);
     });
 
     this.selectedFile = entry;
     this._binaryViewManuallySet = false;
     this._textViewManuallySet = false;
-    this.binaryViewMode = 'asm';
-    this.textViewMode = 'text';
+    this.binaryViewMode = "asm";
+    this.textViewMode = "text";
     this.showFileContents();
   }
 
   showFileContents() {
-    const titleEl = this.element.querySelector('.fe-file-title');
-    const infoEl = this.element.querySelector('.fe-file-info');
-    const contentEl = this.element.querySelector('.fe-file-content');
-    const viewToggle = this.element.querySelector('.fe-view-toggle');
-    const textViewToggle = this.element.querySelector('.fe-text-view-toggle');
-    const asmLegend = this.element.querySelector('.fe-asm-legend');
-    const hexLegend = this.element.querySelector('.fe-hex-legend');
+    const titleEl = this.element.querySelector(".fe-file-title");
+    const infoEl = this.element.querySelector(".fe-file-info");
+    const contentEl = this.element.querySelector(".fe-file-content");
+    const viewToggle = this.element.querySelector(".fe-view-toggle");
+    const textViewToggle = this.element.querySelector(".fe-text-view-toggle");
+    const asmLegend = this.element.querySelector(".fe-asm-legend");
+    const hexLegend = this.element.querySelector(".fe-hex-legend");
 
     if (!this.selectedFile || !this.diskDataPtr) {
       this.clearFileView();
@@ -487,75 +518,97 @@ export class FileExplorerWindow extends BaseWindow {
     }
 
     // Display filename (with path for ProDOS)
-    const displayName = this.diskFormat === 'prodos' && this.selectedFile.path
-      ? this.selectedFile.path
-      : this.selectedFile.filename;
+    const displayName =
+      this.diskFormat === "prodos" && this.selectedFile.path
+        ? this.selectedFile.path
+        : this.selectedFile.filename;
     titleEl.textContent = displayName;
 
     // Format file size info based on disk format
-    const sizeInfo = this.diskFormat === 'prodos'
-      ? formatFileSize(this.selectedFile.blocksUsed * 2) // ProDOS uses 512-byte blocks
-      : formatFileSize(this.selectedFile.sectorCount);
+    const sizeInfo =
+      this.diskFormat === "prodos"
+        ? formatFileSize(this.selectedFile.blocksUsed * 2) // ProDOS uses 512-byte blocks
+        : formatFileSize(this.selectedFile.sectorCount);
     infoEl.textContent = `${this.selectedFile.fileTypeDescription} - ${sizeInfo}`;
 
     // Determine if this is a binary file based on disk format
     // DOS 3.3: fileType 0x04 is Binary
     // ProDOS: fileType 0x06 (BIN) or 0xFF (SYS) are binary
-    const isBinary = this.diskFormat === 'prodos'
-      ? (this.selectedFile.fileType === 0x06 || this.selectedFile.fileType === 0xFF)
-      : this.selectedFile.fileType === 0x04;
+    const isBinary =
+      this.diskFormat === "prodos"
+        ? this.selectedFile.fileType === 0x06 ||
+          this.selectedFile.fileType === 0xff
+        : this.selectedFile.fileType === 0x04;
 
     // Determine if this is a text file
-    const isText = this.diskFormat === 'prodos'
-      ? this.selectedFile.fileType === 0x04
-      : this.selectedFile.fileType === 0x00;
+    const isText =
+      this.diskFormat === "prodos"
+        ? this.selectedFile.fileType === 0x04
+        : this.selectedFile.fileType === 0x00;
 
     // Show/hide view toggles based on file type
-    viewToggle.classList.toggle('hidden', !isBinary);
-    textViewToggle.classList.toggle('hidden', !isText);
+    viewToggle.classList.toggle("hidden", !isBinary);
+    textViewToggle.classList.toggle("hidden", !isText);
 
     // Sync toggle button active states with current view modes
-    viewToggle.querySelectorAll('.fe-view-btn').forEach(b => {
-      b.classList.toggle('active', b.dataset.view === this.binaryViewMode);
+    viewToggle.querySelectorAll(".fe-view-btn").forEach((b) => {
+      b.classList.toggle("active", b.dataset.view === this.binaryViewMode);
     });
-    textViewToggle.querySelectorAll('.fe-view-btn').forEach(b => {
-      b.classList.toggle('active', b.dataset.view === this.textViewMode);
+    textViewToggle.querySelectorAll(".fe-view-btn").forEach((b) => {
+      b.classList.toggle("active", b.dataset.view === this.textViewMode);
     });
 
     // Show/hide ASM legend based on binary file and view mode
-    const showAsmLegend = isBinary && this.binaryViewMode === 'asm';
-    asmLegend.classList.toggle('hidden', !showAsmLegend);
+    const showAsmLegend = isBinary && this.binaryViewMode === "asm";
+    asmLegend.classList.toggle("hidden", !showAsmLegend);
 
     // Show/hide hex legend (shown for binary hex mode; also set later for unmapped types)
-    const showHexLegend = isBinary && this.binaryViewMode === 'hex';
-    hexLegend.classList.toggle('hidden', !showHexLegend);
+    const showHexLegend = isBinary && this.binaryViewMode === "hex";
+    hexLegend.classList.toggle("hidden", !showHexLegend);
 
     // Read file data (cache it for view switching)
     try {
       const wasm = this.wasmModule;
 
       // Only re-read if we don't have cached data or file changed
-      const cacheKey = this.diskFormat === 'prodos' && this.selectedFile.path
-        ? this.selectedFile.path
-        : this.selectedFile.filename;
+      const cacheKey =
+        this.diskFormat === "prodos" && this.selectedFile.path
+          ? this.selectedFile.path
+          : this.selectedFile.filename;
 
       if (!this.currentFileData || this.currentFileData.filename !== cacheKey) {
         // Read file via WASM
         const wasmIdx = this.selectedFile._wasmIndex;
         let bytesRead;
 
-        if (this.diskFormat === 'prodos') {
-          bytesRead = wasm._readProDOSFile(this.diskDataPtr, this.diskDataSize, wasmIdx);
+        if (this.diskFormat === "prodos") {
+          bytesRead = wasm._readProDOSFile(
+            this.diskDataPtr,
+            this.diskDataSize,
+            wasmIdx,
+          );
           const bufPtr = wasm._getProDOSFileBuffer();
           const fileData = new Uint8Array(bytesRead);
           fileData.set(new Uint8Array(wasm.HEAPU8.buffer, bufPtr, bytesRead));
-          this.currentFileData = { filename: cacheKey, data: fileData, fileType: this.selectedFile.fileType };
+          this.currentFileData = {
+            filename: cacheKey,
+            data: fileData,
+            fileType: this.selectedFile.fileType,
+          };
         } else {
-          bytesRead = wasm._readDOS33File(this.diskDataPtr, this.diskDataSize, wasmIdx);
+          bytesRead = wasm._readDOS33File(
+            this.diskDataPtr,
+            this.diskDataSize,
+            wasmIdx,
+          );
           const bufPtr = wasm._getDOS33FileBuffer();
           const fileData = new Uint8Array(bytesRead);
           fileData.set(new Uint8Array(wasm.HEAPU8.buffer, bufPtr, bytesRead));
-          this.currentFileData = { filename: cacheKey, data: fileData, fileType: this.selectedFile.fileType };
+          this.currentFileData = {
+            filename: cacheKey,
+            data: fileData,
+            fileType: this.selectedFile.fileType,
+          };
         }
       }
 
@@ -567,8 +620,11 @@ export class FileExplorerWindow extends BaseWindow {
         let info;
         let displayData;
 
-        if (this.diskFormat === 'prodos') {
-          info = { address: this.selectedFile.auxType, length: this.selectedFile.eof };
+        if (this.diskFormat === "prodos") {
+          info = {
+            address: this.selectedFile.auxType,
+            length: this.selectedFile.eof,
+          };
           displayData = fileData; // ProDOS binary data doesn't have header
         } else {
           // DOS 3.3 binary files have a 4-byte header: 2 bytes address, 2 bytes length
@@ -587,34 +643,49 @@ export class FileExplorerWindow extends BaseWindow {
 
         // Auto-detect Merlin source for binary files on first load
         if (!this._binaryViewManuallySet && checkIsMerlinFile(displayData)) {
-          this.binaryViewMode = 'merlin';
-          viewToggle.querySelectorAll('.fe-view-btn').forEach(b => {
-            b.classList.toggle('active', b.dataset.view === 'merlin');
+          this.binaryViewMode = "merlin";
+          viewToggle.querySelectorAll(".fe-view-btn").forEach((b) => {
+            b.classList.toggle("active", b.dataset.view === "merlin");
           });
         }
 
         // Update legend visibility after possible auto-detection
-        asmLegend.classList.toggle('hidden', !(isBinary && this.binaryViewMode === 'asm'));
-        hexLegend.classList.toggle('hidden', !(isBinary && this.binaryViewMode === 'hex'));
+        asmLegend.classList.toggle(
+          "hidden",
+          !(isBinary && this.binaryViewMode === "asm"),
+        );
+        hexLegend.classList.toggle(
+          "hidden",
+          !(isBinary && this.binaryViewMode === "hex"),
+        );
 
-        if (this.binaryViewMode === 'merlin') {
+        if (this.binaryViewMode === "merlin") {
           // Show Merlin source view
           this.hexDisplayState = null;
           const merlinResult = formatMerlinFile(displayData);
-          contentEl.className = 'fe-file-content merlin';
+          contentEl.className = "fe-file-content merlin";
           contentEl.innerHTML = `<pre>${merlinResult.content}</pre>`;
-        } else if (this.binaryViewMode === 'hex') {
+        } else if (this.binaryViewMode === "hex") {
           // Show hex dump with dynamic column count
-          contentEl.className = 'fe-file-content hex';
-          this.hexDisplayState = { data: displayData, baseAddress: info?.address || 0, maxBytes: 0 };
+          contentEl.className = "fe-file-content hex";
+          this.hexDisplayState = {
+            data: displayData,
+            baseAddress: info?.address || 0,
+            maxBytes: 0,
+          };
           this.hexBytesPerRow = this.calculateBytesPerRow();
-          const hexContent = formatHexDump(displayData, info?.address || 0, 0, this.hexBytesPerRow);
+          const hexContent = formatHexDump(
+            displayData,
+            info?.address || 0,
+            0,
+            this.hexBytesPerRow,
+          );
           contentEl.innerHTML = `<pre>${hexContent}</pre>`;
         } else {
           // Show disassembly (async) - progressive rendering to avoid freezing
           this.hexDisplayState = null;
-          contentEl.className = 'fe-file-content asm';
-          contentEl.innerHTML = '<pre>Disassembling...</pre>';
+          contentEl.className = "fe-file-content asm";
+          contentEl.innerHTML = "<pre>Disassembling...</pre>";
 
           // Create compatible data format for the disassembler.
           // The disassembler expects DOS 3.3 binary format: 4-byte header + data
@@ -623,36 +694,41 @@ export class FileExplorerWindow extends BaseWindow {
           // address/length in the file's aux_type field, not in the file data itself.
           // We create a synthetic header for ProDOS files so the disassembler works uniformly.
           let dataForDisasm;
-          if (this.diskFormat === 'prodos') {
+          if (this.diskFormat === "prodos") {
             // Create header: 2 bytes address + 2 bytes length + actual data
             dataForDisasm = new Uint8Array(4 + fileData.length);
-            dataForDisasm[0] = info.address & 0xFF;
-            dataForDisasm[1] = (info.address >> 8) & 0xFF;
-            dataForDisasm[2] = info.length & 0xFF;
-            dataForDisasm[3] = (info.length >> 8) & 0xFF;
+            dataForDisasm[0] = info.address & 0xff;
+            dataForDisasm[1] = (info.address >> 8) & 0xff;
+            dataForDisasm[2] = info.length & 0xff;
+            dataForDisasm[3] = (info.length >> 8) & 0xff;
             dataForDisasm.set(fileData, 4);
           } else {
             dataForDisasm = fileData;
           }
 
           // Pass contentEl for progressive rendering
-          disassemble(dataForDisasm, contentEl).catch(e => {
-            contentEl.className = 'fe-file-content error';
+          disassemble(dataForDisasm, contentEl).catch((e) => {
+            contentEl.className = "fe-file-content error";
             contentEl.innerHTML = `<div class="fe-error">Error disassembling: ${e.message}</div>`;
           });
         }
       } else {
         // Non-binary files - use formatFileContents with mapped file type
-        const viewerFileType = this.diskFormat === 'prodos'
-          ? wasm._mapProDOSFileType(this.selectedFile.fileType)
-          : this.selectedFile.fileType;
+        const viewerFileType =
+          this.diskFormat === "prodos"
+            ? wasm._mapProDOSFileType(this.selectedFile.fileType)
+            : this.selectedFile.fileType;
 
         // If mapFileTypeForViewer returns -1, use hex dump
         if (viewerFileType === -1) {
-          contentEl.className = 'fe-file-content hex';
-          hexLegend.classList.remove('hidden');
-          textViewToggle.classList.add('hidden');
-          this.hexDisplayState = { data: fileData, baseAddress: 0, maxBytes: 0 };
+          contentEl.className = "fe-file-content hex";
+          hexLegend.classList.remove("hidden");
+          textViewToggle.classList.add("hidden");
+          this.hexDisplayState = {
+            data: fileData,
+            baseAddress: 0,
+            maxBytes: 0,
+          };
           this.hexBytesPerRow = this.calculateBytesPerRow();
           const hexContent = formatHexDump(fileData, 0, 0, this.hexBytesPerRow);
           contentEl.innerHTML = `<pre>${hexContent}</pre>`;
@@ -662,28 +738,34 @@ export class FileExplorerWindow extends BaseWindow {
         }
 
         // For text files, auto-detect Merlin source on first load
-        if (isText && !this._textViewManuallySet && checkIsMerlinFile(fileData)) {
-          this.textViewMode = 'merlin';
-          textViewToggle.querySelectorAll('.fe-view-btn').forEach(b => {
-            b.classList.toggle('active', b.dataset.view === 'merlin');
+        if (
+          isText &&
+          !this._textViewManuallySet &&
+          checkIsMerlinFile(fileData)
+        ) {
+          this.textViewMode = "merlin";
+          textViewToggle.querySelectorAll(".fe-view-btn").forEach((b) => {
+            b.classList.toggle("active", b.dataset.view === "merlin");
           });
         }
 
         // Handle text file Merlin view
-        if (isText && this.textViewMode === 'merlin') {
+        if (isText && this.textViewMode === "merlin") {
           this.hexDisplayState = null;
           this.basicLineNumToIndex = null;
           this.basicOriginalHtml = null;
           const merlinResult = formatMerlinFile(fileData);
-          contentEl.className = 'fe-file-content merlin';
+          contentEl.className = "fe-file-content merlin";
           contentEl.innerHTML = `<pre>${merlinResult.content}</pre>`;
           return;
         }
 
         // ProDOS BASIC files don't have the 2-byte length header that DOS 3.3 files have
         this.hexDisplayState = null;
-        const hasLengthHeader = this.diskFormat !== 'prodos';
-        const formatted = formatFileContents(fileData, viewerFileType, { hasLengthHeader });
+        const hasLengthHeader = this.diskFormat !== "prodos";
+        const formatted = formatFileContents(fileData, viewerFileType, {
+          hasLengthHeader,
+        });
         contentEl.className = `fe-file-content ${formatted.format}`;
         // BASIC files output HTML with syntax highlighting, others need escaping
         if (formatted.isHtml) {
@@ -692,7 +774,9 @@ export class FileExplorerWindow extends BaseWindow {
           if (formatted.lineNumToIndex) {
             this.basicLineNumToIndex = formatted.lineNumToIndex;
             this.basicOriginalHtml = formatted.content; // Store original for highlight restoration
-            contentEl.querySelector('pre').addEventListener('click', this.handleBasicLineClick);
+            contentEl
+              .querySelector("pre")
+              .addEventListener("click", this.handleBasicLineClick);
           } else {
             this.basicOriginalHtml = null;
           }
@@ -703,13 +787,13 @@ export class FileExplorerWindow extends BaseWindow {
         }
       }
     } catch (e) {
-      contentEl.className = 'fe-file-content error';
+      contentEl.className = "fe-file-content error";
       contentEl.innerHTML = `<div class="fe-error">Error reading file: ${e.message}</div>`;
     }
   }
 
   handleBasicLineClick(event) {
-    const target = event.target.closest('.bas-lineref');
+    const target = event.target.closest(".bas-lineref");
     if (!target || !this.basicLineNumToIndex || !this.basicOriginalHtml) return;
 
     const targetLineNum = parseInt(target.dataset.targetLine, 10);
@@ -718,21 +802,25 @@ export class FileExplorerWindow extends BaseWindow {
     const lineIndex = this.basicLineNumToIndex.get(targetLineNum);
     if (lineIndex === undefined) return;
 
-    const contentEl = this.element.querySelector('.fe-file-content');
-    const pre = contentEl.querySelector('pre');
+    const contentEl = this.element.querySelector(".fe-file-content");
+    const pre = contentEl.querySelector("pre");
     if (!pre) return;
 
     // Always rebuild from original HTML to avoid corruption from previous highlights
-    const lines = this.basicOriginalHtml.split('\n');
+    const lines = this.basicOriginalHtml.split("\n");
     if (lineIndex >= 0 && lineIndex < lines.length) {
-      lines[lineIndex] = `<span class="bas-highlight">${lines[lineIndex]}</span>`;
-      pre.innerHTML = lines.join('\n');
+      lines[lineIndex] =
+        `<span class="bas-highlight">${lines[lineIndex]}</span>`;
+      pre.innerHTML = lines.join("\n");
 
       // Scroll to the target line
       const lineHeight = 18;
       const scrollTop = lineIndex * lineHeight;
       const viewportHeight = contentEl.clientHeight;
-      const centeredScrollTop = Math.max(0, scrollTop - viewportHeight / 2 + lineHeight / 2);
+      const centeredScrollTop = Math.max(
+        0,
+        scrollTop - viewportHeight / 2 + lineHeight / 2,
+      );
       contentEl.scrollTop = centeredScrollTop;
     }
   }
@@ -741,11 +829,11 @@ export class FileExplorerWindow extends BaseWindow {
    * Set up ResizeObserver to dynamically adjust hex column count
    */
   setupHexResizeObserver() {
-    const contentEl = this.element.querySelector('.fe-file-content');
+    const contentEl = this.element.querySelector(".fe-file-content");
     if (!contentEl) return;
 
     this.hexResizeObserver = new ResizeObserver(() => {
-      if (!this.hexDisplayState || !contentEl.classList.contains('hex')) return;
+      if (!this.hexDisplayState || !contentEl.classList.contains("hex")) return;
 
       const bytesPerRow = this.calculateBytesPerRow();
       if (bytesPerRow !== this.hexBytesPerRow) {
@@ -761,13 +849,14 @@ export class FileExplorerWindow extends BaseWindow {
    * Calculate optimal bytes per row based on available width
    */
   calculateBytesPerRow() {
-    const contentEl = this.element.querySelector('.fe-file-content');
+    const contentEl = this.element.querySelector(".fe-file-content");
     if (!contentEl) return 16;
 
     // Create a test element to measure monospace character width
-    const testPre = document.createElement('pre');
-    testPre.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;margin:0;padding:0;font-family:var(--font-mono);font-size:11px';
-    testPre.textContent = '0000000000';
+    const testPre = document.createElement("pre");
+    testPre.style.cssText =
+      "position:absolute;visibility:hidden;pointer-events:none;margin:0;padding:0;font-family:var(--font-mono);font-size:11px";
+    testPre.textContent = "0000000000";
     contentEl.appendChild(testPre);
     const charWidth = testPre.getBoundingClientRect().width / 10;
     const emWidth = parseFloat(getComputedStyle(testPre).fontSize);
@@ -777,7 +866,9 @@ export class FileExplorerWindow extends BaseWindow {
 
     // Available width inside the content element (minus padding and scrollbar)
     const style = getComputedStyle(contentEl);
-    const padding = (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0);
+    const padding =
+      (parseFloat(style.paddingLeft) || 0) +
+      (parseFloat(style.paddingRight) || 0);
     const availableWidth = contentEl.clientWidth - padding;
 
     // Fixed parts per line (in pixels):
@@ -794,7 +885,9 @@ export class FileExplorerWindow extends BaseWindow {
     // Refine: account for group gaps (0.75em each, between every 8-byte group)
     const groupGapWidth = 0.75 * emWidth;
     const gapCount = Math.max(0, Math.floor((bytesPerRow - 1) / 8));
-    bytesPerRow = Math.floor((availableWidth - fixedPx - gapCount * groupGapWidth) / perBytePx);
+    bytesPerRow = Math.floor(
+      (availableWidth - fixedPx - gapCount * groupGapWidth) / perBytePx,
+    );
 
     return Math.max(1, Math.min(64, bytesPerRow));
   }
@@ -803,37 +896,41 @@ export class FileExplorerWindow extends BaseWindow {
    * Re-render hex dump with current bytesPerRow
    */
   rerenderHex() {
-    const contentEl = this.element.querySelector('.fe-file-content');
+    const contentEl = this.element.querySelector(".fe-file-content");
     if (!contentEl || !this.hexDisplayState) return;
 
     const { data, baseAddress, maxBytes } = this.hexDisplayState;
-    const hexContent = formatHexDump(data, baseAddress, maxBytes, this.hexBytesPerRow);
+    const hexContent = formatHexDump(
+      data,
+      baseAddress,
+      maxBytes,
+      this.hexBytesPerRow,
+    );
     contentEl.innerHTML = `<pre>${hexContent}</pre>`;
   }
 
   clearFileView() {
-    const titleEl = this.element.querySelector('.fe-file-title');
-    const infoEl = this.element.querySelector('.fe-file-info');
-    const contentEl = this.element.querySelector('.fe-file-content');
-    const viewToggle = this.element.querySelector('.fe-view-toggle');
-    const textViewToggle = this.element.querySelector('.fe-text-view-toggle');
-    const asmLegend = this.element.querySelector('.fe-asm-legend');
-    const hexLegend = this.element.querySelector('.fe-hex-legend');
+    const titleEl = this.element.querySelector(".fe-file-title");
+    const infoEl = this.element.querySelector(".fe-file-info");
+    const contentEl = this.element.querySelector(".fe-file-content");
+    const viewToggle = this.element.querySelector(".fe-view-toggle");
+    const textViewToggle = this.element.querySelector(".fe-text-view-toggle");
+    const asmLegend = this.element.querySelector(".fe-asm-legend");
+    const hexLegend = this.element.querySelector(".fe-hex-legend");
 
-    titleEl.textContent = 'Select a file';
-    infoEl.textContent = '';
-    contentEl.innerHTML = '';
-    contentEl.className = 'fe-file-content';
-    viewToggle.classList.add('hidden');
-    textViewToggle.classList.add('hidden');
-    asmLegend.classList.add('hidden');
-    hexLegend.classList.add('hidden');
+    titleEl.textContent = "Select a file";
+    infoEl.textContent = "";
+    contentEl.innerHTML = "";
+    contentEl.className = "fe-file-content";
+    viewToggle.classList.add("hidden");
+    textViewToggle.classList.add("hidden");
+    asmLegend.classList.add("hidden");
+    hexLegend.classList.add("hidden");
     this.currentFileData = null;
     this.basicLineNumToIndex = null;
     this.basicOriginalHtml = null;
     this.hexDisplayState = null;
-    this.textViewMode = 'text';
-    this.binaryViewMode = 'asm';
+    this.textViewMode = "text";
+    this.binaryViewMode = "asm";
   }
-
 }
