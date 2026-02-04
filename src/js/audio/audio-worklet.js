@@ -24,7 +24,7 @@ class AppleAudioProcessor extends AudioWorkletProcessor {
         this.pendingRequest = false;
       } else if (event.data.type === "samples") {
         // Append new interleaved stereo samples to existing buffer
-        const newSamples = new Float32Array(event.data.data);
+        const newSamples = event.data.data;
         const remaining = this.sampleBuffer.length - this.bufferReadPos;
 
         if (remaining > 0) {

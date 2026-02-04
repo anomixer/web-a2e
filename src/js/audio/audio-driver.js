@@ -146,7 +146,7 @@ export class AudioDriver {
           this.workletNode.port.postMessage({
             type: "samples",
             data: samples,
-          });
+          }, [samples.buffer]);
         }
       }
     };
