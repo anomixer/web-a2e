@@ -816,6 +816,81 @@
     cursor: s-resize;
 }
 
+/* Merlin assembler source view */
+.fe-file-content.merlin pre {
+    color: var(--text-primary);
+    white-space: pre;
+}
+
+/* Each source line is a flex row with fixed-width columns */
+.mer-line {
+    display: flex;
+    align-items: baseline;
+}
+
+.mer-line:hover {
+    background: var(--overlay-faint);
+}
+
+.mer-col {
+    flex-shrink: 0;
+    white-space: pre;
+}
+
+.mer-col-label {
+    min-width: 13ch;
+    width: 13ch;
+}
+
+.mer-col-opcode {
+    min-width: 7ch;
+    width: 7ch;
+}
+
+.mer-col-operand {
+    min-width: 20ch;
+    width: 20ch;
+}
+
+.mer-col-comment {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Full-line comments span the entire row */
+.mer-comment-line {
+    display: flex;
+}
+
+.mer-comment-line .mer-comment {
+    flex: 1;
+}
+
+/* Label colours */
+.mer-label     { color: var(--syntax-flow); }
+.mer-local     { color: var(--syntax-math); }
+
+/* Mnemonic categories - matching disassembler colour scheme */
+.mer-branch    { color: var(--syntax-flow); font-weight: 500; }
+.mer-load      { color: var(--syntax-load); font-weight: 500; }
+.mer-math      { color: var(--syntax-math); font-weight: 500; }
+.mer-stack     { color: var(--syntax-stack); font-weight: 500; }
+.mer-flag      { color: var(--syntax-flag); font-weight: 500; }
+.mer-macro     { color: var(--text-primary); font-weight: 500; }
+
+/* Directives */
+.mer-directive { color: var(--syntax-keyword); font-weight: 500; }
+
+/* Operand sub-tokens */
+.mer-number    { color: var(--syntax-number); }
+.mer-string    { color: var(--syntax-string); }
+.mer-immediate { color: var(--syntax-flag); }
+.mer-symbol    { color: var(--text-primary); }
+.mer-punct     { color: var(--text-muted); }
+
+/* Comments */
+.mer-comment   { color: var(--syntax-comment); font-style: italic; }
+
 /* Scrollbar styling */
 .fe-catalog-list::-webkit-scrollbar,
 .fe-file-content::-webkit-scrollbar {

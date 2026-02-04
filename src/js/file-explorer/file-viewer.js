@@ -13,6 +13,7 @@
 import { disassemble } from "./disassembler.js";
 import { escapeHtml } from "../utils/string-utils.js";
 import { highlightBasicSource } from "../utils/basic-highlighting.js";
+import { highlightMerlinSource, isMerlinSource } from "../utils/merlin-highlighting.js";
 
 let wasmModule = null;
 
@@ -312,4 +313,47 @@ export function formatFileSize(sectors) {
     return `${bytes} bytes`;
   }
   return `${(bytes / 1024).toFixed(1)} KB`;
+}
+
+/**
+ * Decode raw Apple II bytes to plain text (strip high bits, CR -> newline)
+ * @param {Uint8Array} data - Raw file data
+ * @returns {string} Decoded text
+ */
+function decodeAppleIIText(data) {
+  let text = '';
+  for (let i = 0; i < data.length; i++) {
+    const byte = data[i] & 0x7F;
+    if (byte === 0x0D) {
+      text += '\n';
+    } else if (byte === 0x00) {
+      continue;
+    } else if (byte >= 0x20 && byte < 0x7F) {
+      text += String.fromCharCode(byte);
+    } else if (byte === 0x09) {
+      text += '\t';
+    }
+  }
+  return text;
+}
+
+/**
+ * Check if raw file data looks like Merlin assembler source
+ * @param {Uint8Array} data - Raw file data (high-bit encoded)
+ * @returns {boolean}
+ */
+export function checkIsMerlinFile(data) {
+  const text = decodeAppleIIText(data);
+  return isMerlinSource(text);
+}
+
+/**
+ * Format raw file data as highlighted Merlin assembler source
+ * @param {Uint8Array} data - Raw file data (high-bit encoded)
+ * @returns {Object} { content, format, isHtml }
+ */
+export function formatMerlinFile(data) {
+  const text = decodeAppleIIText(data);
+  const html = highlightMerlinSource(text);
+  return { content: html, format: 'merlin', isHtml: true };
 }

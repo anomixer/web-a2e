@@ -11,7 +11,7 @@
  */
 
 import { BaseWindow } from '../windows/base-window.js';
-import { formatFileContents, formatFileSize, formatHexDump, setFileViewerWasm } from './file-viewer.js';
+import { formatFileContents, formatFileSize, formatHexDump, formatMerlinFile, checkIsMerlinFile, setFileViewerWasm } from './file-viewer.js';
 import { disassemble, setWasmModule } from './disassembler.js';
 import { escapeHtml } from '../utils/string-utils.js';
 
@@ -71,7 +71,8 @@ export class FileExplorerWindow extends BaseWindow {
     this.diskDataSize = 0;   // Size of disk data
     this.diskFormat = null; // 'dos33' | 'prodos' | null
     this.currentPath = ''; // Current directory path for ProDOS navigation
-    this.binaryViewMode = 'asm'; // 'asm' or 'hex'
+    this.binaryViewMode = 'asm'; // 'asm', 'hex', or 'merlin'
+    this.textViewMode = 'text'; // 'text' or 'merlin'
     this.currentFileData = null; // Cache for current file data
     this.basicLineNumToIndex = null; // For BASIC GOTO/GOSUB navigation
     this.basicOriginalHtml = null; // Original unhighlighted BASIC content
@@ -112,6 +113,11 @@ export class FileExplorerWindow extends BaseWindow {
             <div class="fe-view-toggle hidden">
               <button class="fe-view-btn active" data-view="asm" title="Disassembly">ASM<span class="fe-experimental">experimental</span></button>
               <button class="fe-view-btn" data-view="hex" title="Hex dump">HEX</button>
+              <button class="fe-view-btn" data-view="merlin" title="Merlin source">MERLIN</button>
+            </div>
+            <div class="fe-text-view-toggle hidden">
+              <button class="fe-view-btn active" data-view="text" title="Plain text">TEXT</button>
+              <button class="fe-view-btn" data-view="merlin" title="Merlin source">MERLIN</button>
             </div>
           </div>
           <div class="fe-asm-legend hidden">
@@ -193,8 +199,25 @@ export class FileExplorerWindow extends BaseWindow {
       if (btn) {
         const view = btn.dataset.view;
         if (view !== this.binaryViewMode) {
+          this._binaryViewManuallySet = true;
           this.binaryViewMode = view;
           viewToggle.querySelectorAll('.fe-view-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+          this.showFileContents();
+        }
+      }
+    });
+
+    // View toggle for text files (TEXT/MERLIN)
+    const textViewToggle = this.element.querySelector('.fe-text-view-toggle');
+    textViewToggle.addEventListener('click', (e) => {
+      const btn = e.target.closest('.fe-view-btn');
+      if (btn) {
+        const view = btn.dataset.view;
+        if (view !== this.textViewMode) {
+          this._textViewManuallySet = true;
+          this.textViewMode = view;
+          textViewToggle.querySelectorAll('.fe-view-btn').forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
           this.showFileContents();
         }
@@ -442,6 +465,10 @@ export class FileExplorerWindow extends BaseWindow {
     });
 
     this.selectedFile = entry;
+    this._binaryViewManuallySet = false;
+    this._textViewManuallySet = false;
+    this.binaryViewMode = 'asm';
+    this.textViewMode = 'text';
     this.showFileContents();
   }
 
@@ -450,6 +477,7 @@ export class FileExplorerWindow extends BaseWindow {
     const infoEl = this.element.querySelector('.fe-file-info');
     const contentEl = this.element.querySelector('.fe-file-content');
     const viewToggle = this.element.querySelector('.fe-view-toggle');
+    const textViewToggle = this.element.querySelector('.fe-text-view-toggle');
     const asmLegend = this.element.querySelector('.fe-asm-legend');
     const hexLegend = this.element.querySelector('.fe-hex-legend');
 
@@ -477,8 +505,22 @@ export class FileExplorerWindow extends BaseWindow {
       ? (this.selectedFile.fileType === 0x06 || this.selectedFile.fileType === 0xFF)
       : this.selectedFile.fileType === 0x04;
 
-    // Show/hide view toggle based on file type (only for binary files)
+    // Determine if this is a text file
+    const isText = this.diskFormat === 'prodos'
+      ? this.selectedFile.fileType === 0x04
+      : this.selectedFile.fileType === 0x00;
+
+    // Show/hide view toggles based on file type
     viewToggle.classList.toggle('hidden', !isBinary);
+    textViewToggle.classList.toggle('hidden', !isText);
+
+    // Sync toggle button active states with current view modes
+    viewToggle.querySelectorAll('.fe-view-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.view === this.binaryViewMode);
+    });
+    textViewToggle.querySelectorAll('.fe-view-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.view === this.textViewMode);
+    });
 
     // Show/hide ASM legend based on binary file and view mode
     const showAsmLegend = isBinary && this.binaryViewMode === 'asm';
@@ -543,7 +585,25 @@ export class FileExplorerWindow extends BaseWindow {
         this.basicLineNumToIndex = null;
         this.basicOriginalHtml = null;
 
-        if (this.binaryViewMode === 'hex') {
+        // Auto-detect Merlin source for binary files on first load
+        if (!this._binaryViewManuallySet && checkIsMerlinFile(displayData)) {
+          this.binaryViewMode = 'merlin';
+          viewToggle.querySelectorAll('.fe-view-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.view === 'merlin');
+          });
+        }
+
+        // Update legend visibility after possible auto-detection
+        asmLegend.classList.toggle('hidden', !(isBinary && this.binaryViewMode === 'asm'));
+        hexLegend.classList.toggle('hidden', !(isBinary && this.binaryViewMode === 'hex'));
+
+        if (this.binaryViewMode === 'merlin') {
+          // Show Merlin source view
+          this.hexDisplayState = null;
+          const merlinResult = formatMerlinFile(displayData);
+          contentEl.className = 'fe-file-content merlin';
+          contentEl.innerHTML = `<pre>${merlinResult.content}</pre>`;
+        } else if (this.binaryViewMode === 'hex') {
           // Show hex dump with dynamic column count
           contentEl.className = 'fe-file-content hex';
           this.hexDisplayState = { data: displayData, baseAddress: info?.address || 0, maxBytes: 0 };
@@ -591,12 +651,32 @@ export class FileExplorerWindow extends BaseWindow {
         if (viewerFileType === -1) {
           contentEl.className = 'fe-file-content hex';
           hexLegend.classList.remove('hidden');
+          textViewToggle.classList.add('hidden');
           this.hexDisplayState = { data: fileData, baseAddress: 0, maxBytes: 0 };
           this.hexBytesPerRow = this.calculateBytesPerRow();
           const hexContent = formatHexDump(fileData, 0, 0, this.hexBytesPerRow);
           contentEl.innerHTML = `<pre>${hexContent}</pre>`;
           this.basicLineNumToIndex = null;
           this.basicOriginalHtml = null;
+          return;
+        }
+
+        // For text files, auto-detect Merlin source on first load
+        if (isText && !this._textViewManuallySet && checkIsMerlinFile(fileData)) {
+          this.textViewMode = 'merlin';
+          textViewToggle.querySelectorAll('.fe-view-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.view === 'merlin');
+          });
+        }
+
+        // Handle text file Merlin view
+        if (isText && this.textViewMode === 'merlin') {
+          this.hexDisplayState = null;
+          this.basicLineNumToIndex = null;
+          this.basicOriginalHtml = null;
+          const merlinResult = formatMerlinFile(fileData);
+          contentEl.className = 'fe-file-content merlin';
+          contentEl.innerHTML = `<pre>${merlinResult.content}</pre>`;
           return;
         }
 
@@ -736,6 +816,7 @@ export class FileExplorerWindow extends BaseWindow {
     const infoEl = this.element.querySelector('.fe-file-info');
     const contentEl = this.element.querySelector('.fe-file-content');
     const viewToggle = this.element.querySelector('.fe-view-toggle');
+    const textViewToggle = this.element.querySelector('.fe-text-view-toggle');
     const asmLegend = this.element.querySelector('.fe-asm-legend');
     const hexLegend = this.element.querySelector('.fe-hex-legend');
 
@@ -744,12 +825,15 @@ export class FileExplorerWindow extends BaseWindow {
     contentEl.innerHTML = '';
     contentEl.className = 'fe-file-content';
     viewToggle.classList.add('hidden');
+    textViewToggle.classList.add('hidden');
     asmLegend.classList.add('hidden');
     hexLegend.classList.add('hidden');
     this.currentFileData = null;
     this.basicLineNumToIndex = null;
     this.basicOriginalHtml = null;
     this.hexDisplayState = null;
+    this.textViewMode = 'text';
+    this.binaryViewMode = 'asm';
   }
 
 }
