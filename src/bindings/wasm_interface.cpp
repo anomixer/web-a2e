@@ -52,12 +52,6 @@ void runCycles(int cycles) {
 }
 
 EMSCRIPTEN_KEEPALIVE
-int generateAudioSamples(float *buffer, int sampleCount) {
-  REQUIRE_EMULATOR_OR(0);
-  return g_emulator->generateAudioSamples(buffer, sampleCount);
-}
-
-EMSCRIPTEN_KEEPALIVE
 int generateStereoAudioSamples(float *buffer, int sampleCount) {
   REQUIRE_EMULATOR_OR(0);
   return g_emulator->generateStereoAudioSamples(buffer, sampleCount);

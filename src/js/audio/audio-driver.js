@@ -24,7 +24,6 @@ export class AudioDriver {
     this.muted = this.loadMuted();
     this.volume = this.loadVolume(); // Load saved volume or default to 0.5
     this.speed = 1;
-    this.stereo = this.loadStereo(); // Load saved stereo setting
 
     // Fallback to ScriptProcessorNode if AudioWorklet not available
     this.useWorklet = typeof AudioWorkletNode !== "undefined";
@@ -229,32 +228,17 @@ export class AudioDriver {
    * @returns {Float32Array} Generated audio samples in range [-1, 1]
    */
   generateSamples(count) {
-    // Always output stereo (interleaved L/R) for the audio worklet
+    // Stereo output (interleaved L/R): PSG1 on left, PSG2 on right
     const samples = new Float32Array(count * 2);
 
-    if (this.stereo) {
-      // Stereo mode: PSG1 on left, PSG2 on right
-      const bufferPtr = this.wasmModule._malloc(count * 2 * 4); // stereo: count * 2 floats * 4 bytes
-      this.wasmModule._generateStereoAudioSamples(bufferPtr, count);
+    const bufferPtr = this.wasmModule._malloc(count * 2 * 4); // count * 2 floats * 4 bytes
+    this.wasmModule._generateStereoAudioSamples(bufferPtr, count);
 
-      // Copy interleaved stereo samples from WASM memory
-      for (let i = 0; i < count * 2; i++) {
-        samples[i] = this.wasmModule.HEAPF32[(bufferPtr >> 2) + i];
-      }
-      this.wasmModule._free(bufferPtr);
-    } else {
-      // Mono mode: PSG1 + PSG2 mixed, same on both channels
-      const bufferPtr = this.wasmModule._malloc(count * 4); // mono: count floats * 4 bytes
-      this.wasmModule._generateAudioSamples(bufferPtr, count);
-
-      // Copy mono samples and duplicate to both channels
-      for (let i = 0; i < count; i++) {
-        const sample = this.wasmModule.HEAPF32[(bufferPtr >> 2) + i];
-        samples[i * 2] = sample;     // Left
-        samples[i * 2 + 1] = sample; // Right
-      }
-      this.wasmModule._free(bufferPtr);
+    // Copy interleaved stereo samples from WASM memory
+    for (let i = 0; i < count * 2; i++) {
+      samples[i] = this.wasmModule.HEAPF32[(bufferPtr >> 2) + i];
     }
+    this.wasmModule._free(bufferPtr);
 
     // Check if we've accumulated enough samples for one or more frames
     const framesReady = this.wasmModule._consumeFrameSamples();
@@ -409,31 +393,4 @@ export class AudioDriver {
     }
   }
 
-  isStereo() {
-    return this.stereo;
-  }
-
-  setStereo(enabled) {
-    this.stereo = enabled;
-    this.saveStereo();
-  }
-
-  loadStereo() {
-    try {
-      const saved = localStorage.getItem('a2e-stereo');
-      // Default to stereo enabled if not set
-      return saved !== 'false';
-    } catch (e) {
-      // Ignore localStorage errors
-    }
-    return true;
-  }
-
-  saveStereo() {
-    try {
-      localStorage.setItem('a2e-stereo', this.stereo.toString());
-    } catch (e) {
-      // Ignore localStorage errors
-    }
-  }
 }
