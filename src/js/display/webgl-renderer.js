@@ -36,7 +36,7 @@ export class WebGLRenderer {
       // Scanlines and rasterization
       scanlineIntensity: 0.03,
       scanlineWidth: 0.25,
-      shadowMask: 1.0,
+      shadowMask: 0.3,
 
       // Glow/bloom
       glowIntensity: 0.0,
@@ -68,8 +68,11 @@ export class WebGLRenderer {
       // No signal mode (TV static when off)
       noSignal: 0.0, // 1.0 = full static, 0.0 = normal display
 
+      // Color bleed - vertical inter-scanline blending (CRT phosphor overlap)
+      colorBleed: 0.8, // 0.0 to 1.0
+
       // NTSC color fringing (simulates chroma bandwidth limiting)
-      ntscFringing: 0.5, // 0.0 to 1.0
+      ntscFringing: 0.3, // 0.0 to 1.0
 
       // Monochrome mode (0=color, 1=green, 2=amber, 3=white)
       monochromeMode: 0,
@@ -232,6 +235,7 @@ export class WebGLRenderer {
       burnIn: gl.getUniformLocation(this.program, "u_burnIn"),
       overscan: gl.getUniformLocation(this.program, "u_overscan"),
       noSignal: gl.getUniformLocation(this.program, "u_noSignal"),
+      colorBleed: gl.getUniformLocation(this.program, "u_colorBleed"),
       ntscFringing: gl.getUniformLocation(this.program, "u_ntscFringing"),
       monochromeMode: gl.getUniformLocation(this.program, "u_monochromeMode"),
       cornerRadius: gl.getUniformLocation(this.program, "u_cornerRadius"),
@@ -545,6 +549,7 @@ export class WebGLRenderer {
     gl.uniform1f(this.uniforms.burnIn, this.crtParams.burnIn);
     gl.uniform1f(this.uniforms.overscan, this.crtParams.overscan);
     gl.uniform1f(this.uniforms.noSignal, this.crtParams.noSignal);
+    gl.uniform1f(this.uniforms.colorBleed, this.crtParams.colorBleed);
     gl.uniform1f(this.uniforms.ntscFringing, this.crtParams.ntscFringing);
     gl.uniform1i(this.uniforms.monochromeMode, this.crtParams.monochromeMode);
     gl.uniform1f(this.uniforms.cornerRadius, this.crtParams.cornerRadius);

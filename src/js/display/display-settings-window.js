@@ -53,6 +53,8 @@ export class DisplaySettingsWindow extends BaseWindow {
       burnIn: 0,
       overscan: 0,
       sharpPixels: false,
+      // Color bleed (vertical inter-scanline blending)
+      colorBleed: 80,
       // NTSC fringing (shader-based)
       ntscFringing: 50,
       // Monochrome mode (0=color, 1=green, 2=amber, 3=white)
@@ -150,10 +152,15 @@ export class DisplaySettingsWindow extends BaseWindow {
         </div>
       </div>`;
 
-    // NTSC Fringing slider (shader-based)
+    // NTSC Effects sliders (shader-based)
     html += `
       <div class="settings-section">
         <div class="settings-section-title">NTSC Effects</div>
+        <div class="setting-row">
+          <label title="Vertical inter-scanline color blending (CRT phosphor overlap)">Color Bleed</label>
+          <input type="range" id="ds-colorBleed" min="0" max="100" value="${this.settings.colorBleed}">
+          <span class="setting-value" id="ds-val-colorBleed">${this.settings.colorBleed}%</span>
+        </div>
         <div class="setting-row">
           <label title="NTSC color fringing at edges (magenta/cyan)">NTSC Fringing</label>
           <input type="range" id="ds-ntscFringing" min="0" max="100" value="${this.settings.ntscFringing}">
@@ -217,6 +224,23 @@ export class DisplaySettingsWindow extends BaseWindow {
         if (this.renderer) {
           this.renderer.setNearestFilter(this.settings.sharpPixels);
         }
+        this.saveSettings();
+      });
+    }
+
+    // Color Bleed slider (shader-based)
+    const colorBleedInput =
+      this.contentElement.querySelector("#ds-colorBleed");
+    const colorBleedValueSpan = this.contentElement.querySelector(
+      "#ds-val-colorBleed",
+    );
+    if (colorBleedInput) {
+      colorBleedInput.addEventListener("input", (e) => {
+        const value = parseInt(e.target.value, 10);
+        this.settings.colorBleed = value;
+        if (colorBleedValueSpan)
+          colorBleedValueSpan.textContent = `${value}%`;
+        this.applyToRenderer("colorBleed", value / 100);
         this.saveSettings();
       });
     }
@@ -308,6 +332,16 @@ export class DisplaySettingsWindow extends BaseWindow {
     }
     if (this.renderer) {
       this.renderer.setNearestFilter(this.settings.sharpPixels);
+    }
+
+    // Apply color bleed settings (shader-based)
+    {
+      const input = this.contentElement.querySelector("#ds-colorBleed");
+      const valueSpan = this.contentElement.querySelector("#ds-val-colorBleed");
+      if (input) input.value = this.settings.colorBleed;
+      if (valueSpan)
+        valueSpan.textContent = `${this.settings.colorBleed}%`;
+      this.applyToRenderer("colorBleed", this.settings.colorBleed / 100);
     }
 
     // Apply NTSC fringing settings (shader-based)

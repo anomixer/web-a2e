@@ -37,6 +37,9 @@ uniform float u_noSignal;
 // NTSC fringing effect
 uniform float u_ntscFringing;
 
+// Color bleed - vertical inter-scanline blending (simulates CRT phosphor overlap)
+uniform float u_colorBleed;
+
 // Monochrome mode (0=color, 1=green, 2=amber, 3=white)
 uniform int u_monochromeMode;
 
@@ -341,6 +344,31 @@ vec3 rgbShift(sampler2D tex, vec2 uv) {
 }
 
 // ============================================
+// Color Bleed (vertical inter-scanline blending)
+// Simulates CRT phosphor spot overlap where
+// adjacent scanlines bleed into each other
+// ============================================
+
+vec3 colorBleed(sampler2D tex, vec2 uv, vec3 baseColor) {
+    if (u_colorBleed < 0.001) return baseColor;
+
+    vec2 texelSize = 1.0 / u_textureSize;
+
+    // 5-tap vertical kernel: sample 2 rows above and below
+    // Weights 1-1-2-1-1 (sum 6) chosen to perfectly cancel the common
+    // Apple II HIRES pattern where artifact colors alternate every 2 rows
+    // (each scanline is doubled, giving a BBVV period-4 pattern)
+    vec3 up2 = texture2D(tex, uv + vec2(0.0, -2.0 * texelSize.y)).rgb;
+    vec3 up1 = texture2D(tex, uv + vec2(0.0, -1.0 * texelSize.y)).rgb;
+    vec3 dn1 = texture2D(tex, uv + vec2(0.0,  1.0 * texelSize.y)).rgb;
+    vec3 dn2 = texture2D(tex, uv + vec2(0.0,  2.0 * texelSize.y)).rgb;
+
+    vec3 blended = (up2 + up1 + baseColor * 2.0 + dn1 + dn2) / 6.0;
+
+    return mix(baseColor, blended, u_colorBleed);
+}
+
+// ============================================
 // NTSC Color Fringing
 // Simulates the limited chroma bandwidth of NTSC
 // causing color "ringing" at sharp edges
@@ -598,6 +626,9 @@ void main() {
     } else {
         // Get base color with RGB shift
         color = rgbShift(u_texture, contentUV);
+
+        // Apply vertical color bleed (CRT inter-scanline blending)
+        color = colorBleed(u_texture, contentUV, color);
 
         // Apply NTSC color fringing only in colour mode
         if (u_monochromeMode == 0) {
