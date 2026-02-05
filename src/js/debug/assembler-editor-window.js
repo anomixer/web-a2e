@@ -49,11 +49,6 @@ export class AssemblerEditorWindow extends BaseWindow {
               <span class="asm-btn-icon">📖</span> ROM
             </button>
           </div>
-          <div class="asm-toolbar-separator"></div>
-          <div class="asm-toolbar-group asm-toolbar-org">
-            <label class="asm-org-label">ORG</label>
-            <input class="asm-org-input" type="text" value="$0800" spellcheck="false" title="Origin address for assembly" />
-          </div>
           <div class="asm-toolbar-spacer"></div>
           <div class="asm-toolbar-group asm-toolbar-status">
             <span class="asm-status"></span>
@@ -175,7 +170,6 @@ export class AssemblerEditorWindow extends BaseWindow {
     this.gutterContent = this.contentElement.querySelector(".asm-gutter-content");
     this.assembleBtn = this.contentElement.querySelector(".asm-assemble-btn");
     this.loadBtn = this.contentElement.querySelector(".asm-load-btn");
-    this.orgInput = this.contentElement.querySelector(".asm-org-input");
     this.statusSpan = this.contentElement.querySelector(".asm-status");
     this.columnIndicator = this.contentElement.querySelector(".asm-column-indicator");
     this.cursorPosition = this.contentElement.querySelector(".asm-cursor-position");
@@ -325,6 +319,8 @@ export class AssemblerEditorWindow extends BaseWindow {
 **********************************
 
 STROUT   EQU  $DB3A      ;Outputs AY-pointed null-terminated string
+
+         ORG  $0800      ;Standard BASIC program area
 
 START    LDY  #>HELLO
          LDA  #<HELLO
@@ -1078,15 +1074,24 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
 
     const lines = this.textarea.value.split('\n');
 
-    // Get origin from input or default
-    let pc = this.parseValue(this.orgInput?.value || '$0800') || 0x0800;
+    // Find ORG from source code, default to $0800 if not found yet
+    let pc = 0x0800;
 
     // First pass: calculate PC for each line
     for (let i = 0; i < lines.length; i++) {
       const lineNumber = i + 1;
+      const parsed = this.parseLine(lines[i]);
+
+      // Check for ORG directive and update PC
+      if (parsed && parsed.opcode && parsed.opcode.toUpperCase() === 'ORG') {
+        const orgValue = this.parseValue(parsed.operand);
+        if (orgValue !== null) {
+          pc = orgValue;
+        }
+      }
+
       this.linePCs.set(lineNumber, pc);
 
-      const parsed = this.parseLine(lines[i]);
       if (parsed && parsed.opcode) {
         const size = this.getInstructionSize(parsed.opcode.toUpperCase(), parsed.operand);
         pc += size;
@@ -1401,16 +1406,11 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
       return;
     }
 
-    // Check if source already has ORG directive
+    // Check if source has ORG directive before any code
     const hasOrg = text.match(/^\s*ORG\b/mi);
-    const orgValue = this.orgInput.value.trim();
-    let source = text;
-    let lineOffset = 0;
-
-    // Prepend ORG from toolbar if source doesn't contain one
-    if (orgValue && !hasOrg) {
-      source = `         ORG  ${orgValue}\n${text}`;
-      lineOffset = 1; // Errors will be 1 line off
+    if (!hasOrg) {
+      this.setStatus("ORG directive required before code", false);
+      return;
     }
 
     // Allocate source string in WASM heap
@@ -2009,7 +2009,6 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
     return {
       ...baseState,
       content: this.textarea ? this.textarea.value : "",
-      org: this.orgInput ? this.orgInput.value : "$0800",
     };
   }
 
@@ -2021,9 +2020,6 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
       this.validateAllLines();
       this.encodeAllLineBytes();
       this.updateGutter();
-    }
-    if (state.org !== undefined && this.orgInput) {
-      this.orgInput.value = state.org;
     }
   }
 }
