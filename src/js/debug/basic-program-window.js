@@ -6,7 +6,11 @@
  */
 
 import { BaseWindow } from "../windows/base-window.js";
-import { highlightBasicSource } from "../utils/basic-highlighting.js";
+import {
+  highlightBasicSource,
+  highlightBasicSourceWithIndent,
+  formatBasicSource,
+} from "../utils/basic-highlighting.js";
 import { BasicAutocomplete } from "../utils/basic-autocomplete.js";
 import { BasicBreakpointManager } from "./basic-breakpoint-manager.js";
 import { BasicVariableInspector } from "./basic-variable-inspector.js";
@@ -16,7 +20,7 @@ export class BasicProgramWindow extends BaseWindow {
   constructor(wasmModule, inputHandler, isRunningCallback) {
     super({
       id: "basic-program",
-      title: "BASIC Program",
+      title: "APPLESOFT BASIC",
       defaultWidth: 700,
       defaultHeight: 500,
       minWidth: 550,
@@ -51,7 +55,7 @@ export class BasicProgramWindow extends BaseWindow {
     return `
       <div class="basic-unified-container">
         <div class="basic-dbg-toolbar">
-          <button class="basic-dbg-btn basic-dbg-run" title="Run BASIC program">
+          <button class="basic-dbg-btn basic-dbg-run" title="Run APPLESOFT BASIC program">
             <span class="basic-dbg-icon">▶</span> Run
           </button>
           <button class="basic-dbg-btn basic-dbg-stop" title="Stop (Ctrl+C)">
@@ -79,11 +83,14 @@ export class BasicProgramWindow extends BaseWindow {
               <div class="basic-editor-container">
                 <div class="basic-line-highlight"></div>
                 <pre class="basic-highlight" aria-hidden="true"></pre>
-                <textarea class="basic-textarea" placeholder="Paste or type your BASIC program here...
+                <textarea class="basic-textarea" placeholder="Enter your Applesoft BASIC program...
 
-Example:
-10 PRINT &quot;HELLO WORLD&quot;
-20 GOTO 10" spellcheck="false"></textarea>
+10 REM EXAMPLE PROGRAM
+20 HOME
+30 FOR I = 1 TO 10
+40 PRINT &quot;HELLO WORLD &quot;;I
+50 NEXT I
+60 END" spellcheck="false"></textarea>
               </div>
             </div>
             <div class="basic-editor-footer">
@@ -92,19 +99,23 @@ Example:
                 <span class="basic-chars">0 chars</span>
               </div>
               <div class="basic-actions">
+                <button class="basic-btn basic-load-btn" title="Load program from emulator memory">Load from Memory</button>
+                <button class="basic-btn basic-format-btn" title="Format code (align line numbers, indent loops)">Format</button>
+                <button class="basic-btn basic-renumber-btn" title="Renumber lines in increments of 10, updating GOTO/GOSUB references">Renumber</button>
                 <button class="basic-btn basic-insert-btn">Paste into Emulator</button>
                 <button class="basic-btn basic-clear-btn">Clear</button>
               </div>
             </div>
           </div>
 
-          <div class="basic-splitter" title="Drag to resize"></div>
+          <div class="basic-splitter" title="Drag to resize"><div class="basic-splitter-handle"></div></div>
 
           <div class="basic-dbg-sidebar">
             <div class="basic-dbg-var-section">
               <div class="basic-dbg-var-header">Variables</div>
               <div class="basic-dbg-var-panel"></div>
             </div>
+            <div class="basic-sidebar-splitter" title="Drag to resize"><div class="basic-sidebar-splitter-handle"></div></div>
             <div class="basic-dbg-breakpoints">
               <div class="basic-dbg-bp-header">
                 <span>Breakpoints</span>
@@ -125,10 +136,15 @@ Example:
     // Editor elements
     this.textarea = this.contentElement.querySelector(".basic-textarea");
     this.highlight = this.contentElement.querySelector(".basic-highlight");
-    this.lineHighlight = this.contentElement.querySelector(".basic-line-highlight");
+    this.lineHighlight = this.contentElement.querySelector(
+      ".basic-line-highlight",
+    );
     this.gutter = this.contentElement.querySelector(".basic-gutter");
     this.linesSpan = this.contentElement.querySelector(".basic-lines");
     this.charsSpan = this.contentElement.querySelector(".basic-chars");
+    this.loadBtn = this.contentElement.querySelector(".basic-load-btn");
+    this.formatBtn = this.contentElement.querySelector(".basic-format-btn");
+    this.renumberBtn = this.contentElement.querySelector(".basic-renumber-btn");
     this.insertBtn = this.contentElement.querySelector(".basic-insert-btn");
     this.clearBtn = this.contentElement.querySelector(".basic-clear-btn");
 
@@ -155,6 +171,9 @@ Example:
     this.lineSpan = this.contentElement.querySelector(".basic-dbg-line");
     this.ptrSpan = this.contentElement.querySelector(".basic-dbg-ptr");
 
+    // Track current editing line for auto-format on line change
+    this.lastEditLine = -1;
+
     // Editor event listeners
     this.textarea.addEventListener("input", () => {
       this.updateHighlighting();
@@ -170,18 +189,37 @@ Example:
       this.updateCurrentLineHighlight();
     });
 
-    this.textarea.addEventListener("keydown", () =>
-      requestAnimationFrame(() => this.updateCurrentLineHighlight())
-    );
-    this.textarea.addEventListener("click", () =>
-      this.updateCurrentLineHighlight()
-    );
-    this.textarea.addEventListener("focus", () => {
-      this.lineHighlight.classList.add("visible");
+    this.textarea.addEventListener("keydown", (e) => {
+      // Handle Enter: format current line and insert next line number
+      if (e.key === "Enter") {
+        e.preventDefault();
+        this.handleEnterKey();
+      }
+    });
+
+    this.textarea.addEventListener("keyup", (e) => {
+      // Check for line change on navigation keys
+      if (["ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"].includes(e.key)) {
+        this.checkLineChange();
+      }
       this.updateCurrentLineHighlight();
     });
+
+    this.textarea.addEventListener("click", () => {
+      this.checkLineChange();
+      this.updateCurrentLineHighlight();
+    });
+
+    this.textarea.addEventListener("focus", () => {
+      this.lineHighlight.classList.add("visible");
+      this.lastEditLine = this.getCurrentLineIndex();
+      this.updateCurrentLineHighlight();
+    });
+
     this.textarea.addEventListener("blur", () => {
       this.lineHighlight.classList.remove("visible");
+      // Auto-format when leaving the editor
+      this.autoFormatCode();
     });
 
     this.insertBtn.addEventListener("click", () => {
@@ -199,8 +237,22 @@ Example:
       this.updateGutter();
     });
 
+    this.loadBtn.addEventListener("click", () => {
+      this.loadFromMemory();
+    });
+
+    this.formatBtn.addEventListener("click", () => {
+      this.autoFormatCode();
+    });
+
+    this.renumberBtn.addEventListener("click", () => {
+      this.renumberProgram();
+    });
+
     // Initialize autocomplete
-    const editorContainer = this.contentElement.querySelector(".basic-editor-container");
+    const editorContainer = this.contentElement.querySelector(
+      ".basic-editor-container",
+    );
     this.autocomplete = new BasicAutocomplete(this.textarea, editorContainer);
 
     // Debugger toolbar buttons
@@ -225,11 +277,19 @@ Example:
       if (e.key === "Enter") this.addBreakpointFromInput();
     });
 
-    // Splitter for resizable panels
+    // Splitter for resizable panels (editor <-> sidebar)
     this.splitter = this.contentElement.querySelector(".basic-splitter");
     this.sidebar = this.contentElement.querySelector(".basic-dbg-sidebar");
-    this.editorSection = this.contentElement.querySelector(".basic-editor-section");
+    this.editorSection = this.contentElement.querySelector(
+      ".basic-editor-section",
+    );
     this.setupSplitter();
+
+    // Splitter for sidebar panels (variables <-> breakpoints)
+    this.sidebarSplitter = this.contentElement.querySelector(".basic-sidebar-splitter");
+    this.varSection = this.contentElement.querySelector(".basic-dbg-var-section");
+    this.bpSection = this.contentElement.querySelector(".basic-dbg-breakpoints");
+    this.setupSidebarSplitter();
 
     this.updateHighlighting();
     this.updateStats();
@@ -272,6 +332,40 @@ Example:
     document.addEventListener("mouseup", onMouseUp);
   }
 
+  setupSidebarSplitter() {
+    let isDragging = false;
+    let startY = 0;
+    let startHeight = 0;
+
+    const onMouseDown = (e) => {
+      isDragging = true;
+      startY = e.clientY;
+      startHeight = this.bpSection.offsetHeight;
+      document.body.style.cursor = "row-resize";
+      document.body.style.userSelect = "none";
+      e.preventDefault();
+    };
+
+    const onMouseMove = (e) => {
+      if (!isDragging) return;
+      const delta = startY - e.clientY;
+      const newHeight = Math.min(Math.max(startHeight + delta, 80), 400);
+      this.bpSection.style.height = `${newHeight}px`;
+    };
+
+    const onMouseUp = () => {
+      if (!isDragging) return;
+      isDragging = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      if (this.onStateChange) this.onStateChange();
+    };
+
+    this.sidebarSplitter.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+  }
+
   // ========================================
   // Gutter Methods
   // ========================================
@@ -279,7 +373,6 @@ Example:
   updateGutter() {
     const text = this.textarea.value;
     const rawLines = text.split(/\r?\n/);
-    const state = this.programParser.getExecutionState();
 
     // Build line map (text line index -> BASIC line number) and gutter HTML
     this.lineMap = [];
@@ -293,17 +386,19 @@ Example:
 
       this.lineMap[i] = lineNumber;
 
-      const hasBp = lineNumber !== null && this.breakpointManager.has(lineNumber);
-      const isCurrent = lineNumber !== null && state.currentLine === lineNumber;
+      const hasBp =
+        lineNumber !== null && this.breakpointManager.has(lineNumber);
+      const isCurrent =
+        lineNumber !== null && this.currentLineNumber === lineNumber;
 
       const bpClass = hasBp ? "has-bp" : "";
       const currentClass = isCurrent ? "is-current" : "";
       const clickable = lineNumber !== null ? "clickable" : "";
 
-      // Only show breakpoint marker and current line indicator, not line numbers
+      // Gutter shows breakpoint markers with subtle line number tooltip
       html += `
         <div class="basic-gutter-line ${bpClass} ${currentClass} ${clickable}" data-index="${i}">
-          <span class="basic-gutter-bp" data-index="${i}" title="${lineNumber !== null ? `Toggle breakpoint on line ${lineNumber}` : ''}">${hasBp ? "●" : ""}</span>
+          <span class="basic-gutter-bp" data-index="${i}" title="${lineNumber !== null ? `Line ${lineNumber} - Click to toggle breakpoint` : ""}">${hasBp ? "●" : ""}</span>
           <span class="basic-gutter-current">${isCurrent ? "►" : ""}</span>
         </div>
       `;
@@ -311,7 +406,8 @@ Example:
 
     // Ensure at least one line for empty editor
     if (rawLines.length === 0) {
-      html = '<div class="basic-gutter-line"><span class="basic-gutter-bp"></span><span class="basic-gutter-current"></span></div>';
+      html =
+        '<div class="basic-gutter-line"><span class="basic-gutter-bp"></span><span class="basic-gutter-current"></span></div>';
     }
 
     this.gutter.innerHTML = html;
@@ -330,16 +426,18 @@ Example:
     });
 
     // Click on gutter line also toggles breakpoint
-    this.gutter.querySelectorAll(".basic-gutter-line.clickable").forEach((line) => {
-      line.addEventListener("click", () => {
-        const index = parseInt(line.dataset.index, 10);
-        const lineNumber = this.lineMap[index];
-        if (lineNumber !== null) {
-          this.breakpointManager.toggle(lineNumber);
-          this.renderBreakpointList();
-        }
+    this.gutter
+      .querySelectorAll(".basic-gutter-line.clickable")
+      .forEach((line) => {
+        line.addEventListener("click", () => {
+          const index = parseInt(line.dataset.index, 10);
+          const lineNumber = this.lineMap[index];
+          if (lineNumber !== null) {
+            this.breakpointManager.toggle(lineNumber);
+            this.renderBreakpointList();
+          }
+        });
       });
-    });
   }
 
   // ========================================
@@ -351,17 +449,173 @@ Example:
     const text = this.textarea.value.substring(0, this.textarea.selectionStart);
     const lineIndex = text.split("\n").length - 1;
     const style = getComputedStyle(this.textarea);
-    const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.4;
-    const paddingTop = parseFloat(style.paddingTop) || 0;
+    // Use computed line height or calculate from font size (11px * 1.5 = 16.5px)
+    const lineHeight =
+      parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.5;
+    const paddingTop = parseFloat(style.paddingTop) || 8;
     const top = paddingTop + lineIndex * lineHeight - this.textarea.scrollTop;
     this.lineHighlight.style.top = `${top}px`;
     this.lineHighlight.style.height = `${lineHeight}px`;
   }
 
+  /**
+   * Get the current line index (0-based) based on cursor position
+   */
+  getCurrentLineIndex() {
+    if (!this.textarea) return 0;
+    const text = this.textarea.value.substring(0, this.textarea.selectionStart);
+    return text.split("\n").length - 1;
+  }
+
+  /**
+   * Check if cursor moved to a different line and auto-format if so
+   */
+  checkLineChange() {
+    const currentLine = this.getCurrentLineIndex();
+    if (this.lastEditLine !== -1 && currentLine !== this.lastEditLine) {
+      // Line changed - auto-format preserving cursor position
+      this.autoFormatPreserveCursor();
+    }
+    this.lastEditLine = currentLine;
+  }
+
+  /**
+   * Handle Enter key: format current line and insert next line number
+   */
+  handleEnterKey() {
+    const text = this.textarea.value;
+    const cursorPos = this.textarea.selectionStart;
+    const selectionEnd = this.textarea.selectionEnd;
+
+    // Get current line
+    const beforeCursor = text.substring(0, cursorPos);
+    const lines = text.split("\n");
+    const currentLineIndex = beforeCursor.split("\n").length - 1;
+    const currentLine = lines[currentLineIndex] || "";
+
+    // Find line number on current line
+    const lineNumMatch = currentLine.trim().match(/^(\d+)/);
+    let nextLineNum = 10; // Default starting line number
+
+    if (lineNumMatch) {
+      const currentLineNum = parseInt(lineNumMatch[1], 10);
+      nextLineNum = currentLineNum + 10;
+    } else {
+      // No line number on current line, look at previous lines
+      for (let i = currentLineIndex - 1; i >= 0; i--) {
+        const prevMatch = lines[i].trim().match(/^(\d+)/);
+        if (prevMatch) {
+          nextLineNum = parseInt(prevMatch[1], 10) + 10;
+          break;
+        }
+      }
+    }
+
+    // Format the current content first
+    const formatted = formatBasicSource(text);
+
+    // Find cursor position in formatted text
+    const formattedLines = formatted.split("\n");
+    let newCursorPos = 0;
+    for (let i = 0; i <= currentLineIndex && i < formattedLines.length; i++) {
+      newCursorPos += formattedLines[i].length + 1; // +1 for newline
+    }
+
+    // Insert newline and next line number
+    const beforeInsert = formatted.substring(0, newCursorPos - 1); // -1 to position at end of current line
+    const afterInsert = formatted.substring(newCursorPos - 1);
+    const newLineContent = `\n${nextLineNum} `;
+    const newText = beforeInsert + newLineContent + afterInsert;
+
+    // Update textarea
+    this.textarea.value = newText;
+
+    // Position cursor after the new line number
+    const newCursorPosition = beforeInsert.length + newLineContent.length;
+    this.textarea.selectionStart = this.textarea.selectionEnd = newCursorPosition;
+
+    // Update displays
+    this.updateHighlighting();
+    this.updateStats();
+    this.updateGutter();
+    this.updateCurrentLineHighlight();
+
+    // Update line tracking
+    this.lastEditLine = this.getCurrentLineIndex();
+  }
+
+  /**
+   * Auto-format while preserving the cursor position on the current line
+   */
+  autoFormatPreserveCursor() {
+    const text = this.textarea.value;
+    if (!text.trim()) return;
+
+    // Get current cursor position info
+    const cursorPos = this.textarea.selectionStart;
+    const beforeCursor = text.substring(0, cursorPos);
+    const currentLineIndex = beforeCursor.split("\n").length - 1;
+    const lines = text.split("\n");
+    const currentLineStart = beforeCursor.lastIndexOf("\n") + 1;
+    const cursorOffsetInLine = cursorPos - currentLineStart;
+
+    // Format the code
+    const formatted = formatBasicSource(text);
+
+    // Only update if different
+    if (formatted !== text) {
+      // Calculate new cursor position
+      const formattedLines = formatted.split("\n");
+      let newCursorPos = 0;
+
+      // Sum up lengths of lines before current line
+      for (let i = 0; i < currentLineIndex && i < formattedLines.length; i++) {
+        newCursorPos += formattedLines[i].length + 1; // +1 for newline
+      }
+
+      // Add offset within current line (clamped to line length)
+      if (currentLineIndex < formattedLines.length) {
+        const newLineLength = formattedLines[currentLineIndex].length;
+        newCursorPos += Math.min(cursorOffsetInLine, newLineLength);
+      }
+
+      this.textarea.value = formatted;
+      this.textarea.selectionStart = this.textarea.selectionEnd = newCursorPos;
+
+      this.updateHighlighting();
+      this.updateStats();
+      this.updateGutter();
+    }
+  }
+
   updateHighlighting() {
     const text = this.textarea.value;
-    const highlighted = highlightBasicSource(text, { preserveCase: true });
-    this.highlight.innerHTML = highlighted + "\n";
+
+    // Use indent-aware highlighting for smart formatting
+    const highlightedData = highlightBasicSourceWithIndent(text, {
+      preserveCase: true,
+    });
+
+    const highlightedLines = [];
+
+    for (let i = 0; i < highlightedData.length; i++) {
+      const { html, indent } = highlightedData[i];
+
+      // Build classes for the line
+      const isCurrentLine =
+        this.currentLineNumber !== null &&
+        this.lineMap[i] === this.currentLineNumber;
+
+      let lineClass = "basic-line";
+      if (isCurrentLine) lineClass += " basic-current-line";
+      if (indent > 0) lineClass += ` indent-${Math.min(indent, 4)}`;
+
+      // Wrap each line in a div with appropriate classes
+      const highlighted = `<div class="${lineClass}">${html || "&nbsp;"}</div>`;
+      highlightedLines.push(highlighted);
+    }
+
+    this.highlight.innerHTML = highlightedLines.join("");
   }
 
   updateStats() {
@@ -371,6 +625,299 @@ Example:
 
     this.linesSpan.textContent = `${lines} line${lines !== 1 ? "s" : ""}`;
     this.charsSpan.textContent = `${chars} char${chars !== 1 ? "s" : ""}`;
+  }
+
+  /**
+   * Auto-format the BASIC code in the editor
+   * - Aligns line numbers to the right
+   * - Adds indentation for FOR/NEXT loops
+   */
+  autoFormatCode() {
+    const text = this.textarea.value;
+    if (!text.trim()) return;
+
+    // Format the code
+    const formatted = formatBasicSource(text);
+
+    // Only update if different (prevents unnecessary cursor reset)
+    if (formatted !== text) {
+      this.textarea.value = formatted;
+      this.updateHighlighting();
+      this.updateStats();
+      this.updateGutter();
+    }
+  }
+
+  /**
+   * Renumber all lines in increments of 10, updating GOTO/GOSUB references
+   */
+  renumberProgram() {
+    const text = this.textarea.value;
+    if (!text.trim()) return;
+
+    const rawLines = text.split(/\r?\n/);
+
+    // Parse lines and extract line numbers
+    const parsedLines = [];
+    for (const line of rawLines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      const match = trimmed.match(/^(\d+)\s*(.*)/);
+      if (match) {
+        parsedLines.push({
+          oldLineNumber: parseInt(match[1], 10),
+          code: match[2] || "",
+        });
+      }
+    }
+
+    if (parsedLines.length === 0) return;
+
+    // Sort by old line number
+    parsedLines.sort((a, b) => a.oldLineNumber - b.oldLineNumber);
+
+    // Build mapping from old line numbers to new line numbers
+    const lineMap = new Map();
+    for (let i = 0; i < parsedLines.length; i++) {
+      const newLineNum = (i + 1) * 10;
+      lineMap.set(parsedLines[i].oldLineNumber, newLineNum);
+      parsedLines[i].newLineNumber = newLineNum;
+    }
+
+    // Update line references in code
+    for (const line of parsedLines) {
+      line.code = this.updateLineReferences(line.code, lineMap);
+    }
+
+    // Rebuild the program
+    const newLines = parsedLines.map((p) => `${p.newLineNumber} ${p.code}`);
+    const renumbered = newLines.join("\n");
+
+    // Format and update
+    this.textarea.value = formatBasicSource(renumbered);
+    this.updateHighlighting();
+    this.updateStats();
+    this.updateGutter();
+
+    // Update breakpoints to new line numbers
+    this.updateBreakpointsAfterRenumber(lineMap);
+  }
+
+  /**
+   * Update line number references in BASIC code
+   * Handles: GOTO, GOSUB, THEN, ON...GOTO, ON...GOSUB, ONERR GOTO, RESUME
+   * @param {string} code - The BASIC code (without line number)
+   * @param {Map<number, number>} lineMap - Mapping from old to new line numbers
+   * @returns {string} Code with updated line references
+   */
+  updateLineReferences(code, lineMap) {
+    // Convert to uppercase for matching, but preserve original for strings
+    let result = "";
+    let i = 0;
+    let inString = false;
+
+    while (i < code.length) {
+      const char = code[i];
+
+      // Track string state
+      if (char === '"') {
+        inString = !inString;
+        result += char;
+        i++;
+        continue;
+      }
+
+      // Inside string - don't modify
+      if (inString) {
+        result += char;
+        i++;
+        continue;
+      }
+
+      // Check for keywords that take line numbers
+      const remaining = code.substring(i).toUpperCase();
+
+      // GOTO linenum
+      if (remaining.startsWith("GOTO")) {
+        result += code.substring(i, i + 4);
+        i += 4;
+        const updated = this.updateLineNumberList(code.substring(i), lineMap);
+        result += updated.text;
+        i += updated.consumed;
+        continue;
+      }
+
+      // GOSUB linenum
+      if (remaining.startsWith("GOSUB")) {
+        result += code.substring(i, i + 5);
+        i += 5;
+        const updated = this.updateLineNumberList(code.substring(i), lineMap);
+        result += updated.text;
+        i += updated.consumed;
+        continue;
+      }
+
+      // THEN can be followed by line number (short GOTO) or statements
+      if (remaining.startsWith("THEN")) {
+        result += code.substring(i, i + 4);
+        i += 4;
+        // Skip whitespace and check if followed by a digit
+        let ws = "";
+        let j = i;
+        while (j < code.length && /\s/.test(code[j])) {
+          ws += code[j];
+          j++;
+        }
+        if (j < code.length && /\d/.test(code[j])) {
+          // It's THEN linenum
+          result += ws;
+          i = j;
+          const updated = this.updateSingleLineNumber(code.substring(i), lineMap);
+          result += updated.text;
+          i += updated.consumed;
+        }
+        continue;
+      }
+
+      // RESUME linenum (optional - can be just RESUME)
+      if (remaining.startsWith("RESUME")) {
+        result += code.substring(i, i + 6);
+        i += 6;
+        // Skip whitespace and check if followed by a digit
+        let ws = "";
+        let j = i;
+        while (j < code.length && /\s/.test(code[j])) {
+          ws += code[j];
+          j++;
+        }
+        if (j < code.length && /\d/.test(code[j])) {
+          result += ws;
+          i = j;
+          const updated = this.updateSingleLineNumber(code.substring(i), lineMap);
+          result += updated.text;
+          i += updated.consumed;
+        }
+        continue;
+      }
+
+      // Default: copy character
+      result += char;
+      i++;
+    }
+
+    return result;
+  }
+
+  /**
+   * Update a comma-separated list of line numbers (for ON...GOTO/GOSUB)
+   * @param {string} text - Text starting after GOTO/GOSUB keyword
+   * @param {Map<number, number>} lineMap - Mapping from old to new line numbers
+   * @returns {{text: string, consumed: number}} Updated text and characters consumed
+   */
+  updateLineNumberList(text, lineMap) {
+    let result = "";
+    let i = 0;
+
+    // Skip leading whitespace
+    while (i < text.length && /\s/.test(text[i])) {
+      result += text[i];
+      i++;
+    }
+
+    // Parse line numbers separated by commas
+    while (i < text.length) {
+      // Check for digit
+      if (/\d/.test(text[i])) {
+        let numStr = "";
+        while (i < text.length && /\d/.test(text[i])) {
+          numStr += text[i];
+          i++;
+        }
+        const oldNum = parseInt(numStr, 10);
+        const newNum = lineMap.has(oldNum) ? lineMap.get(oldNum) : oldNum;
+        result += newNum.toString();
+
+        // Skip whitespace after number
+        while (i < text.length && /\s/.test(text[i])) {
+          result += text[i];
+          i++;
+        }
+
+        // Check for comma (more line numbers follow)
+        if (i < text.length && text[i] === ",") {
+          result += ",";
+          i++;
+          // Skip whitespace after comma
+          while (i < text.length && /\s/.test(text[i])) {
+            result += text[i];
+            i++;
+          }
+          continue;
+        }
+      }
+      // End of line number list
+      break;
+    }
+
+    return { text: result, consumed: i };
+  }
+
+  /**
+   * Update a single line number
+   * @param {string} text - Text starting at the line number
+   * @param {Map<number, number>} lineMap - Mapping from old to new line numbers
+   * @returns {{text: string, consumed: number}} Updated text and characters consumed
+   */
+  updateSingleLineNumber(text, lineMap) {
+    let numStr = "";
+    let i = 0;
+
+    while (i < text.length && /\d/.test(text[i])) {
+      numStr += text[i];
+      i++;
+    }
+
+    if (numStr) {
+      const oldNum = parseInt(numStr, 10);
+      const newNum = lineMap.has(oldNum) ? lineMap.get(oldNum) : oldNum;
+      return { text: newNum.toString(), consumed: i };
+    }
+
+    return { text: "", consumed: 0 };
+  }
+
+  /**
+   * Update breakpoints to new line numbers after renumbering
+   * @param {Map<number, number>} lineMap - Mapping from old to new line numbers
+   */
+  updateBreakpointsAfterRenumber(lineMap) {
+    const oldBreakpoints = this.breakpointManager.getLineNumbers();
+    const breakpointStates = new Map();
+
+    // Save enabled state for each breakpoint
+    for (const oldLine of oldBreakpoints) {
+      const entry = this.breakpointManager.get(oldLine);
+      if (entry) {
+        breakpointStates.set(oldLine, entry.enabled);
+      }
+    }
+
+    // Clear all breakpoints
+    for (const oldLine of oldBreakpoints) {
+      this.breakpointManager.remove(oldLine);
+    }
+
+    // Add breakpoints at new line numbers
+    for (const [oldLine, enabled] of breakpointStates) {
+      const newLine = lineMap.get(oldLine);
+      if (newLine !== undefined) {
+        this.breakpointManager.add(newLine);
+        this.breakpointManager.setEnabled(newLine, enabled);
+      }
+    }
+
+    this.renderBreakpointList();
   }
 
   parseProgram(text) {
@@ -401,6 +948,30 @@ Example:
 
     lines.sort((a, b) => a.lineNumber - b.lineNumber);
     return lines;
+  }
+
+  /**
+   * Load the current BASIC program from emulator memory into the textarea
+   */
+  loadFromMemory() {
+    const lines = this.programParser.getLines();
+    if (lines.length === 0) {
+      console.log("No BASIC program in memory");
+      return;
+    }
+
+    // Build textarea content from parsed program lines
+    const textLines = lines.map((line) => `${line.lineNumber} ${line.text}`);
+    const rawContent = textLines.join("\n");
+
+    // Auto-format the loaded content
+    this.textarea.value = formatBasicSource(rawContent);
+
+    this.updateHighlighting();
+    this.updateStats();
+    this.updateGutter();
+
+    console.log(`Loaded ${lines.length} lines from memory`);
   }
 
   loadIntoMemory() {
@@ -474,12 +1045,11 @@ Example:
   }
 
   showLoadedFeedback(lineCount) {
-    const originalText = this.insertBtn.textContent;
     this.insertBtn.textContent = `Loaded ${lineCount} lines!`;
     this.insertBtn.classList.add("basic-btn-success");
 
     setTimeout(() => {
-      this.insertBtn.textContent = originalText;
+      this.insertBtn.textContent = "Paste into Emulator";
       this.insertBtn.classList.remove("basic-btn-success");
     }, 1500);
   }
@@ -496,8 +1066,27 @@ Example:
       console.log("Emulator not running");
       return;
     }
+    // Reset all tracking state for a fresh run
+    this._lastBasicBreakpointHit = false;
+    this._lastProgramRunning = false;
+    this.currentLineNumber = null;
+
+    // First unpause - this sets skip logic if we were at a breakpoint
+    // so the current line's breakpoint won't fire immediately
+    this.wasmModule._setPaused(false);
+
+    // Clear step mode (but keep skip logic so current breakpoint is skipped)
+    // Skip logic will clear naturally when CURLIN changes after RUN executes
+    if (this.wasmModule._clearBasicBreakpointHit) {
+      this.wasmModule._clearBasicBreakpointHit();
+    }
+
+    // Update UI to clear any line highlighting
+    this.updateGutter();
+    this.updateHighlighting();
+
     // Type "RUN" followed by Return
-    this.inputHandler.queueTextInput("RUN\r", { speedMultiplier: 8 });
+    this.inputHandler.queueTextInput("RUN\r");
   }
 
   /**
@@ -519,26 +1108,66 @@ Example:
    * Continue - Resume execution from pause
    */
   handleContinue() {
+    // Reset tracking flag so we detect the next breakpoint hit
+    this._lastBasicBreakpointHit = false;
+
+    // Clear current line highlight
+    this.currentLineNumber = null;
+    this.updateGutter();
+    this.updateHighlighting();
+
+    // Just unpause - the C++ setPaused(false) automatically handles:
+    // - Setting skipBasicBreakpointLine_ if we're at a BASIC breakpoint
+    // - Clearing the breakpoint hit flags
+    // DON'T call clearBasicBreakpointHit() first - it would clear the flag
+    // that setPaused() needs to detect we're at a breakpoint!
     this.wasmModule._setPaused(false);
   }
 
   /**
-   * Step - Execute current BASIC line and stop at next line
+   * Step Line - Execute current BASIC line and stop at next line
    * Uses C++ stepBasicLine() for reliable stepping
    */
   handleStepLine() {
-    // Check if BASIC is actually running
+    // Check if BASIC is actually running (CURLIN != $FFFF)
     const state = this.programParser.getExecutionState();
-    if (!state.running) {
-      console.log("BASIC not running (RUNMOD=0), cannot step");
+    if (state.currentLine === 0xffff) {
+      // BASIC not running - clear any stale state
+      // Unpause first, then clear to remove any skip logic
+      this.wasmModule._setPaused(false);
+      if (this.wasmModule._clearBasicBreakpointHit) {
+        this.wasmModule._clearBasicBreakpointHit();
+      }
       return;
     }
+
+    // Reset tracking flag so we detect the next breakpoint hit
+    this._lastBasicBreakpointHit = false;
 
     // Use C++ stepping - it handles everything properly
     if (this.wasmModule._stepBasicLine) {
       this.wasmModule._stepBasicLine();
     } else {
       console.error("_stepBasicLine not available - rebuild WASM");
+    }
+  }
+
+  /**
+   * Complete the current frame after a BASIC step
+   * Runs cycles until the frame is ready so the user sees the visual result
+   */
+  completeFrame() {
+    const CYCLES_PER_FRAME = 17030;
+    const MAX_CYCLES = CYCLES_PER_FRAME * 2; // Safety limit
+    let cyclesRun = 0;
+
+    // Clear any existing frame ready flag by checking it
+    this.wasmModule._isFrameReady();
+
+    // Run cycles until frame is ready
+    while (!this.wasmModule._isFrameReady() && cyclesRun < MAX_CYCLES) {
+      this.wasmModule._runCycles(1000);
+      cyclesRun += 1000;
     }
   }
 
@@ -567,11 +1196,12 @@ Example:
     const arrays = this.variableInspector.getArrayVariables();
 
     if (variables.length === 0 && arrays.length === 0) {
-      this.varPanel.innerHTML = '<div class="basic-dbg-empty">No variables</div>';
+      this.varPanel.innerHTML =
+        '<div class="basic-dbg-empty">No variables</div>';
       return;
     }
 
-    let html = '';
+    let html = "";
 
     // Simple variables section
     if (variables.length > 0) {
@@ -615,13 +1245,13 @@ Example:
         const isExpanded = this.expandedArrays.has(arr.name);
 
         html += `
-          <div class="basic-dbg-arr-item ${isExpanded ? 'expanded' : ''}">
+          <div class="basic-dbg-arr-item ${isExpanded ? "expanded" : ""}">
             <div class="basic-dbg-arr-header" data-arr-name="${arr.name}">
-              <span class="basic-dbg-arr-toggle">${isExpanded ? '▼' : '▶'}</span>
+              <span class="basic-dbg-arr-toggle">${isExpanded ? "▼" : "▶"}</span>
               <span class="basic-dbg-arr-name">${arr.name}(${dimsStr})</span>
               <span class="basic-dbg-arr-info">${arr.totalElements} el</span>
             </div>
-            <div class="basic-dbg-arr-body" style="display: ${isExpanded ? 'block' : 'none'}">
+            <div class="basic-dbg-arr-body" style="display: ${isExpanded ? "block" : "none"}">
               ${this.renderArrayContents(arr)}
             </div>
           </div>
@@ -648,7 +1278,8 @@ Example:
       if (Number.isInteger(v)) return v.toString();
       const abs = Math.abs(v);
       if (abs === 0) return "0";
-      if (abs >= 0.01 && abs < 1e6) return v.toPrecision(6).replace(/\.?0+$/, "");
+      if (abs >= 0.01 && abs < 1e6)
+        return v.toPrecision(6).replace(/\.?0+$/, "");
       return v.toExponential(4);
     };
 
@@ -674,7 +1305,7 @@ Example:
       for (let c = 0; c < cols; c++) {
         html += `<th>${c}</th>`;
       }
-      html += '</tr></thead><tbody>';
+      html += "</tr></thead><tbody>";
       for (let r = 0; r < rows; r++) {
         html += `<tr><th>${r}</th>`;
         for (let c = 0; c < cols; c++) {
@@ -682,9 +1313,9 @@ Example:
           const val = idx < values.length ? formatVal(values[idx]) : "?";
           html += `<td>${val}</td>`;
         }
-        html += '</tr>';
+        html += "</tr>";
       }
-      html += '</tbody></table></div>';
+      html += "</tbody></table></div>";
       return html;
     }
 
@@ -712,7 +1343,8 @@ Example:
     const lineNumbers = this.breakpointManager.getLineNumbers();
 
     if (lineNumbers.length === 0) {
-      this.bpList.innerHTML = '<div class="basic-dbg-empty">No breakpoints</div>';
+      this.bpList.innerHTML =
+        '<div class="basic-dbg-empty">No breakpoints</div>';
       return;
     }
 
@@ -746,6 +1378,7 @@ Example:
         const lineNum = parseInt(btn.dataset.line, 10);
         this.breakpointManager.remove(lineNum);
         this.updateGutter();
+        this.renderBreakpointList();
       });
     });
   }
@@ -780,11 +1413,39 @@ Example:
     const isPaused = wasmModule._isPaused();
 
     // Check for BASIC breakpoint hit (breakpoint or step completion)
-    if (isPaused && wasmModule._isBasicBreakpointHit()) {
+    // Track state transition to detect NEW breakpoint hits (not just being paused at one)
+    const basicBreakpointHit = isPaused && wasmModule._isBasicBreakpointHit();
+    if (basicBreakpointHit) {
       const breakLine = wasmModule._getBasicBreakLine();
+      // Detect new breakpoint hit by checking state transition (false -> true)
+      if (!this._lastBasicBreakpointHit) {
+        // Update variables to show current state after the step
+        this.renderVariables();
+      }
       this.currentLineNumber = breakLine;
       this.updateGutter();
+      this.updateHighlighting();
     }
+    this._lastBasicBreakpointHit = basicBreakpointHit;
+
+    // Reset breakpoint tracking when BASIC stops running (program ended)
+    // so next RUN will properly detect the first breakpoint hit
+    if (!state.running && this._lastProgramRunning) {
+      this._lastBasicBreakpointHit = false;
+      // First unpause, then clear all breakpoint state
+      // This order ensures any skip logic from unpausing gets cleared
+      this.wasmModule._setPaused(false);
+      if (this.wasmModule._clearBasicBreakpointHit) {
+        this.wasmModule._clearBasicBreakpointHit();
+      }
+      // Clear current line highlight when program ends
+      if (this.currentLineNumber !== null) {
+        this.currentLineNumber = null;
+        this.updateGutter();
+        this.updateHighlighting();
+      }
+    }
+    this._lastProgramRunning = state.running;
 
     // Update status display
     if (isPaused) {
@@ -803,18 +1464,27 @@ Example:
       this.stateSpan.className = "basic-dbg-state stopped";
     }
 
-    // Update line/ptr display
-    if (state.currentLine !== null) {
+    // Update line/ptr display (only show when paused, otherwise it flickers too fast)
+    if (isPaused && state.currentLine !== null && state.currentLine !== 0xffff) {
       this.lineSpan.textContent = `LINE: ${state.currentLine}`;
+      this.ptrSpan.textContent = `PTR: $${this.formatHex(state.txtptr, 4)}`;
     } else {
       this.lineSpan.textContent = "LINE: ---";
+      this.ptrSpan.textContent = "PTR: $----";
     }
-    this.ptrSpan.textContent = `PTR: $${this.formatHex(state.txtptr, 4)}`;
 
-    // Check if current line changed and update gutter
-    if (state.currentLine !== this.currentLineNumber) {
-      this.currentLineNumber = state.currentLine;
-      this.updateGutter();
+    // Only update gutter/highlighting for current line when paused
+    // This prevents constant rebuilding that interferes with click events
+    if (isPaused) {
+      if (state.currentLine !== this.currentLineNumber) {
+        this.currentLineNumber = state.currentLine;
+        this.updateGutter();
+        this.updateHighlighting();
+      }
+    } else if (this.currentLineNumber !== null) {
+      // Clear line highlighting when not paused
+      this.currentLineNumber = null;
+      this.updateHighlighting();
     }
 
     // Only update variables when we transition to paused state
@@ -843,6 +1513,7 @@ Example:
       ...baseState,
       content: this.textarea ? this.textarea.value : "",
       sidebarWidth: this.sidebar ? this.sidebar.offsetWidth : 200,
+      breakpointsHeight: this.bpSection ? this.bpSection.offsetHeight : 150,
     };
   }
 
@@ -856,6 +1527,9 @@ Example:
     }
     if (state.sidebarWidth && this.sidebar) {
       this.sidebar.style.width = `${state.sidebarWidth}px`;
+    }
+    if (state.breakpointsHeight && this.bpSection) {
+      this.bpSection.style.height = `${state.breakpointsHeight}px`;
     }
   }
 }

@@ -2943,6 +2943,7 @@
 
 /* ============================================
    BASIC Program Window (Unified Editor + Debugger)
+   Styling matches CPU debugger and assembler views
    ============================================ */
 
 /* Main unified container */
@@ -2970,7 +2971,7 @@
     gap: 6px;
 }
 
-/* Editor with gutter wrapper */
+/* Editor with gutter wrapper - clean style matching debug windows */
 .basic-editor-with-gutter {
     display: flex;
     flex: 1;
@@ -2986,32 +2987,34 @@
     box-shadow: 0 0 0 2px var(--editor-focus-shadow);
 }
 
-/* Gutter (breakpoints + current line indicators) */
+/* Gutter - matches CPU debugger gutter style */
 .basic-gutter {
     flex-shrink: 0;
-    width: 32px;
+    width: 28px;
     overflow-y: auto;
     overflow-x: hidden;
     background: var(--control-bg);
     border-right: 1px solid var(--glass-border);
     user-select: none;
-    padding-top: 8px; /* Match textarea padding */
-    scrollbar-width: none; /* Firefox */
-    -ms-overflow-style: none; /* IE/Edge */
+    padding-top: 8px;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
 }
 
 .basic-gutter::-webkit-scrollbar {
-    display: none; /* Chrome/Safari */
+    display: none;
 }
 
 .basic-gutter-line {
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 16.8px; /* matches line-height: 1.4 * 12px */
-    padding: 0 2px;
+    height: 16.5px; /* matches line-height: 1.5 * 11px */
+    padding: 0 4px;
     font-family: var(--font-mono);
     font-size: 11px;
+    border-left: 2px solid transparent;
+    transition: background 0.08s;
 }
 
 .basic-gutter-line.clickable {
@@ -3019,25 +3022,28 @@
 }
 
 .basic-gutter-line.clickable:hover {
-    background: var(--overlay-hover);
+    background: var(--overlay-subtle);
 }
 
+/* Breakpoint indicator - matches CPU debugger */
 .basic-gutter-line.has-bp {
-    background: rgba(224, 58, 62, 0.1);
+    background: var(--accent-red-bg);
+    border-left-color: var(--accent-red);
 }
 
+/* Current executing line in gutter - blue like CPU debugger */
 .basic-gutter-line.is-current {
     background: var(--accent-blue-bg);
+    border-left-color: var(--accent-blue);
 }
 
+/* Both breakpoint and current */
 .basic-gutter-line.has-bp.is-current {
-    background: linear-gradient(
-        90deg,
-        rgba(224, 58, 62, 0.15) 0%,
-        var(--accent-blue-bg) 50%
-    );
+    background: linear-gradient(90deg, var(--accent-blue-bg) 0%, var(--accent-red-bg) 100%);
+    border-left-color: var(--accent-red);
 }
 
+/* Breakpoint marker - red dot matching CPU debugger */
 .basic-gutter-bp {
     width: 14px;
     text-align: center;
@@ -3045,17 +3051,15 @@
     font-size: 10px;
 }
 
+/* Ghost breakpoint on hover - matches CPU debugger */
 .basic-gutter-line.clickable:not(.has-bp):hover .basic-gutter-bp::before {
     content: "○";
     color: var(--text-muted);
-    opacity: 0.5;
+    font-size: 8px;
 }
 
 .basic-gutter-current {
-    width: 14px;
-    text-align: center;
-    color: var(--accent-blue);
-    font-size: 10px;
+    display: none;
 }
 
 /* Editor footer with stats and actions */
@@ -3085,7 +3089,7 @@
     overflow: hidden;
 }
 
-/* Current line highlight bar */
+/* Current cursor line highlight bar */
 .basic-line-highlight {
     position: absolute;
     left: 0;
@@ -3111,20 +3115,20 @@
     padding: 8px;
     margin: 0;
     font-family: var(--font-mono);
-    font-size: 12px;
-    line-height: 1.4;
-    white-space: pre-wrap;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
+    font-size: 11px;
+    line-height: 1.5;
+    white-space: pre;
+    word-wrap: normal;
+    overflow-wrap: normal;
     box-sizing: border-box;
+    overflow: auto;
 }
 
 /* Highlight layer - shows colored syntax */
 .basic-highlight {
     pointer-events: none;
-    overflow: auto;
-    color: transparent;
-    background: transparent;
+    overflow: hidden; /* Scroll synced with textarea via JS */
+    z-index: 0;
 }
 
 /* Textarea - transparent text, receives input */
@@ -3136,80 +3140,176 @@
     resize: none;
     outline: none;
     z-index: 1;
-    overflow: auto;
 }
 
 .basic-textarea::placeholder {
     color: var(--editor-placeholder);
 }
 
-/* Syntax highlighting colors */
+/* ==========================================
+   SYNTAX HIGHLIGHTING - Matching Assembler Style
+   Uses --syntax-* variables for theme consistency
+   ========================================== */
+
+/* Line numbers - muted, matching assembler address style */
 .basic-highlight .bas-linenum {
-    color: var(--editor-linenum);
+    color: var(--text-muted);
+    font-weight: 500;
 }
 
+/* Flow control - RED (GOTO, GOSUB, IF, THEN, END, STOP, etc)
+   Matches: .cpu-disasm-mnemonic.flow, .dis-branch */
 .basic-highlight .bas-flow {
     color: var(--syntax-flow);
     font-weight: 500;
 }
 
+/* Loop constructs - PURPLE (FOR, TO, STEP, NEXT)
+   Matches: .dis-stack, .mer-stack */
 .basic-highlight .bas-loop {
     color: var(--syntax-stack);
     font-weight: 500;
 }
 
+/* I/O operations - BLUE (PRINT, INPUT, GET, READ, DATA)
+   Matches: .dis-flag, .mer-flag, .syntax-keyword */
 .basic-highlight .bas-io {
     color: var(--syntax-keyword);
     font-weight: 500;
 }
 
+/* Graphics commands - GREEN (HGR, PLOT, HPLOT, COLOR, etc)
+   Matches: .dis-load, .mer-load */
 .basic-highlight .bas-graphics {
     color: var(--syntax-load);
+    font-weight: 500;
 }
 
+/* Memory operations - ORANGE (PEEK, POKE, CALL, etc)
+   Matches: .dis-math, .mer-math */
 .basic-highlight .bas-memory {
     color: var(--syntax-math);
+    font-weight: 500;
 }
 
+/* Built-in functions - BLUE (SIN, COS, LEN, etc)
+   Matches: .dis-flag, .syntax-flag */
 .basic-highlight .bas-func {
     color: var(--syntax-flag);
 }
 
+/* Variable keywords - GREEN (DIM, LET, etc)
+   Matches: .dis-load */
 .basic-highlight .bas-var {
-    color: var(--editor-var);
+    color: var(--syntax-load);
+    font-weight: 500;
 }
 
+/* Misc keywords - muted gray
+   Matches: .syntax-data */
 .basic-highlight .bas-misc {
-    color: var(--syntax-comment);
+    color: var(--syntax-data);
 }
 
+/* Generic keyword fallback - BLUE
+   Matches: .syntax-keyword */
 .basic-highlight .bas-keyword {
-    color: var(--syntax-flow);
+    color: var(--syntax-keyword);
+    font-weight: 500;
 }
 
+/* String literals - GREEN
+   Matches: .syntax-string, .mer-string */
 .basic-highlight .bas-string {
-    color: var(--syntax-flag);
+    color: var(--syntax-string);
 }
 
+/* Numeric literals - ORANGE (matching assembler numbers for addresses/data)
+   Matches: .dis-address, .syntax-math */
 .basic-highlight .bas-number {
-    color: var(--syntax-hex-byte);
-}
-
-.basic-highlight .bas-variable {
     color: var(--syntax-math);
 }
 
+/* Variable names - PRIMARY TEXT (white in dark, dark in light)
+   Matches: .bas-variable in file-explorer, .mer-symbol */
+.basic-highlight .bas-variable {
+    color: var(--text-primary);
+}
+
+/* Operators - PURPLE
+   Matches: .syntax-operator */
 .basic-highlight .bas-operator {
-    color: var(--syntax-flow);
+    color: var(--syntax-operator);
 }
 
+/* Punctuation - muted
+   Matches: .dis-punct */
 .basic-highlight .bas-punct {
-    color: var(--syntax-comment);
+    color: var(--text-muted);
 }
 
+/* Comments - gray italic
+   Matches: .syntax-comment, .dis-comment */
 .basic-highlight .bas-comment {
     color: var(--syntax-comment);
     font-style: italic;
+}
+
+/* Base line style for the highlight layer */
+.basic-highlight .basic-line {
+    display: block;
+    min-height: 16.5px; /* Match line-height: 1.5 * 11px */
+}
+
+/* Current executing line highlight - matches CPU debugger style */
+.basic-highlight .basic-current-line {
+    background: var(--accent-blue-bg) !important;
+}
+
+/* Line number on executing line - brighter */
+.basic-highlight .basic-current-line .bas-linenum {
+    color: var(--text-primary);
+    font-weight: 600;
+}
+
+/* Keywords brighter on current line - matches CPU debugger */
+.basic-highlight .basic-current-line .bas-flow {
+    color: var(--syntax-flow-bright);
+}
+
+.basic-highlight .basic-current-line .bas-loop {
+    color: var(--syntax-symbol-basic-bright);
+}
+
+.basic-highlight .basic-current-line .bas-io,
+.basic-highlight .basic-current-line .bas-keyword {
+    color: var(--syntax-symbol-io-bright);
+}
+
+.basic-highlight .basic-current-line .bas-graphics,
+.basic-highlight .basic-current-line .bas-var {
+    color: var(--syntax-symbol-zp-bright);
+}
+
+.basic-highlight .basic-current-line .bas-memory {
+    color: var(--syntax-symbol-sw-bright);
+}
+
+.basic-highlight .basic-current-line .bas-func {
+    color: var(--syntax-symbol-rom-bright);
+}
+
+.basic-highlight .basic-current-line .bas-string {
+    color: var(--syntax-symbol-zp-bright);
+}
+
+.basic-highlight .basic-current-line .bas-number {
+    color: var(--syntax-symbol-sw-bright);
+}
+
+.basic-highlight .basic-current-line .bas-variable {
+    color: var(--text-primary);
+    font-weight: 500;
 }
 
 .basic-actions {
@@ -3217,23 +3317,29 @@
     gap: 8px;
 }
 
-/* Resizable splitter between editor and sidebar */
+/* Resizable splitter between editor and sidebar - matches assembler style */
 .basic-splitter {
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     width: 6px;
     cursor: col-resize;
-    background: transparent;
-    border-left: 1px solid var(--glass-border);
-    transition: background 0.15s;
+    background: var(--glass-bg-header);
+    border-left: 1px solid var(--glass-border-subtle);
+    border-right: 1px solid var(--glass-border-subtle);
+    z-index: 2;
 }
 
-.basic-splitter:hover {
-    background: var(--accent-blue-bg);
-    border-color: var(--accent-blue-border);
+.basic-splitter-handle {
+    width: 2px;
+    height: 32px;
+    background: var(--glass-border);
+    border-radius: 1px;
 }
 
-.basic-splitter:active {
-    background: var(--accent-blue-bg-strong);
+.basic-splitter:hover .basic-splitter-handle {
+    background: var(--accent-green-border);
 }
 
 /* Sidebar for variables and breakpoints */
@@ -3243,7 +3349,6 @@
     width: 200px;
     min-width: 120px;
     max-width: 600px;
-    gap: 8px;
     flex-shrink: 0;
 }
 
@@ -3251,11 +3356,36 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    min-height: 0;
+    min-height: 80px;
     border: 1px solid var(--control-border);
     border-radius: 4px;
     background: var(--control-bg);
     overflow: hidden;
+}
+
+/* Horizontal splitter between variables and breakpoints - matches assembler style */
+.basic-sidebar-splitter {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 6px;
+    cursor: row-resize;
+    background: var(--glass-bg-header);
+    border-top: 1px solid var(--glass-border-subtle);
+    border-bottom: 1px solid var(--glass-border-subtle);
+    z-index: 2;
+}
+
+.basic-sidebar-splitter-handle {
+    width: 32px;
+    height: 2px;
+    background: var(--glass-border);
+    border-radius: 1px;
+}
+
+.basic-sidebar-splitter:hover .basic-sidebar-splitter-handle {
+    background: var(--accent-green-border);
 }
 
 .basic-btn {
@@ -3275,6 +3405,12 @@
 .basic-btn:hover {
     background: var(--glass-border);
     color: var(--text-primary);
+}
+
+.basic-load-btn:hover {
+    background: var(--accent-blue-bg-strong);
+    border-color: var(--accent-blue-border);
+    color: var(--accent-blue);
 }
 
 .basic-insert-btn:hover {
@@ -6039,11 +6175,11 @@ input.rb-detail {
 }
 
 .basic-dbg-var-row.var-type-string .basic-dbg-var-value {
-    color: var(--accent-orange);
+    color: var(--syntax-string);
 }
 
 .basic-dbg-var-row.var-type-integer .basic-dbg-var-value {
-    color: var(--accent-blue);
+    color: var(--syntax-flag);
 }
 
 /* Array display - expandable list */
@@ -6135,7 +6271,7 @@ input.rb-detail {
 }
 
 .basic-dbg-arr-val {
-    color: var(--accent-green);
+    color: var(--syntax-load);
     font-size: 10px;
 }
 
@@ -6181,7 +6317,7 @@ input.rb-detail {
 }
 
 .basic-dbg-arr-table td {
-    color: var(--accent-green);
+    color: var(--syntax-load);
 }
 
 /* 3D+ array - indexed list */
@@ -6208,22 +6344,26 @@ input.rb-detail {
 .basic-dbg-breakpoints {
     display: flex;
     flex-direction: column;
-    min-height: 100px;
-    max-height: 180px;
+    height: 150px;
+    min-height: 80px;
     border: 1px solid var(--control-border);
     border-radius: 4px;
     background: var(--control-bg);
     overflow: hidden;
+    flex-shrink: 0;
 }
 
 .basic-dbg-bp-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 4px;
+    padding: 4px 8px;
     font-family: var(--font-mono);
     font-size: 10px;
+    font-weight: 500;
     color: var(--text-muted);
+    border-bottom: 1px solid var(--separator-bg);
+    background: var(--overlay-subtle);
 }
 
 .basic-dbg-bp-add {
@@ -6280,7 +6420,9 @@ input.rb-detail {
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
+    padding: 4px;
     min-height: 24px;
+    overflow-y: auto;
 }
 
 .basic-dbg-bp-item {

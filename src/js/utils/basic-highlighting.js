@@ -1,5 +1,5 @@
 /*
- * basic-highlighting.js - BASIC syntax highlighting
+ * basic-highlighting.js - BASIC syntax highlighting with smart formatting
  *
  * Written by
  *  Mike Daley <michael_daley@icloud.com>
@@ -9,31 +9,45 @@ import { escapeHtml } from "./string-utils.js";
 import { APPLESOFT_TOKENS } from "./basic-tokens.js";
 
 // BASIC keyword categories for syntax highlighting
+// Colors follow the Apple II rainbow theme (Green, Yellow, Orange, Red, Purple, Blue)
 export const BASIC_CATEGORIES = {
+  // RED - Flow control that changes execution path
   flow: [
     "GOTO", "GOSUB", "RETURN", "IF", "THEN", "ON", "ONERR", "RESUME",
     "END", "STOP", "RUN",
   ],
+  // PURPLE - Loop constructs
   loop: ["FOR", "TO", "STEP", "NEXT"],
+  // BLUE - Input/Output operations
   io: ["PRINT", "INPUT", "GET", "DATA", "READ", "RESTORE"],
+  // GREEN - Graphics and display
   graphics: [
     "GR", "HGR", "HGR2", "TEXT", "PLOT", "HPLOT", "HLIN", "VLIN",
     "COLOR=", "HCOLOR=", "DRAW", "XDRAW", "ROT=", "SCALE=", "SCRN(",
     "HOME", "HTAB", "VTAB", "NORMAL", "INVERSE", "FLASH",
   ],
+  // ORANGE - Memory and system
   memory: ["PEEK", "POKE", "CALL", "HIMEM:", "LOMEM:", "USR", "DEF", "FN"],
+  // CYAN - Built-in functions
   functions: [
     "SGN", "INT", "ABS", "SQR", "RND", "LOG", "EXP", "COS", "SIN",
     "TAN", "ATN", "LEN", "ASC", "VAL", "STR$", "CHR$", "LEFT$",
     "RIGHT$", "MID$", "FRE", "PDL", "POS", "TAB(", "SPC(",
   ],
+  // YELLOW - Variable declarations
   variable: ["DIM", "LET", "DEL", "NEW", "CLR", "CLEAR"],
+  // MUTED - Miscellaneous
   misc: [
     "REM", "LOAD", "SAVE", "SHLOAD", "STORE", "RECALL", "PR#", "IN#",
     "WAIT", "CONT", "LIST", "TRACE", "NOTRACE", "SPEED=", "POP",
     "NOT", "AND", "OR", "&",
   ],
 };
+
+// Keywords that increase indentation level
+const INDENT_INCREASE = new Set(["FOR", "GOSUB"]);
+// Keywords that decrease indentation level (before the line)
+const INDENT_DECREASE = new Set(["NEXT", "RETURN"]);
 
 // Build a set of all keywords for quick lookup
 const ALL_KEYWORDS = new Set();
@@ -74,6 +88,55 @@ const SORTED_KEYWORDS = Array.from(ALL_KEYWORDS)
   .sort((a, b) => b.length - a.length);
 
 /**
+ * Calculate the indentation level for each line based on control structures
+ * @param {string[]} lines - Array of BASIC lines
+ * @returns {number[]} Array of indentation levels (0-4)
+ */
+function calculateIndentLevels(lines) {
+  const levels = [];
+  let currentLevel = 0;
+  const forStack = []; // Track FOR loop variables
+
+  for (const line of lines) {
+    const upper = line.toUpperCase();
+
+    // Extract keywords from the line
+    const hasFor = /\bFOR\b/.test(upper);
+    const hasNext = /\bNEXT\b/.test(upper);
+    const hasGosub = /\bGOSUB\b/.test(upper);
+    const hasReturn = /\bRETURN\b/.test(upper);
+
+    // Decrease level for NEXT and RETURN (before rendering the line)
+    if (hasNext || hasReturn) {
+      currentLevel = Math.max(0, currentLevel - 1);
+      if (hasNext && forStack.length > 0) {
+        forStack.pop();
+      }
+    }
+
+    levels.push(Math.min(currentLevel, 4)); // Cap at 4 levels
+
+    // Increase level for FOR and GOSUB (after rendering the line)
+    if (hasFor) {
+      // Extract the loop variable
+      const forMatch = upper.match(/FOR\s+([A-Z][A-Z0-9]*)/);
+      if (forMatch) {
+        forStack.push(forMatch[1]);
+      }
+      currentLevel++;
+    }
+
+    // GOSUB increases indent only if it's not a single-line pattern
+    if (hasGosub && !hasReturn) {
+      // Only indent after GOSUB if it's at the end (subroutine call pattern)
+      // Don't indent if RETURN is on the same line
+    }
+  }
+
+  return levels;
+}
+
+/**
  * Highlight BASIC source code (text input, not tokenized)
  * @param {string} source - BASIC source code
  * @param {Object} options - Options
@@ -85,11 +148,168 @@ export function highlightBasicSource(source, options = {}) {
   const lines = source.split(/\r?\n/);
   const highlightedLines = [];
 
-  for (const line of lines) {
-    highlightedLines.push(highlightBasicLine(line, preserveCase));
+  // Calculate indent levels for all lines
+  const indentLevels = calculateIndentLevels(lines);
+
+  for (let i = 0; i < lines.length; i++) {
+    const highlighted = highlightBasicLine(lines[i], preserveCase);
+    const indentClass = indentLevels[i] > 0 ? ` indent-${indentLevels[i]}` : "";
+    // We don't wrap here - the wrapper will add indentation class if needed
+    highlightedLines.push({ html: highlighted, indent: indentLevels[i] });
   }
 
-  return highlightedLines.join("\n");
+  // Return just the HTML - caller will handle indent classes
+  return highlightedLines.map(l => l.html).join("\n");
+}
+
+/**
+ * Highlight BASIC source with indent information
+ * @param {string} source - BASIC source code
+ * @param {Object} options - Options
+ * @param {boolean} options.preserveCase - Keep original case (default: false)
+ * @returns {{html: string, indent: number}[]} Array of highlighted lines with indent levels
+ */
+export function highlightBasicSourceWithIndent(source, options = {}) {
+  const { preserveCase = false } = options;
+  const lines = source.split(/\r?\n/);
+  const indentLevels = calculateIndentLevels(lines);
+  const result = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    result.push({
+      html: highlightBasicLine(lines[i], preserveCase),
+      indent: indentLevels[i],
+    });
+  }
+
+  return result;
+}
+
+/**
+ * Auto-format BASIC source code
+ * - Sorts lines by line number (so changing a line number moves it to correct position)
+ * - Right-aligns line numbers to consistent width
+ * - Adds indentation for control structures (FOR/NEXT loops)
+ * @param {string} source - BASIC source code
+ * @returns {string} Formatted source code
+ */
+export function formatBasicSource(source) {
+  const rawLines = source.split(/\r?\n/);
+
+  // Parse lines and extract line numbers for sorting
+  const parsedLines = [];
+  for (const line of rawLines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue; // Skip empty lines
+
+    const match = trimmed.match(/^(\d+)\s*(.*)/);
+    if (match) {
+      parsedLines.push({
+        lineNumber: parseInt(match[1], 10),
+        lineNumStr: match[1],
+        code: match[2] || "",
+      });
+    } else {
+      // Lines without line numbers are kept but won't be sorted
+      // (unusual in BASIC but handle gracefully)
+      parsedLines.push({
+        lineNumber: -1, // Sort to top
+        lineNumStr: null,
+        code: trimmed,
+      });
+    }
+  }
+
+  // Sort by line number (lines without numbers stay at top)
+  parsedLines.sort((a, b) => a.lineNumber - b.lineNumber);
+
+  // Rebuild lines array for indent calculation
+  const sortedLines = parsedLines.map((p) =>
+    p.lineNumStr ? `${p.lineNumStr} ${p.code}` : p.code
+  );
+
+  // Calculate indentation on sorted lines
+  const indentLevels = calculateIndentLevels(sortedLines);
+
+  // Find max line number width for alignment
+  let maxLineNumWidth = 0;
+  for (const p of parsedLines) {
+    if (p.lineNumStr) {
+      maxLineNumWidth = Math.max(maxLineNumWidth, p.lineNumStr.length);
+    }
+  }
+
+  // Format each line
+  const formattedLines = [];
+  for (let i = 0; i < sortedLines.length; i++) {
+    formattedLines.push(formatBasicLine(sortedLines[i], maxLineNumWidth, indentLevels[i]));
+  }
+
+  return formattedLines.join("\n");
+}
+
+// Indent string constant (2 spaces per level)
+const INDENT_CHARS = "  ";
+
+/**
+ * Convert BASIC code to uppercase while preserving string contents
+ * @param {string} code - BASIC code
+ * @returns {string} Code with keywords/variables uppercase, strings preserved
+ */
+function toUppercasePreservingStrings(code) {
+  let result = "";
+  let inString = false;
+
+  for (let i = 0; i < code.length; i++) {
+    const char = code[i];
+
+    if (char === '"') {
+      inString = !inString;
+      result += char;
+    } else if (inString) {
+      // Inside string - preserve case
+      result += char;
+    } else {
+      // Outside string - convert to uppercase
+      result += char.toUpperCase();
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Format a single line of BASIC source
+ * @param {string} line - Single line of BASIC
+ * @param {number} maxLineNumWidth - Width to pad line numbers to
+ * @param {number} indentLevel - Indentation level (0-4)
+ * @returns {string} Formatted line
+ */
+function formatBasicLine(line, maxLineNumWidth, indentLevel) {
+  const trimmed = line.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  // Parse line number and code
+  const match = trimmed.match(/^(\d+)\s*(.*)/);
+
+  if (match) {
+    const lineNum = match[1];
+    const code = toUppercasePreservingStrings(match[2]);
+
+    // Right-align line number by left-padding with spaces
+    const padding = " ".repeat(Math.max(0, maxLineNumWidth - lineNum.length));
+
+    // Add indentation
+    const indent = indentLevel > 0 ? INDENT_CHARS.repeat(indentLevel) : "";
+
+    return `${padding}${lineNum} ${indent}${code}`;
+  }
+
+  // No line number - just return trimmed with indent (also uppercase)
+  const indent = indentLevel > 0 ? INDENT_CHARS.repeat(indentLevel) : "";
+  return `${indent}${toUppercasePreservingStrings(trimmed)}`;
 }
 
 /**

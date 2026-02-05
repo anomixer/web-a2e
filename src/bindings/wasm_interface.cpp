@@ -314,6 +314,12 @@ void clearBasicBreakpoints() {
 }
 
 EMSCRIPTEN_KEEPALIVE
+void clearBasicBreakpointHit() {
+  REQUIRE_EMULATOR();
+  g_emulator->clearBasicBreakpointHit();
+}
+
+EMSCRIPTEN_KEEPALIVE
 bool hasBasicBreakpoints() {
   REQUIRE_EMULATOR_OR(false);
   return g_emulator->hasBasicBreakpoints();
@@ -335,6 +341,82 @@ EMSCRIPTEN_KEEPALIVE
 void stepBasicLine() {
   REQUIRE_EMULATOR();
   g_emulator->stepBasicLine();
+}
+
+EMSCRIPTEN_KEEPALIVE
+void stepBasicStatement() {
+  REQUIRE_EMULATOR();
+  g_emulator->stepBasicStatement();
+}
+
+EMSCRIPTEN_KEEPALIVE
+uint16_t getBasicTxtptr() {
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->getBasicTxtptr();
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getBasicStatementIndex() {
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->getBasicStatementIndex();
+}
+
+// Debug function to get BASIC memory state with detailed line info
+// Uses readRAM to bypass ALTZP - BASIC always uses main RAM for zero page
+EMSCRIPTEN_KEEPALIVE
+void getBasicDebugInfo(uint16_t* txttab, uint16_t* vartab, uint16_t* curlin, uint16_t* txtptr) {
+  if (!g_emulator) return;
+  auto& mmu = g_emulator->getMMU();
+  *txttab = mmu.readRAM(0x67, false) | (mmu.readRAM(0x68, false) << 8);
+  *vartab = mmu.readRAM(0x69, false) | (mmu.readRAM(0x6A, false) << 8);
+  *curlin = mmu.readRAM(0x75, false) | (mmu.readRAM(0x76, false) << 8);
+  *txtptr = mmu.readRAM(0x7A, false) | (mmu.readRAM(0x7B, false) << 8);
+}
+
+// Debug function to dump bytes around TXTPTR to see what's there
+EMSCRIPTEN_KEEPALIVE
+void getBasicLineBytes(uint8_t* buffer, int* lineStart, int* colonCount) {
+  if (!g_emulator) return;
+  auto& mmu = g_emulator->getMMU();
+
+  uint16_t txttab = mmu.readRAM(0x67, false) | (mmu.readRAM(0x68, false) << 8);
+  uint16_t curlin = mmu.readRAM(0x75, false) | (mmu.readRAM(0x76, false) << 8);
+  uint16_t txtptr = mmu.readRAM(0x7A, false) | (mmu.readRAM(0x7B, false) << 8);
+
+  // Find current line
+  uint16_t addr = txttab;
+  uint16_t foundLineStart = 0;
+
+  while (addr < 0xC000) {
+    uint16_t nextPtr = mmu.readRAM(addr, false) | (mmu.readRAM(addr + 1, false) << 8);
+    if (nextPtr == 0) break;
+
+    uint16_t lineNum = mmu.readRAM(addr + 2, false) | (mmu.readRAM(addr + 3, false) << 8);
+    if (lineNum == curlin) {
+      foundLineStart = addr + 4;
+      break;
+    }
+    addr = nextPtr;
+  }
+
+  *lineStart = foundLineStart;
+
+  // Count colons from line start to TXTPTR
+  int count = 0;
+  if (foundLineStart > 0 && txtptr > foundLineStart) {
+    for (uint16_t a = foundLineStart; a < txtptr && a < foundLineStart + 64; a++) {
+      uint8_t byte = mmu.readRAM(a, false);
+      if (byte == 0) break;
+      if (byte == 0x3A) count++;  // Colon
+    }
+  }
+  *colonCount = count;
+
+  // Copy 32 bytes starting from line start (or txtptr if lineStart is 0)
+  uint16_t dumpStart = foundLineStart > 0 ? foundLineStart : txtptr;
+  for (int i = 0; i < 32; i++) {
+    buffer[i] = mmu.readRAM(dumpStart + i, false);
+  }
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -462,6 +544,14 @@ EMSCRIPTEN_KEEPALIVE
 uint8_t peekMemory(uint16_t address) {
   REQUIRE_EMULATOR_OR(0);
   return g_emulator->peekMemory(address);
+}
+
+EMSCRIPTEN_KEEPALIVE
+uint8_t readMainRAM(uint16_t address) {
+  // Read directly from main RAM, bypassing ALTZP and other switches
+  // Useful for reading BASIC zero page variables which are always in main RAM
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->getMMU().readRAM(address, false);
 }
 
 EMSCRIPTEN_KEEPALIVE

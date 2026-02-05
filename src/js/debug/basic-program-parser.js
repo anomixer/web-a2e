@@ -14,7 +14,6 @@
  * Execution State:
  * - CURLIN ($75-$76): Current line number being executed (0xFFFF = direct mode)
  * - TXTPTR ($7A-$7B): Pointer to current position in program text
- * - RUNMOD ($9D): Run mode flag (non-zero = running)
  */
 export class BasicProgramParser {
   constructor(wasmModule) {
@@ -122,22 +121,22 @@ export class BasicProgramParser {
    * @returns {{running: boolean, currentLine: number, txtptr: number}}
    */
   getExecutionState() {
-    const runmod = this._peek(0x9d);
     const curlin = this._readWord(0x75);
     const txtptr = this._readWord(0x7a);
 
+    // CURLIN = $FFFF means direct/immediate mode (not running a program)
     return {
-      running: runmod !== 0,
+      running: curlin !== 0xffff,
       currentLine: curlin === 0xffff ? null : curlin,
       txtptr,
     };
   }
 
   /**
-   * Check if BASIC is running (RUNMOD != 0)
+   * Check if BASIC is running (CURLIN != $FFFF)
    */
   isRunning() {
-    return this._peek(0x9d) !== 0;
+    return this._readWord(0x75) !== 0xffff;
   }
 
   /**
@@ -177,6 +176,106 @@ export class BasicProgramParser {
       if (addr >= line.address && addr < endAddr) {
         return line;
       }
+    }
+    return null;
+  }
+
+  /**
+   * Get current statement info for the given line and TXTPTR
+   * Returns {statementIndex, statementCount, statementStart, statementEnd}
+   * where statementStart/End are character offsets in the detokenized text
+   */
+  getCurrentStatementInfo(lineNumber, txtptr) {
+    const line = this.findLine(lineNumber);
+    if (!line) return null;
+
+    // Find end of this line's tokens
+    const nextPtr = this._readWord(line.address);
+    const tokenStart = line.tokenAddress;
+    const tokenEnd = nextPtr - 1; // -1 for null terminator
+
+    // If TXTPTR is outside this line, return null
+    if (txtptr < tokenStart || txtptr > tokenEnd) {
+      return null;
+    }
+
+    // Parse tokenized bytes to find statement boundaries (colons not in quotes/REM/DATA)
+    const statementBoundaries = [0]; // Start positions in detokenized text
+    let inQuote = false;
+    let inRem = false;
+    let inData = false;
+    let detokenizedPos = 0;
+    let currentStatementIndex = 0;
+
+    for (let addr = tokenStart; addr < tokenEnd; addr++) {
+      const byte = this._peek(addr);
+
+      // Track if we've passed TXTPTR
+      if (addr === txtptr) {
+        currentStatementIndex = statementBoundaries.length - 1;
+      }
+
+      // Handle quotes
+      if (byte === 0x22) { // Quote
+        inQuote = !inQuote;
+        detokenizedPos++;
+        continue;
+      }
+
+      // Inside quote or REM - just count characters
+      if (inQuote || inRem) {
+        detokenizedPos++;
+        continue;
+      }
+
+      // Token range: $80-$EA
+      if (byte >= 0x80 && byte <= 0xea) {
+        const token = this._getTokenString(byte);
+        if (token) {
+          detokenizedPos += token.length;
+          if (byte === 0xb2) inRem = true; // REM
+          if (byte === 0x83) inData = true; // DATA
+          continue;
+        }
+      }
+
+      // Colon outside quotes/REM marks statement boundary
+      if (byte === 0x3a && !inData) { // Colon
+        detokenizedPos++;
+        statementBoundaries.push(detokenizedPos);
+        continue;
+      }
+
+      // Inside DATA - colons end DATA mode
+      if (inData && byte === 0x3a) {
+        inData = false;
+      }
+
+      detokenizedPos++;
+    }
+
+    // Add end position
+    statementBoundaries.push(line.text.length);
+
+    // Handle case where TXTPTR is at or past the last checked position
+    if (txtptr >= tokenEnd) {
+      currentStatementIndex = statementBoundaries.length - 2;
+    }
+
+    return {
+      statementIndex: currentStatementIndex,
+      statementCount: statementBoundaries.length - 1,
+      statementStart: statementBoundaries[currentStatementIndex] || 0,
+      statementEnd: statementBoundaries[currentStatementIndex + 1] || line.text.length,
+    };
+  }
+
+  /**
+   * Get token string for a token byte
+   */
+  _getTokenString(byte) {
+    if (byte >= 0x80 && byte <= 0xea) {
+      return APPLESOFT_TOKENS[byte - 0x80] || null;
     }
     return null;
   }
@@ -233,8 +332,15 @@ export class BasicProgramParser {
 
   /**
    * Read a 16-bit word from memory (low byte first)
+   * Uses main RAM for zero page to bypass ALTZP switch
    */
   _readWord(addr) {
+    // Zero page reads need to bypass ALTZP since BASIC always uses main RAM
+    if (addr < 0x200) {
+      const low = this._peekMain(addr);
+      const high = this._peekMain(addr + 1);
+      return (high << 8) | low;
+    }
     const low = this._peek(addr);
     const high = this._peek(addr + 1);
     return (high << 8) | low;
@@ -246,6 +352,18 @@ export class BasicProgramParser {
   _peek(addr) {
     try {
       return this.wasmModule._peekMemory(addr);
+    } catch (e) {
+      return 0;
+    }
+  }
+
+  /**
+   * Read a byte directly from main RAM (bypasses ALTZP)
+   * Use for BASIC zero page variables which are always in main RAM
+   */
+  _peekMain(addr) {
+    try {
+      return this.wasmModule._readMainRAM(addr);
     } catch (e) {
       return 0;
     }

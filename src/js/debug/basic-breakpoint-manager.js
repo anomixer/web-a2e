@@ -166,12 +166,12 @@ export class BasicBreakpointManager {
   checkStepBreak() {
     if (!this.steppingMode) return false;
 
-    // Check if BASIC is actually running
-    const runmod = this._getRunmod();
+    // CURLIN = $FFFF means direct/immediate mode (not running a program)
     const curlin = this._getCurlin();
+    const isRunning = curlin !== 0xffff;
 
     if (this.steppingMode === "line") {
-      // Break if line changed, or if BASIC stopped running (runmod=0)
+      // Break if line changed
       if (curlin !== this.lastCurlin && curlin !== 0xffff) {
         console.log(`Step break: CURLIN changed from ${this.lastCurlin} to ${curlin}`);
         this.lastCurlin = curlin;
@@ -179,7 +179,7 @@ export class BasicBreakpointManager {
         return true;
       }
       // If BASIC stopped running (error or END), stop stepping
-      if (runmod === 0 && this.lastCurlin !== 0xffff) {
+      if (!isRunning && this.lastCurlin !== 0xffff) {
         console.log("Step break: BASIC stopped running");
         this.steppingMode = null;
         return true;
@@ -193,7 +193,7 @@ export class BasicBreakpointManager {
         return true;
       }
       // If BASIC stopped running, stop stepping
-      if (runmod === 0) {
+      if (!isRunning) {
         console.log("Step break: BASIC stopped running (stmt)");
         this.steppingMode = null;
         return true;
@@ -201,17 +201,6 @@ export class BasicBreakpointManager {
     }
 
     return false;
-  }
-
-  /**
-   * Get RUNMOD flag (non-zero = BASIC is running)
-   */
-  _getRunmod() {
-    try {
-      return this.wasmModule._peekMemory(0x9d);
-    } catch (e) {
-      return 0;
-    }
   }
 
   /**
@@ -251,11 +240,12 @@ export class BasicBreakpointManager {
 
   /**
    * Get current text pointer (TXTPTR)
+   * Uses readMainRAM to bypass ALTZP - BASIC always uses main RAM for zero page
    */
   _getTxtptr() {
     try {
-      const low = this.wasmModule._peekMemory(0x7a);
-      const high = this.wasmModule._peekMemory(0x7b);
+      const low = this.wasmModule._readMainRAM(0x7a);
+      const high = this.wasmModule._readMainRAM(0x7b);
       return (high << 8) | low;
     } catch (e) {
       return 0;
