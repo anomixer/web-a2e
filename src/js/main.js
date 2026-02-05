@@ -191,6 +191,7 @@ class AppleIIeEmulator {
       );
       basicProgramWindow.create();
       this.windowManager.register(basicProgramWindow);
+      this.basicProgramWindow = basicProgramWindow;
 
       const assemblerWindow = new AssemblerEditorWindow(this.wasmModule, cpuWindow.bpManager);
       assemblerWindow.create();
@@ -285,6 +286,7 @@ class AppleIIeEmulator {
         diskManager: this.diskManager,
         reminderController: this.reminderController,
         cpuDebuggerWindow: cpuWindow,
+        basicProgramWindow: this.basicProgramWindow,
       });
       this.stateManager.init();
 

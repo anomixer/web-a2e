@@ -47,6 +47,7 @@ export class StateManager {
     this.diskManager = deps.diskManager;
     this.reminderController = deps.reminderController;
     this.cpuDebuggerWindow = deps.cpuDebuggerWindow || null;
+    this.basicProgramWindow = deps.basicProgramWindow || null;
 
     this.autoSaveEnabled = true;
     this.autoSaveInterval = null;
@@ -227,6 +228,10 @@ export class StateManager {
       if (this.cpuDebuggerWindow) {
         this.cpuDebuggerWindow.bpManager.resyncToWasm();
         this.cpuDebuggerWindow.resyncBeamToWasm();
+      }
+      // Re-sync BASIC breakpoints
+      if (this.basicProgramWindow) {
+        this.basicProgramWindow.getBreakpointManager().resyncToWasm();
       }
       return true;
     } else {

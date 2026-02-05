@@ -291,6 +291,52 @@ uint16_t getBreakpointAddress() {
   return g_emulator->getBreakpointAddress();
 }
 
+// ============================================================================
+// BASIC Breakpoints
+// ============================================================================
+
+EMSCRIPTEN_KEEPALIVE
+void addBasicBreakpoint(uint16_t lineNumber) {
+  REQUIRE_EMULATOR();
+  g_emulator->addBasicBreakpoint(lineNumber);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void removeBasicBreakpoint(uint16_t lineNumber) {
+  REQUIRE_EMULATOR();
+  g_emulator->removeBasicBreakpoint(lineNumber);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void clearBasicBreakpoints() {
+  REQUIRE_EMULATOR();
+  g_emulator->clearBasicBreakpoints();
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool hasBasicBreakpoints() {
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->hasBasicBreakpoints();
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool isBasicBreakpointHit() {
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->isBasicBreakpointHit();
+}
+
+EMSCRIPTEN_KEEPALIVE
+uint16_t getBasicBreakLine() {
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->getBasicBreakLine();
+}
+
+EMSCRIPTEN_KEEPALIVE
+void stepBasicLine() {
+  REQUIRE_EMULATOR();
+  g_emulator->stepBasicLine();
+}
+
 EMSCRIPTEN_KEEPALIVE
 uint16_t getPC() {
   REQUIRE_EMULATOR_OR(0);

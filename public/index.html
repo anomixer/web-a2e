@@ -41,12 +41,25 @@
             <header>
                 <div class="header-left">
                     <div class="logo">
-                        <img class="logo-image" src="/assets/apple-logo.png" alt="Apple //e" />
+                        <img
+                            class="logo-image"
+                            src="/assets/apple-logo.png"
+                            alt="Apple //e"
+                        />
                         <span id="app-version" class="app-version"></span>
                     </div>
                     <!--<span class="tagline">Apple II Enhanced Emulator</span>-->
-                    <a href="https://RetroTech71.co.uk" target="_blank" rel="noopener" class="retro-brand">
-                        <span class="retro-brand-text" data-text="RetroTech71.co.uk">RetroTech71.co.uk</span>
+                    <a
+                        href="https://RetroTech71.co.uk"
+                        target="_blank"
+                        rel="noopener"
+                        class="retro-brand"
+                    >
+                        <span
+                            class="retro-brand-text"
+                            data-text="RetroTech71.co.uk"
+                            >RetroTech71.co.uk</span
+                        >
                     </a>
                 </div>
                 <nav class="header-controls">
@@ -69,37 +82,63 @@
                         id="btn-warm-reset"
                         class="header-text-btn"
                         title="Ctrl+Reset (warm reset, preserves memory)"
-                    >Ctrl+Reset</button>
+                    >
+                        Ctrl+Reset
+                    </button>
                     <button
                         id="btn-cold-reset"
                         class="header-text-btn"
                         title="Cold Reset (full restart)"
-                    >Reboot</button>
+                    >
+                        Reboot
+                    </button>
 
                     <!-- File menu (state management) -->
                     <div class="header-menu-container" id="file-menu-container">
                         <button class="header-menu-trigger" id="btn-file-menu">
                             <span>File</span>
-                            <svg class="menu-chevron" viewBox="0 0 12 12" width="10" height="10">
-                                <path d="M3 5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                            <svg
+                                class="menu-chevron"
+                                viewBox="0 0 12 12"
+                                width="10"
+                                height="10"
+                            >
+                                <path
+                                    d="M3 5l3 3 3-3"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                />
                             </svg>
                         </button>
                         <div class="header-menu" id="file-menu">
                             <div class="header-menu-item menu-toggle-item">
                                 <div class="state-row-label">
                                     <span>Auto-Save</span>
-                                    <span class="state-row-hint">Save every 5 seconds</span>
+                                    <span class="state-row-hint"
+                                        >Save every 5 seconds</span
+                                    >
                                 </div>
                                 <label class="toggle-switch">
-                                    <input type="checkbox" id="autosave-toggle" checked />
+                                    <input
+                                        type="checkbox"
+                                        id="autosave-toggle"
+                                        checked
+                                    />
                                     <span class="toggle-slider"></span>
                                 </label>
                             </div>
                             <div class="header-menu-separator"></div>
-                            <button class="header-menu-item" id="btn-save-states">
+                            <button
+                                class="header-menu-item"
+                                id="btn-save-states"
+                            >
                                 <span>Save States...</span>
                             </button>
-                            <div id="state-last-saved" class="header-menu-footer"></div>
+                            <div
+                                id="state-last-saved"
+                                class="header-menu-footer"
+                            ></div>
                         </div>
                     </div>
 
@@ -107,29 +146,84 @@
                     <div class="header-menu-container" id="view-menu-container">
                         <button class="header-menu-trigger" id="btn-view-menu">
                             <span>View</span>
-                            <svg class="menu-chevron" viewBox="0 0 12 12" width="10" height="10">
-                                <path d="M3 5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                            <svg
+                                class="menu-chevron"
+                                viewBox="0 0 12 12"
+                                width="10"
+                                height="10"
+                            >
+                                <path
+                                    d="M3 5l3 3 3-3"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                />
                             </svg>
                         </button>
                         <div class="header-menu" id="view-menu">
-                            <div class="header-menu-item menu-toggle-item theme-selector-row">
+                            <div
+                                class="header-menu-item menu-toggle-item theme-selector-row"
+                            >
                                 <span>Theme</span>
                                 <div class="theme-btn-group">
-                                    <button class="theme-btn" data-theme="light" title="Light">
-                                        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5">
-                                            <circle cx="8" cy="8" r="3.5"/>
-                                            <path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.17 3.17l1.06 1.06M11.77 11.77l1.06 1.06M3.17 12.83l1.06-1.06M11.77 4.23l1.06-1.06"/>
+                                    <button
+                                        class="theme-btn"
+                                        data-theme="light"
+                                        title="Light"
+                                    >
+                                        <svg
+                                            viewBox="0 0 16 16"
+                                            width="14"
+                                            height="14"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="1.5"
+                                        >
+                                            <circle cx="8" cy="8" r="3.5" />
+                                            <path
+                                                d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.17 3.17l1.06 1.06M11.77 11.77l1.06 1.06M3.17 12.83l1.06-1.06M11.77 4.23l1.06-1.06"
+                                            />
                                         </svg>
                                     </button>
-                                    <button class="theme-btn" data-theme="dark" title="Dark">
-                                        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5">
-                                            <path d="M13.5 8.5a5.5 5.5 0 0 1-7-7 6 6 0 1 0 7 7z"/>
+                                    <button
+                                        class="theme-btn"
+                                        data-theme="dark"
+                                        title="Dark"
+                                    >
+                                        <svg
+                                            viewBox="0 0 16 16"
+                                            width="14"
+                                            height="14"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="1.5"
+                                        >
+                                            <path
+                                                d="M13.5 8.5a5.5 5.5 0 0 1-7-7 6 6 0 1 0 7 7z"
+                                            />
                                         </svg>
                                     </button>
-                                    <button class="theme-btn" data-theme="system" title="System">
-                                        <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5">
-                                            <rect x="2" y="3" width="12" height="9" rx="1.5"/>
-                                            <path d="M6 14h4"/>
+                                    <button
+                                        class="theme-btn"
+                                        data-theme="system"
+                                        title="System"
+                                    >
+                                        <svg
+                                            viewBox="0 0 16 16"
+                                            width="14"
+                                            height="14"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            stroke-width="1.5"
+                                        >
+                                            <rect
+                                                x="2"
+                                                y="3"
+                                                width="12"
+                                                height="9"
+                                                rx="1.5"
+                                            />
+                                            <path d="M6 14h4" />
                                         </svg>
                                     </button>
                                 </div>
@@ -138,7 +232,10 @@
                             <button class="header-menu-item" id="btn-drives">
                                 <span>Disk Drives</span>
                             </button>
-                            <button class="header-menu-item" id="btn-file-explorer">
+                            <button
+                                class="header-menu-item"
+                                id="btn-file-explorer"
+                            >
                                 <span>File Explorer</span>
                             </button>
                             <div class="header-menu-separator"></div>
@@ -155,25 +252,80 @@
                     </div>
 
                     <!-- Debug menu -->
-                    <div class="header-menu-container" id="debug-menu-container">
+                    <div
+                        class="header-menu-container"
+                        id="debug-menu-container"
+                    >
                         <button class="header-menu-trigger" id="btn-debug-menu">
                             <span>Debug</span>
-                            <svg class="menu-chevron" viewBox="0 0 12 12" width="10" height="10">
-                                <path d="M3 5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                            <svg
+                                class="menu-chevron"
+                                viewBox="0 0 12 12"
+                                width="10"
+                                height="10"
+                            >
+                                <path
+                                    d="M3 5l3 3 3-3"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                />
                             </svg>
                         </button>
                         <div class="header-menu" id="debug-menu">
-                            <button class="header-menu-item" data-window="cpu">CPU Debugger</button>
-                            <button class="header-menu-item" data-window="switches">Soft Switches</button>
-                            <button class="header-menu-item" data-window="memmap">Memory Map</button>
+                            <button class="header-menu-item" data-window="cpu">
+                                CPU Debugger
+                            </button>
+                            <button
+                                class="header-menu-item"
+                                data-window="switches"
+                            >
+                                Soft Switches
+                            </button>
+                            <button
+                                class="header-menu-item"
+                                data-window="memmap"
+                            >
+                                Memory Map
+                            </button>
                             <div class="header-menu-separator"></div>
-                            <button class="header-menu-item" data-window="memory">Memory Browser</button>
-                            <button class="header-menu-item" data-window="heatmap">Memory Heat Map</button>
-                            <button class="header-menu-item" data-window="stack">Stack Viewer</button>
-                            <button class="header-menu-item" data-window="zeropage">Zero Page Watch</button>
+                            <button
+                                class="header-menu-item"
+                                data-window="memory"
+                            >
+                                Memory Browser
+                            </button>
+                            <button
+                                class="header-menu-item"
+                                data-window="heatmap"
+                            >
+                                Memory Heat Map
+                            </button>
+                            <button
+                                class="header-menu-item"
+                                data-window="stack"
+                            >
+                                Stack Viewer
+                            </button>
+                            <button
+                                class="header-menu-item"
+                                data-window="zeropage"
+                            >
+                                Zero Page Watch
+                            </button>
                             <div class="header-menu-separator"></div>
-                            <button class="header-menu-item" data-window="mockingboard">Mockingboard</button>
-                            <button class="header-menu-item" data-window="mouse-card">Mouse Card</button>
+                            <button
+                                class="header-menu-item"
+                                data-window="mockingboard"
+                            >
+                                Mockingboard
+                            </button>
+                            <button
+                                class="header-menu-item"
+                                data-window="mouse-card"
+                            >
+                                Mouse Card
+                            </button>
                         </div>
                     </div>
 
@@ -181,13 +333,33 @@
                     <div class="header-menu-container" id="dev-menu-container">
                         <button class="header-menu-trigger" id="btn-dev-menu">
                             <span>Dev</span>
-                            <svg class="menu-chevron" viewBox="0 0 12 12" width="10" height="10">
-                                <path d="M3 5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                            <svg
+                                class="menu-chevron"
+                                viewBox="0 0 12 12"
+                                width="10"
+                                height="10"
+                            >
+                                <path
+                                    d="M3 5l3 3 3-3"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                />
                             </svg>
                         </button>
                         <div class="header-menu" id="dev-menu">
-                            <button class="header-menu-item" data-window="basic">BASIC Program</button>
-                            <button class="header-menu-item" data-window="assembler">Assembler</button>
+                            <button
+                                class="header-menu-item"
+                                data-window="basic"
+                            >
+                                BASIC
+                            </button>
+                            <button
+                                class="header-menu-item"
+                                data-window="assembler"
+                            >
+                                Assembler
+                            </button>
                         </div>
                     </div>
 
@@ -282,22 +454,53 @@
 
                     <!-- Help menu -->
                     <div class="header-menu-container" id="help-menu-container">
-                        <button class="header-menu-trigger" id="btn-help-menu" title="Help (F1)">
-                            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <circle cx="12" cy="12" r="10"/>
-                                <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/>
-                                <line x1="12" y1="17" x2="12.01" y2="17"/>
+                        <button
+                            class="header-menu-trigger"
+                            id="btn-help-menu"
+                            title="Help (F1)"
+                        >
+                            <svg
+                                viewBox="0 0 24 24"
+                                width="14"
+                                height="14"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            >
+                                <circle cx="12" cy="12" r="10" />
+                                <path
+                                    d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"
+                                />
+                                <line x1="12" y1="17" x2="12.01" y2="17" />
                             </svg>
-                            <svg class="menu-chevron" viewBox="0 0 12 12" width="10" height="10">
-                                <path d="M3 5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                            <svg
+                                class="menu-chevron"
+                                viewBox="0 0 12 12"
+                                width="10"
+                                height="10"
+                            >
+                                <path
+                                    d="M3 5l3 3 3-3"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    stroke-width="1.5"
+                                />
                             </svg>
                         </button>
-                        <div class="header-menu header-menu-right" id="help-menu">
+                        <div
+                            class="header-menu header-menu-right"
+                            id="help-menu"
+                        >
                             <button class="header-menu-item" id="btn-help">
                                 <span>Documentation</span>
                                 <span class="menu-hint">F1</span>
                             </button>
-                            <button class="header-menu-item" id="btn-release-notes-menu">
+                            <button
+                                class="header-menu-item"
+                                id="btn-release-notes-menu"
+                            >
                                 <span>Release Notes</span>
                             </button>
                             <div class="header-menu-separator"></div>
@@ -321,16 +524,43 @@
             <div class="full-page-toolbar-wrapper">
                 <div class="full-page-toolbar-trigger"></div>
                 <div class="full-page-toolbar" id="full-page-toolbar">
-                    <button id="fp-power" class="fp-toolbar-btn fp-power-btn off" title="Power">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <button
+                        id="fp-power"
+                        class="fp-toolbar-btn fp-power-btn off"
+                        title="Power"
+                    >
+                        <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                        >
                             <path d="M12 2v10M18.4 6.6a9 9 0 1 1-12.8 0" />
                         </svg>
                     </button>
                     <div class="fp-toolbar-separator"></div>
-                    <button id="fp-warm-reset" class="fp-toolbar-btn fp-text-btn" title="Ctrl+Reset (warm reset)">Ctrl+Reset</button>
-                    <button id="fp-cold-reset" class="fp-toolbar-btn fp-text-btn" title="Cold Reset (full restart)">Reboot</button>
+                    <button
+                        id="fp-warm-reset"
+                        class="fp-toolbar-btn fp-text-btn"
+                        title="Ctrl+Reset (warm reset)"
+                    >
+                        Ctrl+Reset
+                    </button>
+                    <button
+                        id="fp-cold-reset"
+                        class="fp-toolbar-btn fp-text-btn"
+                        title="Cold Reset (full restart)"
+                    >
+                        Reboot
+                    </button>
                     <div class="fp-toolbar-separator"></div>
-                    <button id="fp-exit" class="fp-toolbar-btn fp-text-btn fp-exit-btn" title="Exit Full Page Mode">Exit</button>
+                    <button
+                        id="fp-exit"
+                        class="fp-toolbar-btn fp-text-btn fp-exit-btn"
+                        title="Exit Full Page Mode"
+                    >
+                        Exit
+                    </button>
                 </div>
             </div>
 
@@ -360,8 +590,8 @@
                     <div class="reminder-text">
                         <span class="reminder-title">Ready to go!</span>
                         <span class="reminder-hint"
-                            >Click the <strong>power button</strong> to start the Apple
-                            //e</span
+                            >Click the <strong>power button</strong> to start
+                            the Apple //e</span
                         >
                     </div>
                 </div>

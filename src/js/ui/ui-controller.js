@@ -288,6 +288,7 @@ export class UIController {
       zeropage: "zeropage-watch",
       mockingboard: "mockingboard-debug",
       "mouse-card": "mouse-card-debug",
+      "basic-debugger": "basic-debugger",
     };
 
     debugMenu.querySelectorAll(".header-menu-item").forEach((item) => {
