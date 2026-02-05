@@ -5156,9 +5156,9 @@ input.rb-detail {
     width: 320px;
     display: flex;
     flex-direction: column;
-    background: #1a1a1a;
+    background: var(--glass-bg-solid);
     border-left: 1px solid var(--glass-border);
-    box-shadow: -4px 0 16px rgba(0, 0, 0, 0.4);
+    box-shadow: var(--shadow-lg);
     z-index: 100;
 }
 
