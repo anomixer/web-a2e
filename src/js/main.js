@@ -35,6 +35,7 @@ import {
   MouseCardWindow,
   BasicProgramWindow,
   RuleBuilderWindow,
+  AssemblerEditorWindow,
 } from "./debug/index.js";
 
 class AppleIIeEmulator {
@@ -189,6 +190,10 @@ class AppleIIeEmulator {
       );
       basicProgramWindow.create();
       this.windowManager.register(basicProgramWindow);
+
+      const assemblerWindow = new AssemblerEditorWindow(this.wasmModule);
+      assemblerWindow.create();
+      this.windowManager.register(assemblerWindow);
 
       // Slot configuration window
       const slotConfigWindow = new SlotConfigurationWindow(

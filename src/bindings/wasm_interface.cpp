@@ -7,6 +7,7 @@
 
 #include "../core/emulator.hpp"
 #include "../core/disassembler/disassembler.hpp"
+#include "../core/assembler/assembler.hpp"
 #include "../core/debug/condition_evaluator.hpp"
 #include "../core/filesystem/dos33.hpp"
 #include "../core/filesystem/prodos.hpp"
@@ -1441,6 +1442,79 @@ const char* detokenizeApplesoft(const uint8_t* data, int size, bool hasLengthHea
 EMSCRIPTEN_KEEPALIVE
 const char* detokenizeIntegerBasic(const uint8_t* data, int size, bool hasLengthHeader) {
   return a2e::BasicDetokenizer::detokenizeIntegerBasic(data, size, hasLengthHeader);
+}
+
+// ============================================================================
+// Assembler
+// ============================================================================
+
+static a2e::Assembler g_assembler;
+static a2e::AsmResult g_asmResult;
+
+EMSCRIPTEN_KEEPALIVE
+bool assembleSource(const char* source) {
+  g_asmResult = g_assembler.assemble(source);
+  return g_asmResult.success;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getAsmOutputSize() {
+  return static_cast<int>(g_asmResult.output.size());
+}
+
+EMSCRIPTEN_KEEPALIVE
+const uint8_t* getAsmOutputBuffer() {
+  if (g_asmResult.output.empty()) return nullptr;
+  return g_asmResult.output.data();
+}
+
+EMSCRIPTEN_KEEPALIVE
+uint16_t getAsmOrigin() {
+  return g_asmResult.origin;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getAsmErrorCount() {
+  return static_cast<int>(g_asmResult.errors.size());
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getAsmErrorLine(int index) {
+  if (index < 0 || index >= static_cast<int>(g_asmResult.errors.size())) return 0;
+  return g_asmResult.errors[index].lineNumber;
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char* getAsmErrorMessage(int index) {
+  if (index < 0 || index >= static_cast<int>(g_asmResult.errors.size())) return "";
+  return g_asmResult.errors[index].message;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getAsmSymbolCount() {
+  return static_cast<int>(g_asmResult.symbols.size());
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char* getAsmSymbolName(int index) {
+  if (index < 0 || index >= static_cast<int>(g_asmResult.symbols.size())) return "";
+  return g_asmResult.symbols[index].name;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int32_t getAsmSymbolValue(int index) {
+  if (index < 0 || index >= static_cast<int>(g_asmResult.symbols.size())) return 0;
+  return g_asmResult.symbols[index].value;
+}
+
+EMSCRIPTEN_KEEPALIVE
+void loadAsmIntoMemory() {
+  if (!g_emulator || g_asmResult.output.empty()) return;
+  uint16_t addr = g_asmResult.origin;
+  for (size_t i = 0; i < g_asmResult.output.size(); i++) {
+    g_emulator->writeMemory(static_cast<uint16_t>(addr + i),
+                            g_asmResult.output[i]);
+  }
 }
 
 } // extern "C"

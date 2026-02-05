@@ -8,18 +8,18 @@
 import { escapeHtml } from "./string-utils.js";
 
 // 6502/65C02 mnemonics grouped by category (matching disassembler colour scheme)
-const BRANCH_MNEMONICS = new Set([
+export const BRANCH_MNEMONICS = new Set([
   'JMP', 'JSR', 'BCC', 'BCS', 'BEQ', 'BMI', 'BNE', 'BPL', 'BRA', 'BVC',
   'BVS', 'RTS', 'RTI', 'BRK',
   'BBR0', 'BBR1', 'BBR2', 'BBR3', 'BBR4', 'BBR5', 'BBR6', 'BBR7',
   'BBS0', 'BBS1', 'BBS2', 'BBS3', 'BBS4', 'BBS5', 'BBS6', 'BBS7',
 ]);
 
-const LOAD_MNEMONICS = new Set([
+export const LOAD_MNEMONICS = new Set([
   'LDA', 'LDX', 'LDY', 'STA', 'STX', 'STY', 'STZ',
 ]);
 
-const MATH_MNEMONICS = new Set([
+export const MATH_MNEMONICS = new Set([
   'ADC', 'SBC', 'AND', 'ORA', 'EOR', 'ASL', 'LSR', 'ROL', 'ROR',
   'INC', 'DEC', 'INA', 'DEA', 'INX', 'DEX', 'INY', 'DEY',
   'CMP', 'CPX', 'CPY', 'BIT', 'TRB', 'TSB',
@@ -27,23 +27,23 @@ const MATH_MNEMONICS = new Set([
   'SMB0', 'SMB1', 'SMB2', 'SMB3', 'SMB4', 'SMB5', 'SMB6', 'SMB7',
 ]);
 
-const STACK_MNEMONICS = new Set([
+export const STACK_MNEMONICS = new Set([
   'PHA', 'PHP', 'PHX', 'PHY', 'PLA', 'PLP', 'PLX', 'PLY',
   'TAX', 'TAY', 'TSX', 'TXA', 'TXS', 'TYA',
 ]);
 
-const FLAG_MNEMONICS = new Set([
+export const FLAG_MNEMONICS = new Set([
   'CLC', 'CLD', 'CLI', 'CLV', 'SEC', 'SED', 'SEI', 'NOP', 'WAI', 'STP',
 ]);
 
 // All mnemonics combined for detection
-const ALL_MNEMONICS = new Set([
+export const ALL_MNEMONICS = new Set([
   ...BRANCH_MNEMONICS, ...LOAD_MNEMONICS, ...MATH_MNEMONICS,
   ...STACK_MNEMONICS, ...FLAG_MNEMONICS,
 ]);
 
 // Merlin directives (pseudo-ops)
-const DIRECTIVES = new Set([
+export const DIRECTIVES = new Set([
   'ORG', 'EQU', 'DS', 'DFB', 'DW', 'DA', 'DDB', 'ASC', 'DCI', 'HEX',
   'PUT', 'USE', 'OBJ', 'LST', 'DO', 'ELSE', 'FIN', 'LUP', '--^', 'REL',
   'TYP', 'SAV', 'DSK', 'CHN', 'ENT', 'EXT', 'DUM', 'DEND', 'ERR', 'CYC',
@@ -58,7 +58,7 @@ const OPCODE_SET = new Set([...ALL_MNEMONICS, ...DIRECTIVES]);
 /**
  * Get CSS class for a mnemonic based on its category
  */
-function getMnemonicClass(mnemonic) {
+export function getMnemonicClass(mnemonic) {
   const upper = mnemonic.toUpperCase();
   if (BRANCH_MNEMONICS.has(upper)) return 'mer-branch';
   if (LOAD_MNEMONICS.has(upper)) return 'mer-load';
@@ -405,4 +405,147 @@ function highlightOperand(operand) {
   }
 
   return html;
+}
+
+/**
+ * Highlight Merlin assembler source code for inline editor overlay.
+ * Unlike highlightMerlinSource() which uses flex columns, this version
+ * produces inline spans that preserve original whitespace exactly,
+ * ensuring pixel-perfect alignment with a textarea overlay.
+ * @param {string} text - Source text
+ * @returns {string} HTML with syntax highlighting spans
+ */
+export function highlightMerlinSourceInline(text) {
+  const lines = text.split('\n');
+  const highlighted = [];
+
+  for (const line of lines) {
+    highlighted.push(highlightMerlinLineInline(line));
+  }
+
+  return highlighted.join('\n');
+}
+
+/**
+ * Highlight a single line inline (preserving exact whitespace).
+ * @param {string} line
+ * @returns {string} HTML
+ */
+function highlightMerlinLineInline(line) {
+  if (!line) return '';
+
+  const trimmed = line.trim();
+  if (!trimmed) return escapeHtml(line);
+
+  // Full-line comment
+  if (trimmed[0] === '*' || trimmed[0] === ';') {
+    return `<span class="mer-comment">${escapeHtml(line)}</span>`;
+  }
+
+  // Parse into columns, preserving whitespace positions
+  const hasLabel = !/^\s/.test(line);
+  let pos = 0;
+  let result = '';
+
+  // Leading whitespace
+  while (pos < line.length && (line[pos] === ' ' || line[pos] === '\t')) {
+    result += line[pos];
+    pos++;
+  }
+
+  // Label (if present)
+  if (hasLabel && pos < line.length) {
+    const labelStart = pos;
+    while (pos < line.length && line[pos] !== ' ' && line[pos] !== '\t') pos++;
+    const label = line.substring(labelStart, pos);
+    const cls = isLocalLabel(label) ? 'mer-local' : 'mer-label';
+    result += `<span class="${cls}">${escapeHtml(label)}</span>`;
+  }
+
+  // Whitespace between label and opcode
+  while (pos < line.length && (line[pos] === ' ' || line[pos] === '\t')) {
+    result += line[pos];
+    pos++;
+  }
+
+  if (pos >= line.length) return result;
+
+  // Check for inline comment at opcode position
+  if (line[pos] === ';' || line[pos] === '*') {
+    result += `<span class="mer-comment">${escapeHtml(line.substring(pos))}</span>`;
+    return result;
+  }
+
+  // Opcode
+  const opcodeStart = pos;
+  while (pos < line.length && line[pos] !== ' ' && line[pos] !== '\t') pos++;
+  const opcode = line.substring(opcodeStart, pos);
+  const upper = opcode.toUpperCase();
+
+  let opcCls;
+  if (ALL_MNEMONICS.has(upper)) {
+    opcCls = getMnemonicClass(opcode);
+  } else if (DIRECTIVES.has(upper)) {
+    opcCls = 'mer-directive';
+  } else {
+    opcCls = 'mer-macro';
+  }
+  result += `<span class="${opcCls}">${escapeHtml(opcode)}</span>`;
+
+  // Whitespace between opcode and operand
+  while (pos < line.length && (line[pos] === ' ' || line[pos] === '\t')) {
+    result += line[pos];
+    pos++;
+  }
+
+  if (pos >= line.length) return result;
+
+  // Rest of line: operand + possible comment
+  const rest = line.substring(pos);
+  const { operand, comment, commentOffset } = splitOperandAndCommentWithOffset(rest);
+
+  if (operand) {
+    result += highlightOperand(operand);
+  }
+
+  if (comment !== null) {
+    // Add any whitespace between operand end and comment start
+    const operandLen = operand ? operand.length : 0;
+    const gap = rest.substring(operandLen, commentOffset);
+    result += escapeHtml(gap);
+    result += `<span class="mer-comment">${escapeHtml(comment)}</span>`;
+  }
+
+  return result;
+}
+
+/**
+ * Split operand and comment, also returning the comment's offset in the rest string.
+ */
+function splitOperandAndCommentWithOffset(rest) {
+  let inSingleQuote = false;
+  let inDoubleQuote = false;
+
+  for (let i = 0; i < rest.length; i++) {
+    const ch = rest[i];
+
+    if (ch === "'" && !inDoubleQuote) {
+      inSingleQuote = !inSingleQuote;
+    } else if (ch === '"' && !inSingleQuote) {
+      inDoubleQuote = !inDoubleQuote;
+    } else if (ch === ';' && !inSingleQuote && !inDoubleQuote) {
+      const before = rest.substring(0, i).trimEnd();
+      return {
+        operand: before || null,
+        comment: rest.substring(i),
+        commentOffset: i,
+      };
+    }
+  }
+
+  return {
+    operand: rest.trimEnd() || null,
+    comment: null,
+    commentOffset: rest.length,
+  };
 }

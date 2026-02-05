@@ -3992,3 +3992,673 @@ input.rb-detail {
     background: var(--control-border);
     margin: 2px 0;
 }
+
+/* ==========================================================================
+   Assembler Editor Window
+   ========================================================================== */
+
+.asm-editor-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    gap: 0;
+}
+
+.asm-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 0;
+    flex-shrink: 0;
+}
+
+.asm-org-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.asm-org-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+}
+
+.asm-org-input {
+    width: 56px;
+    padding: 4px 6px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    background: var(--input-bg-dark);
+    border: 1px solid var(--control-border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    text-align: center;
+}
+
+.asm-org-input:focus {
+    border-color: var(--editor-focus-border);
+    outline: none;
+}
+
+.asm-status {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.asm-status-ok {
+    color: var(--accent-green);
+}
+
+.asm-status-error {
+    color: var(--accent-red, #e03a3e);
+}
+
+/* Split container - editor pane above, output pane below */
+.asm-split-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.asm-editor-pane {
+    flex: 0 0 65%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.asm-output-pane {
+    flex: 0 0 35%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* Splitters */
+.asm-splitter {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--glass-bg-header);
+    z-index: 2;
+}
+
+.asm-splitter-h {
+    height: 6px;
+    cursor: row-resize;
+    border-top: 1px solid var(--glass-border-subtle);
+    border-bottom: 1px solid var(--glass-border-subtle);
+}
+
+.asm-splitter-v {
+    width: 6px;
+    cursor: col-resize;
+    border-left: 1px solid var(--glass-border-subtle);
+    border-right: 1px solid var(--glass-border-subtle);
+}
+
+.asm-splitter-handle {
+    border-radius: 1px;
+}
+
+.asm-splitter-h .asm-splitter-handle {
+    width: 32px;
+    height: 2px;
+    background: var(--glass-border);
+}
+
+.asm-splitter-v .asm-splitter-handle {
+    width: 2px;
+    height: 32px;
+    background: var(--glass-border);
+}
+
+.asm-splitter:hover .asm-splitter-handle {
+    background: var(--accent-green-border);
+}
+
+/* Output panels - side by side */
+.asm-output-panels {
+    display: flex;
+    flex-direction: row;
+    height: 100%;
+    min-height: 0;
+}
+
+.asm-panel {
+    flex: 1 1 50%;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.asm-panel-header {
+    flex-shrink: 0;
+    padding: 3px 8px;
+    font-family: var(--font-sans);
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-muted);
+    background: var(--glass-bg-header);
+    border-bottom: 1px solid var(--glass-border-subtle);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.asm-panel-content {
+    flex: 1;
+    overflow: auto;
+    background: var(--editor-bg);
+}
+
+.asm-panel-empty {
+    padding: 12px;
+    font-family: var(--font-sans);
+    font-size: 11px;
+    color: var(--text-muted);
+    text-align: center;
+    opacity: 0.6;
+}
+
+/* Symbol table */
+.asm-symbol-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--font-mono);
+    font-size: 11px;
+}
+
+.asm-symbol-table thead th {
+    position: sticky;
+    top: 0;
+    padding: 3px 8px;
+    font-family: var(--font-sans);
+    font-size: 9px;
+    font-weight: 500;
+    color: var(--text-muted);
+    text-align: left;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    background: var(--glass-bg-header);
+    border-bottom: 1px solid var(--glass-border-subtle);
+}
+
+.asm-symbol-table tbody tr {
+    border-bottom: 1px solid var(--glass-border-subtle);
+}
+
+.asm-symbol-table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.asm-symbol-table tbody tr:hover {
+    background: var(--overlay-white-04, rgba(255, 255, 255, 0.04));
+}
+
+.asm-sym-name {
+    padding: 2px 8px;
+    color: var(--syntax-label, #d2a8ff);
+}
+
+.asm-sym-value {
+    padding: 2px 8px;
+    color: var(--syntax-data, #79c0ff);
+    text-align: right;
+}
+
+/* Hex output */
+.asm-hex-dump {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.5;
+    padding: 4px 0;
+}
+
+.asm-hex-row {
+    display: flex;
+    padding: 0 8px;
+    white-space: pre;
+}
+
+.asm-hex-row:hover {
+    background: var(--overlay-white-04, rgba(255, 255, 255, 0.04));
+}
+
+.asm-hex-addr {
+    color: var(--syntax-branch, #61bb46);
+    margin-right: 10px;
+    flex-shrink: 0;
+}
+
+.asm-hex-bytes {
+    color: var(--text-secondary);
+    flex-shrink: 0;
+}
+
+.asm-hex-ascii {
+    color: var(--syntax-load, #fdb827);
+    margin-left: 8px;
+    opacity: 0.7;
+}
+
+/* Panel content scrollbars */
+.asm-panel-content::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.asm-panel-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.asm-panel-content::-webkit-scrollbar-thumb {
+    background: var(--glass-border);
+    border-radius: 3px;
+}
+
+.asm-panel-content::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-green-border);
+}
+
+/* Editor wrapper with cycles gutter */
+.asm-editor-wrapper {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+
+.asm-editor-wrapper:focus-within {
+    border-color: var(--editor-focus-border);
+    box-shadow: 0 0 0 2px var(--editor-focus-shadow);
+}
+
+/* Cycles column with header */
+.asm-cycles-column {
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    width: 32px;
+    min-height: 0;
+    background: var(--glass-bg-header);
+    border-right: 1px solid var(--glass-border);
+}
+
+.asm-cycles-header {
+    flex-shrink: 0;
+    height: 8px;
+    padding: 0 6px 0 0;
+    font-family: var(--font-mono);
+    font-size: 8px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-tertiary);
+    text-align: right;
+    line-height: 8px;
+    user-select: none;
+}
+
+/* Cycles gutter */
+.asm-cycles-gutter {
+    flex: 1 1 0;
+    min-height: 0;
+    padding: 0;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--text-tertiary);
+    text-align: right;
+    overflow-y: scroll;
+    overflow-x: hidden;
+    user-select: none;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+}
+
+.asm-cycles-gutter::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
+}
+
+.asm-gutter-line {
+    height: 16.8px;
+    padding-right: 6px;
+    line-height: 16.8px;
+}
+
+/* Editor container - overlay technique for syntax highlighting */
+.asm-editor-container {
+    flex: 1;
+    position: relative;
+    min-height: 80px;
+    background: var(--editor-bg);
+    overflow: hidden;
+}
+
+
+/* Current line highlight bar */
+.asm-line-highlight {
+    position: absolute;
+    left: 0;
+    right: 0;
+    pointer-events: none;
+    background: var(--overlay-white-04, rgba(255, 255, 255, 0.04));
+    opacity: 0;
+    transition: opacity 0.12s;
+}
+
+.asm-line-highlight.visible {
+    opacity: 1;
+}
+
+/* Shared styles for textarea and highlight overlay */
+.asm-textarea,
+.asm-highlight {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    padding: 8px;
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.4;
+    white-space: pre;
+    overflow-wrap: normal;
+    word-wrap: normal;
+    box-sizing: border-box;
+    tab-size: 8;
+}
+
+/* Highlight layer - shows colored syntax */
+.asm-highlight {
+    pointer-events: none;
+    overflow: auto;
+    color: transparent;
+    background: transparent;
+}
+
+/* Textarea - transparent text, receives input */
+.asm-textarea {
+    color: transparent;
+    caret-color: var(--accent-green);
+    background: transparent;
+    border: none;
+    resize: none;
+    outline: none;
+    z-index: 1;
+    overflow: auto;
+}
+
+.asm-textarea::placeholder {
+    color: var(--editor-placeholder);
+}
+
+/* Error line background highlight */
+.asm-error-line {
+    background: var(--accent-red-bg, rgba(224, 58, 62, 0.12));
+    box-shadow:
+        -1000px 0 0 var(--accent-red-bg, rgba(224, 58, 62, 0.12)),
+        1000px 0 0 var(--accent-red-bg, rgba(224, 58, 62, 0.12));
+    border-left: 3px solid var(--accent-red, #e03a3e);
+    margin-left: -3px;
+    padding-left: 3px;
+}
+
+/* Errors overlay - positioned at right edge, scrolls vertically */
+.asm-errors-overlay {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    pointer-events: none;
+    z-index: 2;
+}
+
+.asm-error-msg {
+    position: absolute;
+    right: 4px;
+    padding: 2px 8px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    line-height: 1.4;
+    color: var(--accent-red, #e03a3e);
+    background: var(--glass-bg, rgba(30, 30, 30, 0.95));
+    border: 1px solid var(--accent-red-border, rgba(224, 58, 62, 0.4));
+    border-radius: 3px;
+    white-space: nowrap;
+}
+
+/* Toolbar buttons */
+.asm-btn {
+    padding: 5px 10px;
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 500;
+    background: var(--glass-bg-header);
+    border: 1px solid var(--control-border);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+
+.asm-btn:hover {
+    background: var(--glass-border);
+    color: var(--text-primary);
+}
+
+.asm-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.asm-assemble-btn:hover {
+    background: var(--accent-blue-bg-strong, rgba(0, 157, 220, 0.15));
+    border-color: var(--accent-blue-border, rgba(0, 157, 220, 0.4));
+    color: var(--accent-blue, #009DDC);
+}
+
+.asm-load-btn:hover:not(:disabled) {
+    background: var(--accent-green-bg-strong);
+    border-color: var(--accent-green-border);
+    color: var(--accent-green);
+}
+
+.asm-btn-success {
+    background: var(--accent-green-bg-stronger) !important;
+    border-color: rgba(63, 185, 80, 0.6) !important;
+    color: var(--accent-green) !important;
+    animation: asm-load-pulse 0.3s ease-out;
+}
+
+@keyframes asm-load-pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.03);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Column indicator */
+.asm-column-indicator {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    margin-left: auto;
+    white-space: nowrap;
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    background: var(--glass-bg-header);
+    border: 1px solid var(--glass-border-subtle);
+}
+
+.asm-col-label {
+    color: var(--syntax-label, #d2a8ff);
+}
+
+.asm-col-opcode {
+    color: var(--syntax-keyword, #ff7b72);
+}
+
+.asm-col-operand {
+    color: var(--syntax-data, #79c0ff);
+}
+
+.asm-col-comment {
+    color: var(--syntax-comment, #8b949e);
+}
+
+/* Assembler autocomplete dropdown */
+.asm-autocomplete-dropdown {
+    position: absolute;
+    z-index: 1000;
+    display: none;
+    width: 260px;
+    background: rgba(22, 27, 34, 0.98);
+    border: 1px solid var(--accent-green-border);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+}
+
+.asm-autocomplete-dropdown.visible {
+    display: block;
+}
+
+.asm-autocomplete-dropdown .autocomplete-list {
+    max-height: 180px;
+    overflow-y: auto;
+}
+
+.asm-autocomplete-dropdown .autocomplete-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 10px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--glass-border-subtle);
+}
+
+.asm-autocomplete-dropdown .autocomplete-item:last-child {
+    border-bottom: none;
+}
+
+.asm-autocomplete-dropdown .autocomplete-item:hover {
+    background: var(--accent-green-bg);
+}
+
+.asm-autocomplete-dropdown .autocomplete-item.selected {
+    background: rgba(63, 185, 80, 0.25);
+}
+
+.asm-autocomplete-dropdown .autocomplete-keyword {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.asm-autocomplete-dropdown .autocomplete-keyword .match {
+    color: var(--accent-green);
+    font-weight: 700;
+}
+
+.asm-autocomplete-dropdown .autocomplete-category {
+    font-family: var(--font-sans);
+    font-size: 9px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    opacity: 0.7;
+}
+
+/* Category colours matching syntax highlighting */
+.asm-autocomplete-dropdown .autocomplete-keyword.mer-branch {
+    color: var(--syntax-branch, #61bb46);
+}
+
+.asm-autocomplete-dropdown .autocomplete-keyword.mer-load {
+    color: var(--syntax-load, #fdb827);
+}
+
+.asm-autocomplete-dropdown .autocomplete-keyword.mer-math {
+    color: var(--syntax-math, #f5821f);
+}
+
+.asm-autocomplete-dropdown .autocomplete-keyword.mer-stack {
+    color: var(--syntax-stack, #963d97);
+}
+
+.asm-autocomplete-dropdown .autocomplete-keyword.mer-flag {
+    color: var(--syntax-flag, #009ddc);
+}
+
+.asm-autocomplete-dropdown .autocomplete-keyword.mer-directive {
+    color: var(--syntax-keyword, #ff7b72);
+}
+
+.asm-autocomplete-dropdown .autocomplete-keyword.mer-macro {
+    color: var(--syntax-data, #79c0ff);
+}
+
+.asm-autocomplete-dropdown .autocomplete-keyword.mer-label {
+    color: var(--syntax-label, #d2a8ff);
+}
+
+.asm-autocomplete-dropdown .autocomplete-keyword.mer-local {
+    color: var(--syntax-local, #ffa657);
+}
+
+.asm-autocomplete-dropdown .autocomplete-hint {
+    padding: 6px 10px;
+    background: rgba(33, 38, 45, 0.8);
+    border-top: 1px solid var(--separator-bg);
+}
+
+.asm-autocomplete-dropdown .hint-syntax {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--syntax-keyword);
+    margin-bottom: 2px;
+}
+
+.asm-autocomplete-dropdown .hint-desc {
+    font-family: var(--font-sans);
+    font-size: 9px;
+    color: var(--text-muted);
+}
+
+.asm-autocomplete-dropdown .autocomplete-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.asm-autocomplete-dropdown .autocomplete-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.asm-autocomplete-dropdown .autocomplete-list::-webkit-scrollbar-thumb {
+    background: var(--glass-border);
+    border-radius: 3px;
+}
+
+.asm-autocomplete-dropdown .autocomplete-list::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-green-border);
+}

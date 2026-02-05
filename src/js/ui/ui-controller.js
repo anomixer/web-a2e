@@ -288,6 +288,7 @@ export class UIController {
       mockingboard: "mockingboard-debug",
       "mouse-card": "mouse-card-debug",
       basic: "basic-program",
+      assembler: "assembler-editor",
     };
 
     debugMenu.querySelectorAll(".header-menu-item").forEach((item) => {
