@@ -8,6 +8,7 @@
 import { BaseWindow } from "../windows/base-window.js";
 import { highlightMerlinSourceInline } from "../utils/merlin-highlighting.js";
 import { MerlinEditorSupport } from "../utils/merlin-editor-support.js";
+import { ROM_ROUTINES, ROM_CATEGORIES, searchRoutines, getRoutinesByCategory } from "../data/apple2-rom-routines.js";
 
 export class AssemblerEditorWindow extends BaseWindow {
   constructor(wasmModule, breakpointManager) {
@@ -43,6 +44,9 @@ export class AssemblerEditorWindow extends BaseWindow {
             </button>
             <button class="asm-btn asm-load-btn" disabled title="Load assembled code into memory">
               <span class="asm-btn-icon">↓</span> Load
+            </button>
+            <button class="asm-btn asm-rom-btn" title="ROM Routines Reference (F2)">
+              <span class="asm-btn-icon">📖</span> ROM
             </button>
           </div>
           <div class="asm-toolbar-separator"></div>
@@ -133,6 +137,31 @@ export class AssemblerEditorWindow extends BaseWindow {
           <span class="asm-shortcut"><kbd>⌘D</kbd> Duplicate</span>
           <span class="asm-shortcut"><kbd>⌘↵</kbd> Assemble</span>
           <span class="asm-shortcut"><kbd>F9</kbd> Breakpoint</span>
+          <span class="asm-shortcut"><kbd>F2</kbd> ROM Reference</span>
+        </div>
+        <div class="asm-rom-panel hidden">
+          <div class="asm-rom-header">
+            <span class="asm-rom-title">ROM Routines</span>
+            <button class="asm-rom-close" title="Close (Esc)">×</button>
+          </div>
+          <div class="asm-rom-search-bar">
+            <input type="text" class="asm-rom-search" placeholder="Search routines..." spellcheck="false" />
+            <select class="asm-rom-category">
+              <option value="All">All Categories</option>
+            </select>
+          </div>
+          <div class="asm-rom-list"></div>
+          <div class="asm-rom-detail hidden">
+            <div class="asm-rom-detail-header">
+              <button class="asm-rom-back" title="Back to list">← Back</button>
+              <span class="asm-rom-detail-name"></span>
+            </div>
+            <div class="asm-rom-detail-content"></div>
+            <div class="asm-rom-detail-actions">
+              <button class="asm-btn asm-rom-insert-equ">Insert EQU</button>
+              <button class="asm-btn asm-rom-insert-jsr">Insert JSR</button>
+            </div>
+          </div>
         </div>
       </div>
     `;
@@ -156,6 +185,20 @@ export class AssemblerEditorWindow extends BaseWindow {
     this.hexCount = this.contentElement.querySelector(".asm-hex-panel .asm-panel-count");
     this.columnGuides = this.contentElement.querySelectorAll(".asm-column-guide");
     this.editorHeader = this.contentElement.querySelector(".asm-editor-header");
+
+    // ROM panel elements
+    this.romBtn = this.contentElement.querySelector(".asm-rom-btn");
+    this.romPanel = this.contentElement.querySelector(".asm-rom-panel");
+    this.romSearch = this.contentElement.querySelector(".asm-rom-search");
+    this.romCategory = this.contentElement.querySelector(".asm-rom-category");
+    this.romList = this.contentElement.querySelector(".asm-rom-list");
+    this.romDetail = this.contentElement.querySelector(".asm-rom-detail");
+    this.romDetailName = this.contentElement.querySelector(".asm-rom-detail-name");
+    this.romDetailContent = this.contentElement.querySelector(".asm-rom-detail-content");
+    this.selectedRoutine = null;
+
+    // Initialize ROM panel
+    this.initRomPanel();
 
     const editorContainer = this.contentElement.querySelector(".asm-editor-scroll-area");
 
@@ -248,12 +291,15 @@ export class AssemblerEditorWindow extends BaseWindow {
       }
     });
 
-    // F9 keyboard shortcut for breakpoint toggle
+    // F9 keyboard shortcut for breakpoint toggle, F2 for ROM reference
     this.textarea.addEventListener("keydown", (e) => {
       if (e.key === "F9") {
         e.preventDefault();
         const lineNumber = this.getCurrentLineNumber();
         this.toggleBreakpoint(lineNumber);
+      } else if (e.key === "F2") {
+        e.preventDefault();
+        this.toggleRomPanel();
       }
     });
 
@@ -1676,6 +1722,269 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
     }
 
     this.updateGutter();
+  }
+
+  // ============================================================================
+  // ROM Routines Panel
+  // ============================================================================
+
+  initRomPanel() {
+    // Populate category dropdown
+    ROM_CATEGORIES.forEach(cat => {
+      const opt = document.createElement("option");
+      opt.value = cat;
+      opt.textContent = cat === "All" ? "All Categories" : cat;
+      this.romCategory.appendChild(opt);
+    });
+
+    // ROM button click
+    this.romBtn.addEventListener("click", () => this.toggleRomPanel());
+
+    // Close button
+    this.romPanel.querySelector(".asm-rom-close").addEventListener("click", () => {
+      this.hideRomPanel();
+    });
+
+    // Search input
+    this.romSearch.addEventListener("input", () => this.filterRomRoutines());
+
+    // Category filter
+    this.romCategory.addEventListener("change", () => this.filterRomRoutines());
+
+    // Back button in detail view
+    this.romPanel.querySelector(".asm-rom-back").addEventListener("click", () => {
+      this.romDetail.classList.add("hidden");
+      this.romList.classList.remove("hidden");
+    });
+
+    // Insert buttons
+    this.romPanel.querySelector(".asm-rom-insert-equ").addEventListener("click", () => {
+      if (this.selectedRoutine) this.insertRoutineEqu(this.selectedRoutine);
+    });
+    this.romPanel.querySelector(".asm-rom-insert-jsr").addEventListener("click", () => {
+      if (this.selectedRoutine) this.insertRoutineJsr(this.selectedRoutine);
+    });
+
+    // Escape key to close panel
+    this.romPanel.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        this.hideRomPanel();
+      }
+    });
+
+    // Populate initial list
+    this.renderRomList(ROM_ROUTINES);
+  }
+
+  toggleRomPanel() {
+    if (this.romPanel.classList.contains("hidden")) {
+      this.showRomPanel();
+    } else {
+      this.hideRomPanel();
+    }
+  }
+
+  showRomPanel() {
+    this.romPanel.classList.remove("hidden");
+    this.romSearch.focus();
+    this.romSearch.select();
+  }
+
+  hideRomPanel() {
+    this.romPanel.classList.add("hidden");
+    this.romDetail.classList.add("hidden");
+    this.romList.classList.remove("hidden");
+    this.textarea.focus();
+  }
+
+  filterRomRoutines() {
+    const query = this.romSearch.value.trim();
+    const category = this.romCategory.value;
+
+    let routines;
+    if (query) {
+      routines = searchRoutines(query);
+      if (category !== "All") {
+        routines = routines.filter(r => r.category === category);
+      }
+    } else {
+      routines = getRoutinesByCategory(category);
+    }
+
+    this.renderRomList(routines);
+  }
+
+  renderRomList(routines) {
+    if (routines.length === 0) {
+      this.romList.innerHTML = `
+        <div class="asm-rom-empty">
+          <div class="asm-rom-empty-icon">🔍</div>
+          <div class="asm-rom-empty-text">No routines found</div>
+        </div>`;
+      return;
+    }
+
+    const html = routines.map(r => `
+      <div class="asm-rom-item" data-name="${r.name}">
+        <div class="asm-rom-item-header">
+          <span class="asm-rom-item-name">${r.name}</span>
+          <span class="asm-rom-item-addr">$${r.address.toString(16).toUpperCase().padStart(4, "0")}</span>
+        </div>
+        <div class="asm-rom-item-desc">${r.description}</div>
+        <div class="asm-rom-item-cat">${r.category}</div>
+      </div>
+    `).join("");
+
+    this.romList.innerHTML = html;
+
+    // Add click handlers
+    this.romList.querySelectorAll(".asm-rom-item").forEach(item => {
+      item.addEventListener("click", () => {
+        const name = item.dataset.name;
+        const routine = ROM_ROUTINES.find(r => r.name === name);
+        if (routine) this.showRoutineDetail(routine);
+      });
+    });
+  }
+
+  showRoutineDetail(routine) {
+    this.selectedRoutine = routine;
+    this.romDetailName.textContent = `${routine.name} ($${routine.address.toString(16).toUpperCase().padStart(4, "0")})`;
+
+    let html = `
+      <div class="asm-rom-section">
+        <div class="asm-rom-section-title">Description</div>
+        <div class="asm-rom-section-content">${routine.description}</div>
+      </div>
+    `;
+
+    if (routine.inputs && routine.inputs.length > 0) {
+      html += `
+        <div class="asm-rom-section">
+          <div class="asm-rom-section-title">Inputs</div>
+          <div class="asm-rom-section-content">
+            ${routine.inputs.map(i => `
+              <div class="asm-rom-param">
+                <span class="asm-rom-param-reg">${i.register}</span>
+                <span class="asm-rom-param-desc">${i.description}</span>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      `;
+    }
+
+    if (routine.outputs && routine.outputs.length > 0) {
+      html += `
+        <div class="asm-rom-section">
+          <div class="asm-rom-section-title">Outputs</div>
+          <div class="asm-rom-section-content">
+            ${routine.outputs.map(o => `
+              <div class="asm-rom-param">
+                <span class="asm-rom-param-reg">${o.register}</span>
+                <span class="asm-rom-param-desc">${o.description}</span>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      `;
+    }
+
+    if (routine.preserves && routine.preserves.length > 0) {
+      html += `
+        <div class="asm-rom-section asm-rom-section-inline">
+          <span class="asm-rom-section-label">Preserves:</span>
+          <span class="asm-rom-regs">${routine.preserves.join(", ")}</span>
+        </div>
+      `;
+    }
+
+    if (routine.clobbers && routine.clobbers.length > 0) {
+      html += `
+        <div class="asm-rom-section asm-rom-section-inline">
+          <span class="asm-rom-section-label">Clobbers:</span>
+          <span class="asm-rom-regs asm-rom-regs-warn">${routine.clobbers.join(", ")}</span>
+        </div>
+      `;
+    }
+
+    if (routine.notes) {
+      html += `
+        <div class="asm-rom-section">
+          <div class="asm-rom-section-title">Notes</div>
+          <div class="asm-rom-section-content asm-rom-notes">${routine.notes}</div>
+        </div>
+      `;
+    }
+
+    if (routine.example) {
+      html += `
+        <div class="asm-rom-section">
+          <div class="asm-rom-section-title">Example</div>
+          <pre class="asm-rom-example">${this.escapeHtml(routine.example)}</pre>
+        </div>
+      `;
+    }
+
+    this.romDetailContent.innerHTML = html;
+    this.romList.classList.add("hidden");
+    this.romDetail.classList.remove("hidden");
+  }
+
+  insertRoutineEqu(routine) {
+    const equ = `${routine.name.padEnd(8)} EQU  $${routine.address.toString(16).toUpperCase().padStart(4, "0")}`;
+    this.insertAtCursor(equ + "\n");
+    this.hideRomPanel();
+  }
+
+  insertRoutineJsr(routine) {
+    // Check if EQU already exists
+    const hasEqu = this.textarea.value.toUpperCase().includes(`${routine.name.toUpperCase()} `);
+    let text = "";
+
+    if (!hasEqu) {
+      // Insert EQU at top (after any header comments) and JSR at cursor
+      const lines = this.textarea.value.split("\n");
+      let insertIdx = 0;
+
+      // Find first non-comment, non-empty line
+      for (let i = 0; i < lines.length; i++) {
+        const trimmed = lines[i].trim();
+        if (trimmed && !trimmed.startsWith("*") && !trimmed.startsWith(";")) {
+          insertIdx = i;
+          break;
+        }
+        insertIdx = i + 1;
+      }
+
+      const equ = `${routine.name.padEnd(8)} EQU  $${routine.address.toString(16).toUpperCase().padStart(4, "0")}`;
+      lines.splice(insertIdx, 0, equ);
+      this.textarea.value = lines.join("\n");
+    }
+
+    // Insert JSR at cursor
+    text = `         JSR  ${routine.name}`;
+    this.insertAtCursor(text);
+    this.hideRomPanel();
+    this.updateHighlighting();
+    this.updateGutter();
+  }
+
+  insertAtCursor(text) {
+    const start = this.textarea.selectionStart;
+    const end = this.textarea.selectionEnd;
+    const value = this.textarea.value;
+
+    // If not at start of line, add newline first
+    let prefix = "";
+    if (start > 0 && value[start - 1] !== "\n") {
+      prefix = "\n";
+    }
+
+    this.textarea.value = value.substring(0, start) + prefix + text + value.substring(end);
+    const newPos = start + prefix.length + text.length;
+    this.textarea.selectionStart = this.textarea.selectionEnd = newPos;
+    this.textarea.focus();
   }
 
   update() {

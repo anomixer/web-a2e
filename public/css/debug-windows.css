@@ -4907,6 +4907,18 @@ input.rb-detail {
     color: var(--accent-green);
 }
 
+.asm-rom-btn {
+    background: var(--accent-purple-bg, rgba(150, 61, 151, 0.1));
+    border-color: var(--accent-purple-border, rgba(150, 61, 151, 0.25));
+    color: var(--accent-purple, #963D97);
+}
+
+.asm-rom-btn:hover {
+    background: var(--accent-purple-bg-strong, rgba(150, 61, 151, 0.2));
+    border-color: var(--accent-purple-border, rgba(150, 61, 151, 0.4));
+    color: var(--accent-purple, #963D97);
+}
+
 .asm-btn-success {
     background: var(--accent-green-bg-stronger) !important;
     border-color: rgba(63, 185, 80, 0.6) !important;
@@ -5131,4 +5143,338 @@ input.rb-detail {
     border: 1px solid var(--glass-border);
     border-radius: 3px;
     box-shadow: 0 1px 0 var(--glass-border);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ROM ROUTINES PANEL - Reference panel for Apple II ROM calls
+   ═══════════════════════════════════════════════════════════════ */
+.asm-rom-panel {
+    position: absolute;
+    top: 40px;
+    right: 0;
+    bottom: 24px;
+    width: 320px;
+    display: flex;
+    flex-direction: column;
+    background: var(--window-bg);
+    border-left: 1px solid var(--glass-border);
+    box-shadow: -4px 0 12px rgba(0, 0, 0, 0.2);
+    z-index: 100;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.asm-rom-panel.hidden {
+    display: none;
+}
+
+.asm-rom-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--glass-bg-header);
+    border-bottom: 1px solid var(--glass-border-subtle);
+}
+
+.asm-rom-title {
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.asm-rom-close {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-tertiary);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 3px;
+}
+
+.asm-rom-close:hover {
+    background: var(--glass-border);
+    color: var(--text-primary);
+}
+
+.asm-rom-search-bar {
+    display: flex;
+    gap: 8px;
+    padding: 8px;
+    background: var(--glass-bg);
+    border-bottom: 1px solid var(--glass-border-subtle);
+}
+
+.asm-rom-search {
+    flex: 1;
+    padding: 6px 10px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-primary);
+    background: var(--editor-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 4px;
+    outline: none;
+}
+
+.asm-rom-search:focus {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 2px var(--accent-blue-bg);
+}
+
+.asm-rom-category {
+    padding: 4px 8px;
+    font-family: var(--font-sans);
+    font-size: 10px;
+    color: var(--text-secondary);
+    background: var(--glass-bg-header);
+    border: 1px solid var(--glass-border);
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.asm-rom-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px;
+}
+
+.asm-rom-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    color: var(--text-tertiary);
+}
+
+.asm-rom-empty-icon {
+    font-size: 32px;
+    margin-bottom: 8px;
+    opacity: 0.5;
+}
+
+.asm-rom-empty-text {
+    font-size: 12px;
+}
+
+.asm-rom-item {
+    padding: 8px 10px;
+    margin-bottom: 4px;
+    background: var(--glass-bg);
+    border: 1px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.asm-rom-item:hover {
+    background: var(--glass-bg-header);
+    border-color: var(--glass-border);
+}
+
+.asm-rom-item-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+}
+
+.asm-rom-item-name {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent-blue);
+}
+
+.asm-rom-item-addr {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-tertiary);
+}
+
+.asm-rom-item-desc {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    margin-bottom: 4px;
+}
+
+.asm-rom-item-cat {
+    font-family: var(--font-sans);
+    font-size: 9px;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Detail view */
+.asm-rom-detail {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.asm-rom-detail.hidden {
+    display: none;
+}
+
+.asm-rom-detail-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--glass-bg);
+    border-bottom: 1px solid var(--glass-border-subtle);
+}
+
+.asm-rom-back {
+    padding: 4px 8px;
+    font-family: var(--font-sans);
+    font-size: 10px;
+    color: var(--text-secondary);
+    background: var(--glass-bg-header);
+    border: 1px solid var(--glass-border);
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.asm-rom-back:hover {
+    background: var(--glass-border);
+    color: var(--text-primary);
+}
+
+.asm-rom-detail-name {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent-blue);
+}
+
+.asm-rom-detail-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+}
+
+.asm-rom-section {
+    margin-bottom: 12px;
+}
+
+.asm-rom-section-title {
+    font-family: var(--font-sans);
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-tertiary);
+    margin-bottom: 4px;
+}
+
+.asm-rom-section-content {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.asm-rom-section-inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.asm-rom-section-label {
+    font-family: var(--font-sans);
+    font-size: 10px;
+    color: var(--text-tertiary);
+}
+
+.asm-rom-param {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 4px 0;
+}
+
+.asm-rom-param-reg {
+    flex-shrink: 0;
+    min-width: 40px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent-orange);
+}
+
+.asm-rom-param-desc {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.asm-rom-regs {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--accent-green);
+}
+
+.asm-rom-regs-warn {
+    color: var(--accent-orange);
+}
+
+.asm-rom-notes {
+    font-style: italic;
+    color: var(--text-tertiary);
+}
+
+.asm-rom-example {
+    margin: 4px 0 0 0;
+    padding: 8px 10px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    line-height: 1.4;
+    color: var(--text-secondary);
+    background: var(--editor-bg);
+    border: 1px solid var(--glass-border-subtle);
+    border-radius: 4px;
+    overflow-x: auto;
+    white-space: pre;
+}
+
+.asm-rom-detail-actions {
+    display: flex;
+    gap: 8px;
+    padding: 12px;
+    background: var(--glass-bg-header);
+    border-top: 1px solid var(--glass-border-subtle);
+}
+
+.asm-rom-detail-actions .asm-btn {
+    flex: 1;
+}
+
+.asm-rom-insert-equ {
+    background: var(--accent-purple-bg, rgba(150, 61, 151, 0.1));
+    border-color: var(--accent-purple-border, rgba(150, 61, 151, 0.25));
+    color: var(--accent-purple, #963D97);
+}
+
+.asm-rom-insert-equ:hover {
+    background: var(--accent-purple-bg-strong, rgba(150, 61, 151, 0.2));
+}
+
+.asm-rom-insert-jsr {
+    background: var(--accent-green-bg, rgba(97, 187, 70, 0.1));
+    border-color: var(--accent-green-border, rgba(97, 187, 70, 0.25));
+    color: var(--accent-green, #61BB46);
+}
+
+.asm-rom-insert-jsr:hover {
+    background: var(--accent-green-bg-strong, rgba(97, 187, 70, 0.2));
 }
