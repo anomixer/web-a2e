@@ -10,7 +10,7 @@ import { highlightBasicSource } from "../utils/basic-highlighting.js";
 import { BasicAutocomplete } from "../utils/basic-autocomplete.js";
 
 export class BasicProgramWindow extends BaseWindow {
-  constructor(wasmModule, inputHandler) {
+  constructor(wasmModule, inputHandler, isRunningCallback) {
     super({
       id: "basic-program",
       title: "BASIC Program",
@@ -22,6 +22,8 @@ export class BasicProgramWindow extends BaseWindow {
     });
     this.wasmModule = wasmModule;
     this.inputHandler = inputHandler;
+    this.isRunningCallback = isRunningCallback;
+    this.isPasting = false;
   }
 
   renderContent() {
@@ -82,9 +84,13 @@ Example:
       this.lineHighlight.classList.remove("visible");
     });
 
-    // Insert button
+    // Insert/Cancel button
     this.insertBtn.addEventListener("click", () => {
-      this.loadIntoMemory();
+      if (this.isPasting) {
+        this.cancelPaste();
+      } else {
+        this.loadIntoMemory();
+      }
     });
 
     // Clear button
@@ -173,6 +179,12 @@ Example:
    * pointer management, and interpreter state — guaranteeing correctness.
    */
   loadIntoMemory() {
+    // Check if emulator is running
+    if (this.isRunningCallback && !this.isRunningCallback()) {
+      this.showErrorFeedback("Emulator is off");
+      return;
+    }
+
     const text = this.textarea.value;
     if (!text.trim()) return;
 
@@ -191,11 +203,53 @@ Example:
       }
     }
 
+    const lineCount = lines.length;
+
     // Type through the emulator's keyboard input system at 8x speed
-    this.inputHandler.queueTextInput(inputText, { speedMultiplier: 8 });
+    this.inputHandler.queueTextInput(inputText, {
+      speedMultiplier: 8,
+      onStart: () => {
+        this.isPasting = true;
+        this.insertBtn.textContent = "Cancel";
+        this.insertBtn.classList.add("basic-btn-cancel");
+      },
+      onComplete: (cancelled) => {
+        this.isPasting = false;
+        this.insertBtn.classList.remove("basic-btn-cancel");
+        if (cancelled) {
+          this.showCancelledFeedback();
+        } else {
+          this.showLoadedFeedback(lineCount);
+        }
+      }
+    });
 
     console.log(`BASIC program queued for input: ${lines.length} lines`);
-    this.showLoadedFeedback(lines.length);
+  }
+
+  cancelPaste() {
+    this.inputHandler.cancelPaste();
+  }
+
+  showErrorFeedback(message) {
+    const originalText = this.insertBtn.textContent;
+    this.insertBtn.textContent = message;
+    this.insertBtn.classList.add("basic-btn-error");
+
+    setTimeout(() => {
+      this.insertBtn.textContent = originalText;
+      this.insertBtn.classList.remove("basic-btn-error");
+    }, 1500);
+  }
+
+  showCancelledFeedback() {
+    this.insertBtn.textContent = "Cancelled";
+    this.insertBtn.classList.add("basic-btn-error");
+
+    setTimeout(() => {
+      this.insertBtn.textContent = "Paste into Emulator";
+      this.insertBtn.classList.remove("basic-btn-error");
+    }, 1500);
   }
 
   /**

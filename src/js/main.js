@@ -187,6 +187,7 @@ class AppleIIeEmulator {
       const basicProgramWindow = new BasicProgramWindow(
         this.wasmModule,
         this.inputHandler,
+        () => this.isRunning(),
       );
       basicProgramWindow.create();
       this.windowManager.register(basicProgramWindow);

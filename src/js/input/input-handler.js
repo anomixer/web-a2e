@@ -219,6 +219,10 @@ export class InputHandler {
     } else {
       this.restorePasteSpeed();
       this.pasteTimer = null;
+      if (this.pasteOnComplete) {
+        this.pasteOnComplete(false); // false = completed normally
+        this.pasteOnComplete = null;
+      }
     }
   }
 
@@ -246,11 +250,18 @@ export class InputHandler {
     this.pasteTimer = null;
     this.pasteQueue = [];
     this.restorePasteSpeed();
+    if (this.pasteOnComplete) {
+      this.pasteOnComplete(true); // true = cancelled
+      this.pasteOnComplete = null;
+    }
   }
 
   // Queue text for programmatic input (used by BasicProgramWindow)
   // speedMultiplier: emulation speed during input (1=normal, 8=8x)
-  queueTextInput(text, { speedMultiplier = 8 } = {}) {
+  // onStart: callback when pasting begins
+  // onComplete: callback when pasting finishes (or is cancelled)
+  queueTextInput(text, { speedMultiplier = 8, onStart = null, onComplete = null } = {}) {
+    this.pasteOnComplete = onComplete;
     this.setPasteSpeed(speedMultiplier);
 
     for (const char of text) {
@@ -262,8 +273,14 @@ export class InputHandler {
 
     // Start processing queue if not already running
     if (!this.pasteTimer && this.pasteQueue.length > 0) {
+      if (onStart) onStart();
       this.processPasteQueue();
     }
+  }
+
+  // Check if a paste operation is in progress
+  isPasting() {
+    return this.pasteQueue.length > 0 || this.pasteTimer !== null;
   }
 
   // Detect if we're on a mobile/touch device

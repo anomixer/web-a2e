@@ -3163,6 +3163,22 @@
     color: var(--accent-red);
 }
 
+.basic-btn-cancel {
+    background: var(--accent-orange-bg-strong) !important;
+    border-color: var(--accent-orange-border) !important;
+    color: var(--accent-orange) !important;
+}
+
+.basic-btn-cancel:hover {
+    background: var(--accent-orange-bg-stronger) !important;
+}
+
+.basic-btn-error {
+    background: var(--accent-red-bg-stronger) !important;
+    border-color: var(--accent-red-border) !important;
+    color: var(--accent-red) !important;
+}
+
 /* BASIC Autocomplete Dropdown */
 .basic-autocomplete-dropdown {
     position: absolute;
