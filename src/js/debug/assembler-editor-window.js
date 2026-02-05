@@ -1422,9 +1422,60 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
   validateAllLines() {
     this.syntaxErrors.clear();
     const lines = this.textarea.value.split('\n');
-    for (let i = 1; i <= lines.length; i++) {
-      this.validateLine(i);
+
+    // First pass: collect all symbol definitions to detect duplicates
+    const symbolDefs = new Map(); // symbol name -> first line number
+
+    for (let i = 0; i < lines.length; i++) {
+      const lineNumber = i + 1;
+      const label = this.extractLabel(lines[i]);
+      if (label) {
+        const upperLabel = label.toUpperCase();
+        if (symbolDefs.has(upperLabel)) {
+          const firstLine = symbolDefs.get(upperLabel);
+          this.syntaxErrors.set(lineNumber, `Duplicate symbol: ${label} (first defined on line ${firstLine})`);
+        } else {
+          symbolDefs.set(upperLabel, lineNumber);
+        }
+      }
     }
+
+    // Second pass: validate each line for other syntax errors
+    for (let i = 1; i <= lines.length; i++) {
+      // Skip lines that already have duplicate symbol errors
+      if (!this.syntaxErrors.has(i)) {
+        this.validateLine(i);
+      }
+    }
+  }
+
+  /**
+   * Extract label from a line (if present)
+   * Returns null if no label
+   */
+  extractLabel(line) {
+    // No label if line starts with whitespace or is empty
+    if (!line || line[0] === ' ' || line[0] === '\t') {
+      return null;
+    }
+
+    // Full-line comments have no label
+    const trimmed = line.trim();
+    if (trimmed.startsWith(';') || trimmed.startsWith('*')) {
+      return null;
+    }
+
+    // Extract first token (the label)
+    let label = '';
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === ' ' || ch === '\t') {
+        break;
+      }
+      label += ch;
+    }
+
+    return label || null;
   }
 
   updateHighlighting() {
