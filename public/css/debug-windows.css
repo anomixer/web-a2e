@@ -4887,6 +4887,22 @@ input.rb-detail {
     opacity: 0.8;
 }
 
+.asm-btn-icon-only {
+    padding: 6px 8px;
+    min-width: 28px;
+    justify-content: center;
+}
+
+.asm-btn-icon-only .asm-btn-icon {
+    font-size: 12px;
+    opacity: 1;
+}
+
+.asm-toolbar-file {
+    display: flex;
+    gap: 2px;
+}
+
 .asm-btn:hover {
     background: var(--glass-border);
     color: var(--text-primary);

@@ -38,6 +38,19 @@ export class AssemblerEditorWindow extends BaseWindow {
     return `
       <div class="asm-editor-content">
         <div class="asm-toolbar">
+          <div class="asm-toolbar-group asm-toolbar-file">
+            <button class="asm-btn asm-btn-icon-only asm-new-btn" title="New (⌘/Ctrl+N)">
+              <span class="asm-btn-icon">+</span>
+            </button>
+            <button class="asm-btn asm-btn-icon-only asm-open-btn" title="Open File (⌘/Ctrl+O)">
+              <span class="asm-btn-icon">📂</span>
+            </button>
+            <button class="asm-btn asm-btn-icon-only asm-save-btn" title="Save File (⌘/Ctrl+S)">
+              <span class="asm-btn-icon">💾</span>
+            </button>
+            <input type="file" class="asm-file-input" accept=".s,.asm,.a65,.txt" style="display:none" />
+          </div>
+          <div class="asm-toolbar-separator"></div>
           <div class="asm-toolbar-group asm-toolbar-actions">
             <button class="asm-btn asm-assemble-btn" title="Assemble (⌘/Ctrl+Enter)">
               <span class="asm-btn-icon">▶</span> Assemble
@@ -170,7 +183,12 @@ export class AssemblerEditorWindow extends BaseWindow {
     this.gutterContent = this.contentElement.querySelector(".asm-gutter-content");
     this.assembleBtn = this.contentElement.querySelector(".asm-assemble-btn");
     this.loadBtn = this.contentElement.querySelector(".asm-load-btn");
+    this.newBtn = this.contentElement.querySelector(".asm-new-btn");
+    this.openBtn = this.contentElement.querySelector(".asm-open-btn");
+    this.saveBtn = this.contentElement.querySelector(".asm-save-btn");
+    this.fileInput = this.contentElement.querySelector(".asm-file-input");
     this.statusSpan = this.contentElement.querySelector(".asm-status");
+    this.currentFileName = null;
     this.columnIndicator = this.contentElement.querySelector(".asm-column-indicator");
     this.cursorPosition = this.contentElement.querySelector(".asm-cursor-position");
     this.symbolsContent = this.contentElement.querySelector(".asm-symbols-content");
@@ -259,6 +277,12 @@ export class AssemblerEditorWindow extends BaseWindow {
     // Load button
     this.loadBtn.addEventListener("click", () => this.doLoad());
 
+    // File management buttons
+    this.newBtn.addEventListener("click", () => this.newFile());
+    this.openBtn.addEventListener("click", () => this.fileInput.click());
+    this.saveBtn.addEventListener("click", () => this.saveFile());
+    this.fileInput.addEventListener("change", (e) => this.openFile(e));
+
     // Editor support (Tab nav, smart enter, autocomplete, etc.)
     this.editorSupport = new MerlinEditorSupport(this.textarea, editorContainer, {
       onColumnChange: (name, col) => this.updateColumnIndicator(name, col),
@@ -285,8 +309,11 @@ export class AssemblerEditorWindow extends BaseWindow {
       }
     });
 
-    // F9 keyboard shortcut for breakpoint toggle, F2 for ROM reference
+    // Keyboard shortcuts
     this.textarea.addEventListener("keydown", (e) => {
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const modKey = isMac ? e.metaKey : e.ctrlKey;
+
       if (e.key === "F9") {
         e.preventDefault();
         const lineNumber = this.getCurrentLineNumber();
@@ -294,6 +321,15 @@ export class AssemblerEditorWindow extends BaseWindow {
       } else if (e.key === "F2") {
         e.preventDefault();
         this.toggleRomPanel();
+      } else if (modKey && e.key.toLowerCase() === "n") {
+        e.preventDefault();
+        this.newFile();
+      } else if (modKey && e.key.toLowerCase() === "o") {
+        e.preventDefault();
+        this.fileInput.click();
+      } else if (modKey && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        this.saveFile();
       }
     });
 
@@ -1785,6 +1821,88 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
       this.loadBtn.innerHTML = originalHtml;
       this.loadBtn.classList.remove("asm-btn-success");
     }, 1500);
+  }
+
+  /**
+   * Create a new empty file
+   */
+  newFile() {
+    if (this.textarea.value.trim() && !confirm("Clear current source and start new file?")) {
+      return;
+    }
+    this.textarea.value = "";
+    this.currentFileName = null;
+    this.updateTitle("Assembler");
+    this.updateHighlighting();
+    this.updateGutter();
+    this.errors.clear();
+    this.syntaxErrors.clear();
+    this.clearOutputPanels();
+    this.setStatus("", true);
+  }
+
+  /**
+   * Open a file from the local filesystem
+   */
+  openFile(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      this.textarea.value = e.target.result;
+      this.currentFileName = file.name;
+      this.updateTitle(`Assembler - ${file.name}`);
+      this.updateHighlighting();
+      this.validateAllLines();
+      this.encodeAllLineBytes();
+      this.updateGutter();
+      this.setStatus(`Opened: ${file.name}`, true);
+    };
+    reader.onerror = () => {
+      this.setStatus("Failed to read file", false);
+    };
+    reader.readAsText(file);
+
+    // Reset file input so the same file can be opened again
+    event.target.value = "";
+  }
+
+  /**
+   * Save the current source to a file
+   */
+  saveFile() {
+    const content = this.textarea.value;
+    if (!content.trim()) {
+      this.setStatus("Nothing to save", false);
+      return;
+    }
+
+    // Use current filename or prompt for one
+    let filename = this.currentFileName || "untitled.s";
+
+    // Create blob and download link
+    const blob = new Blob([content], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    this.setStatus(`Saved: ${filename}`, true);
+  }
+
+  /**
+   * Update the window title
+   */
+  updateTitle(title) {
+    const titleEl = this.windowElement?.querySelector(".window-title");
+    if (titleEl) {
+      titleEl.textContent = title;
+    }
   }
 
   setStatus(text, ok) {
