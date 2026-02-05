@@ -35,7 +35,13 @@ const WINDOW_CATEGORIES = [
       { id: 'memory-map', title: 'Memory Map' },
       { id: 'stack-viewer', title: 'Stack Viewer' },
       { id: 'zeropage-watch', title: 'Zero Page Watch' },
+    ],
+  },
+  {
+    label: 'Dev',
+    windows: [
       { id: 'basic-program', title: 'BASIC Program' },
+      { id: 'assembler-editor', title: 'Assembler' },
     ],
   },
   {
