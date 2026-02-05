@@ -9,7 +9,7 @@ A cycle-accurate Apple //e Enhanced emulator running in the browser using WebAss
 - **Multiple display modes** — Text (40/80 col), LoRes, Double LoRes, HiRes, Double HiRes, monochrome
 - **WebGL rendering** — Hardware-accelerated display with configurable CRT shader effects
 - **Audio-driven timing** — Web Audio API AudioWorklet drives frame timing at 48kHz
-- **Disk II controller** — DSK, DO, PO, NIB, and WOZ format support with write capability
+- **Disk II controller** — DSK, DO, PO, and WOZ format support with write capability
 - **Expansion cards** — Mockingboard sound card, Thunderclock Plus, Apple Mouse Interface Card
 - **File explorer** — Browse DOS 3.3 and ProDOS disk contents with BASIC detokenizer and disassembler
 - **Save states** — Autosave slot plus 5 manual save slots, stored in IndexedDB
@@ -73,7 +73,7 @@ npm run deploy        # Deploy to VPS via rsync
 
 1. Click **Power** to start the emulator
 2. Click on the screen to give it keyboard focus
-3. Use **Insert** buttons to load disk images (DSK, DO, PO, NIB, WOZ)
+3. Use **Insert** buttons to load disk images (DSK, DO, PO, WOZ)
 4. Type `PR#6` and press Return to boot from drive 1
 5. Or press **Ctrl+Reset** to enter Applesoft BASIC
 
@@ -143,7 +143,7 @@ The display settings window provides configurable CRT shader effects:
 
 ### Expansion Cards
 
-Cards are configured via the slot configuration window (File menu).
+Cards are configured via **View > Expansion Slots**.
 
 | Slot | Default | Available Cards |
 |------|---------|-----------------|
@@ -208,7 +208,7 @@ Single global `Emulator` instance in C++ (`wasm_interface.cpp`). JavaScript allo
 
 ## Debug Tools
 
-All debug windows are accessible from the Debug menu.
+All debug windows are accessible from the **Debug** menu.
 
 | Tool | Description |
 |------|-------------|
@@ -221,10 +221,29 @@ All debug windows are accessible from the Debug menu.
 | **Soft Switch Monitor** | Apple II soft switch states ($C000-$C0FF) |
 | **Mockingboard** | Unified channel-centric view: AY-3-8910 and VIA registers, inline waveforms, level meters, per-channel mute controls |
 | **Mouse Card** | PIA registers, position, mode, interrupt state |
-| **BASIC Program Viewer** | View and load BASIC programs in memory |
 | **Rule Builder** | Complex conditional breakpoints with C-style expressions |
 
 The CPU debugger supports breakpoints (conditional with expression evaluation), watchpoints, beam breakpoints (video position with wildcard-scanline support), execution tracing, and a call stack viewer. Labels and symbols are supported for both system routines and user-defined addresses. Debugger state (breakpoints, watches, settings) persists across save/load.
+
+## Dev Tools
+
+Development tools are accessible from the **Dev** menu.
+
+| Tool | Description |
+|------|-------------|
+| **BASIC Program** | Write, edit, and paste Applesoft BASIC programs into the emulator with syntax highlighting and autocomplete |
+| **Assembler** | Full 65C02 assembler with Merlin-style syntax, live validation, ROM routines reference, breakpoint support, and file save/load |
+
+### Assembler Features
+
+- **Syntax highlighting** for opcodes, directives, labels, operands, and comments
+- **Column guides** for Merlin's column-based format (Label, Opcode, Operand, Comment)
+- **Live validation** with inline error messages
+- **ROM Routines Reference** (F2) — searchable database of Apple II ROM routines with insert capability
+- **Breakpoints** — click gutter or press F9 to toggle breakpoints on instruction lines
+- **File operations** — New, Open, Save with Ctrl/Cmd+N/O/S shortcuts
+- **Symbols panel** — view all defined labels and their addresses
+- **Hex output** — view assembled machine code bytes
 
 ## Testing
 
@@ -271,13 +290,14 @@ web-a2e/
 │   │   ├── mmu/             # Memory management, soft switches
 │   │   ├── video/           # Per-scanline video rendering
 │   │   ├── audio/           # Speaker emulation
-│   │   ├── disk-image/      # Disk formats (DSK/DO/PO/NIB/WOZ), GCR encoding
+│   │   ├── disk-image/      # Disk formats (DSK/DO/PO/WOZ), GCR encoding
 │   │   ├── disassembler/    # 65C02 disassembler
 │   │   ├── input/           # Keyboard handling
 │   │   ├── cards/           # Expansion card system
 │   │   │   └── mockingboard/  # AY-3-8910 + VIA 6522
 │   │   ├── filesystem/      # DOS 3.3 and ProDOS parsers
 │   │   ├── basic/           # BASIC detokenizer
+│   │   ├── assembler/       # 65C02 assembler (Merlin-style syntax)
 │   │   ├── debug/           # Condition evaluator
 │   │   ├── emulator.cpp     # Core coordinator, state serialization
 │   │   └── types.hpp        # Shared constants
@@ -343,8 +363,7 @@ Requires WebAssembly, WebGL 2.0, Web Audio API (AudioWorklet), IndexedDB, and Se
 - **Hard disk emulation** — Virtual hard disk image for large ProDOS volumes
 
 ### Development Tools
-- **Integrated assembler** — Edit, assemble, and load 6502/65C02 code directly within the emulator
-- **Source-level debugging** — Load symbol files and step through assembly source
+- **Source-level debugging** — Step through assembly source with symbol mapping from assembler
 - **Profiler** — Cycle-accurate performance profiling with per-routine breakdown and heat maps
 - **I/O trace log** — Record and replay soft switch and card I/O activity
 
