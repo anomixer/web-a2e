@@ -184,7 +184,8 @@ export class DocumentationWindow extends BaseWindow {
           <li><strong>Memory:</strong> 128KB RAM (64KB main + 64KB auxiliary)</li>
           <li><strong>Video:</strong> All Apple //e display modes including Double Hi-Res</li>
           <li><strong>Storage:</strong> Two Disk II floppy drives</li>
-          <li><strong>Audio:</strong> Speaker with accurate timing</li>
+          <li><strong>Audio:</strong> Speaker with accurate timing, Mockingboard (dual AY-3-8910)</li>
+          <li><strong>Expansion:</strong> Mockingboard, Mouse Card, Thunderclock Plus</li>
           <li><strong>ROM:</strong> Apple //e Enhanced ROM set</li>
         </ul>
 
@@ -331,7 +332,7 @@ export class DocumentationWindow extends BaseWindow {
       <!-- Display Settings Section -->
       <section id="doc-display" class="documentation-section">
         <h3>Display Settings</h3>
-        <p>Click the <strong>Display</strong> button to open the Display Settings window with extensive CRT simulation options.</p>
+        <p>Open from <strong>View &gt; Display</strong> to access extensive CRT simulation options.</p>
 
         <h4>Display Modes</h4>
         <ul>
@@ -389,14 +390,13 @@ export class DocumentationWindow extends BaseWindow {
       <!-- Disk Drives Section -->
       <section id="doc-disks" class="documentation-section">
         <h3>Disk Drives</h3>
-        <p>The emulator includes two Disk II floppy drives, just like a real Apple //e system.</p>
+        <p>The emulator includes two Disk II floppy drives, just like a real Apple //e system. Open from <strong>View &gt; Disk Drives</strong>.</p>
 
         <h4>Supported Formats</h4>
         <div class="format-list">
           <div class="format-item"><code>.DSK</code><span>DOS 3.3 sector order (140KB)</span></div>
           <div class="format-item"><code>.DO</code><span>DOS order (same as .DSK)</span></div>
           <div class="format-item"><code>.PO</code><span>ProDOS sector order (140KB)</span></div>
-          <div class="format-item"><code>.NIB</code><span>Nibble format (232KB)</span></div>
           <div class="format-item"><code>.WOZ</code><span>WOZ format with copy protection</span></div>
         </div>
 
@@ -442,7 +442,7 @@ export class DocumentationWindow extends BaseWindow {
         <p>The File Explorer lets you browse the contents of disk images and view files without running programs.</p>
 
         <h4>Opening the File Explorer</h4>
-        <p>Click the <strong>folder icon</strong> in the toolbar. Select which drive to browse using the drive selector at the top.</p>
+        <p>Open from <strong>View &gt; File Explorer</strong> or click the <strong>folder icon</strong> in the toolbar. Select which drive to browse using the drive selector at the top.</p>
 
         <h4>Supported Disk Formats</h4>
         <ul>
@@ -548,6 +548,7 @@ export class DocumentationWindow extends BaseWindow {
         <h4>Sound Sources</h4>
         <ul>
           <li><strong>Speaker:</strong> The Apple II's built-in speaker for music and sound effects</li>
+          <li><strong>Mockingboard:</strong> Dual AY-3-8910 sound chips for rich stereo music and sound</li>
           <li><strong>Disk Seek:</strong> Stepper motor sounds when the drive head moves</li>
           <li><strong>Disk Motor:</strong> Spinning motor sound when drive is active</li>
         </ul>
@@ -706,12 +707,20 @@ export class DocumentationWindow extends BaseWindow {
           <li>Live value updates</li>
         </ul>
 
-        <h4>Disk Drive Monitor</h4>
+        <h4>Mockingboard Monitor</h4>
+        <p>Open from <strong>Debug &gt; Mockingboard</strong> to inspect the dual AY-3-8910 sound chips:</p>
         <ul>
-          <li>Quarter track position</li>
-          <li>Phase (stepper motor position)</li>
-          <li>Nibble position on track</li>
-          <li>Motor status and read/write mode</li>
+          <li>Channel-centric view with inline waveforms</li>
+          <li>AY-3-8910 and VIA 6522 register states</li>
+          <li>Level meters for each channel</li>
+          <li>Per-channel mute controls</li>
+        </ul>
+
+        <h4>Mouse Card Monitor</h4>
+        <p>Open from <strong>Debug &gt; Mouse Card</strong> to inspect the Apple Mouse Interface Card:</p>
+        <ul>
+          <li>PIA registers and protocol activity</li>
+          <li>Position, mode, and interrupt state</li>
         </ul>
 
         <div class="info-box tip">
