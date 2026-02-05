@@ -1966,8 +1966,6 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
     text = `         JSR  ${routine.name}`;
     this.insertAtCursor(text);
     this.hideRomPanel();
-    this.updateHighlighting();
-    this.updateGutter();
   }
 
   insertAtCursor(text) {
@@ -1985,6 +1983,10 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
     const newPos = start + prefix.length + text.length;
     this.textarea.selectionStart = this.textarea.selectionEnd = newPos;
     this.textarea.focus();
+
+    // Update display since programmatic changes don't trigger input event
+    this.updateHighlighting();
+    this.updateGutter();
   }
 
   update() {
