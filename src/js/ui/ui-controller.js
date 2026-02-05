@@ -68,6 +68,7 @@ export class UIController {
     this.setupSystemMenuActions();
     this.setupHardwareMenuActions();
     this.setupDebugMenuActions();
+    this.setupDevMenuActions();
     this.setupHelpMenuActions();
     this.setupThemeSelector();
     this.setupWindowSwitcher();
@@ -287,11 +288,33 @@ export class UIController {
       zeropage: "zeropage-watch",
       mockingboard: "mockingboard-debug",
       "mouse-card": "mouse-card-debug",
+    };
+
+    debugMenu.querySelectorAll(".header-menu-item").forEach((item) => {
+      item.addEventListener("click", () => {
+        const windowType = item.dataset.window;
+        if (windowMap[windowType]) {
+          this.windowManager.toggleWindow(windowMap[windowType]);
+        }
+        this.closeAllMenus();
+        this.refocusCanvas();
+      });
+    });
+  }
+
+  /**
+   * Set up dev menu dropdown actions
+   */
+  setupDevMenuActions() {
+    const devMenu = document.getElementById("dev-menu");
+    if (!devMenu) return;
+
+    const windowMap = {
       basic: "basic-program",
       assembler: "assembler-editor",
     };
 
-    debugMenu.querySelectorAll(".header-menu-item").forEach((item) => {
+    devMenu.querySelectorAll(".header-menu-item").forEach((item) => {
       item.addEventListener("click", () => {
         const windowType = item.dataset.window;
         if (windowMap[windowType]) {
