@@ -674,6 +674,7 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
 
     const lines = this.textarea.value.split('\n');
     const instrInfo = this.getInstructionInfo();
+    const opcodeTable = this.getOpcodeTable();
     const gutterLines = [];
     const numWidth = Math.max(2, String(lines.length).length);
 
@@ -686,15 +687,23 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
       const hasError = this.errors.has(lineNumber) || this.syntaxErrors.has(lineNumber);
       const errorClass = hasError ? ' asm-gutter-error' : '';
 
-      // Check for breakpoint at this line's address
+      // Check if this line has an actual instruction (not a directive, comment, or label-only)
+      const isInstruction = parsed && parsed.opcode && opcodeTable[parsed.opcode.toUpperCase()];
+
+      // Check for breakpoint at this line's address (only for instruction lines)
       const lineAddr = this.linePCs.get(lineNumber);
-      const hasBreakpoint = lineAddr !== undefined && this.bpManager?.has(lineAddr);
+      const hasBreakpoint = isInstruction && lineAddr !== undefined && this.bpManager?.has(lineAddr);
       const bpClass = hasBreakpoint ? ' asm-gutter-bp' : '';
 
-      // Breakpoint indicator (red dot or empty space for alignment)
-      const bpIndicator = hasBreakpoint
-        ? '<span class="asm-gutter-bp-dot"></span>'
-        : '<span class="asm-gutter-bp-space"></span>';
+      // Breakpoint indicator: red dot for breakpoint, clickable space for instruction lines, nothing for non-instructions
+      let bpIndicator;
+      if (hasBreakpoint) {
+        bpIndicator = '<span class="asm-gutter-bp-dot"></span>';
+      } else if (isInstruction) {
+        bpIndicator = '<span class="asm-gutter-bp-space asm-gutter-bp-clickable"></span>';
+      } else {
+        bpIndicator = '<span class="asm-gutter-bp-space"></span>';
+      }
 
       if (parsed && parsed.opcode) {
         const mnem = parsed.opcode.toUpperCase();

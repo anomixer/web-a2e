@@ -4595,7 +4595,7 @@ input.rb-detail {
     box-shadow: 0 0 4px rgba(224, 58, 62, 0.6);
 }
 
-.asm-gutter-line:hover .asm-gutter-bp-space::after {
+.asm-gutter-line:hover .asm-gutter-bp-clickable::after {
     content: '';
     position: absolute;
     left: 50%;
