@@ -53,6 +53,7 @@ node tests/integration/disk-boot-test.js
 ### Two-Layer Design
 
 **C++ Core (src/core/)** - Pure emulation logic compiled to WebAssembly:
+
 - `cpu/cpu6502.cpp` - Cycle-accurate 65C02 processor (1.023 MHz)
 - `mmu/mmu.cpp` - 128KB memory management, soft switches ($C000-$CFFF), expansion slots
 - `video/video.cpp` - TEXT/LORES/HIRES/DHIRES per-scanline rendering
@@ -68,6 +69,7 @@ node tests/integration/disk-boot-test.js
 - `emulator.cpp` - Core coordinator, state serialization
 
 **JavaScript Layer (src/js/)** - Browser integration:
+
 - `main.js` - AppleIIeEmulator class orchestrating all subsystems
 - `audio/` - Web Audio API driver and AudioWorklet
 - `display/` - WebGL renderer, CRT shader effects, display settings, screen window
@@ -86,9 +88,12 @@ node tests/integration/disk-boot-test.js
 
 Light, dark, and system-follow themes controlled by `ThemeManager` (`src/js/ui/theme-manager.js`). Sets `data-theme` attribute on `<html>` for CSS variable switching. All accent and syntax highlighting colours are derived from the six-stripe Apple rainbow logo palette (Green `#61BB46`, Yellow `#FDB827`, Orange `#F5821F`, Red `#E03A3E`, Purple `#963D97`, Blue `#009DDC`), with brightness adjusted per theme for contrast. Speaker, Mockingboard, and disk drive sound volumes are all wired to a single main volume slider with a unified mute toggle.
 
+Control sytles, sizes and layout must be consistent across the entire app.
+
 ### Audio-Driven Timing
 
 The emulator uses Web Audio API for precise timing:
+
 1. AudioWorklet requests samples at 48kHz
 2. WASM runs ~21.3 CPU cycles per audio sample
 3. Frame ready when cycles cross ~17,030 (60Hz)
@@ -115,6 +120,7 @@ Single global `Emulator` instance in C++ (`wasm_interface.cpp`). JS allocates WA
 **Full build** for production: `npm run build` (outputs to `dist/`)
 
 **ROM files** are embedded into WASM at compile time. Place in `roms/` directory before building:
+
 - `342-0349-B-C0-FF.bin` (16KB system ROM)
 - `342-0273-A-US-UK.bin` (4KB character ROM, US/UK)
 - `341-0160-A-US-UK.bin` (alternate character ROM variant)
@@ -178,15 +184,15 @@ The MMU supports pluggable expansion cards matching real Apple IIe hardware. Car
 
 ### Slot Memory Map
 
-| Slot | I/O Space | ROM Space | Default Card |
-|------|-----------|-----------|--------------|
-| 1 | $C090-$C09F | $C100-$C1FF | Empty |
-| 2 | $C0A0-$C0AF | $C200-$C2FF | Empty |
-| 3 | $C0B0-$C0BF | $C300-$C3FF | 80-column (built-in, fixed) |
-| 4 | $C0C0-$C0CF | $C400-$C4FF | Mockingboard |
-| 5 | $C0D0-$C0DF | $C500-$C5FF | Thunderclock |
-| 6 | $C0E0-$C0EF | $C600-$C6FF | Disk II |
-| 7 | $C0F0-$C0FF | $C700-$C7FF | Empty |
+| Slot | I/O Space   | ROM Space   | Default Card                |
+| ---- | ----------- | ----------- | --------------------------- |
+| 1    | $C090-$C09F | $C100-$C1FF | Empty                       |
+| 2    | $C0A0-$C0AF | $C200-$C2FF | Empty                       |
+| 3    | $C0B0-$C0BF | $C300-$C3FF | 80-column (built-in, fixed) |
+| 4    | $C0C0-$C0CF | $C400-$C4FF | Mockingboard                |
+| 5    | $C0D0-$C0DF | $C500-$C5FF | Thunderclock                |
+| 6    | $C0E0-$C0EF | $C600-$C6FF | Disk II                     |
+| 7    | $C0F0-$C0FF | $C700-$C7FF | Empty                       |
 
 ### Card Interface Methods
 
@@ -220,6 +226,7 @@ Do not add `Co-Authored-By` or any other attribution lines for Claude in commit 
 ## Debugging
 
 Built-in debug windows accessible via Debug menu:
+
 - CPU Debugger: registers (REGS, FLAGS, TIMING, BEAM sections), breakpoints, stepping, disassembly with symbols
 - Memory Browser: hex/ASCII view of 128KB address space with search
 - Memory Heat Map: real-time memory access visualization (read/write/combined modes)
@@ -234,15 +241,15 @@ Built-in debug windows accessible via Debug menu:
 
 ## Keyboard Shortcuts
 
-| Shortcut | Action |
-|----------|--------|
-| F1 | Open/close Help window |
-| Ctrl+Escape | Exit full page mode |
-| Ctrl+V | Paste text into emulator |
-| Ctrl+` | Open window switcher |
-| Option+Tab | Cycle to next window |
+| Shortcut         | Action                   |
+| ---------------- | ------------------------ |
+| F1               | Open/close Help window   |
+| Ctrl+Escape      | Exit full page mode      |
+| Ctrl+V           | Paste text into emulator |
+| Ctrl+`           | Open window switcher     |
+| Option+Tab       | Cycle to next window     |
 | Option+Shift+Tab | Cycle to previous window |
-| F5 | Run / Continue execution |
-| F10 | Step Over |
-| F11 | Step Into |
-| Shift+F11 | Step Out |
+| F5               | Run / Continue execution |
+| F10              | Step Over                |
+| F11              | Step Into                |
+| Shift+F11        | Step Out                 |
