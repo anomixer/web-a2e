@@ -1413,6 +1413,24 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
       return;
     }
 
+    // Clear previous errors
+    this.errors.clear();
+    this.syntaxErrors.clear();
+
+    // Validate all lines for syntax errors before assembly
+    this.validateAllLines();
+
+    // If there are syntax errors, don't proceed with assembly
+    if (this.syntaxErrors.size > 0) {
+      const count = this.syntaxErrors.size;
+      this.setStatus(`${count} syntax error${count !== 1 ? 's' : ''}`, false);
+      this.loadBtn.disabled = true;
+      this.clearOutputPanels();
+      this.updateHighlighting();
+      this.updateCyclesGutter();
+      return;
+    }
+
     // Allocate source string in WASM heap
     const wasm = this.wasmModule;
     const sourceLen = text.length + 1;
@@ -1421,10 +1439,6 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
 
     const success = wasm._assembleSource(sourcePtr);
     wasm._free(sourcePtr);
-
-    // Clear previous errors (both assembler and syntax)
-    this.errors.clear();
-    this.syntaxErrors.clear();
 
     if (success) {
       const size = wasm._getAsmOutputSize();
