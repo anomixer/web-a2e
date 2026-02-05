@@ -1940,51 +1940,62 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
   insertRoutineJsr(routine) {
     // Check if EQU already exists
     const hasEqu = this.textarea.value.toUpperCase().includes(`${routine.name.toUpperCase()} `);
-    let text = "";
+
+    this.textarea.focus();
 
     if (!hasEqu) {
-      // Insert EQU at top (after any header comments) and JSR at cursor
+      // Need to insert EQU at top (after header comments) AND JSR at cursor
+      // Save current cursor position
+      const savedCursor = this.textarea.selectionStart;
       const lines = this.textarea.value.split("\n");
-      let insertIdx = 0;
 
-      // Find first non-comment, non-empty line
+      // Find insert point for EQU (after header comments)
+      let insertIdx = 0;
+      let charPos = 0;
       for (let i = 0; i < lines.length; i++) {
         const trimmed = lines[i].trim();
         if (trimmed && !trimmed.startsWith("*") && !trimmed.startsWith(";")) {
           insertIdx = i;
           break;
         }
+        charPos += lines[i].length + 1; // +1 for newline
         insertIdx = i + 1;
       }
 
-      const equ = `${routine.name.padEnd(8)} EQU  $${routine.address.toString(16).toUpperCase().padStart(4, "0")}`;
-      lines.splice(insertIdx, 0, equ);
-      this.textarea.value = lines.join("\n");
+      const equ = `${routine.name.padEnd(8)} EQU  $${routine.address.toString(16).toUpperCase().padStart(4, "0")}\n`;
+
+      // Move cursor to EQU insert position and insert
+      this.textarea.selectionStart = this.textarea.selectionEnd = charPos;
+      document.execCommand("insertText", false, equ);
+
+      // Move cursor back to original position (adjusted for inserted EQU line)
+      const newCursorPos = savedCursor + equ.length;
+      this.textarea.selectionStart = this.textarea.selectionEnd = newCursorPos;
     }
 
     // Insert JSR at cursor
-    text = `         JSR  ${routine.name}`;
-    this.insertAtCursor(text);
+    const jsr = `         JSR  ${routine.name}`;
+    this.insertAtCursor(jsr);
     this.hideRomPanel();
   }
 
   insertAtCursor(text) {
+    this.textarea.focus();
+
     const start = this.textarea.selectionStart;
-    const end = this.textarea.selectionEnd;
     const value = this.textarea.value;
 
     // If not at start of line, add newline first
-    let prefix = "";
+    let insertText = text;
     if (start > 0 && value[start - 1] !== "\n") {
-      prefix = "\n";
+      insertText = "\n" + text;
     }
 
-    this.textarea.value = value.substring(0, start) + prefix + text + value.substring(end);
-    const newPos = start + prefix.length + text.length;
-    this.textarea.selectionStart = this.textarea.selectionEnd = newPos;
-    this.textarea.focus();
+    // Use execCommand to preserve undo history
+    // This inserts text at the current selection and is undoable with Cmd+Z
+    document.execCommand("insertText", false, insertText);
 
-    // Update display since programmatic changes don't trigger input event
+    // Update display
     this.updateHighlighting();
     this.updateGutter();
   }
