@@ -1285,6 +1285,9 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
         if (!this.isValidOpcode(tokens[1].text)) {
           return `Unknown mnemonic or directive: ${tokens[1].text}`;
         }
+        // Validate operand for invalid numbers
+        const operandError = this.validateOperandNumbers(tokens[2].text);
+        if (operandError) return operandError;
         return null;
       } else if (tokens.length > 3) {
         // Too many tokens - find the extra one
@@ -1304,11 +1307,46 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
         if (!this.isValidOpcode(tokens[0].text)) {
           return `Unknown mnemonic or directive: ${tokens[0].text}`;
         }
+        // Validate operand for invalid numbers
+        const operandError = this.validateOperandNumbers(tokens[1].text);
+        if (operandError) return operandError;
         return null;
       } else if (tokens.length > 2) {
         // Too many tokens
         const extra = tokens.slice(2).map(t => t.text).join(' ');
         return `Unexpected: ${extra}`;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Validate numeric literals in an operand
+   * Returns error message or null if valid
+   */
+  validateOperandNumbers(operand) {
+    // Skip string literals
+    if (operand.startsWith('"') || operand.startsWith("'")) {
+      return null;
+    }
+
+    // Find all hex numbers ($xxxx) and validate them
+    const hexPattern = /\$([A-Za-z0-9]+)/g;
+    let match;
+    while ((match = hexPattern.exec(operand)) !== null) {
+      const hexDigits = match[1];
+      if (!/^[0-9A-Fa-f]+$/.test(hexDigits)) {
+        return `Invalid hex number: $${hexDigits}`;
+      }
+    }
+
+    // Find all binary numbers (%xxxx) and validate them
+    const binPattern = /%([A-Za-z0-9]+)/g;
+    while ((match = binPattern.exec(operand)) !== null) {
+      const binDigits = match[1];
+      if (!/^[01]+$/.test(binDigits)) {
+        return `Invalid binary number: %${binDigits}`;
       }
     }
 
