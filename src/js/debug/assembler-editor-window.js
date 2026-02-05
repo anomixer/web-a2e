@@ -147,6 +147,24 @@ export class AssemblerEditorWindow extends BaseWindow {
           <span class="asm-shortcut"><kbd>F9</kbd> Breakpoint</span>
           <span class="asm-shortcut"><kbd>F2</kbd> ROM Reference</span>
         </div>
+        <div class="asm-save-modal hidden">
+          <div class="asm-save-dialog">
+            <div class="asm-save-header">
+              <span class="asm-save-title">Save As</span>
+            </div>
+            <div class="asm-save-content">
+              <label class="asm-save-label">Filename</label>
+              <div class="asm-save-input-row">
+                <input type="text" class="asm-save-input" spellcheck="false" placeholder="myprogram" />
+                <span class="asm-save-ext">.s</span>
+              </div>
+            </div>
+            <div class="asm-save-actions">
+              <button class="asm-btn asm-save-cancel">Cancel</button>
+              <button class="asm-btn asm-save-confirm">Save</button>
+            </div>
+          </div>
+        </div>
         <div class="asm-rom-panel hidden">
           <div class="asm-rom-header">
             <span class="asm-rom-title">ROM Routines</span>
@@ -1871,7 +1889,7 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
   /**
    * Save the current source to a file
    */
-  saveFile() {
+  async saveFile() {
     const content = this.textarea.value;
     if (!content.trim()) {
       this.setStatus("Nothing to save", false);
@@ -1881,13 +1899,9 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
     // Prompt for filename if this is a new file
     let filename = this.currentFileName;
     if (!filename) {
-      filename = prompt("Save as:", "untitled.s");
+      filename = await this.showSaveDialog();
       if (!filename) {
         return; // User cancelled
-      }
-      // Ensure .s extension
-      if (!filename.match(/\.(s|asm|a65|txt)$/i)) {
-        filename += ".s";
       }
       this.currentFileName = filename;
       this.updateTitle(`Assembler - ${filename}`);
@@ -1905,6 +1919,65 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
     URL.revokeObjectURL(url);
 
     this.setStatus(`Saved: ${filename}`, true);
+  }
+
+  /**
+   * Show the save dialog modal and return the filename
+   */
+  showSaveDialog() {
+    return new Promise((resolve) => {
+      const modal = this.contentElement.querySelector(".asm-save-modal");
+      const input = modal.querySelector(".asm-save-input");
+      const cancelBtn = modal.querySelector(".asm-save-cancel");
+      const confirmBtn = modal.querySelector(".asm-save-confirm");
+
+      // Reset and show
+      input.value = "untitled";
+      modal.classList.remove("hidden");
+      input.focus();
+      input.select();
+
+      const cleanup = () => {
+        modal.classList.add("hidden");
+        input.removeEventListener("keydown", onKeyDown);
+        cancelBtn.removeEventListener("click", onCancel);
+        confirmBtn.removeEventListener("click", onConfirm);
+      };
+
+      const onCancel = () => {
+        cleanup();
+        resolve(null);
+      };
+
+      const onConfirm = () => {
+        const name = input.value.trim();
+        cleanup();
+        if (name) {
+          // Add .s extension if no recognized extension
+          if (!name.match(/\.(s|asm|a65|txt)$/i)) {
+            resolve(name + ".s");
+          } else {
+            resolve(name);
+          }
+        } else {
+          resolve(null);
+        }
+      };
+
+      const onKeyDown = (e) => {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          onCancel();
+        } else if (e.key === "Enter") {
+          e.preventDefault();
+          onConfirm();
+        }
+      };
+
+      input.addEventListener("keydown", onKeyDown);
+      cancelBtn.addEventListener("click", onCancel);
+      confirmBtn.addEventListener("click", onConfirm);
+    });
   }
 
   /**

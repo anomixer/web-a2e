@@ -5178,6 +5178,116 @@ input.rb-detail {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   SAVE DIALOG MODAL
+   ═══════════════════════════════════════════════════════════════ */
+.asm-save-modal {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+}
+
+.asm-save-modal.hidden {
+    display: none;
+}
+
+.asm-save-dialog {
+    width: 320px;
+    background: var(--glass-bg-solid);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+}
+
+.asm-save-header {
+    padding: 12px 16px;
+    background: var(--glass-bg-header);
+    border-bottom: 1px solid var(--glass-border-subtle);
+}
+
+.asm-save-title {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.asm-save-content {
+    padding: 16px;
+}
+
+.asm-save-label {
+    display: block;
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.asm-save-input-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.asm-save-input {
+    flex: 1;
+    padding: 8px 12px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text-primary);
+    background: var(--editor-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 4px;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.asm-save-input:focus {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 3px var(--accent-blue-bg);
+}
+
+.asm-save-ext {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text-tertiary);
+    padding-right: 4px;
+}
+
+.asm-save-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 16px;
+    background: var(--glass-bg-header);
+    border-top: 1px solid var(--glass-border-subtle);
+}
+
+.asm-save-cancel {
+    background: var(--glass-bg);
+}
+
+.asm-save-confirm {
+    background: var(--accent-blue-bg);
+    border-color: var(--accent-blue-border);
+    color: var(--accent-blue);
+}
+
+.asm-save-confirm:hover {
+    background: var(--accent-blue-bg-strong);
+}
+
+/* ═══════════════════════════════════════════════════════════════
    ROM ROUTINES PANEL - Reference panel for Apple II ROM calls
    ═══════════════════════════════════════════════════════════════ */
 .asm-rom-panel {
