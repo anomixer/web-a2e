@@ -136,6 +136,13 @@ export class DocumentationWindow extends BaseWindow {
             </svg>
             Debug Tools
           </button>
+          <button data-section="dev">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="16 18 22 12 16 6"/>
+              <polyline points="8 6 2 12 8 18"/>
+            </svg>
+            Dev Tools
+          </button>
           <button data-section="tips">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
@@ -710,6 +717,69 @@ export class DocumentationWindow extends BaseWindow {
         <div class="info-box tip">
           <p><strong>Tip:</strong> All debug windows can be moved and resized. Their positions and settings are saved between sessions.</p>
         </div>
+      </section>
+
+      <!-- Dev Tools Section -->
+      <section id="doc-dev" class="documentation-section">
+        <h3>Dev Tools</h3>
+        <p>Development tools for writing and testing software. Access via the <strong>Dev</strong> menu in the toolbar.</p>
+
+        <h4>BASIC Program Window</h4>
+        <p>Write, edit, and load Applesoft BASIC programs. Open from <strong>Dev &gt; BASIC Program</strong>.</p>
+        <ul>
+          <li><strong>Syntax Highlighting:</strong> BASIC keywords, line numbers, strings, and comments are color-coded</li>
+          <li><strong>Autocomplete:</strong> Type to see suggestions for BASIC commands</li>
+          <li><strong>Paste into Emulator:</strong> Click to type your program into the running emulator at 8x speed</li>
+          <li><strong>Cancel:</strong> Stop a paste operation in progress</li>
+        </ul>
+        <div class="info-box warning">
+          <p><strong>Note:</strong> The emulator must be powered on to paste a BASIC program.</p>
+        </div>
+
+        <h4>Assembler</h4>
+        <p>Write 65C02 assembly code using Merlin-style syntax. Open from <strong>Dev &gt; Assembler</strong>.</p>
+
+        <h5>Editor Features</h5>
+        <ul>
+          <li><strong>Syntax Highlighting:</strong> Opcodes, directives, labels, operands, and comments</li>
+          <li><strong>Column Guides:</strong> Visual guides for Merlin's column-based format (Label, Opcode, Operand, Comment)</li>
+          <li><strong>Tab Navigation:</strong> Press Tab to jump between columns</li>
+          <li><strong>Live Validation:</strong> Syntax errors shown as you type</li>
+          <li><strong>Breakpoints:</strong> Click the gutter or press <kbd>F9</kbd> to toggle breakpoints</li>
+        </ul>
+
+        <h5>File Operations</h5>
+        <table class="key-table">
+          <thead>
+            <tr><th>Button</th><th>Shortcut</th><th>Function</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>New</td><td><kbd>Ctrl/⌘</kbd>+<kbd>N</kbd></td><td>Start a new file</td></tr>
+            <tr><td>Open</td><td><kbd>Ctrl/⌘</kbd>+<kbd>O</kbd></td><td>Open a .s, .asm, or .a65 file</td></tr>
+            <tr><td>Save</td><td><kbd>Ctrl/⌘</kbd>+<kbd>S</kbd></td><td>Save current file</td></tr>
+          </tbody>
+        </table>
+
+        <h5>Assembly &amp; Loading</h5>
+        <ul>
+          <li><strong>Assemble:</strong> Click or press <kbd>Ctrl/⌘</kbd>+<kbd>Enter</kbd> to assemble the code</li>
+          <li><strong>Load:</strong> After successful assembly, click Load to copy the machine code into emulator memory</li>
+          <li><strong>ORG Directive:</strong> Your code must include an <code>ORG</code> directive before any instructions</li>
+        </ul>
+
+        <h5>ROM Routines Reference</h5>
+        <p>Press <kbd>F2</kbd> or click <strong>ROM</strong> to open the ROM routines panel:</p>
+        <ul>
+          <li>Search and browse Apple II ROM routines</li>
+          <li>View input/output requirements and examples</li>
+          <li>Insert EQU definitions or JSR calls directly into your code</li>
+        </ul>
+
+        <h5>Output Panels</h5>
+        <ul>
+          <li><strong>Symbols:</strong> Lists all defined labels and their addresses</li>
+          <li><strong>Hex Output:</strong> Shows assembled machine code bytes</li>
+        </ul>
       </section>
 
       <!-- Tips Section -->
