@@ -34,10 +34,11 @@ export class DisplaySettingsWindow extends BaseWindow {
     ];
 
     // Default values (percentages 0-100 for UI, converted to shader values)
+    // All effects off by default except basic image adjustments
     this.defaults = {
-      curvature: 20,
-      scanlines: 20,
-      shadowMask: 100,
+      curvature: 0,
+      scanlines: 0,
+      shadowMask: 0,
       phosphorGlow: 0,
       vignette: 0,
       brightness: 100,
@@ -54,9 +55,9 @@ export class DisplaySettingsWindow extends BaseWindow {
       overscan: 0,
       sharpPixels: false,
       // Color bleed (vertical inter-scanline blending)
-      colorBleed: 80,
+      colorBleed: 0,
       // NTSC fringing (shader-based)
-      ntscFringing: 50,
+      ntscFringing: 0,
       // Monochrome mode (0=color, 1=green, 2=amber, 3=white)
       monochromeMode: 0,
     };
