@@ -8,7 +8,7 @@
         "items": [
           {
             "area": "65C02 Assembler Editor",
-            "description": "A comprehensive assembler editor with Merlin-style 4-column layout (Label/Opcode/Operand/Comment). Features include: live syntax highlighting with category-based coloring, intelligent autocomplete for mnemonics and labels, auto-formatting on line change, column guides showing Merlin field positions, line numbers with cycle counts and live byte encoding in the gutter, Tab/Shift+Tab column navigation, smart Enter with auto-indent, comment toggle (⌘/), line duplication (⌘D), and keyboard shortcut hints bar. Output panels show symbols grouped by Labels/Equates and hex dump with address range. Error overlay with line highlighting and centered messages. Branch offsets calculated with PC tracking."
+            "description": "A comprehensive assembler editor with Merlin-style 4-column layout (Label/Opcode/Operand/Comment). Features include: live syntax highlighting with category-based coloring, intelligent autocomplete for mnemonics and labels, auto-formatting on line change, column guides showing Merlin field positions, line numbers with cycle counts and live byte encoding in the gutter, Tab/Shift+Tab column navigation, smart Enter with auto-indent, comment toggle (⌘/), line duplication (⌘D), and keyboard shortcut hints bar. Output panels show symbols grouped by Labels/Equates and hex dump with address range. Error overlay with line highlighting and centered messages. Branch offsets calculated with PC tracking. Breakpoints can be set by clicking the gutter or pressing F9 - breakpoints sync with the CPU debugger."
           }
         ]
       },

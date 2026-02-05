@@ -10,7 +10,7 @@ import { highlightMerlinSourceInline } from "../utils/merlin-highlighting.js";
 import { MerlinEditorSupport } from "../utils/merlin-editor-support.js";
 
 export class AssemblerEditorWindow extends BaseWindow {
-  constructor(wasmModule) {
+  constructor(wasmModule, breakpointManager) {
     super({
       id: "assembler-editor",
       title: "Assembler",
@@ -21,6 +21,7 @@ export class AssemblerEditorWindow extends BaseWindow {
       defaultPosition: { x: 180, y: 60 },
     });
     this.wasmModule = wasmModule;
+    this.bpManager = breakpointManager;
     this.lastAssembledSize = 0;
     this.lastOrigin = 0;
     this.errors = new Map(); // line number -> error message (from assembler)
@@ -29,6 +30,7 @@ export class AssemblerEditorWindow extends BaseWindow {
     this.lineBytes = new Map(); // line number -> hex bytes string
     this.linePCs = new Map(); // line number -> PC address
     this.symbols = new Map(); // symbol name -> value (from last assembly)
+    this.lineBreakpoints = new Map(); // line number -> breakpoint address
   }
 
   renderContent() {
@@ -62,6 +64,7 @@ export class AssemblerEditorWindow extends BaseWindow {
             <div class="asm-editor-wrapper">
               <div class="asm-gutter-column">
                 <div class="asm-gutter-header">
+                  <span class="asm-gutter-header-bp" title="Breakpoints (F9 to toggle)"></span>
                   <span class="asm-gutter-header-ln">#</span>
                   <span class="asm-gutter-header-cyc">Cyc</span>
                   <span class="asm-gutter-header-bytes">Bytes</span>
@@ -129,6 +132,7 @@ export class AssemblerEditorWindow extends BaseWindow {
           <span class="asm-shortcut"><kbd>⌘/</kbd> Comment</span>
           <span class="asm-shortcut"><kbd>⌘D</kbd> Duplicate</span>
           <span class="asm-shortcut"><kbd>⌘↵</kbd> Assemble</span>
+          <span class="asm-shortcut"><kbd>F9</kbd> Breakpoint</span>
         </div>
       </div>
     `;
@@ -232,6 +236,31 @@ export class AssemblerEditorWindow extends BaseWindow {
       this.positionColumnGuides();
     });
     resizeObserver.observe(editorContainer);
+
+    // Gutter click handler for breakpoints
+    this.gutterContent.addEventListener("click", (e) => {
+      const gutterLine = e.target.closest(".asm-gutter-line");
+      if (gutterLine) {
+        const lineNumber = parseInt(gutterLine.dataset.line, 10);
+        if (lineNumber) {
+          this.toggleBreakpoint(lineNumber);
+        }
+      }
+    });
+
+    // F9 keyboard shortcut for breakpoint toggle
+    this.textarea.addEventListener("keydown", (e) => {
+      if (e.key === "F9") {
+        e.preventDefault();
+        const lineNumber = this.getCurrentLineNumber();
+        this.toggleBreakpoint(lineNumber);
+      }
+    });
+
+    // Listen for breakpoint changes from the manager
+    if (this.bpManager) {
+      this.bpManager.onChange(() => this.syncBreakpointsFromManager());
+    }
 
     this.updateHighlighting();
     this.validateAllLines();
@@ -657,6 +686,16 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
       const hasError = this.errors.has(lineNumber) || this.syntaxErrors.has(lineNumber);
       const errorClass = hasError ? ' asm-gutter-error' : '';
 
+      // Check for breakpoint at this line's address
+      const lineAddr = this.linePCs.get(lineNumber);
+      const hasBreakpoint = lineAddr !== undefined && this.bpManager?.has(lineAddr);
+      const bpClass = hasBreakpoint ? ' asm-gutter-bp' : '';
+
+      // Breakpoint indicator (red dot or empty space for alignment)
+      const bpIndicator = hasBreakpoint
+        ? '<span class="asm-gutter-bp-dot"></span>'
+        : '<span class="asm-gutter-bp-space"></span>';
+
       if (parsed && parsed.opcode) {
         const mnem = parsed.opcode.toUpperCase();
         const info = instrInfo[mnem];
@@ -666,7 +705,8 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
       }
 
       gutterLines.push(
-        `<div class="asm-gutter-line${errorClass}">` +
+        `<div class="asm-gutter-line${errorClass}${bpClass}" data-line="${lineNumber}">` +
+        `${bpIndicator}` +
         `<span class="asm-gutter-ln">${lineNum}</span>` +
         `<span class="asm-gutter-cyc">${cycles || ''}</span>` +
         `<span class="asm-gutter-bytes">${bytesHex || ''}</span>` +
@@ -1571,6 +1611,62 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
     const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.4;
     const targetScroll = (lineNumber - 1) * lineHeight - this.textarea.clientHeight / 2;
     this.textarea.scrollTop = Math.max(0, targetScroll);
+  }
+
+  /**
+   * Toggle a breakpoint for the given line number
+   */
+  toggleBreakpoint(lineNumber) {
+    if (!this.bpManager) return;
+
+    // Get the PC address for this line
+    const address = this.linePCs.get(lineNumber);
+    if (address === undefined) {
+      // No instruction on this line (empty, comment, or directive)
+      return;
+    }
+
+    // Check if line has an actual instruction (not just a label or directive)
+    const lines = this.textarea.value.split('\n');
+    if (lineNumber < 1 || lineNumber > lines.length) return;
+
+    const parsed = this.parseLine(lines[lineNumber - 1]);
+    if (!parsed || !parsed.opcode) return;
+
+    // Skip directives - they don't generate code
+    const opcodes = this.getOpcodeTable();
+    if (!opcodes[parsed.opcode.toUpperCase()]) return;
+
+    // Toggle the breakpoint
+    this.bpManager.toggle(address);
+
+    // Update our local tracking
+    if (this.bpManager.has(address)) {
+      this.lineBreakpoints.set(lineNumber, address);
+    } else {
+      this.lineBreakpoints.delete(lineNumber);
+    }
+
+    this.updateGutter();
+  }
+
+  /**
+   * Sync breakpoint state from the manager (called when breakpoints change externally)
+   */
+  syncBreakpointsFromManager() {
+    if (!this.bpManager) return;
+
+    // Clear our local tracking and rebuild from manager state
+    this.lineBreakpoints.clear();
+
+    // Check each line's PC against the manager's breakpoints
+    for (const [lineNumber, address] of this.linePCs) {
+      if (this.bpManager.has(address)) {
+        this.lineBreakpoints.set(lineNumber, address);
+      }
+    }
+
+    this.updateGutter();
   }
 
   update() {

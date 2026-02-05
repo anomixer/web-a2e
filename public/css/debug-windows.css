@@ -4516,6 +4516,7 @@ input.rb-detail {
 .asm-gutter-line {
     display: flex;
     align-items: center;
+    position: relative;
     height: 16.8px;
     line-height: 16.8px;
     padding: 0 4px;
@@ -4562,6 +4563,57 @@ input.rb-detail {
 .asm-gutter-error .asm-gutter-ln {
     color: var(--accent-red, #e03a3e);
     opacity: 1;
+}
+
+/* Breakpoint column in gutter */
+.asm-gutter-header-bp {
+    width: 14px;
+    flex-shrink: 0;
+}
+
+.asm-gutter-bp-dot,
+.asm-gutter-bp-space {
+    display: inline-block;
+    position: relative;
+    width: 14px;
+    height: 100%;
+    flex-shrink: 0;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.asm-gutter-bp-dot::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 8px;
+    height: 8px;
+    background: var(--accent-red, #e03a3e);
+    border-radius: 50%;
+    box-shadow: 0 0 4px rgba(224, 58, 62, 0.6);
+}
+
+.asm-gutter-line:hover .asm-gutter-bp-space::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 8px;
+    height: 8px;
+    background: var(--text-tertiary);
+    border-radius: 50%;
+    opacity: 0.3;
+}
+
+.asm-gutter-line {
+    cursor: pointer;
+}
+
+.asm-gutter-bp {
+    background: var(--accent-red-bg, rgba(224, 58, 62, 0.08));
 }
 
 /* ─────────────────────────────────────────────────────────────────
