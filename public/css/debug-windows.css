@@ -4835,7 +4835,7 @@ input.rb-detail {
     right: 0;
     left: 0;
     pointer-events: none;
-    z-index: 0;
+    z-index: 10;
 }
 
 .asm-error-highlight {
