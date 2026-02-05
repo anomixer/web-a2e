@@ -1415,9 +1415,9 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
 
     // Allocate source string in WASM heap
     const wasm = this.wasmModule;
-    const sourceLen = source.length + 1;
+    const sourceLen = text.length + 1;
     const sourcePtr = wasm._malloc(sourceLen);
-    wasm.stringToUTF8(source, sourcePtr, sourceLen);
+    wasm.stringToUTF8(text, sourcePtr, sourceLen);
 
     const success = wasm._assembleSource(sourcePtr);
     wasm._free(sourcePtr);
@@ -1454,14 +1454,12 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
       this.setStatus(`${errorCount} error${errorCount !== 1 ? "s" : ""}`, false);
       this.loadBtn.disabled = true;
 
-      // Collect errors, adjusting line numbers for prepended ORG
+      // Collect errors
       for (let i = 0; i < errorCount; i++) {
-        let line = wasm._getAsmErrorLine(i);
+        const line = wasm._getAsmErrorLine(i);
         const msgPtr = wasm._getAsmErrorMessage(i);
         const msg = wasm.UTF8ToString(msgPtr);
 
-        // Adjust for prepended ORG line
-        line = line - lineOffset;
         if (line >= 1) {
           this.errors.set(line, msg);
           // Clear bytes for error lines
