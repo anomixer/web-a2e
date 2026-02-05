@@ -1286,7 +1286,7 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
           return `Unknown mnemonic or directive: ${tokens[1].text}`;
         }
         // Validate operand for invalid numbers
-        const operandError = this.validateOperandNumbers(tokens[2].text);
+        const operandError = this.validateOperandNumbers(tokens[1].text, tokens[2].text);
         if (operandError) return operandError;
         return null;
       } else if (tokens.length > 3) {
@@ -1308,7 +1308,7 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
           return `Unknown mnemonic or directive: ${tokens[0].text}`;
         }
         // Validate operand for invalid numbers
-        const operandError = this.validateOperandNumbers(tokens[1].text);
+        const operandError = this.validateOperandNumbers(tokens[0].text, tokens[1].text);
         if (operandError) return operandError;
         return null;
       } else if (tokens.length > 2) {
@@ -1325,11 +1325,23 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
    * Validate numeric literals in an operand
    * Returns error message or null if valid
    */
-  validateOperandNumbers(operand) {
+  validateOperandNumbers(opcode, operand) {
     // Skip string literals
     if (operand.startsWith('"') || operand.startsWith("'")) {
       return null;
     }
+
+    const upperOpcode = opcode.toUpperCase();
+
+    // Directives that expect 8-bit values
+    const byteDirectives = new Set(['DFB', 'DB']);
+
+    // Check if this is immediate mode (starts with #)
+    const isImmediate = operand.startsWith('#');
+
+    // Determine max value based on context
+    // Immediate mode and byte directives expect 8-bit values
+    const expects8Bit = isImmediate || byteDirectives.has(upperOpcode);
 
     // Find all hex numbers ($xxxx) and validate them
     const hexPattern = /\$([A-Za-z0-9]+)/g;
@@ -1339,6 +1351,14 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
       if (!/^[0-9A-Fa-f]+$/.test(hexDigits)) {
         return `Invalid hex number: $${hexDigits}`;
       }
+      // Check value range
+      const value = parseInt(hexDigits, 16);
+      if (value > 0xFFFF) {
+        return `Value exceeds 16-bit maximum: $${hexDigits}`;
+      }
+      if (expects8Bit && value > 0xFF) {
+        return `Value exceeds 8-bit maximum: $${hexDigits}`;
+      }
     }
 
     // Find all binary numbers (%xxxx) and validate them
@@ -1347,6 +1367,27 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
       const binDigits = match[1];
       if (!/^[01]+$/.test(binDigits)) {
         return `Invalid binary number: %${binDigits}`;
+      }
+      // Check value range
+      const value = parseInt(binDigits, 2);
+      if (value > 0xFFFF) {
+        return `Value exceeds 16-bit maximum: %${binDigits}`;
+      }
+      if (expects8Bit && value > 0xFF) {
+        return `Value exceeds 8-bit maximum: %${binDigits}`;
+      }
+    }
+
+    // Find decimal numbers (digits not preceded by $ or %)
+    const decPattern = /(?<![A-Za-z0-9$%])(\d+)(?![A-Za-z])/g;
+    while ((match = decPattern.exec(operand)) !== null) {
+      const decDigits = match[1];
+      const value = parseInt(decDigits, 10);
+      if (value > 0xFFFF) {
+        return `Value exceeds 16-bit maximum: ${decDigits}`;
+      }
+      if (expects8Bit && value > 0xFF) {
+        return `Value exceeds 8-bit maximum: ${decDigits}`;
       }
     }
 
