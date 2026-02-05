@@ -1878,8 +1878,20 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
       return;
     }
 
-    // Use current filename or prompt for one
-    let filename = this.currentFileName || "untitled.s";
+    // Prompt for filename if this is a new file
+    let filename = this.currentFileName;
+    if (!filename) {
+      filename = prompt("Save as:", "untitled.s");
+      if (!filename) {
+        return; // User cancelled
+      }
+      // Ensure .s extension
+      if (!filename.match(/\.(s|asm|a65|txt)$/i)) {
+        filename += ".s";
+      }
+      this.currentFileName = filename;
+      this.updateTitle(`Assembler - ${filename}`);
+    }
 
     // Create blob and download link
     const blob = new Blob([content], { type: "text/plain" });
