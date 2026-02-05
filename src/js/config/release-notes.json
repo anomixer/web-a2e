@@ -1,0 +1,203 @@
+[
+  {
+    "period": "Feb 5, 2026",
+    "sections": [
+      {
+        "title": "New Features",
+        "type": "features",
+        "items": [
+          {
+            "area": "65C02 Assembler Editor",
+            "description": "A comprehensive assembler editor with Merlin-style 4-column layout (Label/Opcode/Operand/Comment). Features include: live syntax highlighting with category-based coloring, intelligent autocomplete for mnemonics and labels, auto-formatting on line change, column guides showing Merlin field positions, line numbers with cycle counts and live byte encoding in the gutter, Tab/Shift+Tab column navigation, smart Enter with auto-indent, comment toggle (⌘/), line duplication (⌘D), and keyboard shortcut hints bar. Output panels show symbols grouped by Labels/Equates and hex dump with address range. Error overlay with line highlighting and centered messages. Branch offsets calculated with PC tracking."
+          }
+        ]
+      },
+      {
+        "title": "Fixes",
+        "type": "fixes",
+        "items": [
+          {
+            "area": "Assembler Editor",
+            "description": "Fixed cursor alignment with syntax highlighting by disabling font ligatures and kerning. Error markers rendered as overlay to avoid cursor misalignment. Editor auto-scrolls to follow cursor on navigation. Live syntax validation catches stray characters and malformed lines."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "period": "Jan 28 - Feb 4, 2026",
+    "sections": [
+      {
+        "title": "New Features",
+        "type": "features",
+        "items": [
+          {
+            "area": "Apple Mouse Interface Card",
+            "description": "Mouse card emulation using the AppleWin PIA command protocol (initially firmware interception, later replaced). Includes a debug window showing PIA registers, position, mode, interrupt state, and protocol activity. Constrained to slot 4 only."
+          },
+          {
+            "area": "Disk II Logic State Sequencer",
+            "description": "Replaced the nibble-at-a-time disk model with a P6 ROM-driven Logic State Sequencer for more accurate disk emulation. Canvas-based disk surface visualization rewritten with read/write head coloring."
+          },
+          {
+            "area": "Per-Scanline Raster Rendering",
+            "description": "Added cycle-accurate per-scanline rendering with sub-scanline precision and a 2-cycle video pipeline delay, enabling proper raster bar effects and mid-scanline mode switches."
+          },
+          {
+            "area": "Save States",
+            "description": "An autosave slot plus 5 manual save slots stored in IndexedDB. The save states window includes high-res hover previews. Debugger state, window option state, CPU debugger tab, and memory browser scroll position all persist across save/load."
+          },
+          {
+            "area": "Window Management",
+            "description": "A complete windowing overhaul: window switcher overlay (Ctrl+`), Option+Tab cycling, focused window highlighting with differentiated shadows, window arrange/layout, viewport-lock for the screen window, and enforcement of 4:3 aspect ratio at viewport boundaries. All windows are constrained to visible viewport bounds."
+          },
+          {
+            "area": "Theming",
+            "description": "Light, dark, and system-follow theme support. All accent and syntax highlighting colours are derived from the six-stripe Apple rainbow logo palette with per-theme brightness adjustments for contrast."
+          },
+          {
+            "area": "Menu & Toolbar Redesign",
+            "description": "Replaced header buttons with grouped dropdown menus (renamed System to File, Hardware to View). Added an auto-hiding toolbar for full-page mode."
+          },
+          {
+            "area": "Audio Unification",
+            "description": "Speaker, Mockingboard, and disk drive sound volumes are all wired to a single main volume slider with a unified mute toggle."
+          },
+          {
+            "area": "Debugging Enhancements",
+            "description": "CPU debugger reorganized into REGS, FLAGS, TIMING, and BEAM sections. Added beam position breakpoints with a rule builder, wildcard-scanline support, multi-beam breakpoint tab panel, IRQ/NMI state indicators, and watch value improvements. Text selection overlay composited into the CRT shader. Unified Mockingboard detail and scope into a single channel-centric window."
+          },
+          {
+            "area": "WASM Migration",
+            "description": "Moved debug, filesystem, BASIC, and input logic from JS to C++ WASM. Moved screen text extraction to C++ for improved performance."
+          },
+          {
+            "area": "Merlin Assembler Viewer",
+            "description": "Added a Merlin assembler source viewer to the file explorer with auto-detection, column-aligned output, and category-based syntax highlighting for mnemonics (branch, load, math, stack, flag), directives, labels, operands, strings, numbers, and comments. TEXT/MERLIN toggle for text files and ASM/HEX/MERLIN toggle for binary files."
+          },
+          {
+            "area": "Display",
+            "description": "Added UK/US charset toggle to screen window header. Skip NTSC fringing in monochrome display modes."
+          }
+        ]
+      },
+      {
+        "title": "Fixes",
+        "type": "fixes",
+        "items": [
+          {
+            "area": "Mockingboard & AY-3-8910 Audio",
+            "description": "Aligned the mixer, noise, tone interpolation, timer period, and PSG state machine with MAME and AppleWin reference implementations. Fixed audio clipping, timing, phase cancellation, noise-tone detuning, envelope generator (running 32x too slow), envelope period 0 handling, noise period 0, AC-coupled bipolar output, and LFSR noise polynomial. Resolved VIA 6522 timer interrupts on mode transitions and timer decrement behavior for Mockingboard detection."
+          },
+          {
+            "area": "Speaker Audio",
+            "description": "Fixed speaker volume (doubled), filter tuning, and mute behaviour. Removed unnecessary mono audio path and AY-3-8910 low-pass filter."
+          },
+          {
+            "area": "Display & Rendering",
+            "description": "Fixed full-page mode with bezel disabled, WebGL canvas resize on reload with saved viewport state, cycle-accurate raster rendering timing, hardcoded dark-theme colors in debugger windows, and 4:3 aspect ratio enforcement."
+          },
+          {
+            "area": "UI & Windowing",
+            "description": "Fixed paste queue setTimeout violations, file explorer background bleed and z-index/focus handling, header z-index layering, window resize bugs, and surface renderer updates when the disk drives window is hidden. Prevented the screen window from being closed and the expansion slots window from shrinking below content. Migrated the file explorer to use BaseWindow defaults for consistent window chrome across all windows. Fixed file explorer scroll containment so catalog and file panels scroll independently while headers remain fixed."
+          },
+          {
+            "area": "Text & Input",
+            "description": "Fixed PAGE2 soft switch detection in text selection and Apple II screen code character conversion."
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "period": "Jan 21 - 27, 2026",
+    "sections": [
+      {
+        "title": "New Features",
+        "type": "features",
+        "items": [
+          {
+            "area": "Expansion Card Architecture",
+            "description": "Introduced a pluggable expansion card system matching real Apple IIe hardware. Cards implement a standard interface for I/O, ROM, reset, and serialization. Migrated Disk II and Mockingboard from hardcoded implementations into the slot system. Added an Expansion Slots configuration UI for managing card assignments."
+          },
+          {
+            "area": "Mockingboard Sound Card",
+            "description": "Full Mockingboard emulation with dual AY-3-8910 PSGs and VIA 6522 timers. Stereo audio output with per-channel separation. Waveform visualization and per-channel mute controls in a dedicated debug window."
+          },
+          {
+            "area": "Thunderclock Plus",
+            "description": "ProDOS-compatible real-time clock card with serial data output."
+          },
+          {
+            "area": "File Explorer",
+            "description": "A full disk browser supporting DOS 3.3, ProDOS, and WOZ formats. Features include folder navigation, a C++ disassembler with recursive descent flow analysis and virtual scrolling, BASIC program viewing with syntax formatting, dynamic hex dump columns, and clickable jump targets with highlighted navigation."
+          },
+          {
+            "area": "BASIC Program Window",
+            "description": "A dedicated window for viewing and loading BASIC programs directly into memory, with IntelliSense autocomplete offering context-aware variable and line number suggestions."
+          },
+          {
+            "area": "Display Modes",
+            "description": "Added monochrome display modes (green, amber, white) with NTSC fringing correctly bypassed. CRT shader gained rounded corners and edge highlight effects."
+          },
+          {
+            "area": "Performance & Input",
+            "description": "Added an emulation speed multiplier with batch paste queue processing for faster BASIC program loading. Added drag-to-move functionality for monitor and disk drives."
+          },
+          {
+            "area": "Joystick",
+            "description": "Added a floating joystick window for paddle/joystick input with snap-back-to-center on release."
+          },
+          {
+            "area": "PWA & Distribution",
+            "description": "Added Progressive Web App support for offline functionality, service worker update notifications, version display, and release notes with automatic update checking."
+          },
+          {
+            "area": "State Persistence",
+            "description": "Added auto-save state persistence, window option persistence, and disk surface visualization rewritten from static PNGs to dynamic canvas-based rendering."
+          },
+          {
+            "area": "Debug UI",
+            "description": "Enhanced disassembler with categorized symbols and tooltips. Added Memory Map window. Improved heat map colors and debug dropdowns."
+          }
+        ]
+      },
+      {
+        "title": "Fixes",
+        "type": "fixes",
+        "items": [
+          {
+            "area": "Disk Emulation",
+            "description": "Fixed DSK disk image corruption, Disk II stepper motor timing to match real hardware, and keyboard/disk state reset on reboot."
+          },
+          {
+            "area": "Display & Rendering",
+            "description": "Fixed monochrome mode NTSC artifact coloring, DHGR rendering issues, and keyboard/debugger rendering bugs."
+          },
+          {
+            "area": "Mockingboard Audio",
+            "description": "Fixed Mockingboard PSG reset, audio timing and clipping. Fixed AY-3-8910 LFSR polynomial, envelope timing and state serialization, and noise period 0 handling. Fixed VIA timer to always decrement for Mockingboard detection."
+          },
+          {
+            "area": "Text & Input",
+            "description": "Fixed text selection character conversion for Apple II screen codes, arrow key navigation and dropdown issues in the BASIC autocomplete, BASIC detokenization for ProDOS files, BASIC line navigation highlighting accuracy, and monitor drag restricted to bezel only."
+          },
+          {
+            "area": "Thunderclock",
+            "description": "Fixed serial data format output."
+          }
+        ]
+      },
+      {
+        "title": "Refactoring",
+        "type": "refactoring",
+        "items": [
+          {
+            "area": "Code Organisation",
+            "description": "Reorganized the JavaScript source tree to match menu organization. Renamed DebugWindow to BaseWindow. Consolidated Disk2Controller into Disk2Card and Mockingboard into MockingboardCard. Renamed the disk folder to disk-image. Three-phase code cleanup for architecture improvements, duplication reduction, and consistency."
+          }
+        ]
+      }
+    ]
+  }
+]

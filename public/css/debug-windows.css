@@ -4004,29 +4004,64 @@ input.rb-detail {
     gap: 0;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   TOOLBAR - Clean, organized action bar
+   ═══════════════════════════════════════════════════════════════ */
 .asm-toolbar {
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 0;
+    gap: 8px;
+    padding: 6px 0;
     flex-shrink: 0;
+    border-bottom: 1px solid var(--glass-border-subtle);
+    margin-bottom: 6px;
 }
 
-.asm-org-group {
+.asm-toolbar-group {
     display: flex;
     align-items: center;
+    gap: 6px;
+}
+
+.asm-toolbar-actions {
     gap: 4px;
+}
+
+.asm-toolbar-separator {
+    width: 1px;
+    height: 20px;
+    background: var(--glass-border);
+    margin: 0 4px;
+}
+
+.asm-toolbar-spacer {
+    flex: 1;
+}
+
+.asm-toolbar-org {
+    gap: 4px;
+}
+
+.asm-toolbar-status {
+    min-width: 120px;
+    justify-content: center;
+}
+
+.asm-toolbar-position {
+    gap: 8px;
+    padding: 0 4px;
 }
 
 .asm-org-label {
     font-size: 10px;
     color: var(--text-muted);
     font-family: var(--font-mono);
+    font-weight: 500;
 }
 
 .asm-org-input {
-    width: 56px;
-    padding: 4px 6px;
+    width: 64px;
+    padding: 5px 8px;
     font-family: var(--font-mono);
     font-size: 11px;
     background: var(--input-bg-dark);
@@ -4034,26 +4069,46 @@ input.rb-detail {
     border-radius: var(--radius-sm);
     color: var(--text-primary);
     text-align: center;
+    transition: all 0.15s;
 }
 
 .asm-org-input:focus {
     border-color: var(--editor-focus-border);
+    box-shadow: 0 0 0 2px var(--editor-focus-shadow);
     outline: none;
 }
 
-.asm-status {
+.asm-cursor-position {
     font-size: 10px;
     font-family: var(--font-mono);
     color: var(--text-muted);
     white-space: nowrap;
+    min-width: 80px;
+}
+
+.asm-status {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    color: var(--text-muted);
+    white-space: nowrap;
+    padding: 3px 10px;
+    border-radius: var(--radius-sm);
+    background: var(--glass-bg-header);
+    border: 1px solid var(--glass-border-subtle);
+    transition: all 0.2s;
 }
 
 .asm-status-ok {
     color: var(--accent-green);
+    background: var(--accent-green-bg);
+    border-color: var(--accent-green-border);
 }
 
 .asm-status-error {
     color: var(--accent-red, #e03a3e);
+    background: var(--accent-red-bg, rgba(224, 58, 62, 0.1));
+    border-color: var(--accent-red-border, rgba(224, 58, 62, 0.3));
 }
 
 /* Split container - editor pane above, output pane below */
@@ -4133,6 +4188,9 @@ input.rb-detail {
     min-height: 0;
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   OUTPUT PANELS - Symbols and Hex Output
+   ═══════════════════════════════════════════════════════════════ */
 .asm-panel {
     flex: 1 1 50%;
     display: flex;
@@ -4144,15 +4202,37 @@ input.rb-detail {
 
 .asm-panel-header {
     flex-shrink: 0;
-    padding: 3px 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 10px;
     font-family: var(--font-sans);
     font-size: 10px;
-    font-weight: 500;
+    font-weight: 600;
     color: var(--text-muted);
     background: var(--glass-bg-header);
     border-bottom: 1px solid var(--glass-border-subtle);
     text-transform: uppercase;
     letter-spacing: 0.5px;
+}
+
+.asm-panel-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.asm-panel-count {
+    font-size: 9px;
+    font-weight: 500;
+    padding: 1px 6px;
+    border-radius: 8px;
+    background: var(--accent-green-bg);
+    color: var(--accent-green);
+}
+
+.asm-panel-count:empty {
+    display: none;
 }
 
 .asm-panel-content {
@@ -4162,61 +4242,130 @@ input.rb-detail {
 }
 
 .asm-panel-empty {
-    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px 12px;
+    height: 100%;
     font-family: var(--font-sans);
-    font-size: 11px;
-    color: var(--text-muted);
     text-align: center;
     opacity: 0.6;
 }
 
-/* Symbol table */
-.asm-symbol-table {
-    width: 100%;
-    border-collapse: collapse;
+.asm-empty-icon {
     font-family: var(--font-mono);
-    font-size: 11px;
+    font-size: 20px;
+    color: var(--text-tertiary);
+    margin-bottom: 6px;
+    opacity: 0.5;
 }
 
-.asm-symbol-table thead th {
-    position: sticky;
-    top: 0;
-    padding: 3px 8px;
+.asm-empty-text {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.asm-panel-error .asm-empty-icon {
+    color: var(--accent-red, #e03a3e);
+    opacity: 0.7;
+}
+
+.asm-panel-error .asm-empty-text {
+    color: var(--accent-red, #e03a3e);
+    opacity: 0.8;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Symbol List - Grouped by type (Labels / Equates)
+   ───────────────────────────────────────────────────────────────── */
+.asm-symbol-list {
+    padding: 4px 0;
+}
+
+.asm-symbol-group {
+    margin-bottom: 8px;
+}
+
+.asm-symbol-group:last-child {
+    margin-bottom: 0;
+}
+
+.asm-symbol-group-header {
+    padding: 4px 10px;
     font-family: var(--font-sans);
     font-size: 9px;
-    font-weight: 500;
-    color: var(--text-muted);
-    text-align: left;
+    font-weight: 600;
     text-transform: uppercase;
-    letter-spacing: 0.3px;
-    background: var(--glass-bg-header);
+    letter-spacing: 0.5px;
+    color: var(--text-tertiary);
+    background: var(--glass-bg);
     border-bottom: 1px solid var(--glass-border-subtle);
 }
 
-.asm-symbol-table tbody tr {
+.asm-symbol-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3px 10px;
+    font-family: var(--font-mono);
+    font-size: 11px;
     border-bottom: 1px solid var(--glass-border-subtle);
+    transition: background 0.1s;
 }
 
-.asm-symbol-table tbody tr:last-child {
+.asm-symbol-row:last-child {
     border-bottom: none;
 }
 
-.asm-symbol-table tbody tr:hover {
+.asm-symbol-row:hover {
     background: var(--overlay-white-04, rgba(255, 255, 255, 0.04));
 }
 
 .asm-sym-name {
-    padding: 2px 8px;
+    font-weight: 500;
+}
+
+.asm-sym-global {
     color: var(--syntax-label, #d2a8ff);
 }
 
-.asm-sym-value {
-    padding: 2px 8px;
-    color: var(--syntax-data, #79c0ff);
-    text-align: right;
+.asm-sym-local {
+    color: var(--syntax-local, #ffa657);
 }
 
-/* Hex output */
+.asm-sym-equ {
+    color: var(--syntax-data, #79c0ff);
+}
+
+.asm-sym-value {
+    color: var(--syntax-branch, #61bb46);
+    font-weight: 400;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Hex Output - Machine code display with address, bytes, ASCII
+   ───────────────────────────────────────────────────────────────── */
+.asm-hex-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 10px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    background: var(--glass-bg);
+    border-bottom: 1px solid var(--glass-border-subtle);
+}
+
+.asm-hex-range {
+    color: var(--syntax-branch, #61bb46);
+    font-weight: 500;
+}
+
+.asm-hex-size {
+    color: var(--text-muted);
+}
+
 .asm-hex-dump {
     font-family: var(--font-mono);
     font-size: 11px;
@@ -4226,8 +4375,10 @@ input.rb-detail {
 
 .asm-hex-row {
     display: flex;
-    padding: 0 8px;
+    align-items: center;
+    padding: 1px 8px;
     white-space: pre;
+    transition: background 0.1s;
 }
 
 .asm-hex-row:hover {
@@ -4236,19 +4387,27 @@ input.rb-detail {
 
 .asm-hex-addr {
     color: var(--syntax-branch, #61bb46);
-    margin-right: 10px;
+    font-weight: 500;
+    flex-shrink: 0;
+}
+
+.asm-hex-sep {
+    color: var(--glass-border);
+    padding: 0 6px;
     flex-shrink: 0;
 }
 
 .asm-hex-bytes {
     color: var(--text-secondary);
     flex-shrink: 0;
+    letter-spacing: 0.5px;
 }
 
 .asm-hex-ascii {
     color: var(--syntax-load, #fdb827);
-    margin-left: 8px;
-    opacity: 0.7;
+    font-weight: 500;
+    letter-spacing: 1px;
+    opacity: 0.8;
 }
 
 /* Panel content scrollbars */
@@ -4270,7 +4429,9 @@ input.rb-detail {
     background: var(--accent-green-border);
 }
 
-/* Editor wrapper with cycles gutter */
+/* ═══════════════════════════════════════════════════════════════
+   EDITOR WRAPPER - Main code editing area with gutter
+   ═══════════════════════════════════════════════════════════════ */
 .asm-editor-wrapper {
     display: flex;
     flex: 1;
@@ -4278,6 +4439,7 @@ input.rb-detail {
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-sm);
     overflow: hidden;
+    transition: border-color 0.15s, box-shadow 0.15s;
 }
 
 .asm-editor-wrapper:focus-within {
@@ -4285,68 +4447,224 @@ input.rb-detail {
     box-shadow: 0 0 0 2px var(--editor-focus-shadow);
 }
 
-/* Cycles column with header */
-.asm-cycles-column {
+/* ─────────────────────────────────────────────────────────────────
+   Gutter Column - Line numbers, cycles, and bytes
+   ───────────────────────────────────────────────────────────────── */
+.asm-gutter-column {
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
-    width: 32px;
     min-height: 0;
     background: var(--glass-bg-header);
     border-right: 1px solid var(--glass-border);
 }
 
-.asm-cycles-header {
+.asm-gutter-header {
     flex-shrink: 0;
-    height: 8px;
-    padding: 0 6px 0 0;
+    display: flex;
+    align-items: center;
+    height: 18px;
+    padding: 0 4px;
     font-family: var(--font-mono);
     font-size: 8px;
-    font-weight: 500;
+    font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
     color: var(--text-tertiary);
-    text-align: right;
-    line-height: 8px;
+    background: var(--glass-bg);
+    border-bottom: 1px solid var(--glass-border-subtle);
     user-select: none;
 }
 
-/* Cycles gutter */
-.asm-cycles-gutter {
+.asm-gutter-header-ln {
+    width: 28px;
+    text-align: right;
+    padding-right: 6px;
+}
+
+.asm-gutter-header-cyc {
+    width: 24px;
+    text-align: center;
+    color: var(--syntax-flag, #009ddc);
+}
+
+.asm-gutter-header-bytes {
+    width: 64px;
+    text-align: center;
+    color: var(--syntax-math, #f5821f);
+}
+
+.asm-gutter-content {
     flex: 1 1 0;
     min-height: 0;
-    padding: 0;
+    padding-top: 8px; /* Match textarea padding */
     font-family: var(--font-mono);
     font-size: 12px;
     line-height: 1.4;
-    color: var(--text-tertiary);
-    text-align: right;
     overflow-y: scroll;
     overflow-x: hidden;
     user-select: none;
-    scrollbar-width: none; /* Firefox */
-    -ms-overflow-style: none; /* IE/Edge */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    background: var(--glass-bg-header);
 }
 
-.asm-cycles-gutter::-webkit-scrollbar {
-    display: none; /* Chrome/Safari */
+.asm-gutter-content::-webkit-scrollbar {
+    display: none;
 }
 
 .asm-gutter-line {
+    display: flex;
+    align-items: center;
     height: 16.8px;
-    padding-right: 6px;
     line-height: 16.8px;
+    padding: 0 4px;
+    white-space: nowrap;
 }
 
-/* Editor container - overlay technique for syntax highlighting */
+.asm-gutter-line:hover {
+    background: var(--overlay-white-04, rgba(255, 255, 255, 0.04));
+}
+
+.asm-gutter-ln {
+    flex-shrink: 0;
+    width: 24px;
+    text-align: right;
+    padding-right: 4px;
+    color: var(--text-tertiary);
+    opacity: 0.6;
+}
+
+.asm-gutter-cyc {
+    flex-shrink: 0;
+    width: 20px;
+    text-align: center;
+    color: var(--syntax-flag, #009ddc);
+    font-weight: 500;
+}
+
+.asm-gutter-bytes {
+    flex-shrink: 0;
+    width: 72px;
+    text-align: left;
+    padding-left: 4px;
+    color: var(--syntax-math, #f5821f);
+    font-size: 10px;
+    letter-spacing: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.asm-gutter-error {
+    background: var(--accent-red-bg, rgba(224, 58, 62, 0.12));
+}
+
+.asm-gutter-error .asm-gutter-ln {
+    color: var(--accent-red, #e03a3e);
+    opacity: 1;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Editor Container - Code area with overlay highlighting
+   ───────────────────────────────────────────────────────────────── */
 .asm-editor-container {
     flex: 1;
-    position: relative;
+    display: flex;
+    flex-direction: column;
     min-height: 80px;
     background: var(--editor-bg);
     overflow: hidden;
 }
 
+.asm-editor-header {
+    flex-shrink: 0;
+    position: relative;
+    display: flex;
+    align-items: center;
+    height: 18px;
+    padding: 0 8px;
+    font-family: var(--font-mono);
+    font-size: 8px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-tertiary);
+    background: var(--glass-bg);
+    border-bottom: 1px solid var(--glass-border-subtle);
+    user-select: none;
+    overflow: hidden;
+}
+
+.asm-editor-header-label {
+    position: absolute;
+    left: 8px;
+    color: var(--syntax-label, #d2a8ff);
+    opacity: 0.6;
+}
+
+.asm-editor-header-opcode {
+    position: absolute;
+    color: var(--syntax-branch, #61bb46);
+    opacity: 0.6;
+}
+
+.asm-editor-header-operand {
+    position: absolute;
+    color: var(--syntax-load, #fdb827);
+    opacity: 0.6;
+}
+
+.asm-editor-header-comment {
+    position: absolute;
+    color: var(--syntax-comment, #8b949e);
+    opacity: 0.6;
+}
+
+.asm-editor-scroll-area {
+    flex: 1;
+    position: relative;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* Column guides - vertical lines at Merlin column positions */
+.asm-column-guides {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 0;
+    overflow: hidden;
+}
+
+.asm-column-guide {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--glass-border-subtle);
+    opacity: 0.3;
+}
+
+.asm-column-guide[data-col="9"] {
+    border-left: 1px dashed var(--syntax-branch, #61bb46);
+    opacity: 0.15;
+    background: transparent;
+}
+
+.asm-column-guide[data-col="14"] {
+    border-left: 1px dashed var(--syntax-load, #fdb827);
+    opacity: 0.15;
+    background: transparent;
+}
+
+.asm-column-guide[data-col="25"] {
+    border-left: 1px dashed var(--syntax-comment, #8b949e);
+    opacity: 0.12;
+    background: transparent;
+}
 
 /* Current line highlight bar */
 .asm-line-highlight {
@@ -4354,16 +4672,21 @@ input.rb-detail {
     left: 0;
     right: 0;
     pointer-events: none;
-    background: var(--overlay-white-04, rgba(255, 255, 255, 0.04));
+    background: linear-gradient(90deg,
+        var(--accent-green-bg) 0%,
+        var(--overlay-white-04, rgba(255, 255, 255, 0.04)) 100%
+    );
+    border-left: 2px solid var(--accent-green);
     opacity: 0;
     transition: opacity 0.12s;
+    z-index: 0;
 }
 
 .asm-line-highlight.visible {
     opacity: 1;
 }
 
-/* Shared styles for textarea and highlight overlay */
+/* Shared styles for textarea and highlight overlay - MUST be identical */
 .asm-textarea,
 .asm-highlight {
     position: absolute;
@@ -4373,64 +4696,93 @@ input.rb-detail {
     height: 100%;
     padding: 8px;
     margin: 0;
-    font-family: var(--font-mono);
-    font-size: 12px;
-    line-height: 1.4;
+    border: 0;
+    border-radius: 0;
+    font: 400 12px/1.4 ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    letter-spacing: 0;
+    word-spacing: 0;
+    text-transform: none;
+    text-indent: 0;
+    text-shadow: none;
+    text-align: left;
+    text-decoration: none;
     white-space: pre;
     overflow-wrap: normal;
     word-wrap: normal;
+    word-break: normal;
+    hyphens: none;
     box-sizing: border-box;
     tab-size: 8;
+    -moz-tab-size: 8;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "liga" 0, "calt" 0;
+    font-kerning: none;
+    font-variant-ligatures: none;
 }
 
 /* Highlight layer - shows colored syntax */
 .asm-highlight {
     pointer-events: none;
-    overflow: auto;
-    color: transparent;
+    overflow: scroll;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+    color: var(--text-primary);
     background: transparent;
+    z-index: 1;
+    /* Reset pre defaults */
+    display: block;
+}
+
+.asm-highlight::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
 }
 
 /* Textarea - transparent text, receives input */
 .asm-textarea {
     color: transparent;
+    -webkit-text-fill-color: transparent;
     caret-color: var(--accent-green);
     background: transparent;
-    border: none;
     resize: none;
     outline: none;
-    z-index: 1;
+    z-index: 2;
     overflow: auto;
 }
 
 .asm-textarea::placeholder {
     color: var(--editor-placeholder);
+    opacity: 0.5;
+    white-space: pre;
+    font-family: var(--font-mono);
 }
 
-/* Error line background highlight */
+/* Error line - just mark the text, no layout changes */
 .asm-error-line {
-    background: var(--accent-red-bg, rgba(224, 58, 62, 0.12));
-    box-shadow:
-        -1000px 0 0 var(--accent-red-bg, rgba(224, 58, 62, 0.12)),
-        1000px 0 0 var(--accent-red-bg, rgba(224, 58, 62, 0.12));
-    border-left: 3px solid var(--accent-red, #e03a3e);
-    margin-left: -3px;
-    padding-left: 3px;
+    /* No styles here - error highlighting is done via overlay */
 }
 
-/* Errors overlay - positioned at right edge, scrolls vertically */
+/* Errors overlay - positioned absolutely, scrolls with content */
 .asm-errors-overlay {
     position: absolute;
     top: 0;
     right: 0;
     left: 0;
     pointer-events: none;
-    z-index: 2;
+    z-index: 0;
+}
+
+.asm-error-highlight {
+    position: absolute;
+    left: 0;
+    right: 0;
+    background: var(--accent-red-bg, rgba(224, 58, 62, 0.12));
+    border-left: 3px solid var(--accent-red, #e03a3e);
 }
 
 .asm-error-msg {
     position: absolute;
-    right: 4px;
+    right: 8px;
     padding: 2px 8px;
     font-family: var(--font-mono);
     font-size: 10px;
@@ -4440,11 +4792,18 @@ input.rb-detail {
     border: 1px solid var(--accent-red-border, rgba(224, 58, 62, 0.4));
     border-radius: 3px;
     white-space: nowrap;
+    z-index: 3;
+    transform: translateY(-50%);
 }
 
-/* Toolbar buttons */
+/* ═══════════════════════════════════════════════════════════════
+   TOOLBAR BUTTONS - Action buttons with icons
+   ═══════════════════════════════════════════════════════════════ */
 .asm-btn {
-    padding: 5px 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
     font-family: var(--font-sans);
     font-size: 11px;
     font-weight: 500;
@@ -4457,9 +4816,18 @@ input.rb-detail {
     white-space: nowrap;
 }
 
+.asm-btn-icon {
+    font-size: 10px;
+    opacity: 0.8;
+}
+
 .asm-btn:hover {
     background: var(--glass-border);
     color: var(--text-primary);
+}
+
+.asm-btn:active {
+    transform: scale(0.98);
 }
 
 .asm-btn:disabled {
@@ -4467,8 +4835,18 @@ input.rb-detail {
     cursor: not-allowed;
 }
 
+.asm-btn:disabled:active {
+    transform: none;
+}
+
+.asm-assemble-btn {
+    background: var(--accent-blue-bg, rgba(0, 157, 220, 0.1));
+    border-color: var(--accent-blue-border, rgba(0, 157, 220, 0.25));
+    color: var(--accent-blue, #009DDC);
+}
+
 .asm-assemble-btn:hover {
-    background: var(--accent-blue-bg-strong, rgba(0, 157, 220, 0.15));
+    background: var(--accent-blue-bg-strong, rgba(0, 157, 220, 0.2));
     border-color: var(--accent-blue-border, rgba(0, 157, 220, 0.4));
     color: var(--accent-blue, #009DDC);
 }
@@ -4487,44 +4865,50 @@ input.rb-detail {
 }
 
 @keyframes asm-load-pulse {
-    0% {
-        transform: scale(1);
-    }
-    50% {
-        transform: scale(1.03);
-    }
-    100% {
-        transform: scale(1);
-    }
+    0% { transform: scale(1); }
+    50% { transform: scale(1.03); }
+    100% { transform: scale(1); }
 }
 
-/* Column indicator */
+/* ─────────────────────────────────────────────────────────────────
+   Column Indicator - Shows current Merlin column
+   ───────────────────────────────────────────────────────────────── */
 .asm-column-indicator {
     font-size: 10px;
     font-family: var(--font-mono);
-    color: var(--text-muted);
-    margin-left: auto;
+    font-weight: 500;
     white-space: nowrap;
-    padding: 2px 6px;
+    padding: 3px 8px;
     border-radius: var(--radius-sm);
     background: var(--glass-bg-header);
     border: 1px solid var(--glass-border-subtle);
+    transition: all 0.15s;
+    min-width: 60px;
+    text-align: center;
 }
 
 .asm-col-label {
     color: var(--syntax-label, #d2a8ff);
+    background: rgba(210, 168, 255, 0.1);
+    border-color: rgba(210, 168, 255, 0.25);
 }
 
 .asm-col-opcode {
-    color: var(--syntax-keyword, #ff7b72);
+    color: var(--syntax-branch, #61bb46);
+    background: rgba(97, 187, 70, 0.1);
+    border-color: rgba(97, 187, 70, 0.25);
 }
 
 .asm-col-operand {
-    color: var(--syntax-data, #79c0ff);
+    color: var(--syntax-load, #fdb827);
+    background: rgba(253, 184, 39, 0.1);
+    border-color: rgba(253, 184, 39, 0.25);
 }
 
 .asm-col-comment {
     color: var(--syntax-comment, #8b949e);
+    background: rgba(139, 148, 158, 0.1);
+    border-color: rgba(139, 148, 158, 0.25);
 }
 
 /* Assembler autocomplete dropdown */
@@ -4661,4 +5045,40 @@ input.rb-detail {
 
 .asm-autocomplete-dropdown .autocomplete-list::-webkit-scrollbar-thumb:hover {
     background: var(--accent-green-border);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SHORTCUTS BAR - Keyboard hints at bottom of editor
+   ═══════════════════════════════════════════════════════════════ */
+.asm-shortcuts-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 4px 8px;
+    background: var(--glass-bg);
+    border-top: 1px solid var(--glass-border-subtle);
+    flex-shrink: 0;
+}
+
+.asm-shortcut {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-family: var(--font-sans);
+    font-size: 10px;
+    color: var(--text-tertiary);
+}
+
+.asm-shortcut kbd {
+    display: inline-block;
+    padding: 1px 5px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--glass-bg-header);
+    border: 1px solid var(--glass-border);
+    border-radius: 3px;
+    box-shadow: 0 1px 0 var(--glass-border);
 }
