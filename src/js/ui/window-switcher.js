@@ -40,7 +40,7 @@ const WINDOW_CATEGORIES = [
   {
     label: 'Dev',
     windows: [
-      { id: 'basic-program', title: 'BASIC Program' },
+      { id: 'basic-program', title: 'Applesoft BASIC' },
       { id: 'assembler-editor', title: 'Assembler' },
     ],
   },
