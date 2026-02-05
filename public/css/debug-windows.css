@@ -4497,10 +4497,9 @@ input.rb-detail {
 .asm-gutter-content {
     flex: 1 1 0;
     min-height: 0;
-    padding-top: 8px; /* Match textarea padding */
-    font-family: var(--font-mono);
-    font-size: 12px;
-    line-height: 1.4;
+    padding: 8px 0; /* Match textarea padding top/bottom */
+    /* Use identical font specification as textarea for exact line height match */
+    font: 400 12px/1.4 ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
     overflow-y: scroll;
     overflow-x: hidden;
     user-select: none;
@@ -4517,8 +4516,7 @@ input.rb-detail {
     display: flex;
     align-items: center;
     position: relative;
-    height: 16.8px;
-    line-height: 16.8px;
+    /* Don't set fixed height - let line-height from parent control it */
     padding: 0 4px;
     white-space: nowrap;
 }
