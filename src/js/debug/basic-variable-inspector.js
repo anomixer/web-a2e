@@ -19,6 +19,9 @@
  * - Integer (2 bytes): Signed 16-bit (high byte, low byte)
  * - String (3 bytes): Length byte + 2-byte pointer to string data
  */
+
+import { peek, readWord } from "../utils/wasm-memory.js";
+
 export class BasicVariableInspector {
   constructor(wasmModule) {
     this.wasmModule = wasmModule;
@@ -31,8 +34,8 @@ export class BasicVariableInspector {
   getSimpleVariables() {
     const variables = [];
 
-    const vartab = this._readWord(0x69);
-    const arytab = this._readWord(0x6b);
+    const vartab = readWord(this.wasmModule,0x69);
+    const arytab = readWord(this.wasmModule,0x6b);
 
     // No variables if pointers are invalid or equal (empty variable area)
     if (vartab === 0 || arytab === 0 || vartab >= arytab) {
@@ -63,8 +66,8 @@ export class BasicVariableInspector {
   getArrayVariables() {
     const arrays = [];
 
-    const arytab = this._readWord(0x6b);
-    const strend = this._readWord(0x6d);
+    const arytab = readWord(this.wasmModule,0x6b);
+    const strend = readWord(this.wasmModule,0x6d);
 
     if (arytab === 0 || strend === 0 || arytab >= strend) {
       return arrays;
@@ -86,8 +89,8 @@ export class BasicVariableInspector {
    * Parse a single variable at the given address
    */
   _parseVariable(addr) {
-    const byte1 = this._peek(addr);
-    const byte2 = this._peek(addr + 1);
+    const byte1 = peek(this.wasmModule,addr);
+    const byte2 = peek(this.wasmModule,addr + 1);
 
     if (byte1 === 0) return null;
 
@@ -98,8 +101,8 @@ export class BasicVariableInspector {
 
     if (type === "integer") {
       // Integer: 2 bytes (high, low)
-      const high = this._peek(addr + 2);
-      const low = this._peek(addr + 3);
+      const high = peek(this.wasmModule,addr + 2);
+      const low = peek(this.wasmModule,addr + 3);
       value = (high << 8) | low;
       // Convert to signed
       if (value >= 0x8000) value -= 0x10000;
@@ -107,9 +110,9 @@ export class BasicVariableInspector {
       size = 7; // 2 name + 5 value (padded to match real size)
     } else if (type === "string") {
       // String: length + 2-byte pointer
-      const len = this._peek(addr + 2);
-      const ptrLow = this._peek(addr + 3);
-      const ptrHigh = this._peek(addr + 4);
+      const len = peek(this.wasmModule,addr + 2);
+      const ptrLow = peek(this.wasmModule,addr + 3);
+      const ptrHigh = peek(this.wasmModule,addr + 4);
       const ptr = (ptrHigh << 8) | ptrLow;
       value = this._readString(ptr, len);
       rawValue = new Uint8Array([len, ptrLow, ptrHigh]);
@@ -118,7 +121,7 @@ export class BasicVariableInspector {
       // Real: 5-byte Applesoft float
       const floatBytes = new Uint8Array(5);
       for (let i = 0; i < 5; i++) {
-        floatBytes[i] = this._peek(addr + 2 + i);
+        floatBytes[i] = peek(this.wasmModule,addr + 2 + i);
       }
       value = this._decodeApplesoftFloat(floatBytes);
       rawValue = floatBytes;
@@ -132,27 +135,27 @@ export class BasicVariableInspector {
    * Parse an array variable header
    */
   _parseArray(addr) {
-    const byte1 = this._peek(addr);
-    const byte2 = this._peek(addr + 1);
+    const byte1 = peek(this.wasmModule,addr);
+    const byte2 = peek(this.wasmModule,addr + 1);
 
     if (byte1 === 0) return null;
 
     const { name, type } = this._parseVariableName(byte1, byte2);
 
     // Total size of array entry (including header) - stored little-endian
-    const sizeLow = this._peek(addr + 2);
-    const sizeHigh = this._peek(addr + 3);
+    const sizeLow = peek(this.wasmModule,addr + 2);
+    const sizeHigh = peek(this.wasmModule,addr + 3);
     const totalSize = (sizeHigh << 8) | sizeLow;
 
     // Number of dimensions
-    const numDims = this._peek(addr + 4);
+    const numDims = peek(this.wasmModule,addr + 4);
 
     // Read dimension sizes (2 bytes each, stored high-low)
     const dimensions = [];
     let dimAddr = addr + 5;
     for (let i = 0; i < numDims; i++) {
-      const dimHigh = this._peek(dimAddr);
-      const dimLow = this._peek(dimAddr + 1);
+      const dimHigh = peek(this.wasmModule,dimAddr);
+      const dimLow = peek(this.wasmModule,dimAddr + 1);
       dimensions.push((dimHigh << 8) | dimLow);
       dimAddr += 2;
     }
@@ -172,20 +175,20 @@ export class BasicVariableInspector {
     for (let i = 0; i < totalElements && i < 10000; i++) {
       let elemValue;
       if (type === "integer") {
-        const high = this._peek(valueAddr);
-        const low = this._peek(valueAddr + 1);
+        const high = peek(this.wasmModule,valueAddr);
+        const low = peek(this.wasmModule,valueAddr + 1);
         elemValue = (high << 8) | low;
         if (elemValue >= 0x8000) elemValue -= 0x10000;
       } else if (type === "string") {
-        const len = this._peek(valueAddr);
-        const ptrLow = this._peek(valueAddr + 1);
-        const ptrHigh = this._peek(valueAddr + 2);
+        const len = peek(this.wasmModule,valueAddr);
+        const ptrLow = peek(this.wasmModule,valueAddr + 1);
+        const ptrHigh = peek(this.wasmModule,valueAddr + 2);
         const ptr = (ptrHigh << 8) | ptrLow;
         elemValue = this._readString(ptr, len);
       } else {
         const floatBytes = new Uint8Array(5);
         for (let j = 0; j < 5; j++) {
-          floatBytes[j] = this._peek(valueAddr + j);
+          floatBytes[j] = peek(this.wasmModule,valueAddr + j);
         }
         elemValue = this._decodeApplesoftFloat(floatBytes);
       }
@@ -274,30 +277,10 @@ export class BasicVariableInspector {
 
     let str = "";
     for (let i = 0; i < len; i++) {
-      const char = this._peek(ptr + i) & 0x7f;
+      const char = peek(this.wasmModule,ptr + i) & 0x7f;
       str += String.fromCharCode(char);
     }
     return str;
-  }
-
-  /**
-   * Read a 16-bit word from memory (low byte first)
-   */
-  _readWord(addr) {
-    const low = this._peek(addr);
-    const high = this._peek(addr + 1);
-    return (high << 8) | low;
-  }
-
-  /**
-   * Read a byte from memory (non-side-effecting)
-   */
-  _peek(addr) {
-    try {
-      return this.wasmModule._peekMemory(addr);
-    } catch (e) {
-      return 0;
-    }
   }
 
   /**

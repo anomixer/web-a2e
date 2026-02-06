@@ -7,10 +7,10 @@
 
 import { BaseWindow } from "../windows/base-window.js";
 import {
-  highlightBasicSource,
   highlightBasicSourceWithIndent,
   formatBasicSource,
 } from "../utils/basic-highlighting.js";
+import { escapeHtml } from "../utils/string-utils.js";
 import { BasicAutocomplete } from "../utils/basic-autocomplete.js";
 import { BasicBreakpointManager } from "./basic-breakpoint-manager.js";
 import { BasicVariableInspector } from "./basic-variable-inspector.js";
@@ -309,89 +309,87 @@ export class BasicProgramWindow extends BaseWindow {
     this.renderBreakpointList();
   }
 
-  setupSplitter() {
+  /**
+   * Set up a drag-to-resize splitter. Returns a cleanup function to remove
+   * document-level listeners when the window is destroyed.
+   * @param {Object} options
+   * @param {HTMLElement} options.handle - The splitter element to drag
+   * @param {string} options.cursor - Cursor style during drag ('col-resize' or 'row-resize')
+   * @param {function} options.onDrag - Called with (startValue, delta) during drag
+   * @param {function} options.getStartValue - Returns the initial size value on drag start
+   */
+  setupDragSplitter({ handle, cursor, getStartValue, onDrag }) {
     let isDragging = false;
-    let startX = 0;
-    let startWidth = 0;
+    let startPos = 0;
+    let startValue = 0;
+    const isHorizontal = cursor === "col-resize";
 
-    // Minimum width for editor section to fit buttons
+    const onMouseDown = (e) => {
+      isDragging = true;
+      startPos = isHorizontal ? e.clientX : e.clientY;
+      startValue = getStartValue();
+      document.body.style.cursor = cursor;
+      document.body.style.userSelect = "none";
+      e.preventDefault();
+    };
+
+    const onMouseMove = (e) => {
+      if (!isDragging) return;
+      const delta = startPos - (isHorizontal ? e.clientX : e.clientY);
+      onDrag(startValue, delta);
+    };
+
+    const onMouseUp = () => {
+      if (!isDragging) return;
+      isDragging = false;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      if (this.onStateChange) this.onStateChange();
+    };
+
+    handle.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("mousemove", onMouseMove);
+    document.addEventListener("mouseup", onMouseUp);
+
+    return () => {
+      document.removeEventListener("mousemove", onMouseMove);
+      document.removeEventListener("mouseup", onMouseUp);
+    };
+  }
+
+  setupSplitter() {
     const MIN_EDITOR_WIDTH = 380;
     const MIN_SIDEBAR_WIDTH = 120;
     const MAX_SIDEBAR_WIDTH = 600;
     const SPLITTER_WIDTH = 8;
 
-    const onMouseDown = (e) => {
-      isDragging = true;
-      startX = e.clientX;
-      startWidth = this.sidebar.offsetWidth;
-      document.body.style.cursor = "col-resize";
-      document.body.style.userSelect = "none";
-      e.preventDefault();
-    };
-
-    const onMouseMove = (e) => {
-      if (!isDragging) return;
-      const delta = startX - e.clientX;
-      let newWidth = startWidth + delta;
-
-      // Get container width to calculate max sidebar width
-      const mainArea = this.contentElement.querySelector(".basic-main-area");
-      const containerWidth = mainArea ? mainArea.offsetWidth : 800;
-      const maxSidebarForEditor = containerWidth - MIN_EDITOR_WIDTH - SPLITTER_WIDTH;
-
-      // Clamp sidebar width between min/max and editor constraint
-      newWidth = Math.max(newWidth, MIN_SIDEBAR_WIDTH);
-      newWidth = Math.min(newWidth, MAX_SIDEBAR_WIDTH);
-      newWidth = Math.min(newWidth, maxSidebarForEditor);
-
-      this.sidebar.style.width = `${newWidth}px`;
-    };
-
-    const onMouseUp = () => {
-      if (!isDragging) return;
-      isDragging = false;
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      if (this.onStateChange) this.onStateChange();
-    };
-
-    this.splitter.addEventListener("mousedown", onMouseDown);
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
+    this._cleanupSplitter = this.setupDragSplitter({
+      handle: this.splitter,
+      cursor: "col-resize",
+      getStartValue: () => this.sidebar.offsetWidth,
+      onDrag: (startWidth, delta) => {
+        let newWidth = startWidth + delta;
+        const mainArea = this.contentElement.querySelector(".basic-main-area");
+        const containerWidth = mainArea ? mainArea.offsetWidth : 800;
+        const maxSidebarForEditor = containerWidth - MIN_EDITOR_WIDTH - SPLITTER_WIDTH;
+        newWidth = Math.max(newWidth, MIN_SIDEBAR_WIDTH);
+        newWidth = Math.min(newWidth, MAX_SIDEBAR_WIDTH);
+        newWidth = Math.min(newWidth, maxSidebarForEditor);
+        this.sidebar.style.width = `${newWidth}px`;
+      },
+    });
   }
 
   setupSidebarSplitter() {
-    let isDragging = false;
-    let startY = 0;
-    let startHeight = 0;
-
-    const onMouseDown = (e) => {
-      isDragging = true;
-      startY = e.clientY;
-      startHeight = this.bpSection.offsetHeight;
-      document.body.style.cursor = "row-resize";
-      document.body.style.userSelect = "none";
-      e.preventDefault();
-    };
-
-    const onMouseMove = (e) => {
-      if (!isDragging) return;
-      const delta = startY - e.clientY;
-      const newHeight = Math.min(Math.max(startHeight + delta, 80), 400);
-      this.bpSection.style.height = `${newHeight}px`;
-    };
-
-    const onMouseUp = () => {
-      if (!isDragging) return;
-      isDragging = false;
-      document.body.style.cursor = "";
-      document.body.style.userSelect = "";
-      if (this.onStateChange) this.onStateChange();
-    };
-
-    this.sidebarSplitter.addEventListener("mousedown", onMouseDown);
-    document.addEventListener("mousemove", onMouseMove);
-    document.addEventListener("mouseup", onMouseUp);
+    this._cleanupSidebarSplitter = this.setupDragSplitter({
+      handle: this.sidebarSplitter,
+      cursor: "row-resize",
+      getStartValue: () => this.bpSection.offsetHeight,
+      onDrag: (startHeight, delta) => {
+        const newHeight = Math.min(Math.max(startHeight + delta, 80), 400);
+        this.bpSection.style.height = `${newHeight}px`;
+      },
+    });
   }
 
   // ========================================
@@ -1024,7 +1022,7 @@ export class BasicProgramWindow extends BaseWindow {
     }
 
     if (this.isRunningCallback && !this.isRunningCallback()) {
-      this.showErrorFeedback("Emulator is off");
+      this.showButtonFeedback("Emulator is off", "basic-btn-error");
       return;
     }
 
@@ -1057,9 +1055,9 @@ export class BasicProgramWindow extends BaseWindow {
         this.isPasting = false;
         this.insertBtn.classList.remove("basic-btn-cancel");
         if (cancelled) {
-          this.showCancelledFeedback();
+          this.showButtonFeedback("Cancelled", "basic-btn-error");
         } else {
-          this.showLoadedFeedback(lineCount);
+          this.showButtonFeedback(`Loaded ${lineCount} lines!`, "basic-btn-success");
         }
       },
     });
@@ -1071,34 +1069,14 @@ export class BasicProgramWindow extends BaseWindow {
     this.inputHandler.cancelPaste();
   }
 
-  showErrorFeedback(message) {
+  showButtonFeedback(message, cssClass) {
     const originalText = this.insertBtn.textContent;
     this.insertBtn.textContent = message;
-    this.insertBtn.classList.add("basic-btn-error");
+    this.insertBtn.classList.add(cssClass);
 
     setTimeout(() => {
       this.insertBtn.textContent = originalText;
-      this.insertBtn.classList.remove("basic-btn-error");
-    }, 1500);
-  }
-
-  showCancelledFeedback() {
-    this.insertBtn.textContent = "Cancelled";
-    this.insertBtn.classList.add("basic-btn-error");
-
-    setTimeout(() => {
-      this.insertBtn.textContent = "Paste into Emulator";
-      this.insertBtn.classList.remove("basic-btn-error");
-    }, 1500);
-  }
-
-  showLoadedFeedback(lineCount) {
-    this.insertBtn.textContent = `Loaded ${lineCount} lines!`;
-    this.insertBtn.classList.add("basic-btn-success");
-
-    setTimeout(() => {
-      this.insertBtn.textContent = "Paste into Emulator";
-      this.insertBtn.classList.remove("basic-btn-success");
+      this.insertBtn.classList.remove(cssClass);
     }, 1500);
   }
 
@@ -1200,25 +1178,6 @@ export class BasicProgramWindow extends BaseWindow {
     }
   }
 
-  /**
-   * Complete the current frame after a BASIC step
-   * Runs cycles until the frame is ready so the user sees the visual result
-   */
-  completeFrame() {
-    const CYCLES_PER_FRAME = 17030;
-    const MAX_CYCLES = CYCLES_PER_FRAME * 2; // Safety limit
-    let cyclesRun = 0;
-
-    // Clear any existing frame ready flag by checking it
-    this.wasmModule._isFrameReady();
-
-    // Run cycles until frame is ready
-    while (!this.wasmModule._isFrameReady() && cyclesRun < MAX_CYCLES) {
-      this.wasmModule._runCycles(1000);
-      cyclesRun += 1000;
-    }
-  }
-
   addBreakpointFromInput() {
     const value = this.bpInput.value.trim();
     if (!value) return;
@@ -1278,7 +1237,7 @@ export class BasicProgramWindow extends BaseWindow {
         html += `
           <div class="basic-dbg-var-row ${changeClass} ${typeClass}">
             <span class="basic-dbg-var-name">${v.name}</span>
-            <span class="basic-dbg-var-value">${this.escapeHtml(displayValue)}</span>
+            <span class="basic-dbg-var-value">${escapeHtml(displayValue)}</span>
           </div>
         `;
       }
@@ -1319,16 +1278,9 @@ export class BasicProgramWindow extends BaseWindow {
     const values = arr.values;
     const type = arr.type;
 
-    // Format a single value
+    // Format a single value using the same logic as simple variables
     const formatVal = (v) => {
-      if (type === "string") return `"${this.escapeHtml(v)}"`;
-      if (type === "integer") return v.toString();
-      if (Number.isInteger(v)) return v.toString();
-      const abs = Math.abs(v);
-      if (abs === 0) return "0";
-      if (abs >= 0.01 && abs < 1e6)
-        return v.toPrecision(6).replace(/\.?0+$/, "");
-      return v.toExponential(4);
+      return escapeHtml(this.variableInspector.formatValue({ type, value: v }));
     };
 
     // 1D array - simple indexed list
@@ -1431,18 +1383,6 @@ export class BasicProgramWindow extends BaseWindow {
     });
   }
 
-  escapeHtml(text) {
-    return text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-  }
-
-  formatHex(value, digits) {
-    return value.toString(16).toUpperCase().padStart(digits, "0");
-  }
-
   // ========================================
   // Update Loop
   // ========================================
@@ -1450,26 +1390,29 @@ export class BasicProgramWindow extends BaseWindow {
   update(wasmModule) {
     if (!this.isVisible) return;
 
-    // Throttle updates to 10fps (100ms) to reduce CPU load
     const now = Date.now();
+    const state = this.programParser.getExecutionState();
+    const isPaused = wasmModule._isPaused();
+
+    // Update variables twice per second (500ms)
+    if (state.running || isPaused) {
+      if (!this._lastVarUpdateTime || now - this._lastVarUpdateTime >= 500) {
+        this._lastVarUpdateTime = now;
+        this.renderVariables();
+      }
+    }
+
+    // Throttle other updates to 10fps (100ms) to reduce CPU load
     if (this._lastUpdateTime && now - this._lastUpdateTime < 100) {
       return;
     }
     this._lastUpdateTime = now;
-
-    const state = this.programParser.getExecutionState();
-    const isPaused = wasmModule._isPaused();
 
     // Check for BASIC breakpoint hit (breakpoint or step completion)
     // Track state transition to detect NEW breakpoint hits (not just being paused at one)
     const basicBreakpointHit = isPaused && wasmModule._isBasicBreakpointHit();
     if (basicBreakpointHit) {
       const breakLine = wasmModule._getBasicBreakLine();
-      // Detect new breakpoint hit by checking state transition (false -> true)
-      if (!this._lastBasicBreakpointHit) {
-        // Update variables to show current state after the step
-        this.renderVariables();
-      }
       this.currentLineNumber = breakLine;
       this.updateGutter();
       this.updateHighlighting();
@@ -1538,12 +1481,6 @@ export class BasicProgramWindow extends BaseWindow {
       this.currentLineNumber = null;
       this.updateHighlighting();
     }
-
-    // Always update variables at 10fps (during running or paused)
-    // This lets users watch variables change in real-time
-    if (state.running || isPaused) {
-      this.renderVariables();
-    }
   }
 
   /**
@@ -1581,5 +1518,11 @@ export class BasicProgramWindow extends BaseWindow {
     if (state.breakpointsHeight && this.bpSection) {
       this.bpSection.style.height = `${state.breakpointsHeight}px`;
     }
+  }
+
+  destroy() {
+    if (this._cleanupSplitter) this._cleanupSplitter();
+    if (this._cleanupSidebarSplitter) this._cleanupSidebarSplitter();
+    super.destroy();
   }
 }

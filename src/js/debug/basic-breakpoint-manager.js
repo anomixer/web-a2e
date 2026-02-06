@@ -5,6 +5,8 @@
  *  Mike Daley <michael_daley@icloud.com>
  */
 
+import { readWord } from "../utils/wasm-memory.js";
+
 /**
  * BasicBreakpointManager - Manages BASIC line breakpoints
  * Syncs breakpoints with C++ via WASM interface and persists to localStorage
@@ -229,27 +231,14 @@ export class BasicBreakpointManager {
    * Get current BASIC line number (CURLIN)
    */
   _getCurlin() {
-    try {
-      const low = this.wasmModule._peekMemory(0x75);
-      const high = this.wasmModule._peekMemory(0x76);
-      return (high << 8) | low;
-    } catch (e) {
-      return 0xffff;
-    }
+    return readWord(this.wasmModule, 0x75);
   }
 
   /**
    * Get current text pointer (TXTPTR)
-   * Uses readMainRAM to bypass ALTZP - BASIC always uses main RAM for zero page
    */
   _getTxtptr() {
-    try {
-      const low = this.wasmModule._readMainRAM(0x7a);
-      const high = this.wasmModule._readMainRAM(0x7b);
-      return (high << 8) | low;
-    } catch (e) {
-      return 0;
-    }
+    return readWord(this.wasmModule, 0x7a);
   }
 
   // ---- WASM sync helpers ----

@@ -594,14 +594,8 @@ export class BasicAutocomplete {
         item.keyword.startsWith(upperWord)
       );
 
-      // Combine: variables first (they're more specific), then keywords
-      // But if the word matches a keyword exactly at the start, prioritize keywords
-      if (upperWord.length >= 2 && keywords.some(k => k.keyword.startsWith(upperWord))) {
-        // Interleave: variables, then keywords
-        items = [...variables, ...functions, ...keywords];
-      } else {
-        items = [...variables, ...functions, ...keywords];
-      }
+      // Combine: variables first (they're more specific), then keywords/functions
+      items = [...variables, ...functions, ...keywords];
     }
 
     this.matches = items.slice(0, 12); // Limit to 12 matches

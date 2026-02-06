@@ -15,6 +15,10 @@
  * - CURLIN ($75-$76): Current line number being executed (0xFFFF = direct mode)
  * - TXTPTR ($7A-$7B): Pointer to current position in program text
  */
+
+import { APPLESOFT_TOKENS } from "../utils/basic-tokens.js";
+import { peek, readWord } from "../utils/wasm-memory.js";
+
 export class BasicProgramParser {
   constructor(wasmModule) {
     this.wasmModule = wasmModule;
@@ -28,8 +32,8 @@ export class BasicProgramParser {
    * @returns {Array<{lineNumber: number, address: number, text: string}>}
    */
   getLines() {
-    const txttab = this._readWord(0x67);
-    const vartab = this._readWord(0x69);
+    const txttab = readWord(this.wasmModule,0x67);
+    const vartab = readWord(this.wasmModule,0x69);
 
     // Check cache validity
     if (
@@ -55,24 +59,24 @@ export class BasicProgramParser {
     const maxLines = 10000;
 
     while (addr < endAddr && safetyCount < maxLines) {
-      const nextPtr = this._readWord(addr);
+      const nextPtr = readWord(this.wasmModule,addr);
 
       // End of program
       if (nextPtr === 0) break;
 
-      const lineNumber = this._readWord(addr + 2);
+      const lineNumber = readWord(this.wasmModule,addr + 2);
       const textStart = addr + 4;
 
       // Find end of line (null terminator)
       let textEnd = textStart;
-      while (this._peek(textEnd) !== 0 && textEnd < nextPtr) {
+      while (peek(this.wasmModule,textEnd) !== 0 && textEnd < nextPtr) {
         textEnd++;
       }
 
       // Read tokenized bytes
       const tokenBytes = new Uint8Array(textEnd - textStart);
       for (let i = 0; i < tokenBytes.length; i++) {
-        tokenBytes[i] = this._peek(textStart + i);
+        tokenBytes[i] = peek(this.wasmModule,textStart + i);
       }
 
       // Detokenize
@@ -121,8 +125,8 @@ export class BasicProgramParser {
    * @returns {{running: boolean, currentLine: number, txtptr: number}}
    */
   getExecutionState() {
-    const curlin = this._readWord(0x75);
-    const txtptr = this._readWord(0x7a);
+    const curlin = readWord(this.wasmModule,0x75);
+    const txtptr = readWord(this.wasmModule,0x7a);
 
     // CURLIN = $FFFF means direct/immediate mode (not running a program)
     return {
@@ -136,7 +140,7 @@ export class BasicProgramParser {
    * Check if BASIC is running (CURLIN != $FFFF)
    */
   isRunning() {
-    return this._readWord(0x75) !== 0xffff;
+    return readWord(this.wasmModule,0x75) !== 0xffff;
   }
 
   /**
@@ -144,7 +148,7 @@ export class BasicProgramParser {
    * Returns null if in direct mode or not running
    */
   getCurrentLine() {
-    const curlin = this._readWord(0x75);
+    const curlin = readWord(this.wasmModule,0x75);
     return curlin === 0xffff ? null : curlin;
   }
 
@@ -152,7 +156,7 @@ export class BasicProgramParser {
    * Get current text pointer position
    */
   getTxtptr() {
-    return this._readWord(0x7a);
+    return readWord(this.wasmModule,0x7a);
   }
 
   /**
@@ -171,7 +175,7 @@ export class BasicProgramParser {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       const nextLine = lines[i + 1];
-      const endAddr = nextLine ? nextLine.address : this._readWord(0x69);
+      const endAddr = nextLine ? nextLine.address : readWord(this.wasmModule,0x69);
 
       if (addr >= line.address && addr < endAddr) {
         return line;
@@ -190,7 +194,7 @@ export class BasicProgramParser {
     if (!line) return null;
 
     // Find end of this line's tokens
-    const nextPtr = this._readWord(line.address);
+    const nextPtr = readWord(this.wasmModule,line.address);
     const tokenStart = line.tokenAddress;
     const tokenEnd = nextPtr - 1; // -1 for null terminator
 
@@ -208,7 +212,7 @@ export class BasicProgramParser {
     let currentStatementIndex = 0;
 
     for (let addr = tokenStart; addr < tokenEnd; addr++) {
-      const byte = this._peek(addr);
+      const byte = peek(this.wasmModule,addr);
 
       // Track if we've passed TXTPTR
       if (addr === txtptr) {
@@ -349,153 +353,4 @@ export class BasicProgramParser {
     return result;
   }
 
-  /**
-   * Read a 16-bit word from memory (low byte first)
-   * Uses main RAM for zero page to bypass ALTZP switch
-   */
-  _readWord(addr) {
-    // Zero page reads need to bypass ALTZP since BASIC always uses main RAM
-    if (addr < 0x200) {
-      const low = this._peekMain(addr);
-      const high = this._peekMain(addr + 1);
-      return (high << 8) | low;
-    }
-    const low = this._peek(addr);
-    const high = this._peek(addr + 1);
-    return (high << 8) | low;
-  }
-
-  /**
-   * Read a byte from memory (non-side-effecting)
-   */
-  _peek(addr) {
-    try {
-      return this.wasmModule._peekMemory(addr);
-    } catch (e) {
-      return 0;
-    }
-  }
-
-  /**
-   * Read a byte directly from main RAM (bypasses ALTZP)
-   * Use for BASIC zero page variables which are always in main RAM
-   */
-  _peekMain(addr) {
-    try {
-      return this.wasmModule._readMainRAM(addr);
-    } catch (e) {
-      return 0;
-    }
-  }
 }
-
-// Applesoft BASIC tokens ($80-$EA)
-const APPLESOFT_TOKENS = [
-  "END", // $80
-  "FOR", // $81
-  "NEXT", // $82
-  "DATA", // $83
-  "INPUT", // $84
-  "DEL", // $85
-  "DIM", // $86
-  "READ", // $87
-  "GR", // $88
-  "TEXT", // $89
-  "PR#", // $8A
-  "IN#", // $8B
-  "CALL", // $8C
-  "PLOT", // $8D
-  "HLIN", // $8E
-  "VLIN", // $8F
-  "HGR2", // $90
-  "HGR", // $91
-  "HCOLOR=", // $92
-  "HPLOT", // $93
-  "DRAW", // $94
-  "XDRAW", // $95
-  "HTAB", // $96
-  "HOME", // $97
-  "ROT=", // $98
-  "SCALE=", // $99
-  "SHLOAD", // $9A
-  "TRACE", // $9B
-  "NOTRACE", // $9C
-  "NORMAL", // $9D
-  "INVERSE", // $9E
-  "FLASH", // $9F
-  "COLOR=", // $A0
-  "POP", // $A1
-  "VTAB", // $A2
-  "HIMEM:", // $A3
-  "LOMEM:", // $A4
-  "ONERR", // $A5
-  "RESUME", // $A6
-  "RECALL", // $A7
-  "STORE", // $A8
-  "SPEED=", // $A9
-  "LET", // $AA
-  "GOTO", // $AB
-  "RUN", // $AC
-  "IF", // $AD
-  "RESTORE", // $AE
-  "&", // $AF
-  "GOSUB", // $B0
-  "RETURN", // $B1
-  "REM", // $B2
-  "STOP", // $B3
-  "ON", // $B4
-  "WAIT", // $B5
-  "LOAD", // $B6
-  "SAVE", // $B7
-  "DEF", // $B8
-  "POKE", // $B9
-  "PRINT", // $BA
-  "CONT", // $BB
-  "LIST", // $BC
-  "CLEAR", // $BD
-  "GET", // $BE
-  "NEW", // $BF
-  "TAB(", // $C0
-  "TO", // $C1
-  "FN", // $C2
-  "SPC(", // $C3
-  "THEN", // $C4
-  "AT", // $C5
-  "NOT", // $C6
-  "STEP", // $C7
-  "+", // $C8
-  "-", // $C9
-  "*", // $CA
-  "/", // $CB
-  "^", // $CC (actually up arrow in Applesoft)
-  "AND", // $CD
-  "OR", // $CE
-  ">", // $CF
-  "=", // $D0
-  "<", // $D1
-  "SGN", // $D2
-  "INT", // $D3
-  "ABS", // $D4
-  "USR", // $D5
-  "FRE", // $D6
-  "SCRN(", // $D7
-  "PDL", // $D8
-  "POS", // $D9
-  "SQR", // $DA
-  "RND", // $DB
-  "LOG", // $DC
-  "EXP", // $DD
-  "COS", // $DE
-  "SIN", // $DF
-  "TAN", // $E0
-  "ATN", // $E1
-  "PEEK", // $E2
-  "LEN", // $E3
-  "STR$", // $E4
-  "VAL", // $E5
-  "ASC", // $E6
-  "CHR$", // $E7
-  "LEFT$", // $E8
-  "RIGHT$", // $E9
-  "MID$", // $EA
-];
