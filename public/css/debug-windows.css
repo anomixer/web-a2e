@@ -3389,7 +3389,6 @@
 }
 
 .basic-btn {
-    flex: 1;
     padding: 8px 12px;
     font-family: var(--font-sans);
     font-size: 11px;
@@ -3399,7 +3398,14 @@
     border-radius: var(--radius-sm);
     color: var(--text-secondary);
     cursor: pointer;
-    transition: all 0.15s;
+    transition: background 0.15s, border-color 0.15s, color 0.15s;
+    white-space: nowrap;
+}
+
+/* Paste button has dynamic content - fix width to prevent layout shift */
+.basic-insert-btn {
+    min-width: 120px;
+    text-align: center;
 }
 
 .basic-btn:hover {

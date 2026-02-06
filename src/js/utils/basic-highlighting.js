@@ -89,47 +89,33 @@ const SORTED_KEYWORDS = Array.from(ALL_KEYWORDS)
 
 /**
  * Calculate the indentation level for each line based on control structures
+ * Handles multiple FOR/NEXT on the same line (e.g., FOR A=1 TO 2:FOR B=1 TO 2)
  * @param {string[]} lines - Array of BASIC lines
- * @returns {number[]} Array of indentation levels (0-4)
+ * @returns {number[]} Array of indentation levels (0-8)
  */
 function calculateIndentLevels(lines) {
   const levels = [];
   let currentLevel = 0;
-  const forStack = []; // Track FOR loop variables
 
   for (const line of lines) {
     const upper = line.toUpperCase();
 
-    // Extract keywords from the line
-    const hasFor = /\bFOR\b/.test(upper);
-    const hasNext = /\bNEXT\b/.test(upper);
-    const hasGosub = /\bGOSUB\b/.test(upper);
-    const hasReturn = /\bRETURN\b/.test(upper);
+    // Count all FOR and NEXT occurrences on this line
+    const forMatches = upper.match(/\bFOR\b/g);
+    const nextMatches = upper.match(/\bNEXT\b/g);
+    const forCount = forMatches ? forMatches.length : 0;
+    const nextCount = nextMatches ? nextMatches.length : 0;
 
-    // Decrease level for NEXT and RETURN (before rendering the line)
-    if (hasNext || hasReturn) {
-      currentLevel = Math.max(0, currentLevel - 1);
-      if (hasNext && forStack.length > 0) {
-        forStack.pop();
-      }
+    // Decrease level for each NEXT (before rendering the line)
+    if (nextCount > 0) {
+      currentLevel = Math.max(0, currentLevel - nextCount);
     }
 
-    levels.push(Math.min(currentLevel, 4)); // Cap at 4 levels
+    levels.push(Math.min(currentLevel, 8)); // Cap at 8 levels
 
-    // Increase level for FOR and GOSUB (after rendering the line)
-    if (hasFor) {
-      // Extract the loop variable
-      const forMatch = upper.match(/FOR\s+([A-Z][A-Z0-9]*)/);
-      if (forMatch) {
-        forStack.push(forMatch[1]);
-      }
-      currentLevel++;
-    }
-
-    // GOSUB increases indent only if it's not a single-line pattern
-    if (hasGosub && !hasReturn) {
-      // Only indent after GOSUB if it's at the end (subroutine call pattern)
-      // Don't indent if RETURN is on the same line
+    // Increase level for each FOR (after rendering the line)
+    if (forCount > 0) {
+      currentLevel += forCount;
     }
   }
 
@@ -282,7 +268,7 @@ function toUppercasePreservingStrings(code) {
  * Format a single line of BASIC source
  * @param {string} line - Single line of BASIC
  * @param {number} maxLineNumWidth - Width to pad line numbers to
- * @param {number} indentLevel - Indentation level (0-4)
+ * @param {number} indentLevel - Indentation level (0-8)
  * @returns {string} Formatted line
  */
 function formatBasicLine(line, maxLineNumWidth, indentLevel) {

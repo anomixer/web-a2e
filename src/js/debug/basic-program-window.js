@@ -100,9 +100,9 @@ export class BasicProgramWindow extends BaseWindow {
               </div>
               <div class="basic-actions">
                 <button class="basic-btn basic-load-btn" title="Load program from emulator memory">Load from Memory</button>
+                <button class="basic-btn basic-insert-btn" title="Paste program into emulator">Paste into Emulator</button>
                 <button class="basic-btn basic-format-btn" title="Format code (align line numbers, indent loops)">Format</button>
                 <button class="basic-btn basic-renumber-btn" title="Renumber lines in increments of 10, updating GOTO/GOSUB references">Renumber</button>
-                <button class="basic-btn basic-insert-btn">Paste into Emulator</button>
                 <button class="basic-btn basic-clear-btn">Clear</button>
               </div>
             </div>
@@ -293,6 +293,7 @@ export class BasicProgramWindow extends BaseWindow {
 
     this.updateHighlighting();
     this.updateStats();
+    this.setupGutterClickHandler();
     this.updateGutter();
     this.renderVariables();
     this.renderBreakpointList();
@@ -370,6 +371,27 @@ export class BasicProgramWindow extends BaseWindow {
   // Gutter Methods
   // ========================================
 
+  /**
+   * Set up event delegation for gutter clicks (called once during init)
+   * Using delegation so clicks work even when DOM is updated during program execution
+   */
+  setupGutterClickHandler() {
+    this.gutter.addEventListener("click", (e) => {
+      // Find the gutter line element that was clicked
+      const gutterLine = e.target.closest(".basic-gutter-line");
+      if (!gutterLine) return;
+
+      const index = parseInt(gutterLine.dataset.index, 10);
+      if (isNaN(index)) return;
+
+      const lineNumber = this.lineMap[index];
+      if (lineNumber !== null) {
+        this.breakpointManager.toggle(lineNumber);
+        this.renderBreakpointList();
+      }
+    });
+  }
+
   updateGutter() {
     const text = this.textarea.value;
     const rawLines = text.split(/\r?\n/);
@@ -398,7 +420,7 @@ export class BasicProgramWindow extends BaseWindow {
       // Gutter shows breakpoint markers with subtle line number tooltip
       html += `
         <div class="basic-gutter-line ${bpClass} ${currentClass} ${clickable}" data-index="${i}">
-          <span class="basic-gutter-bp" data-index="${i}" title="${lineNumber !== null ? `Line ${lineNumber} - Click to toggle breakpoint` : ""}">${hasBp ? "●" : ""}</span>
+          <span class="basic-gutter-bp" title="${lineNumber !== null ? `Line ${lineNumber} - Click to toggle breakpoint` : ""}">${hasBp ? "●" : ""}</span>
           <span class="basic-gutter-current">${isCurrent ? "►" : ""}</span>
         </div>
       `;
@@ -411,33 +433,6 @@ export class BasicProgramWindow extends BaseWindow {
     }
 
     this.gutter.innerHTML = html;
-
-    // Add click handlers for breakpoint toggling
-    this.gutter.querySelectorAll(".basic-gutter-bp").forEach((bp) => {
-      bp.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const index = parseInt(bp.dataset.index, 10);
-        const lineNumber = this.lineMap[index];
-        if (lineNumber !== null) {
-          this.breakpointManager.toggle(lineNumber);
-          this.renderBreakpointList();
-        }
-      });
-    });
-
-    // Click on gutter line also toggles breakpoint
-    this.gutter
-      .querySelectorAll(".basic-gutter-line.clickable")
-      .forEach((line) => {
-        line.addEventListener("click", () => {
-          const index = parseInt(line.dataset.index, 10);
-          const lineNumber = this.lineMap[index];
-          if (lineNumber !== null) {
-            this.breakpointManager.toggle(lineNumber);
-            this.renderBreakpointList();
-          }
-        });
-      });
   }
 
   // ========================================
@@ -480,20 +475,27 @@ export class BasicProgramWindow extends BaseWindow {
   }
 
   /**
-   * Handle Enter key: format current line and insert next line number
+   * Handle Enter key: split line at cursor, moving text after cursor to new line
    */
   handleEnterKey() {
     const text = this.textarea.value;
     const cursorPos = this.textarea.selectionStart;
-    const selectionEnd = this.textarea.selectionEnd;
 
-    // Get current line
+    // Get current line info
     const beforeCursor = text.substring(0, cursorPos);
     const lines = text.split("\n");
     const currentLineIndex = beforeCursor.split("\n").length - 1;
     const currentLine = lines[currentLineIndex] || "";
 
-    // Find line number on current line
+    // Find where cursor is within the current line
+    const lineStart = beforeCursor.lastIndexOf("\n") + 1;
+    const cursorOffsetInLine = cursorPos - lineStart;
+
+    // Split current line at cursor position
+    const lineBeforeCursor = currentLine.substring(0, cursorOffsetInLine);
+    const lineAfterCursor = currentLine.substring(cursorOffsetInLine);
+
+    // Find line number for the new line
     const lineNumMatch = currentLine.trim().match(/^(\d+)/);
     let nextLineNum = 10; // Default starting line number
 
@@ -511,28 +513,36 @@ export class BasicProgramWindow extends BaseWindow {
       }
     }
 
-    // Format the current content first
-    const formatted = formatBasicSource(text);
+    // Build new content:
+    // - Keep text before cursor on current line
+    // - Create new line with next line number + text after cursor (trimmed)
+    const textAfterTrimmed = lineAfterCursor.trimStart();
+    lines[currentLineIndex] = lineBeforeCursor;
+    const newLine = `${nextLineNum} ${textAfterTrimmed}`;
+    lines.splice(currentLineIndex + 1, 0, newLine);
 
-    // Find cursor position in formatted text
-    const formattedLines = formatted.split("\n");
-    let newCursorPos = 0;
-    for (let i = 0; i <= currentLineIndex && i < formattedLines.length; i++) {
-      newCursorPos += formattedLines[i].length + 1; // +1 for newline
-    }
+    const newText = lines.join("\n");
 
-    // Insert newline and next line number
-    const beforeInsert = formatted.substring(0, newCursorPos - 1); // -1 to position at end of current line
-    const afterInsert = formatted.substring(newCursorPos - 1);
-    const newLineContent = `\n${nextLineNum} `;
-    const newText = beforeInsert + newLineContent + afterInsert;
+    // Format the result
+    const formatted = formatBasicSource(newText);
 
     // Update textarea
-    this.textarea.value = newText;
+    this.textarea.value = formatted;
 
-    // Position cursor after the new line number
-    const newCursorPosition = beforeInsert.length + newLineContent.length;
-    this.textarea.selectionStart = this.textarea.selectionEnd = newCursorPosition;
+    // Position cursor at the start of the code on the new line (after line number and space)
+    const formattedLines = formatted.split("\n");
+    let newCursorPos = 0;
+    for (let i = 0; i <= currentLineIndex; i++) {
+      newCursorPos += formattedLines[i].length + 1; // +1 for newline
+    }
+    // Position after line number and space on the new line
+    const newLineContent = formattedLines[currentLineIndex + 1] || "";
+    const newLineMatch = newLineContent.match(/^(\s*\d+\s*)/);
+    if (newLineMatch) {
+      newCursorPos += newLineMatch[1].length;
+    }
+
+    this.textarea.selectionStart = this.textarea.selectionEnd = newCursorPos;
 
     // Update displays
     this.updateHighlighting();
@@ -975,6 +985,11 @@ export class BasicProgramWindow extends BaseWindow {
   }
 
   loadIntoMemory() {
+    // Prevent multiple simultaneous pastes
+    if (this.isPasting) {
+      return;
+    }
+
     if (this.isRunningCallback && !this.isRunningCallback()) {
       this.showErrorFeedback("Emulator is off");
       return;
@@ -989,6 +1004,11 @@ export class BasicProgramWindow extends BaseWindow {
       return;
     }
 
+    // Set flag immediately to prevent double-clicks
+    this.isPasting = true;
+    this.insertBtn.textContent = "Cancel";
+    this.insertBtn.classList.add("basic-btn-cancel");
+
     let inputText = "NEW\r";
     for (const line of lines) {
       if (line.content) {
@@ -1000,11 +1020,6 @@ export class BasicProgramWindow extends BaseWindow {
 
     this.inputHandler.queueTextInput(inputText, {
       speedMultiplier: 8,
-      onStart: () => {
-        this.isPasting = true;
-        this.insertBtn.textContent = "Cancel";
-        this.insertBtn.classList.add("basic-btn-cancel");
-      },
       onComplete: (cancelled) => {
         this.isPasting = false;
         this.insertBtn.classList.remove("basic-btn-cancel");
@@ -1487,13 +1502,11 @@ export class BasicProgramWindow extends BaseWindow {
       this.updateHighlighting();
     }
 
-    // Only update variables when we transition to paused state
-    // This prevents constant re-rendering from interfering with click interactions
-    // The click handler for array expand/collapse calls renderVariables() explicitly
-    if (isPaused && !this._lastPausedState) {
+    // Always update variables at 10fps (during running or paused)
+    // This lets users watch variables change in real-time
+    if (state.running || isPaused) {
       this.renderVariables();
     }
-    this._lastPausedState = isPaused;
   }
 
   /**

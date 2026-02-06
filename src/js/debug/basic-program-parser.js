@@ -281,7 +281,7 @@ export class BasicProgramParser {
   }
 
   /**
-   * Detokenize Applesoft BASIC tokens
+   * Detokenize Applesoft BASIC tokens with proper spacing
    */
   _detokenize(bytes) {
     let result = "";
@@ -289,10 +289,13 @@ export class BasicProgramParser {
     let inRem = false;
     let inData = false;
 
+    // Helper to check if character is alphanumeric
+    const isAlphaNum = (c) => /[A-Za-z0-9]/.test(c);
+
     for (let i = 0; i < bytes.length; i++) {
       const byte = bytes[i];
 
-      // Inside quote or REM/DATA - output as character
+      // Inside quote or REM/DATA - output as character (no spacing changes)
       if (inQuote || inRem) {
         if (byte === 0x22) inQuote = false; // End quote
         result += String.fromCharCode(byte & 0x7f);
@@ -310,7 +313,14 @@ export class BasicProgramParser {
       if (byte >= 0x80 && byte <= 0xea) {
         const token = APPLESOFT_TOKENS[byte - 0x80];
         if (token) {
+          // Add space before token if both last char and first token char are alphanumeric
+          const lastChar = result.length > 0 ? result[result.length - 1] : "";
+          if (isAlphaNum(lastChar) && isAlphaNum(token[0])) {
+            result += " ";
+          }
+
           result += token;
+
           // Check for REM or DATA
           if (byte === 0xb2) inRem = true; // REM
           if (byte === 0x83) inData = true; // DATA
@@ -324,7 +334,16 @@ export class BasicProgramParser {
       }
 
       // Regular character
-      result += String.fromCharCode(byte & 0x7f);
+      const char = String.fromCharCode(byte & 0x7f);
+
+      // Add space before alphanumeric char if last char was also alphanumeric
+      // (handles spacing after tokens like FOR, TO, NEXT, etc.)
+      const lastChar = result.length > 0 ? result[result.length - 1] : "";
+      if (isAlphaNum(char) && isAlphaNum(lastChar)) {
+        result += " ";
+      }
+
+      result += char;
     }
 
     return result;
