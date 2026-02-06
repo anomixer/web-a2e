@@ -1,0 +1,160 @@
+/* Apple //e Emulator - Debug Window Base Styles
+   Shared foundation for all debug windows: layout, header, resize handles, scrollbar
+*/
+
+/* Base Window */
+.debug-window {
+    position: fixed;
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-window);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 1000;
+}
+
+.debug-window.hidden {
+    display: none;
+}
+
+.debug-window.dragging,
+.debug-window.resizing {
+    user-select: none;
+}
+
+.debug-window.focused {
+    border-color: var(--accent-blue-border-light);
+    box-shadow: var(--shadow-window-focused);
+}
+
+/* Window Header */
+.debug-window-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 10px;
+    background: var(--glass-bg-header);
+    border-bottom: 1px solid var(--control-border);
+    border-radius: var(--radius-md) var(--radius-md) 0 0;
+    cursor: move;
+}
+
+.debug-window-title {
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.debug-window-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 2px 6px;
+    line-height: 1;
+    border-radius: var(--radius-sm);
+    opacity: 0.6;
+    transition: all 0.15s;
+}
+
+.debug-window-close:hover {
+    opacity: 1;
+    color: var(--accent-red);
+}
+
+/* Window Content */
+.debug-window-content {
+    flex: 1;
+    min-height: 0;
+    padding: 8px;
+    overflow: auto;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+/* Resize Handles */
+.debug-resize-handle {
+    position: absolute;
+    background: transparent;
+}
+
+.debug-resize-handle.n {
+    top: -3px;
+    left: 10px;
+    right: 10px;
+    height: 6px;
+    cursor: n-resize;
+}
+.debug-resize-handle.s {
+    bottom: -3px;
+    left: 10px;
+    right: 10px;
+    height: 6px;
+    cursor: s-resize;
+}
+.debug-resize-handle.e {
+    top: 10px;
+    right: -3px;
+    bottom: 10px;
+    width: 6px;
+    cursor: e-resize;
+}
+.debug-resize-handle.w {
+    top: 10px;
+    left: -3px;
+    bottom: 10px;
+    width: 6px;
+    cursor: w-resize;
+}
+.debug-resize-handle.ne {
+    top: -3px;
+    right: -3px;
+    width: 12px;
+    height: 12px;
+    cursor: ne-resize;
+}
+.debug-resize-handle.nw {
+    top: -3px;
+    left: -3px;
+    width: 12px;
+    height: 12px;
+    cursor: nw-resize;
+}
+.debug-resize-handle.se {
+    bottom: -3px;
+    right: -3px;
+    width: 12px;
+    height: 12px;
+    cursor: se-resize;
+}
+.debug-resize-handle.sw {
+    bottom: -3px;
+    left: -3px;
+    width: 12px;
+    height: 12px;
+    cursor: sw-resize;
+}
+
+/* Debug Window Scrollbar */
+.debug-window-content::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+}
+.debug-window-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+.debug-window-content::-webkit-scrollbar-thumb {
+    background: var(--overlay-active);
+    border-radius: 3px;
+}
+.debug-window-content::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.25);
+}

@@ -1,0 +1,322 @@
+/* ============================================
+   RULE BUILDER WINDOW
+   ============================================ */
+
+.rb-root {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    gap: 8px;
+}
+
+.rb-header-bar {
+    padding: 2px 0 6px;
+    border-bottom: 1px solid var(--separator-bg);
+}
+
+.rb-target-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.rb-rules-container {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    padding: 4px 0;
+}
+
+.rb-rules-container::-webkit-scrollbar {
+    width: 5px;
+}
+.rb-rules-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+.rb-rules-container::-webkit-scrollbar-thumb {
+    background: var(--overlay-active);
+    border-radius: 3px;
+}
+
+/* Group container */
+.rb-group {
+    border-left: 2px solid var(--accent-blue);
+    background: rgba(0, 0, 0, 0.12);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    padding: 8px 8px 6px;
+    margin: 2px 0;
+}
+
+.rb-group .rb-group {
+    margin: 4px 0;
+}
+
+.rb-group-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.rb-match-label {
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.rb-logic-select {
+    padding: 2px 6px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    background: var(--input-bg-deeper);
+    border: 1px solid var(--accent-blue-border);
+    border-radius: 3px;
+    color: var(--accent-blue);
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    text-align: center;
+    min-width: 44px;
+}
+
+.rb-logic-select:hover {
+    border-color: var(--accent-blue);
+}
+
+.rb-logic-select option {
+    background: var(--bg-dark, #0d1117);
+    color: var(--text-primary);
+}
+
+.rb-group-remove {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 0 4px;
+    opacity: 0.5;
+    transition: opacity 0.1s;
+    line-height: 1;
+}
+
+.rb-group-remove:hover {
+    opacity: 1;
+    color: var(--accent-red);
+}
+
+/* Group children */
+.rb-group-children {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+/* Rule row */
+.rb-rule-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 0;
+}
+
+/* Shared select/input styles */
+.rb-select {
+    padding: 3px 6px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    background: var(--input-bg-deeper);
+    border: 1px solid var(--control-border);
+    border-radius: 3px;
+    color: var(--text-primary);
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+.rb-select:hover {
+    border-color: var(--accent-blue-border);
+}
+
+.rb-select option {
+    background: var(--bg-dark, #0d1117);
+    color: var(--text-primary);
+}
+
+.rb-input {
+    padding: 3px 6px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    background: var(--input-bg-deeper);
+    border: 1px solid var(--control-border);
+    border-radius: 3px;
+    color: var(--text-primary);
+    outline: none;
+}
+
+.rb-input:focus {
+    border-color: var(--accent-blue);
+}
+
+.rb-input::placeholder {
+    color: var(--text-muted);
+    opacity: 0.5;
+}
+
+/* Subject select width */
+.rb-subject {
+    min-width: 72px;
+}
+
+/* Detail control width */
+.rb-detail {
+    min-width: 52px;
+    max-width: 64px;
+}
+
+input.rb-detail {
+    width: 64px;
+}
+
+/* Operator select width */
+.rb-operator {
+    min-width: 44px;
+}
+
+/* Value input width */
+.rb-value {
+    width: 60px;
+    flex-shrink: 0;
+}
+
+/* Rule remove button */
+.rb-rule-remove {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 0 4px;
+    opacity: 0.5;
+    transition: opacity 0.1s;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.rb-rule-remove:hover {
+    opacity: 1;
+    color: var(--accent-red);
+}
+
+/* Connector label between siblings */
+.rb-connector {
+    text-align: center;
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--text-muted);
+    opacity: 0.5;
+    padding: 1px 0;
+    letter-spacing: 0.05em;
+}
+
+/* Add buttons */
+.rb-add-btns {
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.rb-btn {
+    padding: 4px 10px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    background: var(--control-bg);
+    border: 1px solid var(--control-border);
+    border-radius: 3px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.12s;
+    white-space: nowrap;
+}
+
+.rb-btn:hover {
+    background: var(--glass-border);
+    color: var(--text-primary);
+    border-color: rgba(48, 54, 61, 0.7);
+}
+
+.rb-btn-add {
+    font-size: 9px;
+    padding: 2px 8px;
+}
+
+.rb-btn-add:hover {
+    background: var(--accent-green-bg-strong);
+    border-color: var(--accent-green-border);
+    color: var(--accent-green);
+}
+
+/* Preview bar */
+.rb-preview {
+    padding: 6px 8px;
+    background: var(--input-bg-deep);
+    border: 1px solid var(--glass-border-subtle);
+    border-radius: 3px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--accent-green);
+    white-space: nowrap;
+    overflow-x: auto;
+    min-height: 22px;
+}
+
+/* Action buttons */
+.rb-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-top: 6px;
+    border-top: 1px solid var(--glass-border-subtle);
+}
+
+.rb-actions-right {
+    display: flex;
+    gap: 6px;
+}
+
+.rb-btn-clear:hover {
+    background: var(--accent-red-bg-stronger);
+    border-color: var(--accent-red-border);
+    color: var(--accent-red);
+}
+
+.rb-btn-apply {
+    background: var(--accent-green-bg-strong);
+    border-color: var(--accent-green-border);
+    color: var(--accent-green);
+}
+
+.rb-btn-apply:hover {
+    background: rgba(63, 185, 80, 0.35);
+    border-color: rgba(63, 185, 80, 0.6);
+}
+
+/* Depth-based accent colors on nested groups */
+.rb-group[data-depth="1"] {
+    border-left-color: var(--accent-purple);
+}
+
+.rb-group[data-depth="2"] {
+    border-left-color: var(--accent-orange);
+}
+
+.rb-group[data-depth="3"] {
+    border-left-color: var(--accent-green);
+}
+
+.rb-group[data-depth="4"] {
+    border-left-color: var(--accent-red);
+}

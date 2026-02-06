@@ -1,0 +1,130 @@
+/* ============================================
+   Release Notes Window
+   ============================================ */
+
+.release-notes-content {
+    padding: 12px;
+    overflow-y: auto;
+    height: 100%;
+}
+
+.release-date-group {
+    margin-bottom: 20px;
+}
+
+.release-date-group:last-child {
+    margin-bottom: 0;
+}
+
+.release-date {
+    font-family: var(--font-sans);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin: 0 0 10px 0;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.release-commits {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.release-commit {
+    display: flex;
+    gap: 10px;
+    padding: 6px 8px;
+    margin-bottom: 4px;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    background: var(--control-bg);
+    align-items: flex-start;
+}
+
+.release-commit:hover {
+    background: rgba(33, 38, 45, 0.7);
+}
+
+.commit-hash {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    padding: 2px 6px;
+    background: var(--input-bg-deeper);
+    border-radius: 3px;
+}
+
+.commit-message {
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+/* Commit type indicators */
+.commit-fix .commit-message::before {
+    content: "";
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent-red);
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+.commit-feature .commit-message::before {
+    content: "";
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent-green);
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+.commit-improve .commit-message::before {
+    content: "";
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent-blue);
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+.commit-refactor .commit-message::before {
+    content: "";
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent-purple);
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+.commit-update .commit-message::before {
+    content: "";
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent-orange);
+    margin-right: 6px;
+    vertical-align: middle;
+}
+
+.commit-other .commit-message::before {
+    content: "";
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-secondary);
+    margin-right: 6px;
+    vertical-align: middle;
+}

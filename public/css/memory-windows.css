@@ -1,0 +1,798 @@
+/* ============================================
+   MEMORY BROWSER WINDOW
+   ============================================ */
+
+.mem-browser-toolbar {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--glass-border-subtle);
+    margin-bottom: 8px;
+}
+
+.mem-browser-jumps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 3px;
+}
+
+.mem-jump-btn {
+    padding: 3px 6px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    background: var(--control-bg);
+    border: 1px solid var(--glass-border-subtle);
+    border-radius: 3px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.1s;
+}
+
+.mem-jump-btn:hover {
+    background: var(--accent-blue-bg-strong);
+    color: var(--accent-blue);
+}
+
+.mem-browser-nav {
+    display: flex;
+    gap: 4px;
+}
+
+.mem-addr-input,
+.mem-search-input {
+    width: 60px;
+    padding: 4px 6px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    background: var(--input-bg-deeper);
+    border: 1px solid var(--control-border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+}
+
+.mem-go-btn,
+.mem-search-btn,
+.mem-refresh-btn {
+    padding: 4px 8px;
+    font-size: 10px;
+    background: var(--glass-bg-header);
+    border: 1px solid var(--control-border);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.1s;
+}
+
+.mem-go-btn:hover,
+.mem-search-btn:hover,
+.mem-refresh-btn:hover {
+    background: var(--accent-blue-bg-strong);
+    color: var(--accent-blue);
+}
+
+.mem-browser-region {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+}
+
+.mem-region-name {
+    color: var(--accent-green);
+    font-weight: 500;
+}
+
+.mem-browser-header {
+    display: flex;
+    gap: 4px;
+    padding: 4px 6px;
+    background: var(--input-bg-dark);
+    border-radius: var(--radius-sm);
+    margin-bottom: 4px;
+    font-size: 9px;
+    white-space: nowrap;
+}
+
+.mem-addr-col {
+    color: var(--text-muted);
+}
+
+.mem-hdr-separator {
+    color: var(--mem-separator);
+}
+
+.mem-hdr-bytes {
+    color: var(--text-muted);
+}
+
+.mem-ascii-sep {
+    color: transparent;
+}
+
+.mem-ascii-hdr {
+    margin-left: auto;
+    color: var(--text-muted);
+}
+
+.mem-browser-scroll-container {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+}
+
+.mem-browser-content {
+    flex: 1;
+    overflow: hidden;
+}
+
+.mem-browser-scrollbar {
+    width: 12px;
+    padding: 2px;
+}
+
+.mem-scrollbar-track {
+    width: 100%;
+    height: 100%;
+    background: var(--input-bg-dark);
+    border-radius: 4px;
+    position: relative;
+    cursor: pointer;
+}
+
+.mem-scrollbar-thumb {
+    position: absolute;
+    width: 100%;
+    background: var(--mem-scrollbar-thumb);
+    border-radius: 4px;
+    cursor: grab;
+    transition: background 0.1s;
+}
+
+.mem-scrollbar-thumb:hover {
+    background: var(--mem-scrollbar-thumb-hover);
+}
+
+.mem-row {
+    display: flex;
+    gap: 4px;
+    padding: 1px 4px;
+    font-size: 11px;
+}
+
+.mem-row:hover {
+    background: var(--accent-blue-bg);
+}
+
+.mem-addr {
+    color: var(--mem-addr);
+    font-weight: 500;
+    min-width: 42px;
+}
+
+.mem-separator {
+    color: var(--mem-separator);
+}
+
+.mem-byte {
+    width: 18px;
+    text-align: center;
+    color: var(--mem-byte);
+    cursor: pointer;
+    border-radius: 2px;
+}
+
+.mem-byte:hover {
+    background: var(--accent-blue-bg-strong);
+    color: var(--text-primary);
+}
+
+.mem-byte.mem-zero {
+    color: var(--mem-zero);
+}
+
+.mem-byte.mem-printable {
+    color: var(--mem-printable);
+}
+
+.mem-byte.mem-highbit {
+    color: var(--mem-highbit);
+}
+
+.mem-byte.changed {
+    background: var(--accent-orange-border-strong);
+    color: var(--accent-orange);
+}
+
+.mem-ascii {
+    margin-left: auto;
+    color: var(--mem-ascii);
+    font-size: 10px;
+    white-space: pre;
+}
+
+/* ============================================
+   MEMORY HEAT MAP WINDOW
+   ============================================ */
+
+.heatmap-toolbar {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--glass-border-subtle);
+    margin-bottom: 8px;
+}
+
+.heatmap-toggle-btn,
+.heatmap-clear-btn {
+    padding: 4px 10px;
+    font-size: 10px;
+    background: var(--glass-bg-header);
+    border: 1px solid var(--control-border);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.1s;
+}
+
+.heatmap-toggle-btn:hover,
+.heatmap-clear-btn:hover {
+    background: var(--accent-blue-bg-strong);
+    color: var(--accent-blue);
+}
+
+.heatmap-toggle-btn.active {
+    background: var(--accent-green-bg-stronger);
+    border-color: var(--accent-green-border);
+    color: var(--accent-green);
+}
+
+.heatmap-mode-select {
+    padding: 4px 6px;
+    font-size: 10px;
+    background: var(--input-bg-deeper);
+    border: 1px solid var(--control-border);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.heatmap-decay-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10px;
+    color: var(--text-muted);
+    cursor: pointer;
+}
+
+.heatmap-dual-container {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+}
+
+.heatmap-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.heatmap-panel-title {
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--accent-blue);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 4px;
+}
+
+.heatmap-canvas-container {
+    position: relative;
+    display: flex;
+    justify-content: center;
+    padding: 8px;
+    background: var(--input-bg-dark);
+    border-radius: var(--radius-sm);
+}
+
+.heatmap-canvas {
+    image-rendering: pixelated;
+    border: 1px solid var(--control-border);
+    cursor: crosshair;
+}
+
+.heatmap-tooltip {
+    position: absolute;
+    padding: 4px 8px;
+    background: rgba(0, 0, 0, 0.9);
+    border-radius: 3px;
+    font-size: 10px;
+    color: var(--text-primary);
+    pointer-events: none;
+    display: none;
+}
+
+.heatmap-legend {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    padding: 8px 0;
+    font-size: 10px;
+}
+
+.heatmap-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-muted);
+}
+
+.legend-color {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+}
+
+.legend-color.reads {
+    background: #18ABEA;
+}
+
+.legend-color.writes {
+    background: #F68D35;
+}
+
+.legend-color.both {
+    background: #B55DB6;
+}
+
+.heatmap-info {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 8px;
+    background: var(--input-bg);
+    border-radius: var(--radius-sm);
+    font-size: 10px;
+}
+
+.heatmap-addr {
+    font-family: var(--font-mono);
+    color: var(--accent-purple);
+}
+
+.heatmap-region {
+    color: var(--text-secondary);
+}
+
+.heatmap-counts {
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+}
+
+/* ============================================
+   STACK VIEWER WINDOW
+   ============================================ */
+
+.stack-info {
+    display: flex;
+    gap: 16px;
+    padding: 6px 8px;
+    background: var(--input-bg-dark);
+    border-radius: var(--radius-sm);
+    margin-bottom: 8px;
+    font-size: 11px;
+}
+
+.stack-sp-label,
+.stack-depth-label {
+    color: var(--text-muted);
+}
+
+.stack-sp-value {
+    font-family: var(--font-mono);
+    color: var(--accent-green);
+    font-weight: 500;
+}
+
+.stack-depth-value {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.stack-depth-bar {
+    height: 6px;
+    background: var(--input-bg-dark);
+    border-radius: 3px;
+    margin-bottom: 8px;
+    overflow: hidden;
+}
+
+.stack-depth-fill {
+    height: 100%;
+    background: var(--accent-green);
+    border-radius: 3px;
+    transition: width 0.2s, background 0.2s;
+}
+
+.stack-depth-fill.warning {
+    background: var(--accent-orange);
+}
+
+.stack-depth-fill.danger {
+    background: var(--accent-red);
+}
+
+.stack-call-stack {
+    padding: 3px 8px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border-bottom: 1px solid var(--glass-border-subtle);
+}
+
+.stack-call-stack:empty {
+    display: none;
+}
+
+.call-stack-label {
+    color: var(--text-muted);
+    font-weight: 600;
+}
+
+.call-stack-addr {
+    color: var(--accent-blue);
+    cursor: default;
+}
+
+.stack-header {
+    display: flex;
+    gap: 12px;
+    padding: 4px 8px;
+    background: var(--input-bg);
+    border-radius: var(--radius-sm);
+    margin-bottom: 4px;
+    font-size: 9px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+
+.stack-col-addr {
+    min-width: 50px;
+}
+
+.stack-col-value {
+    min-width: 40px;
+}
+
+.stack-col-info {
+    flex: 1;
+}
+
+.stack-content {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.stack-entry {
+    display: flex;
+    gap: 12px;
+    padding: 3px 8px;
+    font-size: 11px;
+    border-radius: 2px;
+}
+
+.stack-entry:hover {
+    background: var(--accent-blue-bg);
+}
+
+.stack-entry.stack-top {
+    background: var(--accent-green-bg);
+    border-left: 2px solid var(--accent-green);
+}
+
+.stack-entry.return-addr-high,
+.stack-entry.return-addr-low {
+    background: rgba(163, 113, 247, 0.1);
+}
+
+.stack-addr {
+    font-family: var(--font-mono);
+    color: var(--accent-purple);
+    min-width: 50px;
+}
+
+.stack-value {
+    font-family: var(--font-mono);
+    color: var(--text-secondary);
+    min-width: 40px;
+}
+
+.stack-info-text {
+    color: var(--text-muted);
+    font-size: 10px;
+}
+
+.stack-empty {
+    text-align: center;
+    padding: 20px;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+/* ============================================
+   ZERO PAGE WATCH WINDOW
+   ============================================ */
+
+.zp-toolbar {
+    display: flex;
+    gap: 6px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--glass-border-subtle);
+    margin-bottom: 8px;
+}
+
+.zp-add-btn {
+    padding: 4px 10px;
+    font-size: 10px;
+    background: var(--glass-bg-header);
+    border: 1px solid var(--control-border);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.1s;
+}
+
+.zp-add-btn:hover {
+    background: var(--accent-green-bg-strong);
+    color: var(--accent-green);
+}
+
+.zp-groups {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.zp-group {
+    margin-bottom: 8px;
+}
+
+.zp-group-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 6px;
+    background: var(--input-bg);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    user-select: none;
+}
+
+.zp-group-header:hover {
+    background: var(--input-bg-deep);
+}
+
+.zp-expand-icon {
+    font-size: 8px;
+    color: var(--text-muted);
+}
+
+.zp-group-name {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--accent-blue);
+}
+
+.zp-group-content {
+    padding: 4px 0 4px 16px;
+}
+
+.zp-group-content.collapsed {
+    display: none;
+}
+
+.zp-watch {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 6px;
+    border-radius: 3px;
+    transition: background 0.2s;
+}
+
+.zp-watch:hover {
+    background: var(--accent-blue-bg);
+}
+
+.zp-watch.changed {
+    background: var(--accent-orange-bg-strong);
+}
+
+.zp-addr {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--accent-purple);
+    min-width: 24px;
+}
+
+.zp-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--accent-blue);
+    min-width: 60px;
+}
+
+.zp-size {
+    font-family: var(--font-mono);
+    font-size: 8px;
+    color: var(--text-muted);
+    opacity: 0.6;
+    min-width: 22px;
+}
+
+.zp-value {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--accent-green);
+    min-width: 85px;
+    text-align: right;
+}
+
+.zp-desc {
+    font-size: 9px;
+    color: var(--text-muted);
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: right;
+    padding-left: 8px;
+}
+
+.zp-remove-btn {
+    padding: 0 4px;
+    font-size: 12px;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    opacity: 0.5;
+    transition: opacity 0.1s;
+}
+
+.zp-remove-btn:hover {
+    opacity: 1;
+    color: var(--accent-red);
+}
+
+/* ============================================
+   MEMORY MAP WINDOW
+   ============================================ */
+
+.memory-map-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.bank-map {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.bank-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.bank-addr {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-muted);
+    min-width: 75px;
+}
+
+.bank-region {
+    flex: 1;
+    padding: 4px 8px;
+    font-size: 9px;
+    text-align: center;
+    border-radius: 3px;
+    font-weight: 500;
+}
+
+.bank-region.hidden {
+    display: none;
+}
+
+.bank-main {
+    background: var(--accent-green-bg-strong);
+    border: 1px solid var(--accent-green-border);
+    color: var(--accent-green);
+}
+
+.bank-aux {
+    background: var(--accent-orange-bg-strong);
+    border: 1px solid var(--accent-orange-border-strong);
+    color: var(--accent-orange);
+}
+
+.bank-rom {
+    background: var(--accent-blue-bg-strong);
+    border: 1px solid var(--accent-blue-border);
+    color: var(--accent-blue);
+}
+
+.bank-ram {
+    background: rgba(163, 113, 247, 0.2);
+    border: 1px solid rgba(163, 113, 247, 0.4);
+    color: var(--accent-purple);
+}
+
+.bank-slot {
+    background: var(--accent-red-bg-stronger);
+    border: 1px solid var(--accent-red-border);
+    color: var(--accent-red);
+}
+
+.bank-io {
+    background: rgba(139, 148, 158, 0.2);
+    border: 1px solid rgba(139, 148, 158, 0.4);
+    color: var(--text-secondary);
+}
+
+.bank-legend {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px solid var(--glass-border-subtle);
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 9px;
+    color: var(--text-muted);
+}
+
+.legend-box {
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+}
+
+.bank-status {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 8px;
+    background: var(--input-bg-dark);
+    border-radius: var(--radius-sm);
+    margin-top: 4px;
+}
+
+.bank-status-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 10px;
+}
+
+.bank-status-label {
+    color: var(--text-muted);
+    min-width: 40px;
+}
+
+.bank-status-value {
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-weight: 500;
+}

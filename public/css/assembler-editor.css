@@ -1,0 +1,1611 @@
+/* ==========================================================================
+   Assembler Editor Window
+   ========================================================================== */
+
+.asm-editor-content {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    gap: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TOOLBAR - Clean, organized action bar
+   ═══════════════════════════════════════════════════════════════ */
+.asm-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--glass-border-subtle);
+    margin-bottom: 6px;
+}
+
+.asm-toolbar-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.asm-toolbar-actions {
+    gap: 4px;
+}
+
+.asm-toolbar-separator {
+    width: 1px;
+    height: 20px;
+    background: var(--glass-border);
+    margin: 0 4px;
+}
+
+.asm-toolbar-spacer {
+    flex: 1;
+}
+
+.asm-toolbar-org {
+    gap: 4px;
+}
+
+.asm-toolbar-status {
+    min-width: 120px;
+    justify-content: center;
+}
+
+.asm-toolbar-position {
+    gap: 8px;
+    padding: 0 4px;
+}
+
+.asm-org-label {
+    font-size: 10px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-weight: 500;
+}
+
+.asm-org-input {
+    width: 64px;
+    padding: 5px 8px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    background: var(--input-bg-dark);
+    border: 1px solid var(--control-border);
+    border-radius: var(--radius-sm);
+    color: var(--text-primary);
+    text-align: center;
+    transition: all 0.15s;
+}
+
+.asm-org-input:focus {
+    border-color: var(--editor-focus-border);
+    box-shadow: 0 0 0 2px var(--editor-focus-shadow);
+    outline: none;
+}
+
+.asm-cursor-position {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    color: var(--text-muted);
+    white-space: nowrap;
+    min-width: 80px;
+}
+
+.asm-status {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    color: var(--text-muted);
+    white-space: nowrap;
+    padding: 3px 10px;
+    border-radius: var(--radius-sm);
+    background: var(--glass-bg-header);
+    border: 1px solid var(--glass-border-subtle);
+    transition: all 0.2s;
+}
+
+.asm-status-ok {
+    color: var(--accent-green);
+    background: var(--accent-green-bg);
+    border-color: var(--accent-green-border);
+}
+
+.asm-status-error {
+    color: var(--accent-red, #e03a3e);
+    background: var(--accent-red-bg, rgba(224, 58, 62, 0.1));
+    border-color: var(--accent-red-border, rgba(224, 58, 62, 0.3));
+}
+
+/* Split container - editor pane above, output pane below */
+.asm-split-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.asm-editor-pane {
+    flex: 0 0 65%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.asm-output-pane {
+    flex: 0 0 35%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* Splitters */
+.asm-splitter {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--glass-bg-header);
+    z-index: 2;
+}
+
+.asm-splitter-h {
+    height: 6px;
+    cursor: row-resize;
+    border-top: 1px solid var(--glass-border-subtle);
+    border-bottom: 1px solid var(--glass-border-subtle);
+}
+
+.asm-splitter-v {
+    width: 6px;
+    cursor: col-resize;
+    border-left: 1px solid var(--glass-border-subtle);
+    border-right: 1px solid var(--glass-border-subtle);
+}
+
+.asm-splitter-handle {
+    border-radius: 1px;
+}
+
+.asm-splitter-h .asm-splitter-handle {
+    width: 32px;
+    height: 2px;
+    background: var(--glass-border);
+}
+
+.asm-splitter-v .asm-splitter-handle {
+    width: 2px;
+    height: 32px;
+    background: var(--glass-border);
+}
+
+.asm-splitter:hover .asm-splitter-handle {
+    background: var(--accent-green-border);
+}
+
+/* Output panels - side by side */
+.asm-output-panels {
+    display: flex;
+    flex-direction: row;
+    height: 100%;
+    min-height: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   OUTPUT PANELS - Symbols and Hex Output
+   ═══════════════════════════════════════════════════════════════ */
+.asm-panel {
+    flex: 1 1 50%;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.asm-panel-header {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 10px;
+    font-family: var(--font-sans);
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: var(--glass-bg-header);
+    border-bottom: 1px solid var(--glass-border-subtle);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.asm-panel-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.asm-panel-count {
+    font-size: 9px;
+    font-weight: 500;
+    padding: 1px 6px;
+    border-radius: 8px;
+    background: var(--accent-green-bg);
+    color: var(--accent-green);
+}
+
+.asm-panel-count:empty {
+    display: none;
+}
+
+.asm-panel-content {
+    flex: 1;
+    overflow: auto;
+    background: var(--editor-bg);
+}
+
+.asm-panel-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px 12px;
+    height: 100%;
+    font-family: var(--font-sans);
+    text-align: center;
+    opacity: 0.6;
+}
+
+.asm-empty-icon {
+    font-family: var(--font-mono);
+    font-size: 20px;
+    color: var(--text-tertiary);
+    margin-bottom: 6px;
+    opacity: 0.5;
+}
+
+.asm-empty-text {
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.asm-panel-error .asm-empty-icon {
+    color: var(--accent-red, #e03a3e);
+    opacity: 0.7;
+}
+
+.asm-panel-error .asm-empty-text {
+    color: var(--accent-red, #e03a3e);
+    opacity: 0.8;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Symbol List - Grouped by type (Labels / Equates)
+   ───────────────────────────────────────────────────────────────── */
+.asm-symbol-list {
+    padding: 4px 0;
+}
+
+.asm-symbol-group {
+    margin-bottom: 8px;
+}
+
+.asm-symbol-group:last-child {
+    margin-bottom: 0;
+}
+
+.asm-symbol-group-header {
+    padding: 4px 10px;
+    font-family: var(--font-sans);
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-tertiary);
+    background: var(--glass-bg);
+    border-bottom: 1px solid var(--glass-border-subtle);
+}
+
+.asm-symbol-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 3px 10px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    border-bottom: 1px solid var(--glass-border-subtle);
+    transition: background 0.1s;
+}
+
+.asm-symbol-row:last-child {
+    border-bottom: none;
+}
+
+.asm-symbol-row:hover {
+    background: var(--overlay-white-04, rgba(255, 255, 255, 0.04));
+}
+
+.asm-sym-name {
+    font-weight: 500;
+}
+
+.asm-sym-global {
+    color: var(--syntax-label, #d2a8ff);
+}
+
+.asm-sym-local {
+    color: var(--syntax-local, #ffa657);
+}
+
+.asm-sym-equ {
+    color: var(--syntax-data, #79c0ff);
+}
+
+.asm-sym-value {
+    color: var(--syntax-branch, #61bb46);
+    font-weight: 400;
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Hex Output - Machine code display with address, bytes, ASCII
+   ───────────────────────────────────────────────────────────────── */
+.asm-hex-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 10px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    background: var(--glass-bg);
+    border-bottom: 1px solid var(--glass-border-subtle);
+}
+
+.asm-hex-range {
+    color: var(--syntax-branch, #61bb46);
+    font-weight: 500;
+}
+
+.asm-hex-size {
+    color: var(--text-muted);
+}
+
+.asm-hex-dump {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.5;
+    padding: 4px 0;
+}
+
+.asm-hex-row {
+    display: flex;
+    align-items: center;
+    padding: 1px 8px;
+    white-space: pre;
+    transition: background 0.1s;
+}
+
+.asm-hex-row:hover {
+    background: var(--overlay-white-04, rgba(255, 255, 255, 0.04));
+}
+
+.asm-hex-addr {
+    color: var(--syntax-branch, #61bb46);
+    font-weight: 500;
+    flex-shrink: 0;
+}
+
+.asm-hex-sep {
+    color: var(--glass-border);
+    padding: 0 6px;
+    flex-shrink: 0;
+}
+
+.asm-hex-bytes {
+    color: var(--text-secondary);
+    flex-shrink: 0;
+    letter-spacing: 0.5px;
+}
+
+.asm-hex-ascii {
+    color: var(--syntax-load, #fdb827);
+    font-weight: 500;
+    letter-spacing: 1px;
+    opacity: 0.8;
+}
+
+/* Panel content scrollbars */
+.asm-panel-content::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.asm-panel-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.asm-panel-content::-webkit-scrollbar-thumb {
+    background: var(--glass-border);
+    border-radius: 3px;
+}
+
+.asm-panel-content::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-green-border);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   EDITOR WRAPPER - Main code editing area with gutter
+   ═══════════════════════════════════════════════════════════════ */
+.asm-editor-wrapper {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.asm-editor-wrapper:focus-within {
+    border-color: var(--editor-focus-border);
+    box-shadow: 0 0 0 2px var(--editor-focus-shadow);
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Gutter Column - Line numbers, cycles, and bytes
+   ───────────────────────────────────────────────────────────────── */
+.asm-gutter-column {
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+    min-height: 0;
+    background: var(--glass-bg-header);
+    border-right: 1px solid var(--glass-border);
+}
+
+.asm-gutter-header {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    height: 18px;
+    padding: 0 4px;
+    font-family: var(--font-mono);
+    font-size: 8px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-tertiary);
+    background: var(--glass-bg);
+    border-bottom: 1px solid var(--glass-border-subtle);
+    user-select: none;
+}
+
+.asm-gutter-header-ln {
+    width: 28px;
+    text-align: right;
+    padding-right: 6px;
+}
+
+.asm-gutter-header-cyc {
+    width: 24px;
+    text-align: center;
+    color: var(--syntax-flag, #009ddc);
+}
+
+.asm-gutter-header-bytes {
+    width: 64px;
+    text-align: center;
+    color: var(--syntax-math, #f5821f);
+}
+
+.asm-gutter-content {
+    flex: 1 1 0;
+    min-height: 0;
+    padding: 8px 0; /* Match textarea padding top/bottom */
+    /* Use identical font specification as textarea for exact line height match */
+    font: 400 12px/1.4 ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    overflow-y: scroll;
+    overflow-x: hidden;
+    user-select: none;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    background: var(--glass-bg-header);
+}
+
+.asm-gutter-content::-webkit-scrollbar {
+    display: none;
+}
+
+.asm-gutter-line {
+    display: flex;
+    align-items: center;
+    position: relative;
+    /* Don't set fixed height - let line-height from parent control it */
+    padding: 0 4px;
+    white-space: nowrap;
+}
+
+.asm-gutter-line:hover {
+    background: var(--overlay-white-04, rgba(255, 255, 255, 0.04));
+}
+
+.asm-gutter-ln {
+    flex-shrink: 0;
+    width: 24px;
+    text-align: right;
+    padding-right: 4px;
+    color: var(--text-tertiary);
+    opacity: 0.6;
+}
+
+.asm-gutter-cyc {
+    flex-shrink: 0;
+    width: 20px;
+    text-align: center;
+    color: var(--syntax-flag, #009ddc);
+    font-weight: 500;
+}
+
+.asm-gutter-bytes {
+    flex-shrink: 0;
+    width: 72px;
+    text-align: left;
+    padding-left: 4px;
+    color: var(--syntax-math, #f5821f);
+    font-size: 10px;
+    letter-spacing: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.asm-gutter-error {
+    background: var(--accent-red-bg, rgba(224, 58, 62, 0.12));
+}
+
+.asm-gutter-error .asm-gutter-ln {
+    color: var(--accent-red, #e03a3e);
+    opacity: 1;
+}
+
+/* Breakpoint column in gutter */
+.asm-gutter-header-bp {
+    width: 14px;
+    flex-shrink: 0;
+}
+
+.asm-gutter-bp-dot,
+.asm-gutter-bp-space {
+    display: inline-block;
+    position: relative;
+    width: 14px;
+    height: 100%;
+    flex-shrink: 0;
+    text-align: center;
+    vertical-align: middle;
+}
+
+.asm-gutter-bp-dot::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 8px;
+    height: 8px;
+    background: var(--accent-red, #e03a3e);
+    border-radius: 50%;
+    box-shadow: 0 0 4px rgba(224, 58, 62, 0.6);
+}
+
+.asm-gutter-line:hover .asm-gutter-bp-clickable::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 8px;
+    height: 8px;
+    background: var(--text-tertiary);
+    border-radius: 50%;
+    opacity: 0.3;
+}
+
+.asm-gutter-line {
+    cursor: pointer;
+}
+
+.asm-gutter-bp {
+    background: var(--accent-red-bg, rgba(224, 58, 62, 0.08));
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Editor Container - Code area with overlay highlighting
+   ───────────────────────────────────────────────────────────────── */
+.asm-editor-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 80px;
+    background: var(--editor-bg);
+    overflow: hidden;
+}
+
+.asm-editor-header {
+    flex-shrink: 0;
+    position: relative;
+    display: flex;
+    align-items: center;
+    height: 18px;
+    padding: 0 8px;
+    font-family: var(--font-mono);
+    font-size: 8px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-tertiary);
+    background: var(--glass-bg);
+    border-bottom: 1px solid var(--glass-border-subtle);
+    user-select: none;
+    overflow: hidden;
+}
+
+.asm-editor-header-label {
+    position: absolute;
+    left: 8px;
+    color: var(--syntax-label, #d2a8ff);
+    opacity: 0.6;
+}
+
+.asm-editor-header-opcode {
+    position: absolute;
+    color: var(--syntax-branch, #61bb46);
+    opacity: 0.6;
+}
+
+.asm-editor-header-operand {
+    position: absolute;
+    color: var(--syntax-load, #fdb827);
+    opacity: 0.6;
+}
+
+.asm-editor-header-comment {
+    position: absolute;
+    color: var(--syntax-comment, #8b949e);
+    opacity: 0.6;
+}
+
+.asm-editor-scroll-area {
+    flex: 1;
+    position: relative;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* Column guides - vertical lines at Merlin column positions */
+.asm-column-guides {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    pointer-events: none;
+    z-index: 0;
+    overflow: hidden;
+}
+
+.asm-column-guide {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 1px;
+    background: var(--glass-border-subtle);
+    opacity: 0.3;
+}
+
+.asm-column-guide[data-col="9"] {
+    border-left: 1px dashed var(--syntax-branch, #61bb46);
+    opacity: 0.15;
+    background: transparent;
+}
+
+.asm-column-guide[data-col="14"] {
+    border-left: 1px dashed var(--syntax-load, #fdb827);
+    opacity: 0.15;
+    background: transparent;
+}
+
+.asm-column-guide[data-col="25"] {
+    border-left: 1px dashed var(--syntax-comment, #8b949e);
+    opacity: 0.12;
+    background: transparent;
+}
+
+/* Current line highlight bar */
+.asm-line-highlight {
+    position: absolute;
+    left: 0;
+    right: 0;
+    pointer-events: none;
+    background: linear-gradient(90deg,
+        var(--accent-green-bg) 0%,
+        var(--overlay-white-04, rgba(255, 255, 255, 0.04)) 100%
+    );
+    border-left: 2px solid var(--accent-green);
+    opacity: 0;
+    transition: opacity 0.12s;
+    z-index: 0;
+}
+
+.asm-line-highlight.visible {
+    opacity: 1;
+}
+
+/* Shared styles for textarea and highlight overlay - MUST be identical */
+.asm-textarea,
+.asm-highlight {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    padding: 8px;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+    font: 400 12px/1.4 ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    letter-spacing: 0;
+    word-spacing: 0;
+    text-transform: none;
+    text-indent: 0;
+    text-shadow: none;
+    text-align: left;
+    text-decoration: none;
+    white-space: pre;
+    overflow-wrap: normal;
+    word-wrap: normal;
+    word-break: normal;
+    hyphens: none;
+    box-sizing: border-box;
+    tab-size: 8;
+    -moz-tab-size: 8;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "liga" 0, "calt" 0;
+    font-kerning: none;
+    font-variant-ligatures: none;
+}
+
+/* Highlight layer - shows colored syntax */
+.asm-highlight {
+    pointer-events: none;
+    overflow: scroll;
+    scrollbar-width: none; /* Firefox */
+    -ms-overflow-style: none; /* IE/Edge */
+    color: var(--text-primary);
+    background: transparent;
+    z-index: 1;
+    /* Reset pre defaults */
+    display: block;
+}
+
+.asm-highlight::-webkit-scrollbar {
+    display: none; /* Chrome/Safari */
+}
+
+/* Textarea - transparent text, receives input */
+.asm-textarea {
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+    caret-color: var(--accent-green);
+    background: transparent;
+    resize: none;
+    outline: none;
+    z-index: 2;
+    overflow: auto;
+}
+
+.asm-textarea::placeholder {
+    color: var(--editor-placeholder);
+    opacity: 0.5;
+    white-space: pre;
+    font-family: var(--font-mono);
+}
+
+/* Error line - just mark the text, no layout changes */
+.asm-error-line {
+    /* No styles here - error highlighting is done via overlay */
+}
+
+/* Errors overlay - positioned absolutely, scrolls with content */
+.asm-errors-overlay {
+    position: absolute;
+    top: 0;
+    right: 0;
+    left: 0;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.asm-error-highlight {
+    position: absolute;
+    left: 0;
+    right: 0;
+    background: var(--accent-red-bg, rgba(224, 58, 62, 0.12));
+    border-left: 3px solid var(--accent-red, #e03a3e);
+}
+
+.asm-error-msg {
+    position: absolute;
+    right: 8px;
+    padding: 2px 8px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    line-height: 1.4;
+    color: var(--accent-red, #e03a3e);
+    background: var(--glass-bg, rgba(30, 30, 30, 0.95));
+    border: 1px solid var(--accent-red-border, rgba(224, 58, 62, 0.4));
+    border-radius: 3px;
+    white-space: nowrap;
+    z-index: 3;
+    transform: translateY(-50%);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   TOOLBAR BUTTONS - Action buttons with icons
+   ═══════════════════════════════════════════════════════════════ */
+.asm-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 500;
+    background: var(--glass-bg-header);
+    border: 1px solid var(--control-border);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+
+.asm-btn-icon {
+    font-size: 10px;
+    opacity: 0.8;
+}
+
+.asm-btn-icon-only {
+    padding: 6px 8px;
+    min-width: 28px;
+    justify-content: center;
+}
+
+.asm-btn-icon-only .asm-btn-icon {
+    font-size: 12px;
+    opacity: 1;
+}
+
+.asm-toolbar-file {
+    display: flex;
+    gap: 2px;
+}
+
+.asm-btn:hover {
+    background: var(--glass-border);
+    color: var(--text-primary);
+}
+
+.asm-btn:active {
+    transform: scale(0.98);
+}
+
+.asm-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.asm-btn:disabled:active {
+    transform: none;
+}
+
+.asm-assemble-btn {
+    background: var(--accent-blue-bg, rgba(0, 157, 220, 0.1));
+    border-color: var(--accent-blue-border, rgba(0, 157, 220, 0.25));
+    color: var(--accent-blue, #009DDC);
+}
+
+.asm-assemble-btn:hover {
+    background: var(--accent-blue-bg-strong, rgba(0, 157, 220, 0.2));
+    border-color: var(--accent-blue-border, rgba(0, 157, 220, 0.4));
+    color: var(--accent-blue, #009DDC);
+}
+
+.asm-load-btn:hover:not(:disabled) {
+    background: var(--accent-green-bg-strong);
+    border-color: var(--accent-green-border);
+    color: var(--accent-green);
+}
+
+.asm-rom-btn {
+    background: var(--accent-purple-bg, rgba(150, 61, 151, 0.1));
+    border-color: var(--accent-purple-border, rgba(150, 61, 151, 0.25));
+    color: var(--accent-purple, #963D97);
+}
+
+.asm-rom-btn:hover {
+    background: var(--accent-purple-bg-strong, rgba(150, 61, 151, 0.2));
+    border-color: var(--accent-purple-border, rgba(150, 61, 151, 0.4));
+    color: var(--accent-purple, #963D97);
+}
+
+.asm-btn-success {
+    background: var(--accent-green-bg-stronger) !important;
+    border-color: rgba(63, 185, 80, 0.6) !important;
+    color: var(--accent-green) !important;
+    animation: asm-load-pulse 0.3s ease-out;
+}
+
+@keyframes asm-load-pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.03); }
+    100% { transform: scale(1); }
+}
+
+/* ─────────────────────────────────────────────────────────────────
+   Column Indicator - Shows current Merlin column
+   ───────────────────────────────────────────────────────────────── */
+.asm-column-indicator {
+    font-size: 10px;
+    font-family: var(--font-mono);
+    font-weight: 500;
+    white-space: nowrap;
+    padding: 3px 8px;
+    border-radius: var(--radius-sm);
+    background: var(--glass-bg-header);
+    border: 1px solid var(--glass-border-subtle);
+    transition: all 0.15s;
+    min-width: 60px;
+    text-align: center;
+}
+
+.asm-col-label {
+    color: var(--syntax-label, #d2a8ff);
+    background: rgba(210, 168, 255, 0.1);
+    border-color: rgba(210, 168, 255, 0.25);
+}
+
+.asm-col-opcode {
+    color: var(--syntax-branch, #61bb46);
+    background: rgba(97, 187, 70, 0.1);
+    border-color: rgba(97, 187, 70, 0.25);
+}
+
+.asm-col-operand {
+    color: var(--syntax-load, #fdb827);
+    background: rgba(253, 184, 39, 0.1);
+    border-color: rgba(253, 184, 39, 0.25);
+}
+
+.asm-col-comment {
+    color: var(--syntax-comment, #8b949e);
+    background: rgba(139, 148, 158, 0.1);
+    border-color: rgba(139, 148, 158, 0.25);
+}
+
+/* Assembler autocomplete dropdown */
+.asm-autocomplete-dropdown {
+    position: absolute;
+    z-index: 1000;
+    display: none;
+    width: 260px;
+    background: rgba(22, 27, 34, 0.98);
+    border: 1px solid var(--accent-green-border);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(0, 0, 0, 0.3);
+    overflow: hidden;
+}
+
+.asm-autocomplete-dropdown.visible {
+    display: block;
+}
+
+.asm-autocomplete-dropdown .autocomplete-list {
+    max-height: 180px;
+    overflow-y: auto;
+}
+
+.asm-autocomplete-dropdown .autocomplete-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 10px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--glass-border-subtle);
+}
+
+.asm-autocomplete-dropdown .autocomplete-item:last-child {
+    border-bottom: none;
+}
+
+.asm-autocomplete-dropdown .autocomplete-item:hover {
+    background: var(--accent-green-bg);
+}
+
+.asm-autocomplete-dropdown .autocomplete-item.selected {
+    background: rgba(63, 185, 80, 0.25);
+}
+
+.asm-autocomplete-dropdown .autocomplete-keyword {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 500;
+}
+
+.asm-autocomplete-dropdown .autocomplete-keyword .match {
+    color: var(--accent-green);
+    font-weight: 700;
+}
+
+.asm-autocomplete-dropdown .autocomplete-category {
+    font-family: var(--font-sans);
+    font-size: 9px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    opacity: 0.7;
+}
+
+/* Category colours matching syntax highlighting */
+.asm-autocomplete-dropdown .autocomplete-keyword.mer-branch {
+    color: var(--syntax-branch, #61bb46);
+}
+
+.asm-autocomplete-dropdown .autocomplete-keyword.mer-load {
+    color: var(--syntax-load, #fdb827);
+}
+
+.asm-autocomplete-dropdown .autocomplete-keyword.mer-math {
+    color: var(--syntax-math, #f5821f);
+}
+
+.asm-autocomplete-dropdown .autocomplete-keyword.mer-stack {
+    color: var(--syntax-stack, #963d97);
+}
+
+.asm-autocomplete-dropdown .autocomplete-keyword.mer-flag {
+    color: var(--syntax-flag, #009ddc);
+}
+
+.asm-autocomplete-dropdown .autocomplete-keyword.mer-directive {
+    color: var(--syntax-keyword, #ff7b72);
+}
+
+.asm-autocomplete-dropdown .autocomplete-keyword.mer-macro {
+    color: var(--syntax-data, #79c0ff);
+}
+
+.asm-autocomplete-dropdown .autocomplete-keyword.mer-label {
+    color: var(--syntax-label, #d2a8ff);
+}
+
+.asm-autocomplete-dropdown .autocomplete-keyword.mer-local {
+    color: var(--syntax-local, #ffa657);
+}
+
+.asm-autocomplete-dropdown .autocomplete-hint {
+    padding: 6px 10px;
+    background: rgba(33, 38, 45, 0.8);
+    border-top: 1px solid var(--separator-bg);
+}
+
+.asm-autocomplete-dropdown .hint-syntax {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--syntax-keyword);
+    margin-bottom: 2px;
+}
+
+.asm-autocomplete-dropdown .hint-desc {
+    font-family: var(--font-sans);
+    font-size: 9px;
+    color: var(--text-muted);
+}
+
+.asm-autocomplete-dropdown .autocomplete-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.asm-autocomplete-dropdown .autocomplete-list::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.asm-autocomplete-dropdown .autocomplete-list::-webkit-scrollbar-thumb {
+    background: var(--glass-border);
+    border-radius: 3px;
+}
+
+.asm-autocomplete-dropdown .autocomplete-list::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-green-border);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SHORTCUTS BAR - Keyboard hints at bottom of editor
+   ═══════════════════════════════════════════════════════════════ */
+.asm-shortcuts-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 4px 8px;
+    background: var(--glass-bg);
+    border-top: 1px solid var(--glass-border-subtle);
+    flex-shrink: 0;
+}
+
+.asm-shortcut {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-family: var(--font-sans);
+    font-size: 10px;
+    color: var(--text-tertiary);
+}
+
+.asm-shortcut kbd {
+    display: inline-block;
+    padding: 1px 5px;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: var(--glass-bg-header);
+    border: 1px solid var(--glass-border);
+    border-radius: 3px;
+    box-shadow: 0 1px 0 var(--glass-border);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   SAVE DIALOG MODAL
+   ═══════════════════════════════════════════════════════════════ */
+.asm-save-modal {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.5);
+    backdrop-filter: blur(4px);
+    z-index: 200;
+}
+
+.asm-save-modal.hidden {
+    display: none;
+}
+
+.asm-save-dialog {
+    width: 320px;
+    background: var(--glass-bg-solid);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+}
+
+.asm-save-header {
+    padding: 12px 16px;
+    background: var(--glass-bg-header);
+    border-bottom: 1px solid var(--glass-border-subtle);
+}
+
+.asm-save-title {
+    font-family: var(--font-sans);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.asm-save-content {
+    padding: 16px;
+}
+
+.asm-save-label {
+    display: block;
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    margin-bottom: 8px;
+}
+
+.asm-save-input-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.asm-save-input {
+    flex: 1;
+    padding: 8px 12px;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text-primary);
+    background: var(--editor-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 4px;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.asm-save-input:focus {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 3px var(--accent-blue-bg);
+}
+
+.asm-save-ext {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    color: var(--text-tertiary);
+    padding-right: 4px;
+}
+
+.asm-save-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 16px;
+    background: var(--glass-bg-header);
+    border-top: 1px solid var(--glass-border-subtle);
+}
+
+.asm-save-cancel {
+    background: var(--glass-bg);
+}
+
+.asm-save-confirm {
+    background: var(--accent-blue-bg);
+    border-color: var(--accent-blue-border);
+    color: var(--accent-blue);
+}
+
+.asm-save-confirm:hover {
+    background: var(--accent-blue-bg-strong);
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ROM ROUTINES PANEL - Reference panel for Apple II ROM calls
+   ═══════════════════════════════════════════════════════════════ */
+.asm-rom-panel {
+    position: absolute;
+    top: 40px;
+    right: 0;
+    bottom: 24px;
+    width: 320px;
+    display: flex;
+    flex-direction: column;
+    background: var(--glass-bg-solid);
+    border-left: 1px solid var(--glass-border);
+    box-shadow: var(--shadow-lg);
+    z-index: 100;
+}
+
+.asm-rom-panel.hidden {
+    display: none;
+}
+
+.asm-rom-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--glass-bg-header);
+    border-bottom: 1px solid var(--glass-border-subtle);
+}
+
+.asm-rom-title {
+    font-family: var(--font-sans);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.asm-rom-close {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--text-tertiary);
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 3px;
+}
+
+.asm-rom-close:hover {
+    background: var(--glass-border);
+    color: var(--text-primary);
+}
+
+.asm-rom-search-bar {
+    display: flex;
+    gap: 8px;
+    padding: 8px;
+    background: var(--glass-bg);
+    border-bottom: 1px solid var(--glass-border-subtle);
+}
+
+.asm-rom-search {
+    flex: 1;
+    padding: 6px 10px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-primary);
+    background: var(--editor-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 4px;
+    outline: none;
+}
+
+.asm-rom-search:focus {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 2px var(--accent-blue-bg);
+}
+
+.asm-rom-category {
+    padding: 4px 8px;
+    font-family: var(--font-sans);
+    font-size: 10px;
+    color: var(--text-secondary);
+    background: var(--glass-bg-header);
+    border: 1px solid var(--glass-border);
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.asm-rom-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px;
+}
+
+.asm-rom-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 20px;
+    color: var(--text-tertiary);
+}
+
+.asm-rom-empty-icon {
+    font-size: 32px;
+    margin-bottom: 8px;
+    opacity: 0.5;
+}
+
+.asm-rom-empty-text {
+    font-size: 12px;
+}
+
+.asm-rom-item {
+    padding: 8px 10px;
+    margin-bottom: 4px;
+    background: var(--glass-bg);
+    border: 1px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.asm-rom-item:hover {
+    background: var(--glass-bg-header);
+    border-color: var(--glass-border);
+}
+
+.asm-rom-item-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+}
+
+.asm-rom-item-name {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent-blue);
+}
+
+.asm-rom-item-addr {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-tertiary);
+}
+
+.asm-rom-item-desc {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    margin-bottom: 4px;
+}
+
+.asm-rom-item-cat {
+    font-family: var(--font-sans);
+    font-size: 9px;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Detail view */
+.asm-rom-detail {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.asm-rom-detail.hidden {
+    display: none;
+}
+
+.asm-rom-detail-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: var(--glass-bg);
+    border-bottom: 1px solid var(--glass-border-subtle);
+}
+
+.asm-rom-back {
+    padding: 4px 8px;
+    font-family: var(--font-sans);
+    font-size: 10px;
+    color: var(--text-secondary);
+    background: var(--glass-bg-header);
+    border: 1px solid var(--glass-border);
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.asm-rom-back:hover {
+    background: var(--glass-border);
+    color: var(--text-primary);
+}
+
+.asm-rom-detail-name {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent-blue);
+}
+
+.asm-rom-detail-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+}
+
+.asm-rom-section {
+    margin-bottom: 12px;
+}
+
+.asm-rom-section-title {
+    font-family: var(--font-sans);
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-tertiary);
+    margin-bottom: 4px;
+}
+
+.asm-rom-section-content {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+.asm-rom-section-inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.asm-rom-section-label {
+    font-family: var(--font-sans);
+    font-size: 10px;
+    color: var(--text-tertiary);
+}
+
+.asm-rom-param {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 4px 0;
+}
+
+.asm-rom-param-reg {
+    flex-shrink: 0;
+    min-width: 40px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--accent-orange);
+}
+
+.asm-rom-param-desc {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.asm-rom-regs {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--accent-green);
+}
+
+.asm-rom-regs-warn {
+    color: var(--accent-orange);
+}
+
+.asm-rom-notes {
+    font-style: italic;
+    color: var(--text-tertiary);
+}
+
+.asm-rom-example {
+    margin: 4px 0 0 0;
+    padding: 8px 10px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    line-height: 1.4;
+    color: var(--text-secondary);
+    background: var(--editor-bg);
+    border: 1px solid var(--glass-border-subtle);
+    border-radius: 4px;
+    overflow-x: auto;
+    white-space: pre;
+}
+
+.asm-rom-detail-actions {
+    display: flex;
+    gap: 8px;
+    padding: 12px;
+    background: var(--glass-bg-header);
+    border-top: 1px solid var(--glass-border-subtle);
+}
+
+.asm-rom-detail-actions .asm-btn {
+    flex: 1;
+}
+
+.asm-rom-insert-equ {
+    background: var(--accent-purple-bg, rgba(150, 61, 151, 0.1));
+    border-color: var(--accent-purple-border, rgba(150, 61, 151, 0.25));
+    color: var(--accent-purple, #963D97);
+}
+
+.asm-rom-insert-equ:hover {
+    background: var(--accent-purple-bg-strong, rgba(150, 61, 151, 0.2));
+}
+
+.asm-rom-insert-jsr {
+    background: var(--accent-green-bg, rgba(97, 187, 70, 0.1));
+    border-color: var(--accent-green-border, rgba(97, 187, 70, 0.25));
+    color: var(--accent-green, #61BB46);
+}
+
+.asm-rom-insert-jsr:hover {
+    background: var(--accent-green-bg-strong, rgba(97, 187, 70, 0.2));
+}
+
