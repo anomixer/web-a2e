@@ -20,10 +20,10 @@ export class BasicProgramWindow extends BaseWindow {
   constructor(wasmModule, inputHandler, isRunningCallback) {
     super({
       id: "basic-program",
-      title: "APPLESOFT BASIC",
+      title: "Applesoft BASIC",
       defaultWidth: 700,
       defaultHeight: 500,
-      minWidth: 550,
+      minWidth: 450,
       minHeight: 400,
       defaultPosition: { x: 150, y: 100 },
     });
@@ -55,7 +55,7 @@ export class BasicProgramWindow extends BaseWindow {
     return `
       <div class="basic-unified-container">
         <div class="basic-dbg-toolbar">
-          <button class="basic-dbg-btn basic-dbg-run" title="Run APPLESOFT BASIC program">
+          <button class="basic-dbg-btn basic-dbg-run" title="Run Applesoft BASIC program">
             <span class="basic-dbg-icon">▶</span> Run
           </button>
           <button class="basic-dbg-btn basic-dbg-stop" title="Stop (Ctrl+C)">
@@ -199,7 +199,11 @@ export class BasicProgramWindow extends BaseWindow {
 
     this.textarea.addEventListener("keyup", (e) => {
       // Check for line change on navigation keys
-      if (["ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"].includes(e.key)) {
+      if (
+        ["ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"].includes(
+          e.key,
+        )
+      ) {
         this.checkLineChange();
       }
       this.updateCurrentLineHighlight();
@@ -286,9 +290,15 @@ export class BasicProgramWindow extends BaseWindow {
     this.setupSplitter();
 
     // Splitter for sidebar panels (variables <-> breakpoints)
-    this.sidebarSplitter = this.contentElement.querySelector(".basic-sidebar-splitter");
-    this.varSection = this.contentElement.querySelector(".basic-dbg-var-section");
-    this.bpSection = this.contentElement.querySelector(".basic-dbg-breakpoints");
+    this.sidebarSplitter = this.contentElement.querySelector(
+      ".basic-sidebar-splitter",
+    );
+    this.varSection = this.contentElement.querySelector(
+      ".basic-dbg-var-section",
+    );
+    this.bpSection = this.contentElement.querySelector(
+      ".basic-dbg-breakpoints",
+    );
     this.setupSidebarSplitter();
 
     this.updateHighlighting();
@@ -304,6 +314,12 @@ export class BasicProgramWindow extends BaseWindow {
     let startX = 0;
     let startWidth = 0;
 
+    // Minimum width for editor section to fit buttons
+    const MIN_EDITOR_WIDTH = 380;
+    const MIN_SIDEBAR_WIDTH = 120;
+    const MAX_SIDEBAR_WIDTH = 600;
+    const SPLITTER_WIDTH = 8;
+
     const onMouseDown = (e) => {
       isDragging = true;
       startX = e.clientX;
@@ -316,7 +332,18 @@ export class BasicProgramWindow extends BaseWindow {
     const onMouseMove = (e) => {
       if (!isDragging) return;
       const delta = startX - e.clientX;
-      const newWidth = Math.min(Math.max(startWidth + delta, 120), 600);
+      let newWidth = startWidth + delta;
+
+      // Get container width to calculate max sidebar width
+      const mainArea = this.contentElement.querySelector(".basic-main-area");
+      const containerWidth = mainArea ? mainArea.offsetWidth : 800;
+      const maxSidebarForEditor = containerWidth - MIN_EDITOR_WIDTH - SPLITTER_WIDTH;
+
+      // Clamp sidebar width between min/max and editor constraint
+      newWidth = Math.max(newWidth, MIN_SIDEBAR_WIDTH);
+      newWidth = Math.min(newWidth, MAX_SIDEBAR_WIDTH);
+      newWidth = Math.min(newWidth, maxSidebarForEditor);
+
       this.sidebar.style.width = `${newWidth}px`;
     };
 
@@ -783,7 +810,10 @@ export class BasicProgramWindow extends BaseWindow {
           // It's THEN linenum
           result += ws;
           i = j;
-          const updated = this.updateSingleLineNumber(code.substring(i), lineMap);
+          const updated = this.updateSingleLineNumber(
+            code.substring(i),
+            lineMap,
+          );
           result += updated.text;
           i += updated.consumed;
         }
@@ -804,7 +834,10 @@ export class BasicProgramWindow extends BaseWindow {
         if (j < code.length && /\d/.test(code[j])) {
           result += ws;
           i = j;
-          const updated = this.updateSingleLineNumber(code.substring(i), lineMap);
+          const updated = this.updateSingleLineNumber(
+            code.substring(i),
+            lineMap,
+          );
           result += updated.text;
           i += updated.consumed;
         }
@@ -1480,7 +1513,11 @@ export class BasicProgramWindow extends BaseWindow {
     }
 
     // Update line/ptr display (only show when paused, otherwise it flickers too fast)
-    if (isPaused && state.currentLine !== null && state.currentLine !== 0xffff) {
+    if (
+      isPaused &&
+      state.currentLine !== null &&
+      state.currentLine !== 0xffff
+    ) {
       this.lineSpan.textContent = `LINE: ${state.currentLine}`;
       this.ptrSpan.textContent = `PTR: $${this.formatHex(state.txtptr, 4)}`;
     } else {

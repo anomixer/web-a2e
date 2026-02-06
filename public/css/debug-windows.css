@@ -3065,9 +3065,8 @@
 /* Editor footer with stats and actions */
 .basic-editor-footer {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 8px;
+    flex-direction: column;
+    gap: 6px;
 }
 
 .basic-status {
@@ -3314,7 +3313,14 @@
 
 .basic-actions {
     display: flex;
-    gap: 8px;
+    flex-wrap: wrap;
+    gap: 6px;
+    width: 100%;
+}
+
+.basic-actions .basic-btn {
+    flex: 1 1 auto;
+    min-width: 100px;
 }
 
 /* Resizable splitter between editor and sidebar - matches assembler style */
@@ -3400,11 +3406,6 @@
     cursor: pointer;
     transition: background 0.15s, border-color 0.15s, color 0.15s;
     white-space: nowrap;
-}
-
-/* Paste button has dynamic content - fix width to prevent layout shift */
-.basic-insert-btn {
-    min-width: 120px;
     text-align: center;
 }
 
