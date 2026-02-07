@@ -58,8 +58,8 @@ export class BasicProgramWindow extends BaseWindow {
           <button class="basic-dbg-btn basic-dbg-run" title="Run Applesoft BASIC program">
             <span class="basic-dbg-icon">▶</span> Run
           </button>
-          <button class="basic-dbg-btn basic-dbg-stop" title="Stop (Ctrl+C)">
-            <span class="basic-dbg-icon">■</span> Stop
+          <button class="basic-dbg-btn basic-dbg-pause" title="Pause at next BASIC line">
+            <span class="basic-dbg-icon">❚❚</span> Pause
           </button>
           <button class="basic-dbg-btn basic-dbg-continue" title="Continue execution">
             <span class="basic-dbg-icon">▶▶</span> Cont
@@ -264,8 +264,8 @@ export class BasicProgramWindow extends BaseWindow {
       .querySelector(".basic-dbg-run")
       .addEventListener("click", () => this.handleRun());
     this.contentElement
-      .querySelector(".basic-dbg-stop")
-      .addEventListener("click", () => this.handleStop());
+      .querySelector(".basic-dbg-pause")
+      .addEventListener("click", () => this.handlePause());
     this.contentElement
       .querySelector(".basic-dbg-continue")
       .addEventListener("click", () => this.handleContinue());
@@ -458,6 +458,26 @@ export class BasicProgramWindow extends BaseWindow {
     }
 
     this.gutter.innerHTML = html;
+
+    // Scroll the current line into view within the editor
+    if (this.currentLineNumber !== null && this.lineMap) {
+      const lineIndex = this.lineMap.indexOf(this.currentLineNumber);
+      if (lineIndex >= 0) {
+        const style = getComputedStyle(this.textarea);
+        const lineHeight =
+          parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.5;
+        const paddingTop = parseFloat(style.paddingTop) || 8;
+        const lineTop = paddingTop + lineIndex * lineHeight;
+        const scrollTop = this.textarea.scrollTop;
+        const viewHeight = this.textarea.clientHeight;
+
+        if (lineTop < scrollTop || lineTop + lineHeight > scrollTop + viewHeight) {
+          this.textarea.scrollTop = lineTop - viewHeight / 2 + lineHeight / 2;
+          this.highlight.scrollTop = this.textarea.scrollTop;
+          this.gutter.scrollTop = this.textarea.scrollTop;
+        }
+      }
+    }
   }
 
   // ========================================
@@ -1116,18 +1136,25 @@ export class BasicProgramWindow extends BaseWindow {
   }
 
   /**
-   * Stop - Send Ctrl+C to stop BASIC program and let emulator continue running
+   * Pause - Pause the emulator, then step to the next BASIC line so
+   * the program stops cleanly at a line boundary with highlighting.
    */
-  handleStop() {
+  handlePause() {
     if (!this.isRunningCallback || !this.isRunningCallback()) {
       return;
     }
-    // Ctrl+C is ASCII 3
-    this.wasmModule._keyDown(3);
-    setTimeout(() => this.wasmModule._keyUp(3), 50);
 
-    // Unpause and let emulator run - BASIC will see Ctrl+C and stop
-    this.wasmModule._setPaused(false);
+    // Pause first so the step machinery can read consistent state
+    this.wasmModule._setPaused(true);
+
+    // Reset tracking flag so we detect the next breakpoint hit
+    this._lastBasicBreakpointHit = false;
+
+    // Now step to the next BASIC line - this reads current CURLIN,
+    // sets up line stepping mode, and unpauses to run until CURLIN changes
+    if (this.wasmModule._stepBasicLine) {
+      this.wasmModule._stepBasicLine();
+    }
   }
 
   /**

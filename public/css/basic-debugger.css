@@ -50,7 +50,7 @@
     color: var(--accent-green);
 }
 
-.basic-dbg-stop:hover {
+.basic-dbg-pause:hover {
     background: var(--accent-red-bg);
     border-color: var(--accent-red-border);
     color: var(--accent-red);
