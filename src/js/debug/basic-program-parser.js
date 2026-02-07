@@ -12,7 +12,7 @@
  * - End marker: [00][00] (null next pointer)
  *
  * Execution State:
- * - CURLIN ($75-$76): Current line number being executed (0xFFFF = direct mode)
+ * - CURLIN ($75-$76): Current line number being executed (CURLIN+1=$FF = direct mode)
  * - TXTPTR ($7A-$7B): Pointer to current position in program text
  */
 
@@ -128,19 +128,27 @@ export class BasicProgramParser {
     const curlin = readWord(this.wasmModule,0x75);
     const txtptr = readWord(this.wasmModule,0x7a);
 
-    // CURLIN = $FFFF means direct/immediate mode (not running a program)
+    // Use the C++ emulator's ROM-based tracking: PC at $D912 (RUN) = started,
+    // PC at $D43C (RESTART/] prompt) = stopped. This is definitive because it
+    // hooks directly into Applesoft's own execution flow.
+    const running = this.wasmModule._isBasicProgramRunning
+      ? this.wasmModule._isBasicProgramRunning()
+      : false;
+    // Direct mode check: only CURLIN+1 ($76) matters (ROM checks INX on $76)
+    const curlinHi = peek(this.wasmModule, 0x76);
+    const directMode = curlinHi === 0xff;
     return {
-      running: curlin !== 0xffff,
-      currentLine: curlin === 0xffff ? null : curlin,
+      running,
+      currentLine: !directMode ? curlin : null,
       txtptr,
     };
   }
 
   /**
-   * Check if BASIC is running (CURLIN != $FFFF)
+   * Check if BASIC is running (CURLIN+1 != $FF, matching ROM check)
    */
   isRunning() {
-    return readWord(this.wasmModule,0x75) !== 0xffff;
+    return peek(this.wasmModule, 0x76) !== 0xff;
   }
 
   /**
@@ -148,8 +156,9 @@ export class BasicProgramParser {
    * Returns null if in direct mode or not running
    */
   getCurrentLine() {
-    const curlin = readWord(this.wasmModule,0x75);
-    return curlin === 0xffff ? null : curlin;
+    // Direct mode check: only CURLIN+1 ($76) matters (ROM checks INX on $76)
+    if (peek(this.wasmModule, 0x76) === 0xff) return null;
+    return readWord(this.wasmModule, 0x75);
   }
 
   /**

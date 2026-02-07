@@ -5,7 +5,7 @@
  *  Mike Daley <michael_daley@icloud.com>
  */
 
-import { readWord } from "../utils/wasm-memory.js";
+import { peek, readWord } from "../utils/wasm-memory.js";
 
 /**
  * BasicBreakpointManager - Manages BASIC line breakpoints
@@ -168,20 +168,20 @@ export class BasicBreakpointManager {
   checkStepBreak() {
     if (!this.steppingMode) return false;
 
-    // CURLIN = $FFFF means direct/immediate mode (not running a program)
+    // CURLIN+1 ($76) = $FF means direct/immediate mode (matching ROM check)
     const curlin = this._getCurlin();
-    const isRunning = curlin !== 0xffff;
+    const isRunning = !this._isDirectMode();
 
     if (this.steppingMode === "line") {
       // Break if line changed
-      if (curlin !== this.lastCurlin && curlin !== 0xffff) {
+      if (curlin !== this.lastCurlin && isRunning) {
         console.log(`Step break: CURLIN changed from ${this.lastCurlin} to ${curlin}`);
         this.lastCurlin = curlin;
         this.steppingMode = null;
         return true;
       }
       // If BASIC stopped running (error or END), stop stepping
-      if (!isRunning && this.lastCurlin !== 0xffff) {
+      if (!isRunning && this.lastCurlin !== null) {
         console.log("Step break: BASIC stopped running");
         this.steppingMode = null;
         return true;
@@ -232,6 +232,13 @@ export class BasicBreakpointManager {
    */
   _getCurlin() {
     return readWord(this.wasmModule, 0x75);
+  }
+
+  /**
+   * Check if BASIC is in direct mode (CURLIN+1 = $FF, matching ROM check)
+   */
+  _isDirectMode() {
+    return peek(this.wasmModule, 0x76) === 0xff;
   }
 
   /**

@@ -128,7 +128,7 @@ export class BasicVariableInspector {
       size = 7; // 2 name + 5 value
     }
 
-    return { name, type, value, rawValue, size };
+    return { name, type, value, rawValue, size, addr };
   }
 
   /**
@@ -281,6 +281,98 @@ export class BasicVariableInspector {
       str += String.fromCharCode(char);
     }
     return str;
+  }
+
+  /**
+   * Write a new value to a simple variable in memory
+   * @param {Object} varInfo - Variable info from getSimpleVariables() (must include addr and type)
+   * @param {string} newValueStr - New value as a string entered by the user
+   * @returns {boolean} true if the write succeeded
+   */
+  setVariableValue(varInfo, newValueStr) {
+    const { addr, type } = varInfo;
+    const valueAddr = addr + 2; // skip 2-byte name
+
+    if (type === "integer") {
+      const parsed = parseInt(newValueStr, 10);
+      if (isNaN(parsed) || parsed < -32768 || parsed > 32767) return false;
+      const unsigned = parsed < 0 ? parsed + 0x10000 : parsed;
+      this.wasmModule._writeMemory(valueAddr, (unsigned >> 8) & 0xff);
+      this.wasmModule._writeMemory(valueAddr + 1, unsigned & 0xff);
+      return true;
+    } else if (type === "string") {
+      // String editing: write new characters into the existing string buffer
+      // We can only write up to the original allocated length
+      const origLen = peek(this.wasmModule, valueAddr);
+      const ptr = peek(this.wasmModule, valueAddr + 1) | (peek(this.wasmModule, valueAddr + 2) << 8);
+      // Strip surrounding quotes if present
+      let str = newValueStr;
+      if (str.startsWith('"') && str.endsWith('"')) str = str.slice(1, -1);
+      if (str.length > origLen) str = str.slice(0, origLen);
+      // Update length
+      this.wasmModule._writeMemory(valueAddr, str.length);
+      // Write characters
+      for (let i = 0; i < str.length; i++) {
+        this.wasmModule._writeMemory(ptr + i, str.charCodeAt(i) | 0x80);
+      }
+      return true;
+    } else {
+      // Real number
+      const parsed = parseFloat(newValueStr);
+      if (isNaN(parsed)) return false;
+      const bytes = this._encodeApplesoftFloat(parsed);
+      for (let i = 0; i < 5; i++) {
+        this.wasmModule._writeMemory(valueAddr + i, bytes[i]);
+      }
+      return true;
+    }
+  }
+
+  /**
+   * Encode a JavaScript number into 5-byte Applesoft floating point format
+   */
+  _encodeApplesoftFloat(value) {
+    const bytes = new Uint8Array(5);
+    if (value === 0) return bytes; // all zeros = 0.0
+
+    const sign = value < 0 ? 1 : 0;
+    let abs = Math.abs(value);
+
+    // Find exponent: normalize so 1.0 <= mantissa < 2.0
+    let exp = Math.floor(Math.log2(abs));
+    let mantissa = abs / Math.pow(2, exp);
+
+    // Adjust if mantissa is out of range due to floating point
+    if (mantissa < 1.0) { mantissa *= 2; exp--; }
+    if (mantissa >= 2.0) { mantissa /= 2; exp++; }
+
+    // Applesoft exponent is excess-129
+    const expByte = exp + 129;
+    if (expByte <= 0 || expByte > 255) return bytes; // underflow/overflow -> 0
+
+    bytes[0] = expByte;
+
+    // Remove the implicit leading 1
+    mantissa -= 1.0;
+
+    // Encode 31 bits of fractional mantissa across bytes[1..4]
+    // byte[1] has 7 fraction bits + sign in bit 7
+    mantissa *= 128; // 2^7
+    bytes[1] = (Math.floor(mantissa) & 0x7f) | (sign << 7);
+    mantissa -= Math.floor(mantissa);
+
+    mantissa *= 256;
+    bytes[2] = Math.floor(mantissa) & 0xff;
+    mantissa -= Math.floor(mantissa);
+
+    mantissa *= 256;
+    bytes[3] = Math.floor(mantissa) & 0xff;
+    mantissa -= Math.floor(mantissa);
+
+    mantissa *= 256;
+    bytes[4] = Math.round(mantissa) & 0xff;
+
+    return bytes;
   }
 
   /**

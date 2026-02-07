@@ -42,6 +42,7 @@ export class BasicProgramWindow extends BaseWindow {
     this.changeTimestamps = new Map();
     this.currentLineNumber = null;
     this.expandedArrays = new Set(); // Track which arrays are expanded
+    this._varAutoRefresh = false; // Auto-refresh variables while program is running
 
     // Editor line map (text line index -> BASIC line number)
     this.lineMap = [];
@@ -67,9 +68,6 @@ export class BasicProgramWindow extends BaseWindow {
           <button class="basic-dbg-btn basic-dbg-step-line" title="Step to next BASIC line">
             <span class="basic-dbg-icon">↓</span> Step
           </button>
-          <div class="basic-dbg-status">
-            <span class="basic-dbg-state">STOPPED</span>
-          </div>
           <div class="basic-dbg-info">
             <span class="basic-dbg-line">LINE: ---</span>
             <span class="basic-dbg-ptr">PTR: $----</span>
@@ -167,7 +165,6 @@ export class BasicProgramWindow extends BaseWindow {
     });
     this.bpList = this.contentElement.querySelector(".basic-dbg-bp-list");
     this.bpInput = this.contentElement.querySelector(".basic-dbg-bp-input");
-    this.stateSpan = this.contentElement.querySelector(".basic-dbg-state");
     this.lineSpan = this.contentElement.querySelector(".basic-dbg-line");
     this.ptrSpan = this.contentElement.querySelector(".basic-dbg-ptr");
 
@@ -1131,6 +1128,9 @@ export class BasicProgramWindow extends BaseWindow {
     this.updateGutter();
     this.updateHighlighting();
 
+    // Start auto-refreshing variables
+    this._varAutoRefresh = true;
+
     // Type "RUN" followed by Return
     this.inputHandler.queueTextInput("RUN\r");
   }
@@ -1143,6 +1143,9 @@ export class BasicProgramWindow extends BaseWindow {
     if (!this.isRunningCallback || !this.isRunningCallback()) {
       return;
     }
+
+    // Stop auto-refreshing variables (breakpoint hit will do a final render)
+    this._varAutoRefresh = false;
 
     // Pause first so the step machinery can read consistent state
     this.wasmModule._setPaused(true);
@@ -1161,6 +1164,9 @@ export class BasicProgramWindow extends BaseWindow {
    * Continue - Resume execution from pause
    */
   handleContinue() {
+    // Resume auto-refreshing variables
+    this._varAutoRefresh = true;
+
     // Reset tracking flag so we detect the next breakpoint hit
     this._lastBasicBreakpointHit = false;
 
@@ -1182,9 +1188,9 @@ export class BasicProgramWindow extends BaseWindow {
    * Uses C++ stepBasicLine() for reliable stepping
    */
   handleStepLine() {
-    // Check if BASIC is actually running (CURLIN != $FFFF)
+    // Check if BASIC is actually running (not in direct mode)
     const state = this.programParser.getExecutionState();
-    if (state.currentLine === 0xffff) {
+    if (state.currentLine === null) {
       // BASIC not running - clear any stale state
       // Unpause first, then clear to remove any skip logic
       this.wasmModule._setPaused(false);
@@ -1261,10 +1267,12 @@ export class BasicProgramWindow extends BaseWindow {
         }
 
         const typeClass = `var-type-${v.type}`;
+        const isPaused = this.wasmModule._isPaused && this.wasmModule._isPaused();
+        const editableClass = isPaused ? "editable" : "";
         html += `
-          <div class="basic-dbg-var-row ${changeClass} ${typeClass}">
+          <div class="basic-dbg-var-row ${changeClass} ${typeClass}" data-var-addr="${v.addr}" data-var-type="${v.type}">
             <span class="basic-dbg-var-name">${v.name}</span>
-            <span class="basic-dbg-var-value">${escapeHtml(displayValue)}</span>
+            <span class="basic-dbg-var-value ${editableClass}">${escapeHtml(displayValue)}</span>
           </div>
         `;
       }
@@ -1295,6 +1303,52 @@ export class BasicProgramWindow extends BaseWindow {
     }
 
     this.varPanel.innerHTML = html;
+
+    // Attach click handlers for editable variable values
+    this.varPanel.querySelectorAll(".basic-dbg-var-value.editable").forEach((el) => {
+      el.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this._startVariableEdit(el);
+      });
+    });
+  }
+
+  /**
+   * Start inline editing of a variable value
+   */
+  _startVariableEdit(valueSpan) {
+    if (valueSpan.querySelector("input")) return; // already editing
+
+    const row = valueSpan.closest(".basic-dbg-var-row");
+    const addr = parseInt(row.dataset.varAddr, 10);
+    const type = row.dataset.varType;
+    const currentText = valueSpan.textContent;
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "basic-dbg-var-edit";
+    input.value = currentText;
+
+    valueSpan.textContent = "";
+    valueSpan.appendChild(input);
+    input.focus();
+    input.select();
+
+    const commit = () => {
+      const newVal = input.value.trim();
+      if (newVal !== currentText) {
+        const varInfo = { addr, type };
+        this.variableInspector.setVariableValue(varInfo, newVal);
+      }
+      this.renderVariables();
+    };
+
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); commit(); }
+      if (e.key === "Escape") { e.preventDefault(); this.renderVariables(); }
+      e.stopPropagation();
+    });
+    input.addEventListener("blur", commit);
   }
 
   /**
@@ -1421,9 +1475,26 @@ export class BasicProgramWindow extends BaseWindow {
     const state = this.programParser.getExecutionState();
     const isPaused = wasmModule._isPaused();
 
-    // Update variables twice per second (500ms)
-    if (state.running || isPaused) {
-      if (!this._lastVarUpdateTime || now - this._lastVarUpdateTime >= 500) {
+    // Track BASIC program running state from C++ ROM hooks ($D912=RUN, $D43C=RESTART)
+    const isEditing = this.varPanel && this.varPanel.querySelector(".basic-dbg-var-edit");
+    const programRunning = this.wasmModule._isBasicProgramRunning
+      ? this.wasmModule._isBasicProgramRunning()
+      : false;
+
+    // Auto-start refresh when program starts running (even from emulator directly)
+    if (programRunning && !this._varAutoRefresh && !isPaused) {
+      this._varAutoRefresh = true;
+    }
+
+    // Auto-stop refresh when program ends (Ctrl+C, END, STOP, error)
+    if (!programRunning && !isPaused && this._varAutoRefresh) {
+      this._varAutoRefresh = false;
+      this.renderVariables();
+    }
+
+    // Refresh variables at 10fps while auto-refresh is active
+    if (this._varAutoRefresh && !isEditing) {
+      if (!this._lastVarUpdateTime || now - this._lastVarUpdateTime >= 100) {
         this._lastVarUpdateTime = now;
         this.renderVariables();
       }
@@ -1438,17 +1509,19 @@ export class BasicProgramWindow extends BaseWindow {
     // Check for BASIC breakpoint hit (breakpoint or step completion)
     // Track state transition to detect NEW breakpoint hits (not just being paused at one)
     const basicBreakpointHit = isPaused && wasmModule._isBasicBreakpointHit();
-    if (basicBreakpointHit) {
+    if (basicBreakpointHit && !this._lastBasicBreakpointHit) {
       const breakLine = wasmModule._getBasicBreakLine();
       this.currentLineNumber = breakLine;
       this.updateGutter();
       this.updateHighlighting();
+      this.renderVariables();
     }
     this._lastBasicBreakpointHit = basicBreakpointHit;
 
     // Reset breakpoint tracking when BASIC stops running (program ended)
     // so next RUN will properly detect the first breakpoint hit
     if (!state.running && this._lastProgramRunning) {
+      this._varAutoRefresh = false;
       this._lastBasicBreakpointHit = false;
       // First unpause, then clear all breakpoint state
       // This order ensures any skip logic from unpausing gets cleared
@@ -1465,28 +1538,10 @@ export class BasicProgramWindow extends BaseWindow {
     }
     this._lastProgramRunning = state.running;
 
-    // Update status display
-    if (isPaused) {
-      if (state.running) {
-        this.stateSpan.textContent = "PAUSED";
-        this.stateSpan.className = "basic-dbg-state paused";
-      } else {
-        this.stateSpan.textContent = "READY";
-        this.stateSpan.className = "basic-dbg-state stopped";
-      }
-    } else if (state.running) {
-      this.stateSpan.textContent = "RUNNING";
-      this.stateSpan.className = "basic-dbg-state running";
-    } else {
-      this.stateSpan.textContent = "READY";
-      this.stateSpan.className = "basic-dbg-state stopped";
-    }
-
     // Update line/ptr display (only show when paused, otherwise it flickers too fast)
     if (
       isPaused &&
-      state.currentLine !== null &&
-      state.currentLine !== 0xffff
+      state.currentLine !== null
     ) {
       this.lineSpan.textContent = `LINE: ${state.currentLine}`;
       this.ptrSpan.textContent = `PTR: $${this.formatHex(state.txtptr, 4)}`;

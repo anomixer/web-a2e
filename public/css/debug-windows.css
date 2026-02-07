@@ -5976,33 +5976,6 @@ input.rb-detail {
     color: var(--accent-blue);
 }
 
-.basic-dbg-status {
-    margin-left: auto;
-}
-
-.basic-dbg-state {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    font-weight: 600;
-    padding: 2px 6px;
-    border-radius: 3px;
-}
-
-.basic-dbg-state.running {
-    background: var(--accent-green-bg);
-    color: var(--accent-green);
-}
-
-.basic-dbg-state.paused {
-    background: var(--accent-orange-bg);
-    color: var(--accent-orange);
-}
-
-.basic-dbg-state.stopped {
-    background: var(--control-bg);
-    color: var(--text-muted);
-}
-
 /* Info Bar (inline with toolbar) */
 .basic-dbg-info {
     display: flex;
@@ -6187,6 +6160,28 @@ input.rb-detail {
 
 .basic-dbg-var-row.var-type-integer .basic-dbg-var-value {
     color: var(--syntax-flag);
+}
+
+.basic-dbg-var-value.editable {
+    cursor: pointer;
+    border-radius: 2px;
+}
+
+.basic-dbg-var-value.editable:hover {
+    background: var(--overlay-hover);
+}
+
+.basic-dbg-var-edit {
+    width: 100%;
+    background: var(--editor-bg);
+    color: inherit;
+    border: 1px solid var(--accent-blue-border);
+    border-radius: 2px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    padding: 0 2px;
+    text-align: right;
+    outline: none;
 }
 
 /* Array display - expandable list */

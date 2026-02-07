@@ -338,6 +338,12 @@ uint16_t getBasicBreakLine() {
 }
 
 EMSCRIPTEN_KEEPALIVE
+bool isBasicProgramRunning() {
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->isBasicProgramRunning();
+}
+
+EMSCRIPTEN_KEEPALIVE
 void stepBasicLine() {
   REQUIRE_EMULATOR();
   g_emulator->stepBasicLine();
