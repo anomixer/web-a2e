@@ -376,7 +376,7 @@ void getBasicDebugInfo(uint16_t* txttab, uint16_t* vartab, uint16_t* curlin, uin
   *txttab = mmu.readRAM(0x67, false) | (mmu.readRAM(0x68, false) << 8);
   *vartab = mmu.readRAM(0x69, false) | (mmu.readRAM(0x6A, false) << 8);
   *curlin = mmu.readRAM(0x75, false) | (mmu.readRAM(0x76, false) << 8);
-  *txtptr = mmu.readRAM(0x7A, false) | (mmu.readRAM(0x7B, false) << 8);
+  *txtptr = mmu.readRAM(0xB8, false) | (mmu.readRAM(0xB9, false) << 8);
 }
 
 // Debug function to dump bytes around TXTPTR to see what's there
@@ -387,7 +387,7 @@ void getBasicLineBytes(uint8_t* buffer, int* lineStart, int* colonCount) {
 
   uint16_t txttab = mmu.readRAM(0x67, false) | (mmu.readRAM(0x68, false) << 8);
   uint16_t curlin = mmu.readRAM(0x75, false) | (mmu.readRAM(0x76, false) << 8);
-  uint16_t txtptr = mmu.readRAM(0x7A, false) | (mmu.readRAM(0x7B, false) << 8);
+  uint16_t txtptr = mmu.readRAM(0xB8, false) | (mmu.readRAM(0xB9, false) << 8);
 
   // Find current line
   uint16_t addr = txttab;

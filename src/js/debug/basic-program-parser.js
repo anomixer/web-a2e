@@ -126,7 +126,7 @@ export class BasicProgramParser {
    */
   getExecutionState() {
     const curlin = readWord(this.wasmModule,0x75);
-    const txtptr = readWord(this.wasmModule,0x7a);
+    const txtptr = readWord(this.wasmModule,0xb8);
 
     // Use the C++ emulator's ROM-based tracking: PC at $D912 (RUN) = started,
     // PC at $D43C (RESTART/] prompt) = stopped. This is definitive because it

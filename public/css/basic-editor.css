@@ -368,6 +368,27 @@
     font-weight: 500;
 }
 
+/* Statement-level highlight within a multi-statement line */
+.basic-highlight .basic-current-line .basic-current-statement {
+    background: var(--accent-blue-bg);
+    border-bottom: 2px solid var(--accent-blue);
+    border-radius: 2px;
+}
+
+/* Dim non-active statements on the current line when a specific statement is highlighted */
+.basic-highlight .basic-current-line.basic-has-statements {
+    background: none !important;
+}
+
+.basic-highlight .basic-current-line.basic-has-statements .basic-statement {
+    opacity: 0.5;
+}
+
+.basic-highlight .basic-current-line.basic-has-statements .basic-current-statement {
+    opacity: 1;
+    background: var(--accent-blue-bg) !important;
+}
+
 .basic-actions {
     display: flex;
     flex-wrap: wrap;

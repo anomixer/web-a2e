@@ -41,6 +41,7 @@ export class BasicProgramWindow extends BaseWindow {
     this.previousVariables = new Map();
     this.changeTimestamps = new Map();
     this.currentLineNumber = null;
+    this.currentStatementInfo = null;
     this.expandedArrays = new Set(); // Track which arrays are expanded
     this._varAutoRefresh = false; // Auto-refresh variables while program is running
 
@@ -62,7 +63,7 @@ export class BasicProgramWindow extends BaseWindow {
           <button class="basic-dbg-btn basic-dbg-pause" title="Pause at next BASIC line">
             <span class="basic-dbg-icon">❚❚</span> Pause
           </button>
-          <button class="basic-dbg-btn basic-dbg-step-line" title="Step to next BASIC line">
+          <button class="basic-dbg-btn basic-dbg-step-line" title="Step to next BASIC statement">
             <span class="basic-dbg-icon">↓</span> Step
           </button>
           <div class="basic-dbg-status">
@@ -680,8 +681,15 @@ export class BasicProgramWindow extends BaseWindow {
       if (isCurrentLine) lineClass += " basic-current-line";
       if (indent > 0) lineClass += ` indent-${Math.min(indent, 4)}`;
 
+      // For multi-statement lines, wrap each statement in a span
+      let lineHtml = html || "&nbsp;";
+      if (isCurrentLine && this.currentStatementInfo && this.currentStatementInfo.statementCount > 1) {
+        lineClass += " basic-has-statements";
+        lineHtml = this._wrapStatements(html, this.currentStatementInfo);
+      }
+
       // Wrap each line in a div with appropriate classes
-      const highlighted = `<div class="${lineClass}">${html || "&nbsp;"}</div>`;
+      const highlighted = `<div class="${lineClass}">${lineHtml}</div>`;
       highlightedLines.push(highlighted);
     }
 
@@ -1134,6 +1142,7 @@ export class BasicProgramWindow extends BaseWindow {
       this._varAutoRefresh = true;
       this._lastBasicBreakpointHit = false;
       this.currentLineNumber = null;
+      this.currentStatementInfo = null;
       this.updateGutter();
       this.updateHighlighting();
 
@@ -1146,6 +1155,7 @@ export class BasicProgramWindow extends BaseWindow {
       this._lastBasicBreakpointHit = false;
       this._lastProgramRunning = false;
       this.currentLineNumber = null;
+      this.currentStatementInfo = null;
 
       this.wasmModule._setPaused(false);
 
@@ -1179,16 +1189,17 @@ export class BasicProgramWindow extends BaseWindow {
     // Reset tracking flag so we detect the next breakpoint hit
     this._lastBasicBreakpointHit = false;
 
-    // Now step to the next BASIC line - this reads current CURLIN,
-    // sets up line stepping mode, and unpauses to run until CURLIN changes
-    if (this.wasmModule._stepBasicLine) {
-      this.wasmModule._stepBasicLine();
+    // Now step to the next BASIC statement - unpauses and runs until
+    // PC hits $D820 (JSR EXECUTE_STATEMENT), the start of the next statement
+    if (this.wasmModule._stepBasicStatement) {
+      this.wasmModule._stepBasicStatement();
     }
   }
 
   /**
-   * Step Line - Execute current BASIC line and stop at next line
-   * Uses C++ stepBasicLine() for reliable stepping
+   * Step - Execute current BASIC statement and stop at next statement.
+   * Uses C++ stepBasicStatement() which breaks at $D820 (JSR EXECUTE_STATEMENT),
+   * the ROM point where both new-line and colon paths converge.
    */
   handleStepLine() {
     // Check if BASIC is actually running (not in direct mode)
@@ -1206,11 +1217,11 @@ export class BasicProgramWindow extends BaseWindow {
     // Reset tracking flag so we detect the next breakpoint hit
     this._lastBasicBreakpointHit = false;
 
-    // Use C++ stepping - it handles everything properly
-    if (this.wasmModule._stepBasicLine) {
-      this.wasmModule._stepBasicLine();
+    // Use C++ statement stepping - breaks at ROM's EXECUTE_STATEMENT entry
+    if (this.wasmModule._stepBasicStatement) {
+      this.wasmModule._stepBasicStatement();
     } else {
-      console.error("_stepBasicLine not available - rebuild WASM");
+      console.error("_stepBasicStatement not available - rebuild WASM");
     }
   }
 
@@ -1646,6 +1657,13 @@ export class BasicProgramWindow extends BaseWindow {
     if (basicBreakpointHit && !this._lastBasicBreakpointHit) {
       const breakLine = wasmModule._getBasicBreakLine();
       this.currentLineNumber = breakLine;
+      // Get statement info using TXTPTR from execution state
+      if (wasmModule._getBasicTxtptr) {
+        const txtptr = wasmModule._getBasicTxtptr();
+        this.currentStatementInfo = this.programParser.getCurrentStatementInfo(breakLine, txtptr);
+      } else {
+        this.currentStatementInfo = null;
+      }
       this.updateGutter();
       this.updateHighlighting();
       this.renderVariables();
@@ -1666,6 +1684,7 @@ export class BasicProgramWindow extends BaseWindow {
       // Clear current line highlight when program ends
       if (this.currentLineNumber !== null) {
         this.currentLineNumber = null;
+        this.currentStatementInfo = null;
         this.updateGutter();
         this.updateHighlighting();
       }
@@ -1677,7 +1696,11 @@ export class BasicProgramWindow extends BaseWindow {
       isPaused &&
       state.currentLine !== null
     ) {
-      this.lineSpan.textContent = `LINE: ${state.currentLine}`;
+      let lineText = `LINE: ${state.currentLine}`;
+      if (this.currentStatementInfo && this.currentStatementInfo.statementCount > 1) {
+        lineText += ` [${this.currentStatementInfo.statementIndex + 1}/${this.currentStatementInfo.statementCount}]`;
+      }
+      this.lineSpan.textContent = lineText;
       this.ptrSpan.textContent = `PTR: $${this.formatHex(state.txtptr, 4)}`;
     } else {
       this.lineSpan.textContent = "LINE: ---";
@@ -1687,16 +1710,83 @@ export class BasicProgramWindow extends BaseWindow {
     // Only update gutter/highlighting for current line when paused
     // This prevents constant rebuilding that interferes with click events
     if (isPaused) {
-      if (state.currentLine !== this.currentLineNumber) {
+      // Update statement info even if line hasn't changed (statement may have changed)
+      let stmtInfo = null;
+      if (wasmModule._getBasicTxtptr && state.currentLine !== null) {
+        const txtptr = wasmModule._getBasicTxtptr();
+        stmtInfo = this.programParser.getCurrentStatementInfo(state.currentLine, txtptr);
+      }
+      const stmtChanged = this._statementInfoChanged(this.currentStatementInfo, stmtInfo);
+
+      if (state.currentLine !== this.currentLineNumber || stmtChanged) {
         this.currentLineNumber = state.currentLine;
+        this.currentStatementInfo = stmtInfo;
         this.updateGutter();
         this.updateHighlighting();
       }
     } else if (this.currentLineNumber !== null) {
       // Clear line highlighting when not paused
       this.currentLineNumber = null;
+      this.currentStatementInfo = null;
       this.updateHighlighting();
     }
+  }
+
+  /**
+   * Wrap statement segments in spans for multi-statement line highlighting.
+   * Finds colon boundaries in the text content (ignoring HTML tags) and wraps
+   * each statement. The active statement gets the basic-current-statement class.
+   */
+  /**
+   * Wrap statement segments in spans for multi-statement line highlighting.
+   * Splits the highlighted HTML at colon punctuation spans (<span class="bas-punct">:</span>)
+   * which the syntax highlighter produces for statement-separating colons.
+   * The colon span is included as the last element of the preceding statement segment.
+   */
+  _wrapStatements(html, stmtInfo) {
+    // The highlighter wraps colons in <span class="bas-punct">:</span>.
+    // Colons inside strings are in <span class="bas-string">...</span> and won't match.
+    // Split on the colon punct spans to find statement boundaries.
+    const colonPattern = /<span class="bas-punct">:<\/span>/g;
+    const colonMatches = [];
+    let match;
+    while ((match = colonPattern.exec(html)) !== null) {
+      colonMatches.push({ index: match.index, length: match[0].length });
+    }
+
+    if (colonMatches.length === 0) {
+      const cls = stmtInfo.statementIndex === 0 ? " basic-current-statement" : "";
+      return `<span class="basic-statement${cls}">${html}</span>`;
+    }
+
+    // Build segments by splitting at each colon span.
+    // The colon span is included at the end of the preceding segment.
+    const segments = [];
+    let pos = 0;
+    for (let i = 0; i < colonMatches.length; i++) {
+      const colonEnd = colonMatches[i].index + colonMatches[i].length;
+      segments.push(html.substring(pos, colonEnd));
+      pos = colonEnd;
+    }
+    // Last segment: everything after the final colon
+    if (pos < html.length) {
+      segments.push(html.substring(pos));
+    }
+
+    // Wrap each segment with the appropriate class
+    let result = "";
+    for (let i = 0; i < segments.length; i++) {
+      const cls = i === stmtInfo.statementIndex ? " basic-current-statement" : "";
+      result += `<span class="basic-statement${cls}">${segments[i]}</span>`;
+    }
+    return result;
+  }
+
+  _statementInfoChanged(a, b) {
+    if (a === b) return false;
+    if (!a || !b) return true;
+    return a.statementIndex !== b.statementIndex ||
+           a.statementCount !== b.statementCount;
   }
 
   setStatus(status) {

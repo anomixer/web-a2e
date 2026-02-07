@@ -17,7 +17,7 @@ const PREDEFINED_WATCHES = {
     { addr: 0x6f, label: "FRETOP", size: 16, desc: "Top of string space" },
     { addr: 0x73, label: "MEMSIZ", size: 16, desc: "Top of memory" },
     { addr: 0x75, label: "CURLIN", size: 16, desc: "Current BASIC line" },
-    { addr: 0x7a, label: "TXTPTR", size: 16, desc: "BASIC text pointer" },
+    { addr: 0xb8, label: "TXTPTR", size: 16, desc: "BASIC text pointer" },
   ],
   "Screen/Window": [
     { addr: 0x20, label: "WNDLFT", size: 8, desc: "Window left edge" },
