@@ -12,6 +12,7 @@ import {
 } from "../utils/basic-highlighting.js";
 import { escapeHtml } from "../utils/string-utils.js";
 import { BasicAutocomplete } from "../utils/basic-autocomplete.js";
+import { tokenizeProgram } from "../utils/basic-tokenizer.js";
 import { BasicBreakpointManager } from "./basic-breakpoint-manager.js";
 import { BasicVariableInspector } from "./basic-variable-inspector.js";
 import { BasicProgramParser } from "./basic-program-parser.js";
@@ -30,7 +31,6 @@ export class BasicProgramWindow extends BaseWindow {
     this.wasmModule = wasmModule;
     this.inputHandler = inputHandler;
     this.isRunningCallback = isRunningCallback;
-    this.isPasting = false;
 
     // Debugger components
     this.breakpointManager = new BasicBreakpointManager(wasmModule);
@@ -100,7 +100,7 @@ export class BasicProgramWindow extends BaseWindow {
               </div>
               <div class="basic-actions">
                 <button class="basic-btn basic-load-btn" title="Load program from emulator memory">Load from Memory</button>
-                <button class="basic-btn basic-insert-btn" title="Paste program into emulator">Paste into Emulator</button>
+                <button class="basic-btn basic-insert-btn" title="Load program into emulator memory">Load into Emulator</button>
                 <button class="basic-btn basic-format-btn" title="Format code (align line numbers, indent loops)">Format</button>
                 <button class="basic-btn basic-renumber-btn" title="Renumber lines in increments of 10, updating GOTO/GOSUB references">Renumber</button>
                 <button class="basic-btn basic-clear-btn">Clear</button>
@@ -246,11 +246,7 @@ export class BasicProgramWindow extends BaseWindow {
     });
 
     this.insertBtn.addEventListener("click", () => {
-      if (this.isPasting) {
-        this.cancelPaste();
-      } else {
-        this.loadIntoMemory();
-      }
+      this.loadIntoMemory();
     });
 
     this.clearBtn.addEventListener("click", () => {
@@ -1059,11 +1055,6 @@ export class BasicProgramWindow extends BaseWindow {
   }
 
   loadIntoMemory() {
-    // Prevent multiple simultaneous pastes
-    if (this.isPasting) {
-      return;
-    }
-
     if (this.isRunningCallback && !this.isRunningCallback()) {
       this.showButtonFeedback("Emulator is off", "basic-btn-error");
       return;
@@ -1078,38 +1069,44 @@ export class BasicProgramWindow extends BaseWindow {
       return;
     }
 
-    // Set flag immediately to prevent double-clicks
-    this.isPasting = true;
-    this.insertBtn.textContent = "Cancel";
-    this.insertBtn.classList.add("basic-btn-cancel");
+    const txttab = 0x0801;
+    const { bytes, endAddr } = tokenizeProgram(lines, txttab);
 
-    let inputText = "NEW\r";
-    for (const line of lines) {
-      if (line.content) {
-        inputText += `${line.lineNumber} ${line.content}\r`;
-      }
+    // Write tokenized program bytes into emulator memory
+    for (let i = 0; i < bytes.length; i++) {
+      this.wasmModule._writeMemory(txttab + i, bytes[i]);
     }
 
-    const lineCount = lines.length;
+    // Helper to write a 16-bit little-endian pointer to zero page
+    const writePtr = (zpAddr, value) => {
+      this.wasmModule._writeMemory(zpAddr, value & 0xFF);
+      this.wasmModule._writeMemory(zpAddr + 1, (value >> 8) & 0xFF);
+    };
 
-    this.inputHandler.queueTextInput(inputText, {
-      speedMultiplier: 8,
-      onComplete: (cancelled) => {
-        this.isPasting = false;
-        this.insertBtn.classList.remove("basic-btn-cancel");
-        if (cancelled) {
-          this.showButtonFeedback("Cancelled", "basic-btn-error");
-        } else {
-          this.showButtonFeedback(`Loaded ${lineCount} lines!`, "basic-btn-success");
-        }
-      },
-    });
+    // Read MEMSIZE ($73) - the ROM sets FRETOP to this on CLR/NEW
+    const memsizeLo = this.wasmModule._readMemory(0x73);
+    const memsizeHi = this.wasmModule._readMemory(0x74);
+    const memsize = memsizeLo | (memsizeHi << 8);
 
-    console.log(`BASIC program queued for input: ${lines.length} lines`);
-  }
+    // Update Applesoft zero page pointers to match what NEW + CLEARC set up:
+    //   SCRTCH ($D64B): TXTTAB, VARTAB, PRGEND
+    //   CLEARC ($D66C): FRETOP=MEMSIZE, ARYTAB=VARTAB, STREND=VARTAB
+    writePtr(0x67, txttab);     // TXTTAB - start of program
+    writePtr(0x69, endAddr);    // VARTAB - start of variable space
+    writePtr(0x6B, endAddr);    // ARYTAB - start of array space
+    writePtr(0x6D, endAddr);    // STREND - end of numeric storage
+    writePtr(0x6F, memsize);    // FRETOP - end of string storage (top of free memory)
+    writePtr(0xAF, endAddr);    // PRGEND - end of program (used by line editor)
 
-  cancelPaste() {
-    this.inputHandler.cancelPaste();
+    // Set interpreter state for direct mode
+    writePtr(0xB8, txttab - 1); // TXTPTR - interpreter text pointer
+    this.wasmModule._writeMemory(0x76, 0xFF); // CURLIN+1 high byte = $FF (direct mode)
+
+    // Invalidate the program parser cache so Load from Memory sees new data
+    this.programParser.invalidateCache();
+
+    this.showButtonFeedback(`Loaded ${lines.length} lines!`, "basic-btn-success");
+    console.log(`BASIC program loaded into memory: ${lines.length} lines, ${bytes.length} bytes`);
   }
 
   showButtonFeedback(message, cssClass) {
@@ -1117,7 +1114,7 @@ export class BasicProgramWindow extends BaseWindow {
     this.insertBtn.classList.add(cssClass);
 
     setTimeout(() => {
-      this.insertBtn.textContent = "Paste into Emulator";
+      this.insertBtn.textContent = "Load into Emulator";
       this.insertBtn.classList.remove(cssClass);
     }, 1500);
   }
