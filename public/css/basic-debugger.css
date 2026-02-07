@@ -43,8 +43,7 @@
     font-size: 9px;
 }
 
-.basic-dbg-run:hover,
-.basic-dbg-continue:hover {
+.basic-dbg-run:hover {
     background: var(--accent-green-bg);
     border-color: var(--accent-green-border);
     color: var(--accent-green);
@@ -61,6 +60,39 @@
     background: var(--accent-blue-bg);
     border-color: var(--accent-blue-border);
     color: var(--accent-blue);
+}
+
+/* Status Indicator */
+.basic-dbg-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-left: 8px;
+    padding-left: 8px;
+    border-left: 1px solid var(--separator-bg);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.basic-dbg-status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--text-muted);
+}
+
+.basic-dbg-status-idle {
+    background: var(--text-muted);
+}
+
+.basic-dbg-status-running {
+    background: var(--accent-green);
+}
+
+.basic-dbg-status-paused {
+    background: var(--accent-orange);
 }
 
 /* Info Bar (inline with toolbar) */
@@ -225,8 +257,12 @@
     background: var(--overlay-hover);
 }
 
-.basic-dbg-var-row.changed {
-    background: var(--accent-yellow-bg);
+.basic-dbg-var-row.changed .basic-dbg-var-value {
+    animation: reg-flash 0.6s ease-out;
+}
+
+.basic-dbg-arr-val.changed {
+    animation: reg-flash 0.6s ease-out;
 }
 
 .basic-dbg-var-name {
@@ -255,6 +291,15 @@
 }
 
 .basic-dbg-var-value.editable:hover {
+    background: var(--overlay-hover);
+}
+
+.basic-dbg-arr-val.editable {
+    cursor: pointer;
+    border-radius: 2px;
+}
+
+.basic-dbg-arr-val.editable:hover {
     background: var(--overlay-hover);
 }
 

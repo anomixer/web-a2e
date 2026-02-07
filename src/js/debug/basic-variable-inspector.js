@@ -203,6 +203,8 @@ export class BasicVariableInspector {
       values,
       totalSize,
       totalElements,
+      addr,
+      numDims,
     };
   }
 
@@ -323,6 +325,51 @@ export class BasicVariableInspector {
       const bytes = this._encodeApplesoftFloat(parsed);
       for (let i = 0; i < 5; i++) {
         this.wasmModule._writeMemory(valueAddr + i, bytes[i]);
+      }
+      return true;
+    }
+  }
+
+  /**
+   * Write a new value to an array element in memory
+   * @param {Object} info - { addr, type, numDims, elementIndex }
+   *   addr: start address of the array entry in memory
+   *   type: 'real', 'integer', or 'string'
+   *   numDims: number of dimensions
+   *   elementIndex: flat index of the element
+   * @param {string} newValueStr - New value as a string
+   * @returns {boolean} true if the write succeeded
+   */
+  setArrayElementValue(info, newValueStr) {
+    const { addr, type, numDims, elementIndex } = info;
+    const elementSize = type === "integer" ? 2 : type === "string" ? 3 : 5;
+    const dataStart = addr + 5 + numDims * 2;
+    const elemAddr = dataStart + elementIndex * elementSize;
+
+    if (type === "integer") {
+      const parsed = parseInt(newValueStr, 10);
+      if (isNaN(parsed) || parsed < -32768 || parsed > 32767) return false;
+      const unsigned = parsed < 0 ? parsed + 0x10000 : parsed;
+      this.wasmModule._writeMemory(elemAddr, (unsigned >> 8) & 0xff);
+      this.wasmModule._writeMemory(elemAddr + 1, unsigned & 0xff);
+      return true;
+    } else if (type === "string") {
+      const origLen = peek(this.wasmModule, elemAddr);
+      const ptr = peek(this.wasmModule, elemAddr + 1) | (peek(this.wasmModule, elemAddr + 2) << 8);
+      let str = newValueStr;
+      if (str.startsWith('"') && str.endsWith('"')) str = str.slice(1, -1);
+      if (str.length > origLen) str = str.slice(0, origLen);
+      this.wasmModule._writeMemory(elemAddr, str.length);
+      for (let i = 0; i < str.length; i++) {
+        this.wasmModule._writeMemory(ptr + i, str.charCodeAt(i) | 0x80);
+      }
+      return true;
+    } else {
+      const parsed = parseFloat(newValueStr);
+      if (isNaN(parsed)) return false;
+      const bytes = this._encodeApplesoftFloat(parsed);
+      for (let i = 0; i < 5; i++) {
+        this.wasmModule._writeMemory(elemAddr + i, bytes[i]);
       }
       return true;
     }

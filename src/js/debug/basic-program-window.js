@@ -62,12 +62,13 @@ export class BasicProgramWindow extends BaseWindow {
           <button class="basic-dbg-btn basic-dbg-pause" title="Pause at next BASIC line">
             <span class="basic-dbg-icon">❚❚</span> Pause
           </button>
-          <button class="basic-dbg-btn basic-dbg-continue" title="Continue execution">
-            <span class="basic-dbg-icon">▶▶</span> Cont
-          </button>
           <button class="basic-dbg-btn basic-dbg-step-line" title="Step to next BASIC line">
             <span class="basic-dbg-icon">↓</span> Step
           </button>
+          <div class="basic-dbg-status">
+            <span class="basic-dbg-status-dot"></span>
+            <span class="basic-dbg-status-text">Idle</span>
+          </div>
           <div class="basic-dbg-info">
             <span class="basic-dbg-line">LINE: ---</span>
             <span class="basic-dbg-ptr">PTR: $----</span>
@@ -148,7 +149,7 @@ export class BasicProgramWindow extends BaseWindow {
 
     // Debugger elements
     this.varPanel = this.contentElement.querySelector(".basic-dbg-var-panel");
-    // Handle array expand/collapse clicks
+    // Handle array expand/collapse and variable edit clicks via delegation
     this.varPanel.addEventListener("click", (e) => {
       const header = e.target.closest(".basic-dbg-arr-header");
       if (header) {
@@ -159,14 +160,34 @@ export class BasicProgramWindow extends BaseWindow {
           } else {
             this.expandedArrays.add(arrName);
           }
+          // Force full rebuild since expanded/collapsed state changed
+          this._varStructureKey = null;
           this.renderVariables();
         }
+        return;
+      }
+
+      // Handle editable variable value clicks
+      const valueSpan = e.target.closest(".basic-dbg-var-value.editable");
+      if (valueSpan) {
+        e.stopPropagation();
+        this._startVariableEdit(valueSpan);
+        return;
+      }
+
+      // Handle editable array value clicks
+      const arrVal = e.target.closest(".basic-dbg-arr-val.editable");
+      if (arrVal) {
+        e.stopPropagation();
+        this._startArrayElementEdit(arrVal);
       }
     });
     this.bpList = this.contentElement.querySelector(".basic-dbg-bp-list");
     this.bpInput = this.contentElement.querySelector(".basic-dbg-bp-input");
     this.lineSpan = this.contentElement.querySelector(".basic-dbg-line");
     this.ptrSpan = this.contentElement.querySelector(".basic-dbg-ptr");
+    this.statusDot = this.contentElement.querySelector(".basic-dbg-status-dot");
+    this.statusText = this.contentElement.querySelector(".basic-dbg-status-text");
 
     // Track current editing line for auto-format on line change
     this.lastEditLine = -1;
@@ -263,9 +284,6 @@ export class BasicProgramWindow extends BaseWindow {
     this.contentElement
       .querySelector(".basic-dbg-pause")
       .addEventListener("click", () => this.handlePause());
-    this.contentElement
-      .querySelector(".basic-dbg-continue")
-      .addEventListener("click", () => this.handleContinue());
     this.contentElement
       .querySelector(".basic-dbg-step-line")
       .addEventListener("click", () => this.handleStepLine());
@@ -1087,12 +1105,11 @@ export class BasicProgramWindow extends BaseWindow {
   }
 
   showButtonFeedback(message, cssClass) {
-    const originalText = this.insertBtn.textContent;
     this.insertBtn.textContent = message;
     this.insertBtn.classList.add(cssClass);
 
     setTimeout(() => {
-      this.insertBtn.textContent = originalText;
+      this.insertBtn.textContent = "Paste into Emulator";
       this.insertBtn.classList.remove(cssClass);
     }, 1500);
   }
@@ -1109,30 +1126,39 @@ export class BasicProgramWindow extends BaseWindow {
       console.log("Emulator not running");
       return;
     }
-    // Reset all tracking state for a fresh run
-    this._lastBasicBreakpointHit = false;
-    this._lastProgramRunning = false;
-    this.currentLineNumber = null;
 
-    // First unpause - this sets skip logic if we were at a breakpoint
-    // so the current line's breakpoint won't fire immediately
-    this.wasmModule._setPaused(false);
+    const isPaused = this.wasmModule._isPaused();
 
-    // Clear step mode (but keep skip logic so current breakpoint is skipped)
-    // Skip logic will clear naturally when CURLIN changes after RUN executes
-    if (this.wasmModule._clearBasicBreakpointHit) {
-      this.wasmModule._clearBasicBreakpointHit();
+    if (isPaused) {
+      // Continue from pause
+      this._varAutoRefresh = true;
+      this._lastBasicBreakpointHit = false;
+      this.currentLineNumber = null;
+      this.updateGutter();
+      this.updateHighlighting();
+
+      // Just unpause - the C++ setPaused(false) automatically handles:
+      // - Setting skipBasicBreakpointLine_ if we're at a BASIC breakpoint
+      // - Clearing the breakpoint hit flags
+      this.wasmModule._setPaused(false);
+    } else {
+      // Fresh run
+      this._lastBasicBreakpointHit = false;
+      this._lastProgramRunning = false;
+      this.currentLineNumber = null;
+
+      this.wasmModule._setPaused(false);
+
+      if (this.wasmModule._clearBasicBreakpointHit) {
+        this.wasmModule._clearBasicBreakpointHit();
+      }
+
+      this.updateGutter();
+      this.updateHighlighting();
+      this._varAutoRefresh = true;
+
+      this.inputHandler.queueTextInput("RUN\r");
     }
-
-    // Update UI to clear any line highlighting
-    this.updateGutter();
-    this.updateHighlighting();
-
-    // Start auto-refreshing variables
-    this._varAutoRefresh = true;
-
-    // Type "RUN" followed by Return
-    this.inputHandler.queueTextInput("RUN\r");
   }
 
   /**
@@ -1158,29 +1184,6 @@ export class BasicProgramWindow extends BaseWindow {
     if (this.wasmModule._stepBasicLine) {
       this.wasmModule._stepBasicLine();
     }
-  }
-
-  /**
-   * Continue - Resume execution from pause
-   */
-  handleContinue() {
-    // Resume auto-refreshing variables
-    this._varAutoRefresh = true;
-
-    // Reset tracking flag so we detect the next breakpoint hit
-    this._lastBasicBreakpointHit = false;
-
-    // Clear current line highlight
-    this.currentLineNumber = null;
-    this.updateGutter();
-    this.updateHighlighting();
-
-    // Just unpause - the C++ setPaused(false) automatically handles:
-    // - Setting skipBasicBreakpointLine_ if we're at a BASIC breakpoint
-    // - Clearing the breakpoint hit flags
-    // DON'T call clearBasicBreakpointHit() first - it would clear the flag
-    // that setPaused() needs to detect we're at a breakpoint!
-    this.wasmModule._setPaused(false);
   }
 
   /**
@@ -1228,6 +1231,18 @@ export class BasicProgramWindow extends BaseWindow {
     this.renderBreakpointList();
   }
 
+  /**
+   * Build a structural fingerprint of the current variable set.
+   * When this changes, a full DOM rebuild is needed; otherwise values update in-place.
+   */
+  _getVarStructureKey(variables, arrays) {
+    let key = "";
+    for (const v of variables) key += `${v.name}:${v.type};`;
+    key += "|";
+    for (const a of arrays) key += `${a.name}:${a.type}:${a.dimensions.join(",")};`;
+    return key;
+  }
+
   renderVariables() {
     const now = Date.now();
     const fadeTime = 1000;
@@ -1236,41 +1251,41 @@ export class BasicProgramWindow extends BaseWindow {
     const arrays = this.variableInspector.getArrayVariables();
 
     if (variables.length === 0 && arrays.length === 0) {
-      this.varPanel.innerHTML =
-        '<div class="basic-dbg-empty">No variables</div>';
+      if (this._varStructureKey !== "empty") {
+        this._varStructureKey = "empty";
+        this.varPanel.innerHTML =
+          '<div class="basic-dbg-empty">No variables</div>';
+      }
       return;
     }
 
+    const structureKey = this._getVarStructureKey(variables, arrays);
+    const structureChanged = structureKey !== this._varStructureKey;
+
+    if (structureChanged) {
+      this._varStructureKey = structureKey;
+      this._fullRenderVariables(variables, arrays);
+      return;
+    }
+
+    // In-place value update — no DOM rebuild
+    this._updateVariableValues(variables, arrays);
+  }
+
+  _fullRenderVariables(variables, arrays) {
     let html = "";
 
-    // Simple variables section
     if (variables.length > 0) {
       html += '<div class="basic-dbg-var-list">';
       for (const v of variables) {
-        const key = v.name;
-        const prevValue = this.previousVariables.get(key);
         const displayValue = this.variableInspector.formatValue(v);
-
-        if (prevValue !== undefined && prevValue !== displayValue) {
-          this.changeTimestamps.set(key, now);
-        }
-        this.previousVariables.set(key, displayValue);
-
-        let changeClass = "";
-        if (this.changeTimestamps.has(key)) {
-          const elapsed = now - this.changeTimestamps.get(key);
-          if (elapsed < fadeTime) {
-            changeClass = "changed";
-          } else {
-            this.changeTimestamps.delete(key);
-          }
-        }
+        this.previousVariables.set(v.name, displayValue);
 
         const typeClass = `var-type-${v.type}`;
         const isPaused = this.wasmModule._isPaused && this.wasmModule._isPaused();
         const editableClass = isPaused ? "editable" : "";
         html += `
-          <div class="basic-dbg-var-row ${changeClass} ${typeClass}" data-var-addr="${v.addr}" data-var-type="${v.type}">
+          <div class="basic-dbg-var-row ${typeClass}" data-var-addr="${v.addr}" data-var-type="${v.type}">
             <span class="basic-dbg-var-name">${v.name}</span>
             <span class="basic-dbg-var-value ${editableClass}">${escapeHtml(displayValue)}</span>
           </div>
@@ -1279,7 +1294,6 @@ export class BasicProgramWindow extends BaseWindow {
       html += "</div>";
     }
 
-    // Arrays section
     if (arrays.length > 0) {
       html += '<div class="basic-dbg-arr-list">';
       for (const arr of arrays) {
@@ -1287,7 +1301,7 @@ export class BasicProgramWindow extends BaseWindow {
         const isExpanded = this.expandedArrays.has(arr.name);
 
         html += `
-          <div class="basic-dbg-arr-item ${isExpanded ? "expanded" : ""}">
+          <div class="basic-dbg-arr-item ${isExpanded ? "expanded" : ""}" data-arr-addr="${arr.addr}" data-arr-type="${arr.type}" data-arr-numdims="${arr.numDims}">
             <div class="basic-dbg-arr-header" data-arr-name="${arr.name}">
               <span class="basic-dbg-arr-toggle">${isExpanded ? "▼" : "▶"}</span>
               <span class="basic-dbg-arr-name">${arr.name}(${dimsStr})</span>
@@ -1303,14 +1317,75 @@ export class BasicProgramWindow extends BaseWindow {
     }
 
     this.varPanel.innerHTML = html;
+  }
 
-    // Attach click handlers for editable variable values
-    this.varPanel.querySelectorAll(".basic-dbg-var-value.editable").forEach((el) => {
-      el.addEventListener("click", (e) => {
-        e.stopPropagation();
-        this._startVariableEdit(el);
-      });
-    });
+  _updateVariableValues(variables, arrays) {
+    const isPaused = this.wasmModule._isPaused && this.wasmModule._isPaused();
+    // Update simple variable values in-place
+    const rows = this.varPanel.querySelectorAll(".basic-dbg-var-row");
+    for (let i = 0; i < variables.length && i < rows.length; i++) {
+      const v = variables[i];
+      const row = rows[i];
+      const key = v.name;
+      const prevValue = this.previousVariables.get(key);
+      const displayValue = this.variableInspector.formatValue(v);
+      const changed = prevValue !== undefined && prevValue !== displayValue;
+      this.previousVariables.set(key, displayValue);
+
+      // Update value text
+      const valueSpan = row.querySelector(".basic-dbg-var-value");
+      if (valueSpan && !valueSpan.querySelector("input")) {
+        valueSpan.textContent = displayValue;
+      }
+
+      // Flash on change — restart animation by removing and re-adding class
+      if (changed) {
+        row.classList.remove("changed");
+        void row.offsetWidth;
+        row.classList.add("changed");
+      }
+
+      // Update editable state based on pause status
+      if (valueSpan) {
+        if (isPaused) {
+          valueSpan.classList.add("editable");
+        } else {
+          valueSpan.classList.remove("editable");
+        }
+      }
+
+      // Update address in case memory shifted
+      row.dataset.varAddr = v.addr;
+    }
+
+    // Update expanded array values in-place
+    const arrItems = this.varPanel.querySelectorAll(".basic-dbg-arr-item");
+    for (let i = 0; i < arrays.length && i < arrItems.length; i++) {
+      const arr = arrays[i];
+
+      // Update array address data in case memory shifted
+      arrItems[i].dataset.arrAddr = arr.addr;
+
+      if (!this.expandedArrays.has(arr.name)) continue;
+
+      const valEls = arrItems[i].querySelectorAll(".basic-dbg-arr-val");
+      for (let j = 0; j < arr.values.length && j < valEls.length; j++) {
+        const formatted = this.variableInspector.formatValue({ type: arr.type, value: arr.values[j] });
+        if (valEls[j].textContent !== formatted && !valEls[j].querySelector("input")) {
+          valEls[j].textContent = formatted;
+          // Flash on change
+          valEls[j].classList.remove("changed");
+          void valEls[j].offsetWidth;
+          valEls[j].classList.add("changed");
+        }
+        // Update editable state
+        if (isPaused) {
+          valEls[j].classList.add("editable");
+        } else {
+          valEls[j].classList.remove("editable");
+        }
+      }
+    }
   }
 
   /**
@@ -1340,12 +1415,60 @@ export class BasicProgramWindow extends BaseWindow {
         const varInfo = { addr, type };
         this.variableInspector.setVariableValue(varInfo, newVal);
       }
+      // Force full rebuild to remove the input element from the DOM
+      this._varStructureKey = null;
       this.renderVariables();
     };
 
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter") { e.preventDefault(); commit(); }
-      if (e.key === "Escape") { e.preventDefault(); this.renderVariables(); }
+      if (e.key === "Escape") { e.preventDefault(); this._varStructureKey = null; this.renderVariables(); }
+      e.stopPropagation();
+    });
+    input.addEventListener("blur", commit);
+  }
+
+  /**
+   * Start inline editing of an array element value
+   */
+  _startArrayElementEdit(valEl) {
+    if (valEl.querySelector("input")) return;
+
+    const arrItem = valEl.closest(".basic-dbg-arr-item");
+    if (!arrItem) return;
+
+    const addr = parseInt(arrItem.dataset.arrAddr, 10);
+    const type = arrItem.dataset.arrType;
+    const numDims = parseInt(arrItem.dataset.arrNumdims, 10);
+    const elementIndex = parseInt(valEl.dataset.elemIdx, 10);
+    const currentText = valEl.textContent;
+
+    const input = document.createElement("input");
+    input.type = "text";
+    input.className = "basic-dbg-var-edit";
+    input.value = currentText;
+
+    valEl.textContent = "";
+    valEl.appendChild(input);
+    input.focus();
+    input.select();
+
+    const commit = () => {
+      const newVal = input.value.trim();
+      if (newVal !== currentText) {
+        this.variableInspector.setArrayElementValue(
+          { addr, type, numDims, elementIndex },
+          newVal,
+        );
+      }
+      // Force full rebuild to reflect changes
+      this._varStructureKey = null;
+      this.renderVariables();
+    };
+
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") { e.preventDefault(); commit(); }
+      if (e.key === "Escape") { e.preventDefault(); this._varStructureKey = null; this.renderVariables(); }
       e.stopPropagation();
     });
     input.addEventListener("blur", commit);
@@ -1358,6 +1481,8 @@ export class BasicProgramWindow extends BaseWindow {
     const dims = arr.dimensions;
     const values = arr.values;
     const type = arr.type;
+    const isPaused = this.wasmModule._isPaused && this.wasmModule._isPaused();
+    const editClass = isPaused ? " editable" : "";
 
     // Format a single value using the same logic as simple variables
     const formatVal = (v) => {
@@ -1370,7 +1495,7 @@ export class BasicProgramWindow extends BaseWindow {
       for (let i = 0; i < values.length; i++) {
         html += `<div class="basic-dbg-arr-cell">
           <span class="basic-dbg-arr-idx">${i}</span>
-          <span class="basic-dbg-arr-val">${formatVal(values[i])}</span>
+          <span class="basic-dbg-arr-val${editClass}" data-elem-idx="${i}">${formatVal(values[i])}</span>
         </div>`;
       }
       html += "</div>";
@@ -1392,7 +1517,7 @@ export class BasicProgramWindow extends BaseWindow {
         for (let c = 0; c < cols; c++) {
           const idx = r * cols + c;
           const val = idx < values.length ? formatVal(values[idx]) : "?";
-          html += `<td>${val}</td>`;
+          html += `<td class="basic-dbg-arr-val${editClass}" data-elem-idx="${idx}">${val}</td>`;
         }
         html += "</tr>";
       }
@@ -1413,7 +1538,7 @@ export class BasicProgramWindow extends BaseWindow {
       const idxStr = indices.join(",");
       html += `<div class="basic-dbg-arr-cell">
         <span class="basic-dbg-arr-idx">(${idxStr})</span>
-        <span class="basic-dbg-arr-val">${formatVal(values[i])}</span>
+        <span class="basic-dbg-arr-val${editClass}" data-elem-idx="${i}">${formatVal(values[i])}</span>
       </div>`;
     }
     html += "</div>";
@@ -1481,19 +1606,28 @@ export class BasicProgramWindow extends BaseWindow {
       ? this.wasmModule._isBasicProgramRunning()
       : false;
 
+    // Update program status indicator
+    if (isPaused && programRunning) {
+      this.setStatus("paused");
+    } else if (programRunning) {
+      this.setStatus("running");
+    } else {
+      this.setStatus("idle");
+    }
+
     // Auto-start refresh when program starts running (even from emulator directly)
     if (programRunning && !this._varAutoRefresh && !isPaused) {
       this._varAutoRefresh = true;
     }
 
-    // Auto-stop refresh when program ends (Ctrl+C, END, STOP, error)
-    if (!programRunning && !isPaused && this._varAutoRefresh) {
+    // Auto-stop refresh when program ends or pauses
+    if (this._varAutoRefresh && (!programRunning || isPaused)) {
       this._varAutoRefresh = false;
       this.renderVariables();
     }
 
     // Refresh variables at 10fps while auto-refresh is active
-    if (this._varAutoRefresh && !isEditing) {
+    if (this._varAutoRefresh) {
       if (!this._lastVarUpdateTime || now - this._lastVarUpdateTime >= 100) {
         this._lastVarUpdateTime = now;
         this.renderVariables();
@@ -1563,6 +1697,15 @@ export class BasicProgramWindow extends BaseWindow {
       this.currentLineNumber = null;
       this.updateHighlighting();
     }
+  }
+
+  setStatus(status) {
+    if (!this.statusDot || this._currentStatus === status) return;
+    this._currentStatus = status;
+    this.statusDot.className = "basic-dbg-status-dot";
+    this.statusDot.classList.add(`basic-dbg-status-${status}`);
+    const labels = { idle: "Idle", running: "Running", paused: "Paused" };
+    this.statusText.textContent = labels[status] || status;
   }
 
   /**
