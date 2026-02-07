@@ -86,6 +86,12 @@ EMSCRIPTEN_KEEPALIVE
 int getFramebufferSize() { return a2e::FRAMEBUFFER_SIZE; }
 
 EMSCRIPTEN_KEEPALIVE
+void forceRenderFrame() {
+  REQUIRE_EMULATOR();
+  g_emulator->getVideo().forceRenderFrame();
+}
+
+EMSCRIPTEN_KEEPALIVE
 bool isFrameReady() {
   REQUIRE_EMULATOR_OR(false);
   bool ready = g_emulator->isFrameReady();

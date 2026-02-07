@@ -415,7 +415,15 @@ class AppleIIeEmulator {
       }
 
       if (!this.running || isPaused) {
-        this.renderer.draw();
+        // Force a complete re-render of the framebuffer from current video
+        // memory so the display shows the full screen after stepping/pausing,
+        // not a partial frame based on beam position.
+        if (isPaused) {
+          this.wasmModule._forceRenderFrame();
+          this.renderFrame();
+        } else {
+          this.renderer.draw();
+        }
       }
 
       requestAnimationFrame(render);
