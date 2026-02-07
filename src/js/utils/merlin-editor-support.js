@@ -2,7 +2,7 @@
  * merlin-editor-support.js - Merlin assembler editor enhancements
  *
  * Column-aware editing, smart shortcuts, and contextual autocomplete
- * for the 4-column Merlin layout: LABEL (0), OPCODE (9), OPERAND (14), COMMENT (25)
+ * for the 4-column Merlin layout (see COL_* constants for positions)
  *
  * Written by
  *  Mike Daley <michael_daley@icloud.com>
@@ -14,8 +14,15 @@ import {
   DIRECTIVES, getMnemonicClass,
 } from "./merlin-highlighting.js";
 
-// Merlin column stops
-export const MERLIN_COLUMNS = [0, 9, 14, 25];
+// Merlin column positions — change these to adjust the layout
+export const COL_LABEL   = 0;
+export const COL_OPCODE  = 12;
+export const COL_OPERAND = 17;
+export const COL_COMMENT = 28;
+export const OPCODE_WIDTH = COL_OPERAND - COL_OPCODE; // padEnd width for opcode field
+
+// Merlin column stops (derived from the constants above)
+export const MERLIN_COLUMNS = [COL_LABEL, COL_OPCODE, COL_OPERAND, COL_COMMENT];
 
 /**
  * Get cursor line info from a textarea
@@ -34,9 +41,9 @@ export function getCursorLineAndCol(textarea) {
  * Detect which Merlin column a cursor position falls in
  */
 export function detectMerlinColumn(line, col) {
-  if (col >= 25) return 'comment';
-  if (col >= 14) return 'operand';
-  if (col >= 9) return 'opcode';
+  if (col >= COL_COMMENT) return 'comment';
+  if (col >= COL_OPERAND) return 'operand';
+  if (col >= COL_OPCODE) return 'opcode';
   return 'label';
 }
 
@@ -600,8 +607,8 @@ export class MerlinEditorSupport {
     // Wire autocomplete accept callback
     this.autocomplete.onAccept = (keyword, column, advance) => {
       if (advance) {
-        // After accepting in opcode column, advance to operand (col 14)
-        this.advanceToColumn(14);
+        // After accepting in opcode column, advance to operand
+        this.advanceToColumn(COL_OPERAND);
       }
       // Re-fire column change
       this.fireColumnChange();
@@ -762,7 +769,7 @@ export class MerlinEditorSupport {
 
     // If on an empty line or cursor is at column 0 typing a label, new line at col 0
     const startAtZero = !trimmed || col === 0;
-    const indent = startAtZero ? '' : ' '.repeat(9);
+    const indent = startAtZero ? '' : ' '.repeat(COL_OPCODE);
 
     const before = text.substring(0, pos);
     const after = text.substring(pos);
@@ -783,7 +790,7 @@ export class MerlinEditorSupport {
 
     const { col, line, pos } = getCursorLineAndCol(this.textarea);
     // Only auto-uppercase in opcode column range
-    if (col < 10 || col > 14) return; // col 10 means at least 1 char typed at col 9
+    if (col < COL_OPCODE + 1 || col > COL_OPERAND) return;
     if (detectMerlinColumn(line, col - 1) !== 'opcode') return;
 
     const ch = this.textarea.value[pos - 1];

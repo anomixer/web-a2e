@@ -7,7 +7,7 @@
 
 import { BaseWindow } from "../windows/base-window.js";
 import { highlightMerlinSourceInline } from "../utils/merlin-highlighting.js";
-import { MerlinEditorSupport } from "../utils/merlin-editor-support.js";
+import { MerlinEditorSupport, COL_OPCODE, COL_OPERAND, COL_COMMENT, OPCODE_WIDTH } from "../utils/merlin-editor-support.js";
 import { ROM_ROUTINES, ROM_CATEGORIES, searchRoutines, getRoutinesByCategory } from "../data/apple2-rom-routines.js";
 
 export class AssemblerEditorWindow extends BaseWindow {
@@ -31,6 +31,7 @@ export class AssemblerEditorWindow extends BaseWindow {
     this.lineBytes = new Map(); // line number -> hex bytes string
     this.linePCs = new Map(); // line number -> PC address
     this.symbols = new Map(); // symbol name -> value (from last assembly)
+    this.currentPC = undefined; // current PC for expression evaluation
     this.lineBreakpoints = new Map(); // line number -> breakpoint address
   }
 
@@ -57,6 +58,12 @@ export class AssemblerEditorWindow extends BaseWindow {
             </button>
             <button class="asm-btn asm-load-btn" disabled title="Load assembled code into memory">
               <span class="asm-btn-icon">↓</span> Load
+            </button>
+            <button class="asm-btn asm-btn-icon-only asm-clear-btn" title="Clear assembly output">
+              <span class="asm-btn-icon">⌫</span>
+            </button>
+            <button class="asm-btn asm-btn-icon-only asm-example-btn" title="Load example program">
+              <span class="asm-btn-icon">?</span>
             </button>
             <button class="asm-btn asm-rom-btn" title="ROM Routines Reference (F2)">
               <span class="asm-btn-icon">📖</span> ROM
@@ -92,9 +99,9 @@ export class AssemblerEditorWindow extends BaseWindow {
                 </div>
                 <div class="asm-editor-scroll-area">
                   <div class="asm-column-guides">
-                    <div class="asm-column-guide" data-col="9" title="Opcode column"></div>
-                    <div class="asm-column-guide" data-col="14" title="Operand column"></div>
-                    <div class="asm-column-guide" data-col="25" title="Comment column"></div>
+                    <div class="asm-column-guide" data-col="${COL_OPCODE}" title="Opcode column"></div>
+                    <div class="asm-column-guide" data-col="${COL_OPERAND}" title="Operand column"></div>
+                    <div class="asm-column-guide" data-col="${COL_COMMENT}" title="Comment column"></div>
                   </div>
                   <div class="asm-line-highlight"></div>
                   <pre class="asm-highlight" aria-hidden="true"></pre>
@@ -295,6 +302,14 @@ export class AssemblerEditorWindow extends BaseWindow {
     // Load button
     this.loadBtn.addEventListener("click", () => this.doLoad());
 
+    // Clear button
+    this.contentElement.querySelector(".asm-clear-btn")
+      .addEventListener("click", () => this.doClear());
+
+    // Example button
+    this.contentElement.querySelector(".asm-example-btn")
+      .addEventListener("click", () => this.loadExample());
+
     // File management buttons
     this.newBtn.addEventListener("click", () => this.newFile());
     this.openBtn.addEventListener("click", () => this.fileInput.click());
@@ -372,15 +387,15 @@ export class AssemblerEditorWindow extends BaseWindow {
 *                                *
 **********************************
 
-STROUT   EQU  $DB3A      ;Outputs AY-pointed null-terminated string
+STROUT      EQU  $DB3A         ;Outputs AY-pointed null-terminated string
 
-         ORG  $0800      ;Standard BASIC program area
+            ORG  $0800         ;Standard BASIC program area
 
-START    LDY  #>HELLO
-         LDA  #<HELLO
-         JMP  STROUT
+START       LDY  #>HELLO
+            LDA  #<HELLO
+            JMP  STROUT
 
-HELLO    ASC  "HELLO WORLD!!!!!!",00`;
+HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     this.textarea.placeholder = example;
   }
 
@@ -405,9 +420,9 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
       const commentEl = this.editorHeader.querySelector('.asm-editor-header-comment');
 
       if (labelEl) labelEl.style.left = `${paddingLeft}px`;
-      if (opcodeEl) opcodeEl.style.left = `${paddingLeft + 9 * charWidth}px`;
-      if (operandEl) operandEl.style.left = `${paddingLeft + 14 * charWidth}px`;
-      if (commentEl) commentEl.style.left = `${paddingLeft + 25 * charWidth}px`;
+      if (opcodeEl) opcodeEl.style.left = `${paddingLeft + COL_OPCODE * charWidth}px`;
+      if (operandEl) operandEl.style.left = `${paddingLeft + COL_OPERAND * charWidth}px`;
+      if (commentEl) commentEl.style.left = `${paddingLeft + COL_COMMENT * charWidth}px`;
     }
   }
 
@@ -617,7 +632,7 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
   }
 
   parseLine(line) {
-    // Merlin column layout: Label(0), Opcode(9), Operand(14), Comment(25+)
+    // Merlin column layout: Label, Opcode, Operand, Comment (see COL_* constants)
     let label = '';
     let opcode = '';
     let operand = '';
@@ -670,28 +685,26 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
   buildFormattedLine(parsed) {
     const { label, opcode, operand, comment } = parsed;
 
-    // Column positions: Label=0, Opcode=9, Operand=14, Comment=25
     let result = '';
 
-    // Label column (0-8)
-    result = label.padEnd(9, ' ');
+    // Label column
+    result = label.padEnd(COL_OPCODE, ' ');
 
-    // Opcode column (9-13)
+    // Opcode column
     if (opcode) {
-      result = result.substring(0, 9) + opcode.toUpperCase().padEnd(5, ' ');
+      result = result.substring(0, COL_OPCODE) + opcode.toUpperCase().padEnd(OPCODE_WIDTH, ' ');
     }
 
-    // Operand column (14-24)
+    // Operand column
     if (operand) {
-      result = result.substring(0, 14) + operand;
+      result = result.substring(0, COL_OPERAND) + operand;
     }
 
-    // Comment column (25+)
+    // Comment column
     if (comment) {
-      // Ensure we're at least at column 25 for comments, or add space after operand
       const currentLen = result.trimEnd().length;
-      if (currentLen < 25) {
-        result = result.trimEnd().padEnd(25, ' ') + comment;
+      if (currentLen < COL_COMMENT) {
+        result = result.trimEnd().padEnd(COL_COMMENT, ' ') + comment;
       } else {
         result = result.trimEnd() + ' ' + comment;
       }
@@ -985,50 +998,174 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
   }
 
   /**
-   * Parse a numeric value: $hex, %binary, decimal, or symbol
+   * Parse a value or expression. Supports arithmetic (+, -, *, /),
+   * byte selectors (< >), current PC (*), and nested parentheses.
    */
   parseValue(str) {
     if (!str) return null;
     str = str.trim();
+    if (!str) return null;
+    this._exprPos = 0;
+    this._exprStr = str;
+    const val = this._exprAddSub();
+    return val;
+  }
 
-    // Handle < (low byte) and > (high byte) operators
-    if (str.startsWith('<')) {
-      const inner = this.parseValue(str.substring(1));
-      return inner !== null ? (inner & 0xFF) : null;
+  _exprSkipSpaces() {
+    while (this._exprPos < this._exprStr.length && this._exprStr[this._exprPos] === ' ') {
+      this._exprPos++;
     }
-    if (str.startsWith('>')) {
-      const inner = this.parseValue(str.substring(1));
-      return inner !== null ? ((inner >> 8) & 0xFF) : null;
+  }
+
+  _exprPeek() {
+    this._exprSkipSpaces();
+    return this._exprPos < this._exprStr.length ? this._exprStr[this._exprPos] : null;
+  }
+
+  _exprAddSub() {
+    let val = this._exprMulDiv();
+    if (val === null) return null;
+    while (true) {
+      const ch = this._exprPeek();
+      if (ch === '+') {
+        this._exprPos++;
+        const right = this._exprMulDiv();
+        if (right === null) return null;
+        val = val + right;
+      } else if (ch === '-') {
+        this._exprPos++;
+        const right = this._exprMulDiv();
+        if (right === null) return null;
+        val = val - right;
+      } else {
+        break;
+      }
+    }
+    return val;
+  }
+
+  _exprMulDiv() {
+    let val = this._exprUnary();
+    if (val === null) return null;
+    while (true) {
+      const ch = this._exprPeek();
+      // * here is always multiply — PC reference is handled in _exprPrimary
+      if (ch === '*') {
+        this._exprPos++;
+        const right = this._exprUnary();
+        if (right === null) return null;
+        val = val * right;
+      } else if (ch === '/') {
+        this._exprPos++;
+        const right = this._exprUnary();
+        if (right === null) return null;
+        val = right !== 0 ? Math.trunc(val / right) : 0;
+      } else {
+        break;
+      }
+    }
+    return val;
+  }
+
+  _exprUnary() {
+    const ch = this._exprPeek();
+    if (ch === '<') {
+      this._exprPos++;
+      const val = this._exprUnary();
+      return val !== null ? (val & 0xFF) : null;
+    }
+    if (ch === '>') {
+      this._exprPos++;
+      const val = this._exprUnary();
+      return val !== null ? ((val >> 8) & 0xFF) : null;
+    }
+    if (ch === '-') {
+      this._exprPos++;
+      const val = this._exprUnary();
+      return val !== null ? -val : null;
+    }
+    return this._exprPrimary();
+  }
+
+  _exprPrimary() {
+    this._exprSkipSpaces();
+    if (this._exprPos >= this._exprStr.length) return null;
+    const ch = this._exprStr[this._exprPos];
+
+    // Parenthesized sub-expression
+    if (ch === '(') {
+      this._exprPos++;
+      const val = this._exprAddSub();
+      this._exprSkipSpaces();
+      if (this._exprPos < this._exprStr.length && this._exprStr[this._exprPos] === ')') {
+        this._exprPos++;
+      }
+      return val;
+    }
+
+    // Current PC: *
+    if (ch === '*') {
+      this._exprPos++;
+      return this.currentPC !== undefined ? this.currentPC : null;
     }
 
     // Hex: $xxxx
-    if (str.startsWith('$')) {
-      const hex = parseInt(str.substring(1), 16);
-      return isNaN(hex) ? null : hex;
+    if (ch === '$') {
+      this._exprPos++;
+      let start = this._exprPos;
+      while (this._exprPos < this._exprStr.length && /[0-9A-Fa-f]/.test(this._exprStr[this._exprPos])) {
+        this._exprPos++;
+      }
+      if (this._exprPos === start) return null;
+      return parseInt(this._exprStr.substring(start, this._exprPos), 16);
     }
 
     // Binary: %01010101
-    if (str.startsWith('%')) {
-      const bin = parseInt(str.substring(1), 2);
-      return isNaN(bin) ? null : bin;
+    if (ch === '%') {
+      this._exprPos++;
+      let start = this._exprPos;
+      while (this._exprPos < this._exprStr.length && /[01]/.test(this._exprStr[this._exprPos])) {
+        this._exprPos++;
+      }
+      if (this._exprPos === start) return null;
+      return parseInt(this._exprStr.substring(start, this._exprPos), 2);
     }
 
-    // Character: 'A'
-    if (str.match(/^'.'$/)) {
-      return str.charCodeAt(1);
+    // Character literal: 'A'
+    if (ch === "'") {
+      this._exprPos++;
+      if (this._exprPos >= this._exprStr.length) return null;
+      const val = this._exprStr.charCodeAt(this._exprPos);
+      this._exprPos++;
+      if (this._exprPos < this._exprStr.length && this._exprStr[this._exprPos] === "'") {
+        this._exprPos++;
+      }
+      return val;
     }
 
-    // Decimal
-    if (str.match(/^\d+$/)) {
-      return parseInt(str, 10);
+    // Decimal number
+    if (/[0-9]/.test(ch)) {
+      let start = this._exprPos;
+      while (this._exprPos < this._exprStr.length && /[0-9]/.test(this._exprStr[this._exprPos])) {
+        this._exprPos++;
+      }
+      return parseInt(this._exprStr.substring(start, this._exprPos), 10);
     }
 
-    // Symbol lookup
-    if (this.symbols.has(str.toUpperCase())) {
-      return this.symbols.get(str.toUpperCase());
+    // Symbol / label
+    if (/[A-Za-z_:\]]/.test(ch)) {
+      let start = this._exprPos;
+      while (this._exprPos < this._exprStr.length && /[A-Za-z0-9_:\]]/.test(this._exprStr[this._exprPos])) {
+        this._exprPos++;
+      }
+      const name = this._exprStr.substring(start, this._exprPos).toUpperCase();
+      if (this.symbols.has(name)) {
+        return this.symbols.get(name);
+      }
+      return null; // Unresolved symbol
     }
 
-    return null; // Unresolved symbol
+    return null;
   }
 
   /**
@@ -1131,17 +1268,44 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
     // Find ORG from source code, default to $0800 if not found yet
     let pc = 0x0800;
 
-    // First pass: calculate PC for each line
+    // First pass: calculate PC and collect labels/EQU values
+    const localSymbols = new Map();
     for (let i = 0; i < lines.length; i++) {
       const lineNumber = i + 1;
       const parsed = this.parseLine(lines[i]);
 
-      // Check for ORG directive and update PC
-      if (parsed && parsed.opcode && parsed.opcode.toUpperCase() === 'ORG') {
-        const orgValue = this.parseValue(parsed.operand);
-        if (orgValue !== null) {
-          pc = orgValue;
+      if (parsed && parsed.opcode) {
+        const mnem = parsed.opcode.toUpperCase();
+
+        // Check for ORG directive and update PC
+        if (mnem === 'ORG') {
+          this.currentPC = pc;
+          const orgValue = this.parseValue(parsed.operand);
+          if (orgValue !== null) {
+            pc = orgValue;
+          }
         }
+
+        // Collect label addresses and EQU values
+        if (parsed.label) {
+          const labelUpper = parsed.label.toUpperCase();
+          if (mnem === 'EQU') {
+            this.currentPC = pc;
+            const val = this.parseValue(parsed.operand);
+            if (val !== null) {
+              localSymbols.set(labelUpper, val);
+              this.symbols.set(labelUpper, val);
+            }
+          } else {
+            localSymbols.set(labelUpper, pc);
+            this.symbols.set(labelUpper, pc);
+          }
+        }
+      } else if (parsed && parsed.label) {
+        // Label-only line (no opcode)
+        const labelUpper = parsed.label.toUpperCase();
+        localSymbols.set(labelUpper, pc);
+        this.symbols.set(labelUpper, pc);
       }
 
       this.linePCs.set(lineNumber, pc);
@@ -1152,10 +1316,38 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
       }
     }
 
-    // Second pass: encode with known PCs
+    // Second pass: re-evaluate EQU values now that all labels are known
+    pc = 0x0800;
+    for (let i = 0; i < lines.length; i++) {
+      const parsed = this.parseLine(lines[i]);
+      if (parsed && parsed.opcode) {
+        const mnem = parsed.opcode.toUpperCase();
+        if (mnem === 'ORG') {
+          this.currentPC = pc;
+          const orgValue = this.parseValue(parsed.operand);
+          if (orgValue !== null) pc = orgValue;
+        }
+        if (parsed.label && mnem === 'EQU') {
+          this.currentPC = pc;
+          const val = this.parseValue(parsed.operand);
+          if (val !== null) {
+            this.symbols.set(parsed.label.toUpperCase(), val);
+          }
+        }
+      }
+      this.currentPC = this.linePCs.get(i + 1);
+      if (parsed && parsed.opcode) {
+        const size = this.getInstructionSize(parsed.opcode.toUpperCase(), parsed.operand);
+        pc += size;
+      }
+    }
+
+    // Third pass: encode with known PCs and symbols
     for (let i = 1; i <= lines.length; i++) {
+      this.currentPC = this.linePCs.get(i);
       this.encodeLineBytes(i);
     }
+    this.currentPC = undefined;
   }
 
   /**
@@ -1823,6 +2015,64 @@ HELLO    ASC  "HELLO WORLD!!!!!!",00`;
     const div = document.createElement("div");
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  loadExample() {
+    const example =
+`; Hello World - prints a message and returns to the monitor
+;
+; Assemble, Load, then type 800G in the emulator to run.
+
+            ORG  $0800
+
+COUT        EQU  $FDED         ;ROM character output routine
+CROUT       EQU  $FD8E         ;ROM carriage return
+
+START       LDX  #0            ;Start at first character
+LOOP        LDA  MSG,X         ;Load next character
+            BEQ  DONE          ;Zero byte = end of string
+            JSR  COUT          ;Print character
+            INX                ;Next character
+            BNE  LOOP          ;Continue (max 256 chars)
+DONE        JSR  CROUT         ;Print carriage return
+            RTS                ;Return to monitor
+
+MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
+            DFB  $00           ;Null terminator`;
+
+    this.textarea.value = example;
+    this.textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    this.doClear();
+    this.currentFileName = null;
+    this.validateAllLines();
+    this.encodeAllLineBytes();
+    this.updateGutter();
+    this.updateCursorPosition();
+  }
+
+  doClear() {
+    this.symbols.clear();
+    this.lineBytes.clear();
+    this.linePCs = new Map();
+    this.errors.clear();
+    this.syntaxErrors.clear();
+    this.loadBtn.disabled = true;
+    this.setStatus('', false);
+
+    // Clear output panels to empty state
+    if (this.symbolsCount) this.symbolsCount.textContent = '';
+    if (this.hexCount) this.hexCount.textContent = '';
+    this.symbolsContent.innerHTML = `
+      <div class="asm-panel-empty">
+        <div class="asm-empty-text">Assemble to see symbols</div>
+      </div>`;
+    this.hexContent.innerHTML = `
+      <div class="asm-panel-empty">
+        <div class="asm-empty-text">Assemble to see output</div>
+      </div>`;
+
+    this.updateGutter();
+    this.updateHighlighting();
   }
 
   doLoad() {
