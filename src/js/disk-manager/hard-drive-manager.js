@@ -39,6 +39,7 @@ export class HardDriveManager {
     ];
     this.canvas = null;
     this.activeDropdown = null;
+    this.fileExplorer = null;
 
     // Save modal
     this.saveModal = null;
@@ -74,9 +75,19 @@ export class HardDriveManager {
     device.recentBtn = container.querySelector(".hd-recent");
     device.recentDropdown = container.querySelector(".hd-recent-dropdown");
     device.ejectBtn = container.querySelector(".hd-eject");
+    device.browseBtn = container.querySelector(".hd-browse");
     device.nameLabel = container.querySelector(".hd-name");
     device.ledEl = container.querySelector(".hd-led");
     device.infoLabel = container.querySelector(".hd-info");
+
+    if (device.browseBtn) {
+      device.browseBtn.addEventListener("click", () => {
+        if (this.fileExplorer) {
+          this.fileExplorer.showHardDrive(deviceNum);
+        }
+        this.refocusCanvas();
+      });
+    }
 
     if (device.insertBtn) {
       device.insertBtn.addEventListener("click", () => {
@@ -279,6 +290,9 @@ export class HardDriveManager {
     }
     if (device.ejectBtn) {
       device.ejectBtn.disabled = !device.filename;
+    }
+    if (device.browseBtn) {
+      device.browseBtn.disabled = !device.filename;
     }
     this.updateDeviceInfo(deviceNum);
   }

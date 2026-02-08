@@ -39,6 +39,7 @@ export class HardDriveWindow extends BaseWindow {
             <div class="hd-recent-dropdown"></div>
           </div>
           <button class="hd-eject" disabled title="Eject Image">Eject</button>
+          <button class="hd-browse" disabled title="Browse Files">Browse</button>
         </div>
       </div>`;
   }

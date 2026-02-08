@@ -1184,6 +1184,12 @@ uint8_t* getSmartPortImageData(int device, size_t* size) {
 }
 
 EMSCRIPTEN_KEEPALIVE
+const uint8_t* getSmartPortBlockData(int device, size_t* size) {
+  if (!g_emulator) { *size = 0; return nullptr; }
+  return g_emulator->getSmartPortBlockData(device, size);
+}
+
+EMSCRIPTEN_KEEPALIVE
 bool isSmartPortCardInstalled() {
   REQUIRE_EMULATOR_OR(false);
   return g_emulator->isSmartPortCardInstalled();
@@ -1567,7 +1573,7 @@ const uint8_t* getDOS33FileBuffer() {
 // ProDOS Filesystem
 // ============================================================================
 
-static a2e::ProDOSCatalogEntry g_prodosCatalog[256];
+static a2e::ProDOSCatalogEntry g_prodosCatalog[2048];
 static int g_prodosCatalogCount = 0;
 static a2e::ProDOSVolumeInfo g_prodosVolumeInfo;
 static uint8_t g_prodosFileBuffer[128 * 1024]; // 128KB max file
@@ -1595,7 +1601,16 @@ int getProDOSTotalBlocks() {
 EMSCRIPTEN_KEEPALIVE
 int getProDOSCatalog(const uint8_t* data, int size) {
   g_prodosCatalogCount = a2e::ProDOS::readCatalog(data, static_cast<size_t>(size),
-                                                    g_prodosCatalog, 256);
+                                                    g_prodosCatalog, 2048);
+  return g_prodosCatalogCount;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getProDOSDirectory(const uint8_t* data, int size, int startBlock,
+                       const char* pathPrefix) {
+  g_prodosCatalogCount = a2e::ProDOS::readDirectory(
+      data, static_cast<size_t>(size), startBlock,
+      pathPrefix ? pathPrefix : "", g_prodosCatalog, 2048);
   return g_prodosCatalogCount;
 }
 
@@ -1657,6 +1672,12 @@ EMSCRIPTEN_KEEPALIVE
 bool getProDOSEntryIsDirectory(int index) {
   if (index < 0 || index >= g_prodosCatalogCount) return false;
   return g_prodosCatalog[index].isDirectory;
+}
+
+EMSCRIPTEN_KEEPALIVE
+uint16_t getProDOSEntryKeyPointer(int index) {
+  if (index < 0 || index >= g_prodosCatalogCount) return 0;
+  return g_prodosCatalog[index].keyPointer;
 }
 
 EMSCRIPTEN_KEEPALIVE

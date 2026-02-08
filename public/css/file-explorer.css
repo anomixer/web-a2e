@@ -27,6 +27,44 @@
     flex-shrink: 0;
 }
 
+/* Source selector (Floppy / HD) */
+.fe-source-selector {
+    display: flex;
+    gap: 2px;
+    background: var(--input-bg-deeper);
+    border-radius: var(--radius-sm);
+    padding: 2px;
+}
+
+.fe-source-selector.hidden {
+    display: none;
+}
+
+.fe-source-btn {
+    padding: 2px 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition:
+        background 0.15s,
+        color 0.15s;
+}
+
+.fe-source-btn:hover {
+    color: var(--text-primary);
+    background: var(--bg-light);
+}
+
+.fe-source-btn.active {
+    background: var(--accent-blue);
+    color: white;
+}
+
 .fe-drive-selector {
     display: flex;
     align-items: center;

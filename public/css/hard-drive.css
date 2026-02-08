@@ -96,7 +96,8 @@
 
 .hd-insert,
 .hd-eject,
-.hd-recent {
+.hd-recent,
+.hd-browse {
     flex: 1;
     padding: var(--space-xs) var(--space-sm);
     background: var(--control-bg-solid);
@@ -122,6 +123,16 @@
 }
 
 .hd-eject:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.hd-browse:hover:not(:disabled) {
+    background: var(--control-bg-hover);
+    color: var(--text-primary);
+}
+
+.hd-browse:disabled {
     opacity: 0.4;
     cursor: not-allowed;
 }

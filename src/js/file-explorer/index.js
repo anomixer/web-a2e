@@ -80,6 +80,7 @@ export class FileExplorerWindow extends BaseWindow {
     setFileViewerWasm(wasmModule);
 
     // Content state
+    this.sourceType = "floppy"; // 'floppy' or 'hd'
     this.selectedDrive = 0;
     this.catalog = [];
     this.selectedFile = null;
@@ -87,6 +88,7 @@ export class FileExplorerWindow extends BaseWindow {
     this.diskDataSize = 0; // Size of disk data
     this.diskFormat = null; // 'dos33' | 'prodos' | null
     this.currentPath = ""; // Current directory path for ProDOS navigation
+    this.directoryStack = []; // Stack of {path, startBlock} for HD navigation
     this.binaryViewMode = "asm"; // 'asm', 'hex', or 'merlin'
     this.textViewMode = "text"; // 'text' or 'merlin'
     this.currentFileData = null; // Cache for current file data
@@ -108,6 +110,10 @@ export class FileExplorerWindow extends BaseWindow {
   renderContent() {
     return `
       <div class="fe-toolbar">
+        <div class="fe-source-selector hidden">
+          <button class="fe-source-btn active" data-source="floppy">Floppy</button>
+          <button class="fe-source-btn" data-source="hd">HD</button>
+        </div>
         <div class="fe-drive-selector">
           <label>Drive:</label>
           <button class="fe-drive-btn active" data-drive="0">1</button>
@@ -163,6 +169,22 @@ export class FileExplorerWindow extends BaseWindow {
   onContentRendered() {
     // Load saved settings
     this.loadSettings();
+
+    // Source selector (Floppy / HD)
+    const sourceSelector = this.element.querySelector(".fe-source-selector");
+    const sourceBtns = this.element.querySelectorAll(".fe-source-btn");
+    sourceBtns.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const newSource = btn.dataset.source;
+        if (newSource === this.sourceType) return;
+        sourceBtns.forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        this.sourceType = newSource;
+        this.selectedDrive = 0;
+        this.updateDriveButtons();
+        this.loadDisk();
+      });
+    });
 
     // Drive selector
     const driveBtns = this.element.querySelectorAll(".fe-drive-btn");
@@ -253,10 +275,127 @@ export class FileExplorerWindow extends BaseWindow {
    */
   show() {
     super.show();
+    this.updateSourceSelector();
+    this.updateDriveButtons();
     this.loadDisk();
   }
 
+  /**
+   * Show the source selector only when SmartPort card is installed
+   */
+  updateSourceSelector() {
+    const sourceSelector = this.element.querySelector(".fe-source-selector");
+    const wasm = this.wasmModule;
+    const hasSmartPort = wasm._isSmartPortCardInstalled && wasm._isSmartPortCardInstalled();
+    sourceSelector.classList.toggle("hidden", !hasSmartPort);
+    // Sync button active state
+    sourceSelector.querySelectorAll(".fe-source-btn").forEach((b) => {
+      b.classList.toggle("active", b.dataset.source === this.sourceType);
+    });
+  }
+
+  /**
+   * Update drive button labels based on source type
+   */
+  updateDriveButtons() {
+    const driveBtns = this.element.querySelectorAll(".fe-drive-btn");
+    const label = this.element.querySelector(".fe-drive-selector label");
+    if (this.sourceType === "hd") {
+      label.textContent = "Device:";
+    } else {
+      label.textContent = "Drive:";
+    }
+    driveBtns.forEach((btn) => {
+      btn.classList.toggle("active", parseInt(btn.dataset.drive, 10) === this.selectedDrive);
+    });
+  }
+
+  /**
+   * Open the file explorer showing a specific hard drive device
+   */
+  showHardDrive(deviceNum) {
+    this.sourceType = "hd";
+    this.selectedDrive = deviceNum;
+    this.show();
+  }
+
   loadDisk() {
+    if (this.sourceType === "hd") {
+      this.loadHardDrive();
+      return;
+    }
+    this.loadFloppyDisk();
+  }
+
+  loadHardDrive() {
+    const wasm = this.wasmModule;
+    const diskInfo = this.element.querySelector(".fe-disk-info");
+    const catalogList = this.element.querySelector(".fe-catalog-list");
+
+    // Check if HD image is inserted
+    if (!wasm._isSmartPortImageInserted(this.selectedDrive)) {
+      diskInfo.textContent = "No image inserted";
+      catalogList.innerHTML = '<div class="fe-empty">No image in device</div>';
+      this.catalog = [];
+      this.diskDataPtr = 0;
+      this.diskDataSize = 0;
+      this.diskFormat = null;
+      this.clearFileView();
+      return;
+    }
+
+    // Get block data pointer (raw ProDOS blocks, skipping any 2IMG header)
+    const sizePtr = wasm._malloc(4);
+    const dataPtr = wasm._getSmartPortBlockData(this.selectedDrive, sizePtr);
+    const size = new Uint32Array(wasm.HEAPU8.buffer, sizePtr, 1)[0];
+    wasm._free(sizePtr);
+
+    if (!dataPtr || size === 0) {
+      const filenamePtr = wasm._getSmartPortImageFilename(this.selectedDrive);
+      const filename = filenamePtr ? wasm.UTF8ToString(filenamePtr) : "Hard Drive";
+      diskInfo.textContent = filename;
+      catalogList.innerHTML =
+        '<div class="fe-empty">Cannot read block data</div>';
+      this.catalog = [];
+      this.diskDataPtr = 0;
+      this.diskDataSize = 0;
+      this.diskFormat = null;
+      this.clearFileView();
+      return;
+    }
+
+    this.diskDataPtr = dataPtr;
+    this.diskDataSize = size;
+
+    // Get filename
+    const filenamePtr = wasm._getSmartPortImageFilename(this.selectedDrive);
+    const filename = filenamePtr ? wasm.UTF8ToString(filenamePtr) : "Unknown";
+
+    // HD images are always ProDOS block devices
+    if (wasm._isProDOSFormat(dataPtr, size)) {
+      this.diskFormat = "prodos";
+      wasm._getProDOSVolumeInfo(dataPtr, size);
+      const volumeName = wasm.UTF8ToString(wasm._getProDOSVolumeName());
+      this.volumeInfo = { volumeName };
+      diskInfo.textContent = `${filename} (ProDOS: ${volumeName})`;
+
+      this.currentPath = "";
+      this.directoryStack = [];
+      this.loadProDOSDirectory(2, "");
+    } else {
+      this.diskFormat = null;
+      diskInfo.textContent = `${filename} (Unknown format)`;
+      catalogList.innerHTML = '<div class="fe-empty">Not a ProDOS volume</div>';
+      this.catalog = [];
+      this.clearFileView();
+      return;
+    }
+
+    this.selectedFile = null;
+    this.clearFileView();
+  }
+
+  loadFloppyDisk() {
     const wasm = this.wasmModule;
     const diskInfo = this.element.querySelector(".fe-disk-info");
     const catalogList = this.element.querySelector(".fe-catalog-list");
@@ -384,7 +523,58 @@ export class FileExplorerWindow extends BaseWindow {
   }
 
   /**
-   * Render the ProDOS catalog for the current directory path
+   * Load a single ProDOS directory on-demand (for HD mode).
+   * For floppies, the full catalog is small enough to load at once.
+   */
+  loadProDOSDirectory(startBlock, path) {
+    const wasm = this.wasmModule;
+    const catalogList = this.element.querySelector(".fe-catalog-list");
+
+    // Allocate path string in WASM heap
+    const pathBytes = new TextEncoder().encode(path);
+    const pathPtr = wasm._malloc(pathBytes.length + 1);
+    wasm.HEAPU8.set(pathBytes, pathPtr);
+    wasm.HEAPU8[pathPtr + pathBytes.length] = 0;
+
+    const count = wasm._getProDOSDirectory(
+      this.diskDataPtr,
+      this.diskDataSize,
+      startBlock,
+      pathPtr,
+    );
+    wasm._free(pathPtr);
+
+    this.catalog = [];
+    for (let i = 0; i < count; i++) {
+      this.catalog.push({
+        filename: wasm.UTF8ToString(wasm._getProDOSEntryFilename(i)),
+        path: wasm.UTF8ToString(wasm._getProDOSEntryPath(i)),
+        fileType: wasm._getProDOSEntryFileType(i),
+        fileTypeName: wasm.UTF8ToString(wasm._getProDOSEntryFileTypeName(i)),
+        fileTypeDescription:
+          PRODOS_FILE_DESCRIPTIONS[wasm._getProDOSEntryFileType(i)] ||
+          "Unknown",
+        storageType: wasm._getProDOSEntryStorageType(i),
+        eof: wasm._getProDOSEntryEOF(i),
+        auxType: wasm._getProDOSEntryAuxType(i),
+        blocksUsed: wasm._getProDOSEntryBlocksUsed(i),
+        isLocked: wasm._getProDOSEntryIsLocked(i),
+        isDirectory: wasm._getProDOSEntryIsDirectory(i),
+        keyPointer: wasm._getProDOSEntryKeyPointer(i),
+        _wasmIndex: i,
+      });
+    }
+
+    this.currentPath = path;
+    this.selectedFile = null;
+    this.clearFileView();
+    this.renderProDOSCatalog();
+  }
+
+  /**
+   * Render the ProDOS catalog for the current directory.
+   * For HD mode: catalog contains only current directory entries (loaded on-demand).
+   * For floppy mode: catalog contains full tree, filtered by currentPath.
    */
   renderProDOSCatalog() {
     const catalogList = this.element.querySelector(".fe-catalog-list");
@@ -393,7 +583,6 @@ export class FileExplorerWindow extends BaseWindow {
     // Show/hide path bar based on whether we're in a subdirectory
     if (this.currentPath) {
       pathBar.classList.remove("hidden");
-      // Build clickable breadcrumb path
       const parts = this.currentPath.split("/");
       let pathHtml = `<span class="fe-path-item" data-path="">/${this.volumeInfo.volumeName}</span>`;
       let builtPath = "";
@@ -407,25 +596,23 @@ export class FileExplorerWindow extends BaseWindow {
       pathBar.innerHTML = "";
     }
 
-    // Filter catalog entries to show only direct children of currentPath.
-    // ProDOS stores all entries with full paths (e.g., "SUBDIR/FILE.TXT").
-    // We filter to show only entries at the current directory level:
-    // - At root (currentPath=''): show entries with no '/' in their path
-    // - In subdirectory: show entries whose path starts with "currentPath/"
-    //   and have no additional '/' after that prefix (direct children only)
-    const entriesInPath = this.catalog.filter((entry) => {
-      if (this.currentPath === "") {
-        // Root: show entries without a path separator (direct children)
-        return !entry.path.includes("/");
-      } else {
-        // Subdirectory: show entries whose path starts with currentPath/
-        // and have exactly one more component
-        const prefix = this.currentPath + "/";
-        if (!entry.path.startsWith(prefix)) return false;
-        const remainder = entry.path.slice(prefix.length);
-        return !remainder.includes("/");
-      }
-    });
+    // For HD mode, catalog already contains just the current directory's entries.
+    // For floppy mode, we filter the full catalog by path.
+    let entriesInPath;
+    if (this.sourceType === "hd") {
+      entriesInPath = this.catalog;
+    } else {
+      entriesInPath = this.catalog.filter((entry) => {
+        if (this.currentPath === "") {
+          return !entry.path.includes("/");
+        } else {
+          const prefix = this.currentPath + "/";
+          if (!entry.path.startsWith(prefix)) return false;
+          const remainder = entry.path.slice(prefix.length);
+          return !remainder.includes("/");
+        }
+      });
+    }
 
     if (entriesInPath.length === 0) {
       catalogList.innerHTML = '<div class="fe-empty">Directory is empty</div>';
@@ -450,11 +637,11 @@ export class FileExplorerWindow extends BaseWindow {
       }
 
       html += entriesInPath
-        .map((entry) => {
-          const originalIndex = this.catalog.indexOf(entry);
+        .map((entry, idx) => {
+          const catalogIndex = this.catalog.indexOf(entry);
           const isDir = entry.isDirectory;
           return `
-          <div class="fe-catalog-item ${isDir ? "fe-directory" : ""}" data-index="${originalIndex}" ${isDir ? 'data-action="enter"' : ""}>
+          <div class="fe-catalog-item ${isDir ? "fe-directory" : ""}" data-index="${catalogIndex}" ${isDir ? 'data-action="enter"' : ""}>
             <span class="fe-file-type ${entry.isLocked ? "locked" : ""}">${entry.isLocked ? "*" : " "}${isDir ? "DIR" : entry.fileTypeName}</span>
             <span class="fe-file-name">${escapeHtml(entry.filename)}${isDir ? "/" : ""}</span>
             <span class="fe-file-sectors">${entry.blocksUsed}</span>
@@ -471,6 +658,24 @@ export class FileExplorerWindow extends BaseWindow {
    * Navigate to a directory path (ProDOS)
    */
   navigateToPath(path) {
+    if (this.sourceType === "hd") {
+      // On-demand: find the startBlock for this path
+      if (path === "") {
+        // Going back to root
+        this.directoryStack = [];
+        this.loadProDOSDirectory(2, "");
+      } else if (path.split("/").length < this.currentPath.split("/").length) {
+        // Going up: find the matching stack entry
+        const depth = path === "" ? 0 : path.split("/").length;
+        this.directoryStack = this.directoryStack.slice(0, depth);
+        const stackEntry = this.directoryStack[depth - 1];
+        this.loadProDOSDirectory(stackEntry.startBlock, path);
+      }
+      // Going into a subdirectory is handled in selectFile()
+      return;
+    }
+
+    // Floppy mode: just re-render with path filter
     this.currentPath = path;
     this.selectedFile = null;
     this.clearFileView();
@@ -482,9 +687,18 @@ export class FileExplorerWindow extends BaseWindow {
 
     const entry = this.catalog[index];
 
-    // If it's a directory, navigate into it instead of selecting
+    // If it's a directory, navigate into it
     if (entry.isDirectory) {
-      this.navigateToPath(entry.path);
+      if (this.sourceType === "hd") {
+        // On-demand: push current state and load subdirectory
+        this.directoryStack.push({
+          path: entry.path,
+          startBlock: entry.keyPointer,
+        });
+        this.loadProDOSDirectory(entry.keyPointer, entry.path);
+      } else {
+        this.navigateToPath(entry.path);
+      }
       return;
     }
 
