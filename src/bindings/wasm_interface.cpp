@@ -1144,6 +1144,75 @@ uint32_t getMouseCardPIARegister(int reg) {
 }
 
 // ============================================================================
+// SmartPort Hard Drive
+// ============================================================================
+
+EMSCRIPTEN_KEEPALIVE
+bool insertSmartPortImage(int device, uint8_t* data, int size, const char* filename) {
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->insertSmartPortImage(device, data, size, filename);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void ejectSmartPortImage(int device) {
+  REQUIRE_EMULATOR();
+  g_emulator->ejectSmartPortImage(device);
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool isSmartPortImageInserted(int device) {
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->isSmartPortImageInserted(device);
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char* getSmartPortImageFilename(int device) {
+  REQUIRE_EMULATOR_OR(nullptr);
+  return g_emulator->getSmartPortImageFilename(device);
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool isSmartPortImageModified(int device) {
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->isSmartPortImageModified(device);
+}
+
+EMSCRIPTEN_KEEPALIVE
+uint8_t* getSmartPortImageData(int device, size_t* size) {
+  if (!g_emulator) { *size = 0; return nullptr; }
+  return const_cast<uint8_t*>(g_emulator->exportSmartPortImageData(device, size));
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool isSmartPortCardInstalled() {
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->isSmartPortCardInstalled();
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool getSmartPortActivity(int device) {
+  REQUIRE_EMULATOR_OR(false);
+  auto* card = g_emulator->getSmartPortCard();
+  if (!card) return false;
+  return card->hasActivity();
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool getSmartPortActivityWrite(int device) {
+  REQUIRE_EMULATOR_OR(false);
+  auto* card = g_emulator->getSmartPortCard();
+  if (!card) return false;
+  return card->isActivityWrite();
+}
+
+EMSCRIPTEN_KEEPALIVE
+void clearSmartPortActivity() {
+  REQUIRE_EMULATOR();
+  auto* card = g_emulator->getSmartPortCard();
+  if (card) card->clearActivity();
+}
+
+// ============================================================================
 // Expansion Slot Management
 // ============================================================================
 

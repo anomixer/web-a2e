@@ -232,6 +232,15 @@ export class UIController {
       });
     }
 
+    const hardDrivesBtn = document.getElementById("btn-hard-drives");
+    if (hardDrivesBtn) {
+      hardDrivesBtn.addEventListener("click", () => {
+        this.windowManager.toggleWindow("hard-drives");
+        this.closeAllMenus();
+        this.refocusCanvas();
+      });
+    }
+
     const fileExplorerBtn = document.getElementById("btn-file-explorer");
     if (fileExplorerBtn) {
       fileExplorerBtn.addEventListener("click", () => {

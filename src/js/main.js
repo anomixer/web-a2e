@@ -12,6 +12,8 @@ import { AudioDriver } from "./audio/audio-driver.js";
 import { InputHandler, TextSelection, JoystickWindow, MouseHandler } from "./input/index.js";
 import { DiskManager } from "./disk-manager/index.js";
 import { DiskDrivesWindow } from "./disk-manager/disk-drives-window.js";
+import { HardDriveManager } from "./disk-manager/hard-drive-manager.js";
+import { HardDriveWindow } from "./disk-manager/hard-drive-window.js";
 import { FileExplorerWindow } from "./file-explorer/index.js";
 import { DisplaySettingsWindow, ScreenWindow } from "./display/index.js";
 import { DocumentationWindow, ReleaseNotesWindow } from "./help/index.js";
@@ -45,6 +47,7 @@ class AppleIIeEmulator {
     this.audioDriver = null;
     this.inputHandler = null;
     this.diskManager = null;
+    this.hardDriveManager = null;
     this.fileExplorer = null;
     this.windowManager = null;
     this.displaySettings = null;
@@ -112,6 +115,14 @@ class AppleIIeEmulator {
       this.diskManager.onDiskLoaded = () => {
         this.reminderController.dismissBasicReminder();
       };
+
+      // Create hard drive window and manager
+      const hardDriveWindow = new HardDriveWindow();
+      hardDriveWindow.create();
+      this.windowManager.register(hardDriveWindow);
+
+      this.hardDriveManager = new HardDriveManager(this.wasmModule);
+      this.hardDriveManager.init();
 
       const cpuWindow = new CPUDebuggerWindow(this.wasmModule);
       cpuWindow.create();
@@ -203,6 +214,9 @@ class AppleIIeEmulator {
         () => {
           this.wasmModule._reset();
           this.updateMouseHandlerState();
+          if (this.hardDriveManager) {
+            this.hardDriveManager.syncWithEmulatorState();
+          }
         },
       );
       slotConfigWindow.create();
@@ -399,6 +413,9 @@ class AppleIIeEmulator {
       this.windowManager.updateAll(this.wasmModule);
       this.diskManager.drivesWindowVisible = this.windowManager.isWindowVisible('disk-drives');
       this.diskManager.updateLEDs();
+      if (this.hardDriveManager) {
+        this.hardDriveManager.updateLEDs();
+      }
 
       // Beam crosshair overlay — only when CPU debugger is open and CPU is paused
       const isPaused = this.running && this.wasmModule._isPaused();
@@ -476,6 +493,7 @@ class AppleIIeEmulator {
 
     this.renderer = null;
     this.diskManager = null;
+    this.hardDriveManager = null;
     if (this.fileExplorer) {
       this.fileExplorer.destroy();
       this.fileExplorer = null;
