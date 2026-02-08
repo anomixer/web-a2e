@@ -50,6 +50,8 @@ export class BasicProgramWindow extends BaseWindow {
 
     this.breakpointManager.onChange(() => {
       this.updateGutter();
+      this.updateHighlighting();
+      this.renderBreakpointList();
     });
   }
 
@@ -104,6 +106,7 @@ export class BasicProgramWindow extends BaseWindow {
                 <button class="basic-btn basic-format-btn" title="Format code (align line numbers, indent loops)">Format</button>
                 <button class="basic-btn basic-renumber-btn" title="Renumber lines in increments of 10, updating GOTO/GOSUB references">Renumber</button>
                 <button class="basic-btn basic-clear-btn">Clear</button>
+                <button class="basic-btn basic-info-btn" title="Breakpoint help">i</button>
               </div>
             </div>
           </div>
@@ -147,6 +150,7 @@ export class BasicProgramWindow extends BaseWindow {
     this.renumberBtn = this.contentElement.querySelector(".basic-renumber-btn");
     this.insertBtn = this.contentElement.querySelector(".basic-insert-btn");
     this.clearBtn = this.contentElement.querySelector(".basic-clear-btn");
+    this.infoBtn = this.contentElement.querySelector(".basic-info-btn");
 
     // Debugger elements
     this.varPanel = this.contentElement.querySelector(".basic-dbg-var-panel");
@@ -195,9 +199,9 @@ export class BasicProgramWindow extends BaseWindow {
 
     // Editor event listeners
     this.textarea.addEventListener("input", () => {
+      this.updateGutter();
       this.updateHighlighting();
       this.updateStats();
-      this.updateGutter();
       this.updateCurrentLineHighlight();
     });
 
@@ -251,9 +255,9 @@ export class BasicProgramWindow extends BaseWindow {
 
     this.clearBtn.addEventListener("click", () => {
       this.textarea.value = "";
+      this.updateGutter();
       this.updateHighlighting();
       this.updateStats();
-      this.updateGutter();
     });
 
     this.loadBtn.addEventListener("click", () => {
@@ -266,6 +270,55 @@ export class BasicProgramWindow extends BaseWindow {
 
     this.renumberBtn.addEventListener("click", () => {
       this.renumberProgram();
+    });
+
+    this.infoBtn.addEventListener("click", () => {
+      this._showBreakpointHelp();
+    });
+
+    // Option+click on textarea to toggle statement-level breakpoints.
+    // Calculates which line/statement was clicked by matching coordinates
+    // against the highlight overlay's .basic-statement span positions.
+    this.textarea.addEventListener('click', (e) => {
+      if (!e.altKey) return;
+      if (!this.highlight || !this.lineMap) return;
+
+      // Find which highlight line div the click Y falls into
+      const lineDivs = this.highlight.children;
+      let targetLineDiv = null;
+      let lineIndex = -1;
+      for (let i = 0; i < lineDivs.length; i++) {
+        const rect = lineDivs[i].getBoundingClientRect();
+        if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
+          targetLineDiv = lineDivs[i];
+          lineIndex = i;
+          break;
+        }
+      }
+      if (!targetLineDiv) return;
+
+      const lineNumber = this.lineMap[lineIndex];
+      if (lineNumber === null || lineNumber === undefined) return;
+
+      // Find which statement span the click X falls into
+      const stmtSpans = targetLineDiv.querySelectorAll('.basic-statement');
+      if (stmtSpans.length === 0) return;
+
+      let stmtIndex = -1;
+      for (let i = 0; i < stmtSpans.length; i++) {
+        const rect = stmtSpans[i].getBoundingClientRect();
+        if (e.clientX >= rect.left && e.clientX <= rect.right) {
+          stmtIndex = i;
+          break;
+        }
+      }
+      if (stmtIndex < 0) return;
+
+      this.breakpointManager.toggle(lineNumber, stmtIndex);
+      this.updateGutter();
+      this.updateHighlighting();
+      this.renderBreakpointList();
+      e.preventDefault();
     });
 
     // Initialize autocomplete
@@ -313,10 +366,10 @@ export class BasicProgramWindow extends BaseWindow {
     );
     this.setupSidebarSplitter();
 
-    this.updateHighlighting();
-    this.updateStats();
     this.setupGutterClickHandler();
     this.updateGutter();
+    this.updateHighlighting();
+    this.updateStats();
     this.renderVariables();
     this.renderBreakpointList();
   }
@@ -423,7 +476,14 @@ export class BasicProgramWindow extends BaseWindow {
 
       const lineNumber = this.lineMap[index];
       if (lineNumber !== null) {
-        this.breakpointManager.toggle(lineNumber);
+        // If line has any breakpoints (whole-line or statement), remove them all
+        if (this.breakpointManager.hasAnyForLine(lineNumber)) {
+          this.breakpointManager.removeAllForLine(lineNumber);
+        } else {
+          // Otherwise add a whole-line breakpoint
+          this.breakpointManager.add(lineNumber, -1);
+        }
+        this.updateHighlighting();
         this.renderBreakpointList();
       }
     });
@@ -446,7 +506,7 @@ export class BasicProgramWindow extends BaseWindow {
       this.lineMap[i] = lineNumber;
 
       const hasBp =
-        lineNumber !== null && this.breakpointManager.has(lineNumber);
+        lineNumber !== null && this.breakpointManager.hasAnyForLine(lineNumber);
       const isCurrent =
         lineNumber !== null && this.currentLineNumber === lineNumber;
 
@@ -679,9 +739,16 @@ export class BasicProgramWindow extends BaseWindow {
 
       // For multi-statement lines, wrap each statement in a span
       let lineHtml = html || "&nbsp;";
+      const lineNumber = this.lineMap[i];
+      const stmtBPs = lineNumber !== null ? this.breakpointManager.getForLine(lineNumber) : [];
+      const isMultiStatement = html && html.includes('<span class="bas-punct">:</span>');
+
       if (isCurrentLine && this.currentStatementInfo && this.currentStatementInfo.statementCount > 1) {
         lineClass += " basic-has-statements";
-        lineHtml = this._wrapStatements(html, this.currentStatementInfo);
+        lineHtml = this._wrapStatements(html, this.currentStatementInfo, stmtBPs);
+      } else if (isMultiStatement && lineNumber !== null) {
+        // Wrap all multi-statement lines so statements are clickable for breakpoints
+        lineHtml = this._wrapStatementsForBreakpoints(html, stmtBPs);
       }
 
       // Wrap each line in a div with appropriate classes
@@ -716,9 +783,9 @@ export class BasicProgramWindow extends BaseWindow {
     // Only update if different (prevents unnecessary cursor reset)
     if (formatted !== text) {
       this.textarea.value = formatted;
+      this.updateGutter();
       this.updateHighlighting();
       this.updateStats();
-      this.updateGutter();
     }
   }
 
@@ -770,9 +837,9 @@ export class BasicProgramWindow extends BaseWindow {
 
     // Format and update
     this.textarea.value = formatBasicSource(renumbered);
+    this.updateGutter();
     this.updateHighlighting();
     this.updateStats();
-    this.updateGutter();
 
     // Update breakpoints to new line numbers
     this.updateBreakpointsAfterRenumber(lineMap);
@@ -972,28 +1039,26 @@ export class BasicProgramWindow extends BaseWindow {
    * @param {Map<number, number>} lineMap - Mapping from old to new line numbers
    */
   updateBreakpointsAfterRenumber(lineMap) {
-    const oldBreakpoints = this.breakpointManager.getLineNumbers();
-    const breakpointStates = new Map();
+    const allEntries = this.breakpointManager.getAllEntries();
 
-    // Save enabled state for each breakpoint
-    for (const oldLine of oldBreakpoints) {
-      const entry = this.breakpointManager.get(oldLine);
-      if (entry) {
-        breakpointStates.set(oldLine, entry.enabled);
-      }
-    }
+    // Save all entries with their states
+    const savedEntries = allEntries.map(e => ({
+      lineNumber: e.lineNumber,
+      statementIndex: e.statementIndex,
+      enabled: e.enabled,
+    }));
 
     // Clear all breakpoints
-    for (const oldLine of oldBreakpoints) {
-      this.breakpointManager.remove(oldLine);
-    }
+    this.breakpointManager.clear();
 
-    // Add breakpoints at new line numbers
-    for (const [oldLine, enabled] of breakpointStates) {
-      const newLine = lineMap.get(oldLine);
+    // Re-add at new line numbers
+    for (const entry of savedEntries) {
+      const newLine = lineMap.get(entry.lineNumber);
       if (newLine !== undefined) {
-        this.breakpointManager.add(newLine);
-        this.breakpointManager.setEnabled(newLine, enabled);
+        this.breakpointManager.add(newLine, entry.statementIndex);
+        if (!entry.enabled) {
+          this.breakpointManager.setEnabled(newLine, entry.statementIndex, false);
+        }
       }
     }
 
@@ -1047,9 +1112,9 @@ export class BasicProgramWindow extends BaseWindow {
     // Auto-format the loaded content
     this.textarea.value = formatBasicSource(rawContent);
 
+    this.updateGutter();
     this.updateHighlighting();
     this.updateStats();
-    this.updateGutter();
 
     console.log(`Loaded ${lines.length} lines from memory`);
   }
@@ -1117,6 +1182,42 @@ export class BasicProgramWindow extends BaseWindow {
       this.insertBtn.textContent = "Load into Emulator";
       this.insertBtn.classList.remove(cssClass);
     }, 1500);
+  }
+
+  _showBreakpointHelp() {
+    // Remove existing popover if shown
+    const existing = this.contentElement.querySelector(".basic-info-popover");
+    if (existing) {
+      existing.remove();
+      return;
+    }
+
+    const popover = document.createElement("div");
+    popover.className = "basic-info-popover";
+    popover.innerHTML = `
+      <div class="basic-info-popover-title">Breakpoints</div>
+      <div class="basic-info-popover-row">
+        <span class="basic-info-popover-key">Click gutter</span>
+        <span class="basic-info-popover-desc">Toggle line breakpoint</span>
+      </div>
+      <div class="basic-info-popover-row">
+        <span class="basic-info-popover-key">${navigator.platform.includes("Mac") ? "Option" : "Alt"}+Click statement</span>
+        <span class="basic-info-popover-desc">Toggle statement breakpoint</span>
+      </div>
+    `;
+
+    // Position relative to the info button
+    this.infoBtn.style.position = "relative";
+    this.infoBtn.appendChild(popover);
+
+    // Close on click outside
+    const close = (e) => {
+      if (!popover.contains(e.target) && e.target !== this.infoBtn) {
+        popover.remove();
+        document.removeEventListener("mousedown", close);
+      }
+    };
+    setTimeout(() => document.addEventListener("mousedown", close), 0);
   }
 
   // ========================================
@@ -1233,9 +1334,10 @@ export class BasicProgramWindow extends BaseWindow {
       return;
     }
 
-    this.breakpointManager.add(lineNumber);
+    this.breakpointManager.add(lineNumber, -1);
     this.bpInput.value = "";
     this.updateGutter();
+    this.updateHighlighting();
     this.renderBreakpointList();
   }
 
@@ -1554,25 +1656,27 @@ export class BasicProgramWindow extends BaseWindow {
   }
 
   renderBreakpointList() {
-    const lineNumbers = this.breakpointManager.getLineNumbers();
+    const entries = this.breakpointManager.getAllEntries();
 
-    if (lineNumbers.length === 0) {
+    if (entries.length === 0) {
       this.bpList.innerHTML =
         '<div class="basic-dbg-empty">No breakpoints</div>';
       return;
     }
 
     let html = "";
-    for (const lineNum of lineNumbers) {
-      const entry = this.breakpointManager.get(lineNum);
+    for (const entry of entries) {
       const enabledClass = entry.enabled ? "" : "disabled";
+      const label = entry.statementIndex >= 0
+        ? `Line ${entry.lineNumber} : ${entry.statementIndex}`
+        : `Line ${entry.lineNumber}`;
 
       html += `
-        <div class="basic-dbg-bp-item ${enabledClass}" data-line="${lineNum}">
+        <div class="basic-dbg-bp-item ${enabledClass}" data-line="${entry.lineNumber}" data-stmt="${entry.statementIndex}">
           <input type="checkbox" class="basic-dbg-bp-enabled"
-                 ${entry.enabled ? "checked" : ""} data-line="${lineNum}">
-          <span class="basic-dbg-bp-line">Line ${lineNum}</span>
-          <button class="basic-dbg-bp-remove" data-line="${lineNum}" title="Remove">×</button>
+                 ${entry.enabled ? "checked" : ""} data-line="${entry.lineNumber}" data-stmt="${entry.statementIndex}">
+          <span class="basic-dbg-bp-line">${label}</span>
+          <button class="basic-dbg-bp-remove" data-line="${entry.lineNumber}" data-stmt="${entry.statementIndex}" title="Remove">×</button>
         </div>
       `;
     }
@@ -1582,16 +1686,20 @@ export class BasicProgramWindow extends BaseWindow {
     this.bpList.querySelectorAll(".basic-dbg-bp-enabled").forEach((cb) => {
       cb.addEventListener("change", () => {
         const lineNum = parseInt(cb.dataset.line, 10);
-        this.breakpointManager.setEnabled(lineNum, cb.checked);
+        const stmtIdx = parseInt(cb.dataset.stmt, 10);
+        this.breakpointManager.setEnabled(lineNum, stmtIdx, cb.checked);
         this.updateGutter();
+        this.updateHighlighting();
       });
     });
 
     this.bpList.querySelectorAll(".basic-dbg-bp-remove").forEach((btn) => {
       btn.addEventListener("click", () => {
         const lineNum = parseInt(btn.dataset.line, 10);
-        this.breakpointManager.remove(lineNum);
+        const stmtIdx = parseInt(btn.dataset.stmt, 10);
+        this.breakpointManager.remove(lineNum, stmtIdx);
         this.updateGutter();
+        this.updateHighlighting();
         this.renderBreakpointList();
       });
     });
@@ -1740,10 +1848,10 @@ export class BasicProgramWindow extends BaseWindow {
    * which the syntax highlighter produces for statement-separating colons.
    * The colon span is included as the last element of the preceding statement segment.
    */
-  _wrapStatements(html, stmtInfo) {
-    // The highlighter wraps colons in <span class="bas-punct">:</span>.
-    // Colons inside strings are in <span class="bas-string">...</span> and won't match.
-    // Split on the colon punct spans to find statement boundaries.
+  /**
+   * Split HTML at colon boundaries and return segments
+   */
+  _splitAtColons(html) {
     const colonPattern = /<span class="bas-punct">:<\/span>/g;
     const colonMatches = [];
     let match;
@@ -1752,12 +1860,9 @@ export class BasicProgramWindow extends BaseWindow {
     }
 
     if (colonMatches.length === 0) {
-      const cls = stmtInfo.statementIndex === 0 ? " basic-current-statement" : "";
-      return `<span class="basic-statement${cls}">${html}</span>`;
+      return [html];
     }
 
-    // Build segments by splitting at each colon span.
-    // The colon span is included at the end of the preceding segment.
     const segments = [];
     let pos = 0;
     for (let i = 0; i < colonMatches.length; i++) {
@@ -1765,15 +1870,49 @@ export class BasicProgramWindow extends BaseWindow {
       segments.push(html.substring(pos, colonEnd));
       pos = colonEnd;
     }
-    // Last segment: everything after the final colon
     if (pos < html.length) {
       segments.push(html.substring(pos));
     }
+    return segments;
+  }
 
-    // Wrap each segment with the appropriate class
+  _wrapStatements(html, stmtInfo, stmtBPs = []) {
+    const segments = this._splitAtColons(html);
+
+    // Build a set of statement indices with breakpoints
+    const bpStmtSet = new Set();
+    for (const bp of stmtBPs) {
+      if (bp.statementIndex >= 0) bpStmtSet.add(bp.statementIndex);
+    }
+
     let result = "";
     for (let i = 0; i < segments.length; i++) {
-      const cls = i === stmtInfo.statementIndex ? " basic-current-statement" : "";
+      let cls = "";
+      if (i === stmtInfo.statementIndex) cls += " basic-current-statement";
+      if (bpStmtSet.has(i)) cls += " basic-statement-bp";
+      result += `<span class="basic-statement${cls}">${segments[i]}</span>`;
+    }
+    return result;
+  }
+
+  /**
+   * Wrap statements for breakpoint display on non-current lines.
+   * Similar to _wrapStatements but without current-statement highlighting.
+   */
+  _wrapStatementsForBreakpoints(html, stmtBPs) {
+    const segments = this._splitAtColons(html);
+
+    // If only 1 segment, no colons found - can't split into statements
+    if (segments.length <= 1) return html;
+
+    const bpStmtSet = new Set();
+    for (const bp of stmtBPs) {
+      if (bp.statementIndex >= 0) bpStmtSet.add(bp.statementIndex);
+    }
+
+    let result = "";
+    for (let i = 0; i < segments.length; i++) {
+      const cls = bpStmtSet.has(i) ? " basic-statement-bp" : "";
       result += `<span class="basic-statement${cls}">${segments[i]}</span>`;
     }
     return result;
@@ -1820,9 +1959,9 @@ export class BasicProgramWindow extends BaseWindow {
     super.restoreState(state);
     if (state.content !== undefined && this.textarea) {
       this.textarea.value = state.content;
+      this.updateGutter();
       this.updateHighlighting();
       this.updateStats();
-      this.updateGutter();
     }
     if (state.sidebarWidth && this.sidebar) {
       this.sidebar.style.width = `${state.sidebarWidth}px`;

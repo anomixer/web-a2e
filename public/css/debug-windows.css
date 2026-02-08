@@ -3123,7 +3123,7 @@
     overflow: auto;
 }
 
-/* Highlight layer - shows colored syntax */
+/* Highlight layer - shows colored syntax, behind textarea */
 .basic-highlight {
     pointer-events: none;
     overflow: hidden; /* Scroll synced with textarea via JS */
@@ -3313,8 +3313,8 @@
 
 /* Statement-level highlight within a multi-statement line */
 .basic-highlight .basic-current-line .basic-current-statement {
-    background: var(--accent-blue-bg);
-    border-bottom: 2px solid var(--accent-blue);
+    background: var(--accent-red-bg);
+    border-bottom: 2px solid var(--accent-red);
     border-radius: 2px;
 }
 
@@ -3329,7 +3329,18 @@
 
 .basic-highlight .basic-current-line.basic-has-statements .basic-current-statement {
     opacity: 1;
-    background: var(--accent-blue-bg) !important;
+    background: var(--accent-red-bg) !important;
+}
+
+/* Statement breakpoint: dashed red underline */
+.basic-highlight .basic-statement.basic-statement-bp {
+    border-bottom: 2px dashed var(--accent-red);
+    border-radius: 2px;
+}
+
+/* Current execution (solid) overrides breakpoint indicator (dashed) */
+.basic-highlight .basic-current-statement.basic-statement-bp {
+    border-bottom: 2px solid var(--accent-red);
 }
 
 .basic-actions {
@@ -3342,6 +3353,75 @@
 .basic-actions .basic-btn {
     flex: 1 1 auto;
     min-width: 100px;
+}
+
+/* Info button - fixed size, doesn't stretch */
+.basic-actions .basic-info-btn {
+    flex: 0 0 auto;
+    min-width: 28px;
+    width: 28px;
+    padding: 8px 0;
+    font-family: var(--font-serif, Georgia, serif);
+    font-style: italic;
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--text-muted);
+    position: relative;
+}
+
+.basic-actions .basic-info-btn:hover {
+    color: var(--accent-blue);
+    border-color: var(--accent-blue-border);
+    background: var(--accent-blue-bg);
+}
+
+/* Info popover */
+.basic-info-popover {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    right: 0;
+    width: 260px;
+    background: var(--glass-bg-solid);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+    padding: 10px 12px;
+    z-index: 100;
+    font-style: normal;
+    text-align: left;
+    cursor: default;
+}
+
+.basic-info-popover-title {
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid var(--glass-border-subtle);
+}
+
+.basic-info-popover-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    padding: 3px 0;
+}
+
+.basic-info-popover-key {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--accent-blue);
+    white-space: nowrap;
+}
+
+.basic-info-popover-desc {
+    font-family: var(--font-sans);
+    font-size: 10px;
+    color: var(--text-secondary);
 }
 
 /* Resizable splitter between editor and sidebar - matches assembler style */

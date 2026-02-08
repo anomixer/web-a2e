@@ -302,15 +302,15 @@ uint16_t getBreakpointAddress() {
 // ============================================================================
 
 EMSCRIPTEN_KEEPALIVE
-void addBasicBreakpoint(uint16_t lineNumber) {
+void addBasicBreakpoint(uint16_t lineNumber, int statementIndex) {
   REQUIRE_EMULATOR();
-  g_emulator->addBasicBreakpoint(lineNumber);
+  g_emulator->addBasicBreakpoint(lineNumber, statementIndex);
 }
 
 EMSCRIPTEN_KEEPALIVE
-void removeBasicBreakpoint(uint16_t lineNumber) {
+void removeBasicBreakpoint(uint16_t lineNumber, int statementIndex) {
   REQUIRE_EMULATOR();
-  g_emulator->removeBasicBreakpoint(lineNumber);
+  g_emulator->removeBasicBreakpoint(lineNumber, statementIndex);
 }
 
 EMSCRIPTEN_KEEPALIVE

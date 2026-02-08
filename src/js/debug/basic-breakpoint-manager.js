@@ -1,5 +1,5 @@
 /*
- * basic-breakpoint-manager.js - BASIC line breakpoint management
+ * basic-breakpoint-manager.js - BASIC line and statement breakpoint management
  *
  * Written by
  *  Mike Daley <michael_daley@icloud.com>
@@ -8,13 +8,17 @@
 import { peek, readWord } from "../utils/wasm-memory.js";
 
 /**
- * BasicBreakpointManager - Manages BASIC line breakpoints
+ * BasicBreakpointManager - Manages BASIC line and statement breakpoints
  * Syncs breakpoints with C++ via WASM interface and persists to localStorage
+ *
+ * Breakpoints are keyed by "lineNumber:statementIndex" strings.
+ * statementIndex -1 means whole-line breakpoint, 0+ means a specific statement.
  */
 export class BasicBreakpointManager {
   constructor(wasmModule) {
     this.wasmModule = wasmModule;
-    this.breakpoints = new Map(); // lineNumber -> { enabled, hitCount }
+    // Key: "line:stmt" string, Value: { lineNumber, statementIndex, enabled, hitCount }
+    this.breakpoints = new Map();
     this.listeners = [];
     this.steppingMode = null; // null | 'line' | 'statement'
     this.lastCurlin = null;
@@ -24,6 +28,10 @@ export class BasicBreakpointManager {
   }
 
   static STORAGE_KEY = "a2e-basic-breakpoints";
+
+  static _key(lineNumber, statementIndex) {
+    return `${lineNumber}:${statementIndex}`;
+  }
 
   /**
    * Add a change listener
@@ -37,17 +45,22 @@ export class BasicBreakpointManager {
   }
 
   /**
-   * Add a breakpoint on a BASIC line number
+   * Add a breakpoint on a BASIC line/statement
+   * @param {number} lineNumber
+   * @param {number} statementIndex - -1 for whole line, 0+ for specific statement
    */
-  add(lineNumber) {
-    if (this.breakpoints.has(lineNumber)) return;
+  add(lineNumber, statementIndex = -1) {
+    const key = BasicBreakpointManager._key(lineNumber, statementIndex);
+    if (this.breakpoints.has(key)) return;
 
-    this.breakpoints.set(lineNumber, {
+    this.breakpoints.set(key, {
+      lineNumber,
+      statementIndex,
       enabled: true,
       hitCount: 0,
     });
 
-    this._syncWasmAdd(lineNumber);
+    this._syncWasmAdd(lineNumber, statementIndex);
     this.save();
     this._notify();
   }
@@ -55,55 +68,103 @@ export class BasicBreakpointManager {
   /**
    * Remove a breakpoint
    */
-  remove(lineNumber) {
-    if (!this.breakpoints.has(lineNumber)) return;
+  remove(lineNumber, statementIndex = -1) {
+    const key = BasicBreakpointManager._key(lineNumber, statementIndex);
+    if (!this.breakpoints.has(key)) return;
 
-    this.breakpoints.delete(lineNumber);
-    this._syncWasmRemove(lineNumber);
+    this.breakpoints.delete(key);
+    this._syncWasmRemove(lineNumber, statementIndex);
     this.save();
     this._notify();
   }
 
   /**
-   * Toggle a breakpoint on a line
+   * Remove all breakpoints for a given line (whole-line and all statement BPs)
    */
-  toggle(lineNumber) {
-    if (this.breakpoints.has(lineNumber)) {
-      this.remove(lineNumber);
+  removeAllForLine(lineNumber) {
+    const toRemove = [];
+    for (const [key, entry] of this.breakpoints) {
+      if (entry.lineNumber === lineNumber) {
+        toRemove.push(entry);
+      }
+    }
+    for (const entry of toRemove) {
+      const key = BasicBreakpointManager._key(entry.lineNumber, entry.statementIndex);
+      this.breakpoints.delete(key);
+      this._syncWasmRemove(entry.lineNumber, entry.statementIndex);
+    }
+    if (toRemove.length > 0) {
+      this.save();
+      this._notify();
+    }
+  }
+
+  /**
+   * Toggle a breakpoint on a line/statement
+   */
+  toggle(lineNumber, statementIndex = -1) {
+    const key = BasicBreakpointManager._key(lineNumber, statementIndex);
+    if (this.breakpoints.has(key)) {
+      this.remove(lineNumber, statementIndex);
     } else {
-      this.add(lineNumber);
+      this.add(lineNumber, statementIndex);
     }
   }
 
   /**
    * Enable/disable a breakpoint
    */
-  setEnabled(lineNumber, enabled) {
-    const entry = this.breakpoints.get(lineNumber);
+  setEnabled(lineNumber, statementIndex, enabled) {
+    const key = BasicBreakpointManager._key(lineNumber, statementIndex);
+    const entry = this.breakpoints.get(key);
     if (!entry) return;
 
     entry.enabled = enabled;
     if (enabled) {
-      this._syncWasmAdd(lineNumber);
+      this._syncWasmAdd(lineNumber, statementIndex);
     } else {
-      this._syncWasmRemove(lineNumber);
+      this._syncWasmRemove(lineNumber, statementIndex);
     }
     this.save();
     this._notify();
   }
 
   /**
-   * Check if a line has a breakpoint
+   * Check if a specific breakpoint exists
    */
-  has(lineNumber) {
-    return this.breakpoints.has(lineNumber);
+  has(lineNumber, statementIndex = -1) {
+    return this.breakpoints.has(BasicBreakpointManager._key(lineNumber, statementIndex));
   }
 
   /**
-   * Get breakpoint entry for a line
+   * Check if any breakpoint exists for a given line (whole-line or any statement)
    */
-  get(lineNumber) {
-    return this.breakpoints.get(lineNumber) || null;
+  hasAnyForLine(lineNumber) {
+    for (const entry of this.breakpoints.values()) {
+      if (entry.lineNumber === lineNumber) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Get all breakpoints for a specific line
+   * @returns {Array<{statementIndex, enabled}>}
+   */
+  getForLine(lineNumber) {
+    const result = [];
+    for (const entry of this.breakpoints.values()) {
+      if (entry.lineNumber === lineNumber) {
+        result.push({ statementIndex: entry.statementIndex, enabled: entry.enabled });
+      }
+    }
+    return result;
+  }
+
+  /**
+   * Get breakpoint entry by key
+   */
+  get(lineNumber, statementIndex = -1) {
+    return this.breakpoints.get(BasicBreakpointManager._key(lineNumber, statementIndex)) || null;
   }
 
   /**
@@ -114,10 +175,26 @@ export class BasicBreakpointManager {
   }
 
   /**
-   * Get sorted list of breakpoint line numbers
+   * Get sorted list of unique breakpoint line numbers
    */
   getLineNumbers() {
-    return [...this.breakpoints.keys()].sort((a, b) => a - b);
+    const lineSet = new Set();
+    for (const entry of this.breakpoints.values()) {
+      lineSet.add(entry.lineNumber);
+    }
+    return [...lineSet].sort((a, b) => a - b);
+  }
+
+  /**
+   * Get all breakpoint entries sorted by line then statement
+   */
+  getAllEntries() {
+    const entries = [...this.breakpoints.values()];
+    entries.sort((a, b) => {
+      if (a.lineNumber !== b.lineNumber) return a.lineNumber - b.lineNumber;
+      return a.statementIndex - b.statementIndex;
+    });
+    return entries;
   }
 
   /**
@@ -139,7 +216,6 @@ export class BasicBreakpointManager {
    */
   startLineStep() {
     this.steppingMode = "line";
-    // Capture current CURLIN so we can detect when it changes
     this.lastCurlin = this._getCurlin();
   }
 
@@ -148,7 +224,6 @@ export class BasicBreakpointManager {
    */
   startStatementStep() {
     this.steppingMode = "statement";
-    // Capture current TXTPTR
     this.lastTxtptr = this._getTxtptr();
   }
 
@@ -163,40 +238,31 @@ export class BasicBreakpointManager {
 
   /**
    * Check if we should break due to stepping
-   * Returns true if we should pause
    */
   checkStepBreak() {
     if (!this.steppingMode) return false;
 
-    // CURLIN+1 ($76) = $FF means direct/immediate mode (matching ROM check)
     const curlin = this._getCurlin();
     const isRunning = !this._isDirectMode();
 
     if (this.steppingMode === "line") {
-      // Break if line changed
       if (curlin !== this.lastCurlin && isRunning) {
-        console.log(`Step break: CURLIN changed from ${this.lastCurlin} to ${curlin}`);
         this.lastCurlin = curlin;
         this.steppingMode = null;
         return true;
       }
-      // If BASIC stopped running (error or END), stop stepping
       if (!isRunning && this.lastCurlin !== null) {
-        console.log("Step break: BASIC stopped running");
         this.steppingMode = null;
         return true;
       }
     } else if (this.steppingMode === "statement") {
       const txtptr = this._getTxtptr();
       if (txtptr !== this.lastTxtptr) {
-        console.log(`Step break: TXTPTR changed from ${this.lastTxtptr} to ${txtptr}`);
         this.lastTxtptr = txtptr;
         this.steppingMode = null;
         return true;
       }
-      // If BASIC stopped running, stop stepping
       if (!isRunning) {
-        console.log("Step break: BASIC stopped running (stmt)");
         this.steppingMode = null;
         return true;
       }
@@ -227,40 +293,31 @@ export class BasicBreakpointManager {
     }
   }
 
-  /**
-   * Get current BASIC line number (CURLIN)
-   */
   _getCurlin() {
     return readWord(this.wasmModule, 0x75);
   }
 
-  /**
-   * Check if BASIC is in direct mode (CURLIN+1 = $FF, matching ROM check)
-   */
   _isDirectMode() {
     return peek(this.wasmModule, 0x76) === 0xff;
   }
 
-  /**
-   * Get current text pointer (TXTPTR)
-   */
   _getTxtptr() {
     return readWord(this.wasmModule, 0x7a);
   }
 
   // ---- WASM sync helpers ----
 
-  _syncWasmAdd(lineNumber) {
+  _syncWasmAdd(lineNumber, statementIndex) {
     try {
-      this.wasmModule._addBasicBreakpoint(lineNumber);
+      this.wasmModule._addBasicBreakpoint(lineNumber, statementIndex);
     } catch (e) {
       /* ignore */
     }
   }
 
-  _syncWasmRemove(lineNumber) {
+  _syncWasmRemove(lineNumber, statementIndex) {
     try {
-      this.wasmModule._removeBasicBreakpoint(lineNumber);
+      this.wasmModule._removeBasicBreakpoint(lineNumber, statementIndex);
     } catch (e) {
       /* ignore */
     }
@@ -274,9 +331,6 @@ export class BasicBreakpointManager {
     this.syncToWasm();
   }
 
-  /**
-   * Clear all breakpoints from WASM (but keep JS state)
-   */
   clearFromWasm() {
     try {
       this.wasmModule._clearBasicBreakpoints();
@@ -285,13 +339,10 @@ export class BasicBreakpointManager {
     }
   }
 
-  /**
-   * Sync all enabled breakpoints to WASM
-   */
   syncToWasm() {
-    for (const [lineNumber, entry] of this.breakpoints) {
+    for (const entry of this.breakpoints.values()) {
       if (entry.enabled) {
-        this._syncWasmAdd(lineNumber);
+        this._syncWasmAdd(entry.lineNumber, entry.statementIndex);
       }
     }
   }
@@ -301,9 +352,10 @@ export class BasicBreakpointManager {
   save() {
     try {
       const data = [];
-      for (const [lineNumber, entry] of this.breakpoints) {
+      for (const entry of this.breakpoints.values()) {
         data.push({
-          lineNumber,
+          lineNumber: entry.lineNumber,
+          statementIndex: entry.statementIndex,
           enabled: entry.enabled,
         });
       }
@@ -322,12 +374,17 @@ export class BasicBreakpointManager {
       if (saved) {
         const data = JSON.parse(saved);
         for (const entry of data) {
-          this.breakpoints.set(entry.lineNumber, {
+          // Backward compat: missing statementIndex defaults to -1 (whole line)
+          const stmtIdx = entry.statementIndex !== undefined ? entry.statementIndex : -1;
+          const key = BasicBreakpointManager._key(entry.lineNumber, stmtIdx);
+          this.breakpoints.set(key, {
+            lineNumber: entry.lineNumber,
+            statementIndex: stmtIdx,
             enabled: entry.enabled,
             hitCount: 0,
           });
           if (entry.enabled) {
-            this._syncWasmAdd(entry.lineNumber);
+            this._syncWasmAdd(entry.lineNumber, stmtIdx);
           }
         }
       }

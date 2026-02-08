@@ -284,6 +284,36 @@ export class BasicProgramParser {
   }
 
   /**
+   * Get the number of statements in a given line (colons + 1, respecting quotes/REM/DATA)
+   * @param {number} lineNumber
+   * @returns {number} statement count (1 if no colons)
+   */
+  getStatementCount(lineNumber) {
+    const line = this.findLine(lineNumber);
+    if (!line) return 1;
+
+    const nextPtr = readWord(this.wasmModule, line.address);
+    const tokenStart = line.tokenAddress;
+    const tokenEnd = nextPtr - 1;
+
+    let colonCount = 0;
+    let inQuote = false;
+    let inRem = false;
+
+    for (let addr = tokenStart; addr < tokenEnd; addr++) {
+      const byte = peek(this.wasmModule, addr);
+      if (byte === 0) break;
+      if (inRem) continue;
+      if (byte === 0x22) { inQuote = !inQuote; continue; }
+      if (inQuote) continue;
+      if (byte === 0xB2) { inRem = true; continue; }
+      if (byte === 0x3A) colonCount++;
+    }
+
+    return colonCount + 1;
+  }
+
+  /**
    * Get token string for a token byte
    */
   _getTokenString(byte) {
