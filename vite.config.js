@@ -35,6 +35,46 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, "public/index.html"),
       },
+      output: {
+        manualChunks: {
+          debug: [
+            "/src/js/debug/cpu-debugger-window.js",
+            "/src/js/debug/memory-browser-window.js",
+            "/src/js/debug/memory-heat-map-window.js",
+            "/src/js/debug/memory-map-window.js",
+            "/src/js/debug/stack-viewer-window.js",
+            "/src/js/debug/zero-page-watch-window.js",
+            "/src/js/debug/soft-switch-window.js",
+            "/src/js/debug/mockingboard-window.js",
+            "/src/js/debug/mouse-card-window.js",
+            "/src/js/debug/basic-program-window.js",
+            "/src/js/debug/rule-builder-window.js",
+            "/src/js/debug/assembler-editor-window.js",
+          ],
+          display: [
+            "/src/js/display/index.js",
+            "/src/js/display/webgl-renderer.js",
+            "/src/js/display/display-settings-window.js",
+            "/src/js/display/screen-window.js",
+          ],
+          "disk-manager": [
+            "/src/js/disk-manager/index.js",
+            "/src/js/disk-manager/disk-operations.js",
+            "/src/js/disk-manager/disk-persistence.js",
+            "/src/js/disk-manager/disk-surface-renderer.js",
+            "/src/js/disk-manager/disk-drives-window.js",
+            "/src/js/disk-manager/drive-sounds.js",
+          ],
+          "file-explorer": [
+            "/src/js/file-explorer/index.js",
+            "/src/js/file-explorer/dos33.js",
+            "/src/js/file-explorer/prodos.js",
+            "/src/js/file-explorer/disassembler.js",
+            "/src/js/file-explorer/file-viewer.js",
+            "/src/js/file-explorer/utils.js",
+          ],
+        },
+      },
     },
   },
 

@@ -7,8 +7,19 @@
 
 import { BaseWindow } from "../windows/base-window.js";
 import { highlightMerlinSourceInline } from "../utils/merlin-highlighting.js";
-import { MerlinEditorSupport, COL_OPCODE, COL_OPERAND, COL_COMMENT, OPCODE_WIDTH } from "../utils/merlin-editor-support.js";
-import { ROM_ROUTINES, ROM_CATEGORIES, searchRoutines, getRoutinesByCategory } from "../data/apple2-rom-routines.js";
+import {
+  MerlinEditorSupport,
+  COL_OPCODE,
+  COL_OPERAND,
+  COL_COMMENT,
+  OPCODE_WIDTH,
+} from "../utils/merlin-editor-support.js";
+import {
+  ROM_ROUTINES,
+  ROM_CATEGORIES,
+  searchRoutines,
+  getRoutinesByCategory,
+} from "../data/apple2-rom-routines.js";
 
 export class AssemblerEditorWindow extends BaseWindow {
   constructor(wasmModule, breakpointManager) {
@@ -203,9 +214,15 @@ export class AssemblerEditorWindow extends BaseWindow {
   onContentRendered() {
     this.textarea = this.contentElement.querySelector(".asm-textarea");
     this.highlight = this.contentElement.querySelector(".asm-highlight");
-    this.lineHighlight = this.contentElement.querySelector(".asm-line-highlight");
-    this.errorsOverlay = this.contentElement.querySelector(".asm-errors-overlay");
-    this.gutterContent = this.contentElement.querySelector(".asm-gutter-content");
+    this.lineHighlight = this.contentElement.querySelector(
+      ".asm-line-highlight",
+    );
+    this.errorsOverlay = this.contentElement.querySelector(
+      ".asm-errors-overlay",
+    );
+    this.gutterContent = this.contentElement.querySelector(
+      ".asm-gutter-content",
+    );
     this.assembleBtn = this.contentElement.querySelector(".asm-assemble-btn");
     this.loadBtn = this.contentElement.querySelector(".asm-load-btn");
     this.newBtn = this.contentElement.querySelector(".asm-new-btn");
@@ -214,13 +231,24 @@ export class AssemblerEditorWindow extends BaseWindow {
     this.fileInput = this.contentElement.querySelector(".asm-file-input");
     this.statusSpan = this.contentElement.querySelector(".asm-status");
     this.currentFileName = null;
-    this.columnIndicator = this.contentElement.querySelector(".asm-column-indicator");
-    this.cursorPosition = this.contentElement.querySelector(".asm-cursor-position");
-    this.symbolsContent = this.contentElement.querySelector(".asm-symbols-content");
-    this.symbolsCount = this.contentElement.querySelector(".asm-symbols-panel .asm-panel-count");
+    this.columnIndicator = this.contentElement.querySelector(
+      ".asm-column-indicator",
+    );
+    this.cursorPosition = this.contentElement.querySelector(
+      ".asm-cursor-position",
+    );
+    this.symbolsContent = this.contentElement.querySelector(
+      ".asm-symbols-content",
+    );
+    this.symbolsCount = this.contentElement.querySelector(
+      ".asm-symbols-panel .asm-panel-count",
+    );
     this.hexContent = this.contentElement.querySelector(".asm-hex-content");
-    this.hexCount = this.contentElement.querySelector(".asm-hex-panel .asm-panel-count");
-    this.columnGuides = this.contentElement.querySelectorAll(".asm-column-guide");
+    this.hexCount = this.contentElement.querySelector(
+      ".asm-hex-panel .asm-panel-count",
+    );
+    this.columnGuides =
+      this.contentElement.querySelectorAll(".asm-column-guide");
     this.editorHeader = this.contentElement.querySelector(".asm-editor-header");
 
     // ROM panel elements
@@ -230,14 +258,20 @@ export class AssemblerEditorWindow extends BaseWindow {
     this.romCategory = this.contentElement.querySelector(".asm-rom-category");
     this.romList = this.contentElement.querySelector(".asm-rom-list");
     this.romDetail = this.contentElement.querySelector(".asm-rom-detail");
-    this.romDetailName = this.contentElement.querySelector(".asm-rom-detail-name");
-    this.romDetailContent = this.contentElement.querySelector(".asm-rom-detail-content");
+    this.romDetailName = this.contentElement.querySelector(
+      ".asm-rom-detail-name",
+    );
+    this.romDetailContent = this.contentElement.querySelector(
+      ".asm-rom-detail-content",
+    );
     this.selectedRoutine = null;
 
     // Initialize ROM panel
     this.initRomPanel();
 
-    const editorContainer = this.contentElement.querySelector(".asm-editor-scroll-area");
+    const editorContainer = this.contentElement.querySelector(
+      ".asm-editor-scroll-area",
+    );
 
     // Position column guides and header labels based on character width
     this.positionColumnGuides();
@@ -270,7 +304,17 @@ export class AssemblerEditorWindow extends BaseWindow {
     });
     this.textarea.addEventListener("keyup", (e) => {
       // Check for navigation keys that might change lines
-      if (["ArrowUp", "ArrowDown", "Enter", "PageUp", "PageDown", "Home", "End"].includes(e.key)) {
+      if (
+        [
+          "ArrowUp",
+          "ArrowDown",
+          "Enter",
+          "PageUp",
+          "PageDown",
+          "Home",
+          "End",
+        ].includes(e.key)
+      ) {
         this.checkLineChangeAndFormat();
         this.scrollCursorIntoView();
       }
@@ -281,7 +325,17 @@ export class AssemblerEditorWindow extends BaseWindow {
         this.updateCurrentLineHighlight();
         this.updateCursorPosition();
         // Scroll for navigation keys
-        if (["ArrowUp", "ArrowDown", "Enter", "PageUp", "PageDown", "Home", "End"].includes(e.key)) {
+        if (
+          [
+            "ArrowUp",
+            "ArrowDown",
+            "Enter",
+            "PageUp",
+            "PageDown",
+            "Home",
+            "End",
+          ].includes(e.key)
+        ) {
           this.scrollCursorIntoView();
         }
       });
@@ -303,11 +357,13 @@ export class AssemblerEditorWindow extends BaseWindow {
     this.loadBtn.addEventListener("click", () => this.doLoad());
 
     // Clear button
-    this.contentElement.querySelector(".asm-clear-btn")
+    this.contentElement
+      .querySelector(".asm-clear-btn")
       .addEventListener("click", () => this.doClear());
 
     // Example button
-    this.contentElement.querySelector(".asm-example-btn")
+    this.contentElement
+      .querySelector(".asm-example-btn")
       .addEventListener("click", () => this.loadExample());
 
     // File management buttons
@@ -317,10 +373,14 @@ export class AssemblerEditorWindow extends BaseWindow {
     this.fileInput.addEventListener("change", (e) => this.openFile(e));
 
     // Editor support (Tab nav, smart enter, autocomplete, etc.)
-    this.editorSupport = new MerlinEditorSupport(this.textarea, editorContainer, {
-      onColumnChange: (name, col) => this.updateColumnIndicator(name, col),
-      onAssemble: () => this.doAssemble(),
-    });
+    this.editorSupport = new MerlinEditorSupport(
+      this.textarea,
+      editorContainer,
+      {
+        onColumnChange: (name, col) => this.updateColumnIndicator(name, col),
+        onAssemble: () => this.doAssemble(),
+      },
+    );
 
     // Splitters
     this.initSplitters();
@@ -344,7 +404,7 @@ export class AssemblerEditorWindow extends BaseWindow {
 
     // Keyboard shortcuts
     this.textarea.addEventListener("keydown", (e) => {
-      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const isMac = navigator.platform.toUpperCase().indexOf("MAC") >= 0;
       const modKey = isMac ? e.metaKey : e.ctrlKey;
 
       if (e.key === "F9") {
@@ -407,29 +467,42 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     const paddingLeft = parseFloat(style.paddingLeft) || 8;
 
     // Position column guide lines
-    this.columnGuides.forEach(guide => {
+    this.columnGuides.forEach((guide) => {
       const col = parseInt(guide.dataset.col, 10);
       guide.style.left = `${paddingLeft + col * charWidth}px`;
     });
 
     // Position header labels at Merlin column positions
     if (this.editorHeader) {
-      const labelEl = this.editorHeader.querySelector('.asm-editor-header-label');
-      const opcodeEl = this.editorHeader.querySelector('.asm-editor-header-opcode');
-      const operandEl = this.editorHeader.querySelector('.asm-editor-header-operand');
-      const commentEl = this.editorHeader.querySelector('.asm-editor-header-comment');
+      const labelEl = this.editorHeader.querySelector(
+        ".asm-editor-header-label",
+      );
+      const opcodeEl = this.editorHeader.querySelector(
+        ".asm-editor-header-opcode",
+      );
+      const operandEl = this.editorHeader.querySelector(
+        ".asm-editor-header-operand",
+      );
+      const commentEl = this.editorHeader.querySelector(
+        ".asm-editor-header-comment",
+      );
 
       if (labelEl) labelEl.style.left = `${paddingLeft}px`;
-      if (opcodeEl) opcodeEl.style.left = `${paddingLeft + COL_OPCODE * charWidth}px`;
-      if (operandEl) operandEl.style.left = `${paddingLeft + COL_OPERAND * charWidth}px`;
-      if (commentEl) commentEl.style.left = `${paddingLeft + COL_COMMENT * charWidth}px`;
+      if (opcodeEl)
+        opcodeEl.style.left = `${paddingLeft + COL_OPCODE * charWidth}px`;
+      if (operandEl)
+        operandEl.style.left = `${paddingLeft + COL_OPERAND * charWidth}px`;
+      if (commentEl)
+        commentEl.style.left = `${paddingLeft + COL_COMMENT * charWidth}px`;
     }
   }
 
   initSplitters() {
     const splitters = this.contentElement.querySelectorAll(".asm-splitter");
     for (const splitter of splitters) {
-      splitter.addEventListener("mousedown", (e) => this.onSplitterMouseDown(e, splitter));
+      splitter.addEventListener("mousedown", (e) =>
+        this.onSplitterMouseDown(e, splitter),
+      );
     }
   }
 
@@ -444,7 +517,9 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
 
     const containerRect = container.getBoundingClientRect();
     const startPos = isHorizontal ? e.clientY : e.clientX;
-    const prevSize = isHorizontal ? prevEl.getBoundingClientRect().height : prevEl.getBoundingClientRect().width;
+    const prevSize = isHorizontal
+      ? prevEl.getBoundingClientRect().height
+      : prevEl.getBoundingClientRect().width;
 
     const totalSize = isHorizontal
       ? containerRect.height - splitter.offsetHeight
@@ -458,7 +533,10 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
       let newPrevSize = prevSize + delta;
 
       // Clamp
-      newPrevSize = Math.max(minSize, Math.min(totalSize - minSize, newPrevSize));
+      newPrevSize = Math.max(
+        minSize,
+        Math.min(totalSize - minSize, newPrevSize),
+      );
 
       const prevPercent = (newPrevSize / totalSize) * 100;
       const nextPercent = 100 - prevPercent;
@@ -483,10 +561,10 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
   updateColumnIndicator(name, col) {
     if (!this.columnIndicator) return;
     const displayNames = {
-      label: 'Label',
-      opcode: 'Opcode',
-      operand: 'Operand',
-      comment: 'Comment',
+      label: "Label",
+      opcode: "Opcode",
+      operand: "Operand",
+      comment: "Comment",
     };
     const display = displayNames[name] || name;
     this.columnIndicator.textContent = display;
@@ -496,7 +574,7 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
   updateCursorPosition() {
     if (!this.cursorPosition || !this.textarea) return;
     const text = this.textarea.value.substring(0, this.textarea.selectionStart);
-    const lines = text.split('\n');
+    const lines = text.split("\n");
     const lineNum = lines.length;
     const col = lines[lines.length - 1].length;
     this.cursorPosition.textContent = `Ln ${lineNum}, Col ${col}`;
@@ -509,10 +587,11 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     if (!this.textarea) return;
 
     const text = this.textarea.value.substring(0, this.textarea.selectionStart);
-    const lineIndex = text.split('\n').length - 1;
+    const lineIndex = text.split("\n").length - 1;
 
     const style = getComputedStyle(this.textarea);
-    const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.4;
+    const lineHeight =
+      parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.4;
     const paddingTop = parseFloat(style.paddingTop) || 8;
     const paddingBottom = parseFloat(style.paddingBottom) || 8;
 
@@ -520,7 +599,8 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     const cursorBottom = cursorTop + lineHeight;
 
     const viewportTop = this.textarea.scrollTop;
-    const viewportBottom = viewportTop + this.textarea.clientHeight - paddingBottom;
+    const viewportBottom =
+      viewportTop + this.textarea.clientHeight - paddingBottom;
 
     // Scroll up if cursor is above viewport
     if (cursorTop < viewportTop + paddingTop) {
@@ -528,7 +608,8 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     }
     // Scroll down if cursor is below viewport
     else if (cursorBottom > viewportBottom) {
-      this.textarea.scrollTop = cursorBottom - this.textarea.clientHeight + paddingBottom + paddingTop;
+      this.textarea.scrollTop =
+        cursorBottom - this.textarea.clientHeight + paddingBottom + paddingTop;
     }
   }
 
@@ -537,7 +618,8 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     const text = this.textarea.value.substring(0, this.textarea.selectionStart);
     const lineIndex = text.split("\n").length - 1;
     const style = getComputedStyle(this.textarea);
-    const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.4;
+    const lineHeight =
+      parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.4;
     const paddingTop = parseFloat(style.paddingTop) || 0;
     const top = paddingTop + lineIndex * lineHeight - this.textarea.scrollTop;
     this.lineHighlight.style.top = `${top}px`;
@@ -568,14 +650,18 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
   formatLine(lineNumber) {
     if (!this.textarea) return;
 
-    const lines = this.textarea.value.split('\n');
+    const lines = this.textarea.value.split("\n");
     if (lineNumber < 1 || lineNumber > lines.length) return;
 
     const lineIndex = lineNumber - 1;
     const line = lines[lineIndex];
 
     // Skip empty lines or comment-only lines
-    if (!line.trim() || line.trim().startsWith(';') || line.trim().startsWith('*')) {
+    if (
+      !line.trim() ||
+      line.trim().startsWith(";") ||
+      line.trim().startsWith("*")
+    ) {
       return;
     }
 
@@ -590,7 +676,7 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     if (formatted !== line) {
       lines[lineIndex] = formatted;
       const cursorPos = this.textarea.selectionStart;
-      this.textarea.value = lines.join('\n');
+      this.textarea.value = lines.join("\n");
       this.textarea.selectionStart = this.textarea.selectionEnd = cursorPos;
       this.updateHighlighting();
     }
@@ -599,14 +685,18 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
   formatAllLines() {
     if (!this.textarea) return;
 
-    const lines = this.textarea.value.split('\n');
+    const lines = this.textarea.value.split("\n");
     let changed = false;
 
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
 
       // Skip empty lines or comment-only lines
-      if (!line.trim() || line.trim().startsWith(';') || line.trim().startsWith('*')) {
+      if (
+        !line.trim() ||
+        line.trim().startsWith(";") ||
+        line.trim().startsWith("*")
+      ) {
         continue;
       }
 
@@ -625,7 +715,7 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
 
     if (changed) {
       const cursorPos = this.textarea.selectionStart;
-      this.textarea.value = lines.join('\n');
+      this.textarea.value = lines.join("\n");
       this.textarea.selectionStart = this.textarea.selectionEnd = cursorPos;
       this.updateHighlighting();
     }
@@ -633,13 +723,13 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
 
   parseLine(line) {
     // Merlin column layout: Label, Opcode, Operand, Comment (see COL_* constants)
-    let label = '';
-    let opcode = '';
-    let operand = '';
-    let comment = '';
+    let label = "";
+    let opcode = "";
+    let operand = "";
+    let comment = "";
 
     // Check for comment at start of line (full-line comment)
-    if (line.trim().startsWith(';') || line.trim().startsWith('*')) {
+    if (line.trim().startsWith(";") || line.trim().startsWith("*")) {
       return null;
     }
 
@@ -649,34 +739,35 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     for (let i = 0; i < line.length; i++) {
       const ch = line[i];
       if (ch === '"' || ch === "'") inQuote = !inQuote;
-      if (ch === ';' && !inQuote) {
+      if (ch === ";" && !inQuote) {
         commentIdx = i;
         break;
       }
     }
 
     let mainPart = commentIdx >= 0 ? line.substring(0, commentIdx) : line;
-    comment = commentIdx >= 0 ? line.substring(commentIdx) : '';
+    comment = commentIdx >= 0 ? line.substring(commentIdx) : "";
 
     // Check if line starts with whitespace (no label)
-    const startsWithSpace = mainPart.length > 0 && (mainPart[0] === ' ' || mainPart[0] === '\t');
+    const startsWithSpace =
+      mainPart.length > 0 && (mainPart[0] === " " || mainPart[0] === "\t");
 
     // Split main part by whitespace
     const tokens = mainPart.trim().split(/\s+/);
 
-    if (tokens.length === 0 || (tokens.length === 1 && tokens[0] === '')) {
+    if (tokens.length === 0 || (tokens.length === 1 && tokens[0] === "")) {
       return null;
     }
 
     if (startsWithSpace) {
       // No label - first token is opcode
-      opcode = tokens[0] || '';
-      operand = tokens.slice(1).join(' ');
+      opcode = tokens[0] || "";
+      operand = tokens.slice(1).join(" ");
     } else {
       // First token is label
-      label = tokens[0] || '';
-      opcode = tokens[1] || '';
-      operand = tokens.slice(2).join(' ');
+      label = tokens[0] || "";
+      opcode = tokens[1] || "";
+      operand = tokens.slice(2).join(" ");
     }
 
     return { label, opcode, operand, comment };
@@ -685,14 +776,16 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
   buildFormattedLine(parsed) {
     const { label, opcode, operand, comment } = parsed;
 
-    let result = '';
+    let result = "";
 
     // Label column
-    result = label.padEnd(COL_OPCODE, ' ');
+    result = label.padEnd(COL_OPCODE, " ");
 
     // Opcode column
     if (opcode) {
-      result = result.substring(0, COL_OPCODE) + opcode.toUpperCase().padEnd(OPCODE_WIDTH, ' ');
+      result =
+        result.substring(0, COL_OPCODE) +
+        opcode.toUpperCase().padEnd(OPCODE_WIDTH, " ");
     }
 
     // Operand column
@@ -704,9 +797,9 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     if (comment) {
       const currentLen = result.trimEnd().length;
       if (currentLen < COL_COMMENT) {
-        result = result.trimEnd().padEnd(COL_COMMENT, ' ') + comment;
+        result = result.trimEnd().padEnd(COL_COMMENT, " ") + comment;
       } else {
-        result = result.trimEnd() + ' ' + comment;
+        result = result.trimEnd() + " " + comment;
       }
     }
 
@@ -718,98 +811,153 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
   getInstructionInfo() {
     return {
       // Branch / Flow
-      'JMP': { cycles: 3, bytes: 3 }, 'JSR': { cycles: 6, bytes: 3 },
-      'BCC': { cycles: 2, bytes: 2 }, 'BCS': { cycles: 2, bytes: 2 },
-      'BEQ': { cycles: 2, bytes: 2 }, 'BMI': { cycles: 2, bytes: 2 },
-      'BNE': { cycles: 2, bytes: 2 }, 'BPL': { cycles: 2, bytes: 2 },
-      'BRA': { cycles: 3, bytes: 2 }, 'BVC': { cycles: 2, bytes: 2 },
-      'BVS': { cycles: 2, bytes: 2 }, 'RTS': { cycles: 6, bytes: 1 },
-      'RTI': { cycles: 6, bytes: 1 }, 'BRK': { cycles: 7, bytes: 1 },
+      JMP: { cycles: 3, bytes: 3 },
+      JSR: { cycles: 6, bytes: 3 },
+      BCC: { cycles: 2, bytes: 2 },
+      BCS: { cycles: 2, bytes: 2 },
+      BEQ: { cycles: 2, bytes: 2 },
+      BMI: { cycles: 2, bytes: 2 },
+      BNE: { cycles: 2, bytes: 2 },
+      BPL: { cycles: 2, bytes: 2 },
+      BRA: { cycles: 3, bytes: 2 },
+      BVC: { cycles: 2, bytes: 2 },
+      BVS: { cycles: 2, bytes: 2 },
+      RTS: { cycles: 6, bytes: 1 },
+      RTI: { cycles: 6, bytes: 1 },
+      BRK: { cycles: 7, bytes: 1 },
       // Load / Store
-      'LDA': { cycles: 2, bytes: 2 }, 'LDX': { cycles: 2, bytes: 2 },
-      'LDY': { cycles: 2, bytes: 2 }, 'STA': { cycles: 3, bytes: 2 },
-      'STX': { cycles: 3, bytes: 2 }, 'STY': { cycles: 3, bytes: 2 },
-      'STZ': { cycles: 3, bytes: 2 },
+      LDA: { cycles: 2, bytes: 2 },
+      LDX: { cycles: 2, bytes: 2 },
+      LDY: { cycles: 2, bytes: 2 },
+      STA: { cycles: 3, bytes: 2 },
+      STX: { cycles: 3, bytes: 2 },
+      STY: { cycles: 3, bytes: 2 },
+      STZ: { cycles: 3, bytes: 2 },
       // Math / Logic
-      'ADC': { cycles: 2, bytes: 2 }, 'SBC': { cycles: 2, bytes: 2 },
-      'AND': { cycles: 2, bytes: 2 }, 'ORA': { cycles: 2, bytes: 2 },
-      'EOR': { cycles: 2, bytes: 2 }, 'ASL': { cycles: 2, bytes: 1 },
-      'LSR': { cycles: 2, bytes: 1 }, 'ROL': { cycles: 2, bytes: 1 },
-      'ROR': { cycles: 2, bytes: 1 }, 'INC': { cycles: 2, bytes: 1 },
-      'DEC': { cycles: 2, bytes: 1 }, 'INA': { cycles: 2, bytes: 1 },
-      'DEA': { cycles: 2, bytes: 1 }, 'INX': { cycles: 2, bytes: 1 },
-      'DEX': { cycles: 2, bytes: 1 }, 'INY': { cycles: 2, bytes: 1 },
-      'DEY': { cycles: 2, bytes: 1 }, 'CMP': { cycles: 2, bytes: 2 },
-      'CPX': { cycles: 2, bytes: 2 }, 'CPY': { cycles: 2, bytes: 2 },
-      'BIT': { cycles: 2, bytes: 2 }, 'TRB': { cycles: 5, bytes: 2 },
-      'TSB': { cycles: 5, bytes: 2 },
+      ADC: { cycles: 2, bytes: 2 },
+      SBC: { cycles: 2, bytes: 2 },
+      AND: { cycles: 2, bytes: 2 },
+      ORA: { cycles: 2, bytes: 2 },
+      EOR: { cycles: 2, bytes: 2 },
+      ASL: { cycles: 2, bytes: 1 },
+      LSR: { cycles: 2, bytes: 1 },
+      ROL: { cycles: 2, bytes: 1 },
+      ROR: { cycles: 2, bytes: 1 },
+      INC: { cycles: 2, bytes: 1 },
+      DEC: { cycles: 2, bytes: 1 },
+      INA: { cycles: 2, bytes: 1 },
+      DEA: { cycles: 2, bytes: 1 },
+      INX: { cycles: 2, bytes: 1 },
+      DEX: { cycles: 2, bytes: 1 },
+      INY: { cycles: 2, bytes: 1 },
+      DEY: { cycles: 2, bytes: 1 },
+      CMP: { cycles: 2, bytes: 2 },
+      CPX: { cycles: 2, bytes: 2 },
+      CPY: { cycles: 2, bytes: 2 },
+      BIT: { cycles: 2, bytes: 2 },
+      TRB: { cycles: 5, bytes: 2 },
+      TSB: { cycles: 5, bytes: 2 },
       // Stack / Transfer
-      'PHA': { cycles: 3, bytes: 1 }, 'PHP': { cycles: 3, bytes: 1 },
-      'PHX': { cycles: 3, bytes: 1 }, 'PHY': { cycles: 3, bytes: 1 },
-      'PLA': { cycles: 4, bytes: 1 }, 'PLP': { cycles: 4, bytes: 1 },
-      'PLX': { cycles: 4, bytes: 1 }, 'PLY': { cycles: 4, bytes: 1 },
-      'TAX': { cycles: 2, bytes: 1 }, 'TAY': { cycles: 2, bytes: 1 },
-      'TSX': { cycles: 2, bytes: 1 }, 'TXA': { cycles: 2, bytes: 1 },
-      'TXS': { cycles: 2, bytes: 1 }, 'TYA': { cycles: 2, bytes: 1 },
+      PHA: { cycles: 3, bytes: 1 },
+      PHP: { cycles: 3, bytes: 1 },
+      PHX: { cycles: 3, bytes: 1 },
+      PHY: { cycles: 3, bytes: 1 },
+      PLA: { cycles: 4, bytes: 1 },
+      PLP: { cycles: 4, bytes: 1 },
+      PLX: { cycles: 4, bytes: 1 },
+      PLY: { cycles: 4, bytes: 1 },
+      TAX: { cycles: 2, bytes: 1 },
+      TAY: { cycles: 2, bytes: 1 },
+      TSX: { cycles: 2, bytes: 1 },
+      TXA: { cycles: 2, bytes: 1 },
+      TXS: { cycles: 2, bytes: 1 },
+      TYA: { cycles: 2, bytes: 1 },
       // Flags
-      'CLC': { cycles: 2, bytes: 1 }, 'CLD': { cycles: 2, bytes: 1 },
-      'CLI': { cycles: 2, bytes: 1 }, 'CLV': { cycles: 2, bytes: 1 },
-      'SEC': { cycles: 2, bytes: 1 }, 'SED': { cycles: 2, bytes: 1 },
-      'SEI': { cycles: 2, bytes: 1 }, 'NOP': { cycles: 2, bytes: 1 },
-      'WAI': { cycles: 3, bytes: 1 }, 'STP': { cycles: 3, bytes: 1 },
+      CLC: { cycles: 2, bytes: 1 },
+      CLD: { cycles: 2, bytes: 1 },
+      CLI: { cycles: 2, bytes: 1 },
+      CLV: { cycles: 2, bytes: 1 },
+      SEC: { cycles: 2, bytes: 1 },
+      SED: { cycles: 2, bytes: 1 },
+      SEI: { cycles: 2, bytes: 1 },
+      NOP: { cycles: 2, bytes: 1 },
+      WAI: { cycles: 3, bytes: 1 },
+      STP: { cycles: 3, bytes: 1 },
       // 65C02 BBR/BBS (3 bytes: opcode, zp address, relative offset)
-      'BBR0': { cycles: 5, bytes: 3 }, 'BBR1': { cycles: 5, bytes: 3 },
-      'BBR2': { cycles: 5, bytes: 3 }, 'BBR3': { cycles: 5, bytes: 3 },
-      'BBR4': { cycles: 5, bytes: 3 }, 'BBR5': { cycles: 5, bytes: 3 },
-      'BBR6': { cycles: 5, bytes: 3 }, 'BBR7': { cycles: 5, bytes: 3 },
-      'BBS0': { cycles: 5, bytes: 3 }, 'BBS1': { cycles: 5, bytes: 3 },
-      'BBS2': { cycles: 5, bytes: 3 }, 'BBS3': { cycles: 5, bytes: 3 },
-      'BBS4': { cycles: 5, bytes: 3 }, 'BBS5': { cycles: 5, bytes: 3 },
-      'BBS6': { cycles: 5, bytes: 3 }, 'BBS7': { cycles: 5, bytes: 3 },
+      BBR0: { cycles: 5, bytes: 3 },
+      BBR1: { cycles: 5, bytes: 3 },
+      BBR2: { cycles: 5, bytes: 3 },
+      BBR3: { cycles: 5, bytes: 3 },
+      BBR4: { cycles: 5, bytes: 3 },
+      BBR5: { cycles: 5, bytes: 3 },
+      BBR6: { cycles: 5, bytes: 3 },
+      BBR7: { cycles: 5, bytes: 3 },
+      BBS0: { cycles: 5, bytes: 3 },
+      BBS1: { cycles: 5, bytes: 3 },
+      BBS2: { cycles: 5, bytes: 3 },
+      BBS3: { cycles: 5, bytes: 3 },
+      BBS4: { cycles: 5, bytes: 3 },
+      BBS5: { cycles: 5, bytes: 3 },
+      BBS6: { cycles: 5, bytes: 3 },
+      BBS7: { cycles: 5, bytes: 3 },
       // 65C02 RMB/SMB (2 bytes: opcode, zp address)
-      'RMB0': { cycles: 5, bytes: 2 }, 'RMB1': { cycles: 5, bytes: 2 },
-      'RMB2': { cycles: 5, bytes: 2 }, 'RMB3': { cycles: 5, bytes: 2 },
-      'RMB4': { cycles: 5, bytes: 2 }, 'RMB5': { cycles: 5, bytes: 2 },
-      'RMB6': { cycles: 5, bytes: 2 }, 'RMB7': { cycles: 5, bytes: 2 },
-      'SMB0': { cycles: 5, bytes: 2 }, 'SMB1': { cycles: 5, bytes: 2 },
-      'SMB2': { cycles: 5, bytes: 2 }, 'SMB3': { cycles: 5, bytes: 2 },
-      'SMB4': { cycles: 5, bytes: 2 }, 'SMB5': { cycles: 5, bytes: 2 },
-      'SMB6': { cycles: 5, bytes: 2 }, 'SMB7': { cycles: 5, bytes: 2 },
+      RMB0: { cycles: 5, bytes: 2 },
+      RMB1: { cycles: 5, bytes: 2 },
+      RMB2: { cycles: 5, bytes: 2 },
+      RMB3: { cycles: 5, bytes: 2 },
+      RMB4: { cycles: 5, bytes: 2 },
+      RMB5: { cycles: 5, bytes: 2 },
+      RMB6: { cycles: 5, bytes: 2 },
+      RMB7: { cycles: 5, bytes: 2 },
+      SMB0: { cycles: 5, bytes: 2 },
+      SMB1: { cycles: 5, bytes: 2 },
+      SMB2: { cycles: 5, bytes: 2 },
+      SMB3: { cycles: 5, bytes: 2 },
+      SMB4: { cycles: 5, bytes: 2 },
+      SMB5: { cycles: 5, bytes: 2 },
+      SMB6: { cycles: 5, bytes: 2 },
+      SMB7: { cycles: 5, bytes: 2 },
     };
   }
 
   updateGutter() {
     if (!this.gutterContent || !this.textarea) return;
 
-    const lines = this.textarea.value.split('\n');
+    const lines = this.textarea.value.split("\n");
     const instrInfo = this.getInstructionInfo();
     const opcodeTable = this.getOpcodeTable();
     const gutterLines = [];
     const numWidth = Math.max(2, String(lines.length).length);
 
     for (let i = 0; i < lines.length; i++) {
-      const lineNum = String(i + 1).padStart(numWidth, ' ');
+      const lineNum = String(i + 1).padStart(numWidth, " ");
       const lineNumber = i + 1;
       const parsed = this.parseLine(lines[i]);
-      let cycles = '';
-      let bytesHex = this.lineBytes.get(lineNumber) || '';
-      const hasError = this.errors.has(lineNumber) || this.syntaxErrors.has(lineNumber);
-      const errorClass = hasError ? ' asm-gutter-error' : '';
+      let cycles = "";
+      let bytesHex = this.lineBytes.get(lineNumber) || "";
+      const hasError =
+        this.errors.has(lineNumber) || this.syntaxErrors.has(lineNumber);
+      const errorClass = hasError ? " asm-gutter-error" : "";
 
       // Check if this line has an actual instruction (not a directive, comment, or label-only)
-      const isInstruction = parsed && parsed.opcode && opcodeTable[parsed.opcode.toUpperCase()];
+      const isInstruction =
+        parsed && parsed.opcode && opcodeTable[parsed.opcode.toUpperCase()];
 
       // Check for breakpoint at this line's address (only for instruction lines)
       const lineAddr = this.linePCs.get(lineNumber);
-      const hasBreakpoint = isInstruction && lineAddr !== undefined && this.bpManager?.has(lineAddr);
-      const bpClass = hasBreakpoint ? ' asm-gutter-bp' : '';
+      const hasBreakpoint =
+        isInstruction &&
+        lineAddr !== undefined &&
+        this.bpManager?.has(lineAddr);
+      const bpClass = hasBreakpoint ? " asm-gutter-bp" : "";
 
       // Breakpoint indicator: red dot for breakpoint, clickable space for instruction lines, nothing for non-instructions
       let bpIndicator;
       if (hasBreakpoint) {
         bpIndicator = '<span class="asm-gutter-bp-dot"></span>';
       } else if (isInstruction) {
-        bpIndicator = '<span class="asm-gutter-bp-space asm-gutter-bp-clickable"></span>';
+        bpIndicator =
+          '<span class="asm-gutter-bp-space asm-gutter-bp-clickable"></span>';
       } else {
         bpIndicator = '<span class="asm-gutter-bp-space"></span>';
       }
@@ -824,15 +972,15 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
 
       gutterLines.push(
         `<div class="asm-gutter-line${errorClass}${bpClass}" data-line="${lineNumber}">` +
-        `${bpIndicator}` +
-        `<span class="asm-gutter-ln">${lineNum}</span>` +
-        `<span class="asm-gutter-cyc">${cycles || ''}</span>` +
-        `<span class="asm-gutter-bytes">${bytesHex || ''}</span>` +
-        `</div>`
+          `${bpIndicator}` +
+          `<span class="asm-gutter-ln">${lineNum}</span>` +
+          `<span class="asm-gutter-cyc">${cycles || ""}</span>` +
+          `<span class="asm-gutter-bytes">${bytesHex || ""}</span>` +
+          `</div>`,
       );
     }
 
-    this.gutterContent.innerHTML = gutterLines.join('');
+    this.gutterContent.innerHTML = gutterLines.join("");
   }
 
   // Compatibility alias
@@ -844,55 +992,187 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
   // Modes: IMP, ACC, IMM, ZP, ZPX, ZPY, ABS, ABX, ABY, IND, IZX, IZY, ZPI, REL
   getOpcodeTable() {
     return {
-      'ADC': { IMM: 0x69, ZP: 0x65, ZPX: 0x75, ABS: 0x6D, ABX: 0x7D, ABY: 0x79, IZX: 0x61, IZY: 0x71, ZPI: 0x72 },
-      'AND': { IMM: 0x29, ZP: 0x25, ZPX: 0x35, ABS: 0x2D, ABX: 0x3D, ABY: 0x39, IZX: 0x21, IZY: 0x31, ZPI: 0x32 },
-      'ASL': { IMP: 0x0A, ACC: 0x0A, ZP: 0x06, ZPX: 0x16, ABS: 0x0E, ABX: 0x1E },
-      'BCC': { REL: 0x90 }, 'BCS': { REL: 0xB0 }, 'BEQ': { REL: 0xF0 },
-      'BIT': { IMM: 0x89, ZP: 0x24, ZPX: 0x34, ABS: 0x2C, ABX: 0x3C },
-      'BMI': { REL: 0x30 }, 'BNE': { REL: 0xD0 }, 'BPL': { REL: 0x10 },
-      'BRA': { REL: 0x80 }, 'BRK': { IMP: 0x00 }, 'BVC': { REL: 0x50 }, 'BVS': { REL: 0x70 },
-      'CLC': { IMP: 0x18 }, 'CLD': { IMP: 0xD8 }, 'CLI': { IMP: 0x58 }, 'CLV': { IMP: 0xB8 },
-      'CMP': { IMM: 0xC9, ZP: 0xC5, ZPX: 0xD5, ABS: 0xCD, ABX: 0xDD, ABY: 0xD9, IZX: 0xC1, IZY: 0xD1, ZPI: 0xD2 },
-      'CPX': { IMM: 0xE0, ZP: 0xE4, ABS: 0xEC },
-      'CPY': { IMM: 0xC0, ZP: 0xC4, ABS: 0xCC },
-      'DEC': { IMP: 0x3A, ACC: 0x3A, ZP: 0xC6, ZPX: 0xD6, ABS: 0xCE, ABX: 0xDE },
-      'DEA': { IMP: 0x3A }, 'DEX': { IMP: 0xCA }, 'DEY': { IMP: 0x88 },
-      'EOR': { IMM: 0x49, ZP: 0x45, ZPX: 0x55, ABS: 0x4D, ABX: 0x5D, ABY: 0x59, IZX: 0x41, IZY: 0x51, ZPI: 0x52 },
-      'INC': { IMP: 0x1A, ACC: 0x1A, ZP: 0xE6, ZPX: 0xF6, ABS: 0xEE, ABX: 0xFE },
-      'INA': { IMP: 0x1A }, 'INX': { IMP: 0xE8 }, 'INY': { IMP: 0xC8 },
-      'JMP': { ABS: 0x4C, IND: 0x6C, IAX: 0x7C },
-      'JSR': { ABS: 0x20 },
-      'LDA': { IMM: 0xA9, ZP: 0xA5, ZPX: 0xB5, ABS: 0xAD, ABX: 0xBD, ABY: 0xB9, IZX: 0xA1, IZY: 0xB1, ZPI: 0xB2 },
-      'LDX': { IMM: 0xA2, ZP: 0xA6, ZPY: 0xB6, ABS: 0xAE, ABY: 0xBE },
-      'LDY': { IMM: 0xA0, ZP: 0xA4, ZPX: 0xB4, ABS: 0xAC, ABX: 0xBC },
-      'LSR': { IMP: 0x4A, ACC: 0x4A, ZP: 0x46, ZPX: 0x56, ABS: 0x4E, ABX: 0x5E },
-      'NOP': { IMP: 0xEA },
-      'ORA': { IMM: 0x09, ZP: 0x05, ZPX: 0x15, ABS: 0x0D, ABX: 0x1D, ABY: 0x19, IZX: 0x01, IZY: 0x11, ZPI: 0x12 },
-      'PHA': { IMP: 0x48 }, 'PHP': { IMP: 0x08 }, 'PHX': { IMP: 0xDA }, 'PHY': { IMP: 0x5A },
-      'PLA': { IMP: 0x68 }, 'PLP': { IMP: 0x28 }, 'PLX': { IMP: 0xFA }, 'PLY': { IMP: 0x7A },
-      'ROL': { IMP: 0x2A, ACC: 0x2A, ZP: 0x26, ZPX: 0x36, ABS: 0x2E, ABX: 0x3E },
-      'ROR': { IMP: 0x6A, ACC: 0x6A, ZP: 0x66, ZPX: 0x76, ABS: 0x6E, ABX: 0x7E },
-      'RTI': { IMP: 0x40 }, 'RTS': { IMP: 0x60 },
-      'SBC': { IMM: 0xE9, ZP: 0xE5, ZPX: 0xF5, ABS: 0xED, ABX: 0xFD, ABY: 0xF9, IZX: 0xE1, IZY: 0xF1, ZPI: 0xF2 },
-      'SEC': { IMP: 0x38 }, 'SED': { IMP: 0xF8 }, 'SEI': { IMP: 0x78 },
-      'STA': { ZP: 0x85, ZPX: 0x95, ABS: 0x8D, ABX: 0x9D, ABY: 0x99, IZX: 0x81, IZY: 0x91, ZPI: 0x92 },
-      'STX': { ZP: 0x86, ZPY: 0x96, ABS: 0x8E },
-      'STY': { ZP: 0x84, ZPX: 0x94, ABS: 0x8C },
-      'STZ': { ZP: 0x64, ZPX: 0x74, ABS: 0x9C, ABX: 0x9E },
-      'TAX': { IMP: 0xAA }, 'TAY': { IMP: 0xA8 }, 'TRB': { ZP: 0x14, ABS: 0x1C },
-      'TSB': { ZP: 0x04, ABS: 0x0C }, 'TSX': { IMP: 0xBA }, 'TXA': { IMP: 0x8A },
-      'TXS': { IMP: 0x9A }, 'TYA': { IMP: 0x98 },
-      'WAI': { IMP: 0xCB }, 'STP': { IMP: 0xDB },
+      ADC: {
+        IMM: 0x69,
+        ZP: 0x65,
+        ZPX: 0x75,
+        ABS: 0x6d,
+        ABX: 0x7d,
+        ABY: 0x79,
+        IZX: 0x61,
+        IZY: 0x71,
+        ZPI: 0x72,
+      },
+      AND: {
+        IMM: 0x29,
+        ZP: 0x25,
+        ZPX: 0x35,
+        ABS: 0x2d,
+        ABX: 0x3d,
+        ABY: 0x39,
+        IZX: 0x21,
+        IZY: 0x31,
+        ZPI: 0x32,
+      },
+      ASL: { IMP: 0x0a, ACC: 0x0a, ZP: 0x06, ZPX: 0x16, ABS: 0x0e, ABX: 0x1e },
+      BCC: { REL: 0x90 },
+      BCS: { REL: 0xb0 },
+      BEQ: { REL: 0xf0 },
+      BIT: { IMM: 0x89, ZP: 0x24, ZPX: 0x34, ABS: 0x2c, ABX: 0x3c },
+      BMI: { REL: 0x30 },
+      BNE: { REL: 0xd0 },
+      BPL: { REL: 0x10 },
+      BRA: { REL: 0x80 },
+      BRK: { IMP: 0x00 },
+      BVC: { REL: 0x50 },
+      BVS: { REL: 0x70 },
+      CLC: { IMP: 0x18 },
+      CLD: { IMP: 0xd8 },
+      CLI: { IMP: 0x58 },
+      CLV: { IMP: 0xb8 },
+      CMP: {
+        IMM: 0xc9,
+        ZP: 0xc5,
+        ZPX: 0xd5,
+        ABS: 0xcd,
+        ABX: 0xdd,
+        ABY: 0xd9,
+        IZX: 0xc1,
+        IZY: 0xd1,
+        ZPI: 0xd2,
+      },
+      CPX: { IMM: 0xe0, ZP: 0xe4, ABS: 0xec },
+      CPY: { IMM: 0xc0, ZP: 0xc4, ABS: 0xcc },
+      DEC: { IMP: 0x3a, ACC: 0x3a, ZP: 0xc6, ZPX: 0xd6, ABS: 0xce, ABX: 0xde },
+      DEA: { IMP: 0x3a },
+      DEX: { IMP: 0xca },
+      DEY: { IMP: 0x88 },
+      EOR: {
+        IMM: 0x49,
+        ZP: 0x45,
+        ZPX: 0x55,
+        ABS: 0x4d,
+        ABX: 0x5d,
+        ABY: 0x59,
+        IZX: 0x41,
+        IZY: 0x51,
+        ZPI: 0x52,
+      },
+      INC: { IMP: 0x1a, ACC: 0x1a, ZP: 0xe6, ZPX: 0xf6, ABS: 0xee, ABX: 0xfe },
+      INA: { IMP: 0x1a },
+      INX: { IMP: 0xe8 },
+      INY: { IMP: 0xc8 },
+      JMP: { ABS: 0x4c, IND: 0x6c, IAX: 0x7c },
+      JSR: { ABS: 0x20 },
+      LDA: {
+        IMM: 0xa9,
+        ZP: 0xa5,
+        ZPX: 0xb5,
+        ABS: 0xad,
+        ABX: 0xbd,
+        ABY: 0xb9,
+        IZX: 0xa1,
+        IZY: 0xb1,
+        ZPI: 0xb2,
+      },
+      LDX: { IMM: 0xa2, ZP: 0xa6, ZPY: 0xb6, ABS: 0xae, ABY: 0xbe },
+      LDY: { IMM: 0xa0, ZP: 0xa4, ZPX: 0xb4, ABS: 0xac, ABX: 0xbc },
+      LSR: { IMP: 0x4a, ACC: 0x4a, ZP: 0x46, ZPX: 0x56, ABS: 0x4e, ABX: 0x5e },
+      NOP: { IMP: 0xea },
+      ORA: {
+        IMM: 0x09,
+        ZP: 0x05,
+        ZPX: 0x15,
+        ABS: 0x0d,
+        ABX: 0x1d,
+        ABY: 0x19,
+        IZX: 0x01,
+        IZY: 0x11,
+        ZPI: 0x12,
+      },
+      PHA: { IMP: 0x48 },
+      PHP: { IMP: 0x08 },
+      PHX: { IMP: 0xda },
+      PHY: { IMP: 0x5a },
+      PLA: { IMP: 0x68 },
+      PLP: { IMP: 0x28 },
+      PLX: { IMP: 0xfa },
+      PLY: { IMP: 0x7a },
+      ROL: { IMP: 0x2a, ACC: 0x2a, ZP: 0x26, ZPX: 0x36, ABS: 0x2e, ABX: 0x3e },
+      ROR: { IMP: 0x6a, ACC: 0x6a, ZP: 0x66, ZPX: 0x76, ABS: 0x6e, ABX: 0x7e },
+      RTI: { IMP: 0x40 },
+      RTS: { IMP: 0x60 },
+      SBC: {
+        IMM: 0xe9,
+        ZP: 0xe5,
+        ZPX: 0xf5,
+        ABS: 0xed,
+        ABX: 0xfd,
+        ABY: 0xf9,
+        IZX: 0xe1,
+        IZY: 0xf1,
+        ZPI: 0xf2,
+      },
+      SEC: { IMP: 0x38 },
+      SED: { IMP: 0xf8 },
+      SEI: { IMP: 0x78 },
+      STA: {
+        ZP: 0x85,
+        ZPX: 0x95,
+        ABS: 0x8d,
+        ABX: 0x9d,
+        ABY: 0x99,
+        IZX: 0x81,
+        IZY: 0x91,
+        ZPI: 0x92,
+      },
+      STX: { ZP: 0x86, ZPY: 0x96, ABS: 0x8e },
+      STY: { ZP: 0x84, ZPX: 0x94, ABS: 0x8c },
+      STZ: { ZP: 0x64, ZPX: 0x74, ABS: 0x9c, ABX: 0x9e },
+      TAX: { IMP: 0xaa },
+      TAY: { IMP: 0xa8 },
+      TRB: { ZP: 0x14, ABS: 0x1c },
+      TSB: { ZP: 0x04, ABS: 0x0c },
+      TSX: { IMP: 0xba },
+      TXA: { IMP: 0x8a },
+      TXS: { IMP: 0x9a },
+      TYA: { IMP: 0x98 },
+      WAI: { IMP: 0xcb },
+      STP: { IMP: 0xdb },
       // BBR/BBS (zero page relative - 3 bytes)
-      'BBR0': { ZPR: 0x0F }, 'BBR1': { ZPR: 0x1F }, 'BBR2': { ZPR: 0x2F }, 'BBR3': { ZPR: 0x3F },
-      'BBR4': { ZPR: 0x4F }, 'BBR5': { ZPR: 0x5F }, 'BBR6': { ZPR: 0x6F }, 'BBR7': { ZPR: 0x7F },
-      'BBS0': { ZPR: 0x8F }, 'BBS1': { ZPR: 0x9F }, 'BBS2': { ZPR: 0xAF }, 'BBS3': { ZPR: 0xBF },
-      'BBS4': { ZPR: 0xCF }, 'BBS5': { ZPR: 0xDF }, 'BBS6': { ZPR: 0xEF }, 'BBS7': { ZPR: 0xFF },
+      BBR0: { ZPR: 0x0f },
+      BBR1: { ZPR: 0x1f },
+      BBR2: { ZPR: 0x2f },
+      BBR3: { ZPR: 0x3f },
+      BBR4: { ZPR: 0x4f },
+      BBR5: { ZPR: 0x5f },
+      BBR6: { ZPR: 0x6f },
+      BBR7: { ZPR: 0x7f },
+      BBS0: { ZPR: 0x8f },
+      BBS1: { ZPR: 0x9f },
+      BBS2: { ZPR: 0xaf },
+      BBS3: { ZPR: 0xbf },
+      BBS4: { ZPR: 0xcf },
+      BBS5: { ZPR: 0xdf },
+      BBS6: { ZPR: 0xef },
+      BBS7: { ZPR: 0xff },
       // RMB/SMB (zero page - 2 bytes)
-      'RMB0': { ZP: 0x07 }, 'RMB1': { ZP: 0x17 }, 'RMB2': { ZP: 0x27 }, 'RMB3': { ZP: 0x37 },
-      'RMB4': { ZP: 0x47 }, 'RMB5': { ZP: 0x57 }, 'RMB6': { ZP: 0x67 }, 'RMB7': { ZP: 0x77 },
-      'SMB0': { ZP: 0x87 }, 'SMB1': { ZP: 0x97 }, 'SMB2': { ZP: 0xA7 }, 'SMB3': { ZP: 0xB7 },
-      'SMB4': { ZP: 0xC7 }, 'SMB5': { ZP: 0xD7 }, 'SMB6': { ZP: 0xE7 }, 'SMB7': { ZP: 0xF7 },
+      RMB0: { ZP: 0x07 },
+      RMB1: { ZP: 0x17 },
+      RMB2: { ZP: 0x27 },
+      RMB3: { ZP: 0x37 },
+      RMB4: { ZP: 0x47 },
+      RMB5: { ZP: 0x57 },
+      RMB6: { ZP: 0x67 },
+      RMB7: { ZP: 0x77 },
+      SMB0: { ZP: 0x87 },
+      SMB1: { ZP: 0x97 },
+      SMB2: { ZP: 0xa7 },
+      SMB3: { ZP: 0xb7 },
+      SMB4: { ZP: 0xc7 },
+      SMB5: { ZP: 0xd7 },
+      SMB6: { ZP: 0xe7 },
+      SMB7: { ZP: 0xf7 },
     };
   }
 
@@ -901,8 +1181,8 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
    * Returns { mode, value, value2 } or null if unparseable
    */
   parseOperand(operand, mnemonic) {
-    if (!operand || operand.trim() === '') {
-      return { mode: 'IMP', value: null };
+    if (!operand || operand.trim() === "") {
+      return { mode: "IMP", value: null };
     }
 
     operand = operand.trim();
@@ -910,35 +1190,35 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     if (!opcodes) return null;
 
     // Immediate: #$xx or #value
-    if (operand.startsWith('#')) {
+    if (operand.startsWith("#")) {
       const val = this.parseValue(operand.substring(1));
       if (val !== null) {
-        return { mode: 'IMM', value: val & 0xFF };
+        return { mode: "IMM", value: val & 0xff };
       }
       return null; // Unresolved symbol
     }
 
     // Indirect modes
-    if (operand.startsWith('(')) {
+    if (operand.startsWith("(")) {
       // (addr,X) - Indexed indirect
       if (operand.match(/^\([^)]+,\s*X\)$/i)) {
         const inner = operand.match(/^\(([^,]+),/i)[1];
         const val = this.parseValue(inner);
-        if (val !== null) return { mode: 'IZX', value: val & 0xFF };
+        if (val !== null) return { mode: "IZX", value: val & 0xff };
         return null;
       }
       // (addr),Y - Indirect indexed
       if (operand.match(/^\([^)]+\)\s*,\s*Y$/i)) {
         const inner = operand.match(/^\(([^)]+)\)/i)[1];
         const val = this.parseValue(inner);
-        if (val !== null) return { mode: 'IZY', value: val & 0xFF };
+        if (val !== null) return { mode: "IZY", value: val & 0xff };
         return null;
       }
       // (addr,X) for JMP
       if (operand.match(/^\([^)]+,\s*X\)$/i) && opcodes.IAX) {
         const inner = operand.match(/^\(([^,]+),/i)[1];
         const val = this.parseValue(inner);
-        if (val !== null) return { mode: 'IAX', value: val & 0xFFFF };
+        if (val !== null) return { mode: "IAX", value: val & 0xffff };
         return null;
       }
       // (addr) - Indirect (JMP) or Zero Page Indirect (65C02)
@@ -946,9 +1226,10 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
         const inner = operand.match(/^\(([^)]+)\)$/)[1];
         const val = this.parseValue(inner);
         if (val !== null) {
-          if (opcodes.IND && val > 0xFF) return { mode: 'IND', value: val & 0xFFFF };
-          if (opcodes.ZPI) return { mode: 'ZPI', value: val & 0xFF };
-          if (opcodes.IND) return { mode: 'IND', value: val & 0xFFFF };
+          if (opcodes.IND && val > 0xff)
+            return { mode: "IND", value: val & 0xffff };
+          if (opcodes.ZPI) return { mode: "ZPI", value: val & 0xff };
+          if (opcodes.IND) return { mode: "IND", value: val & 0xffff };
         }
         return null;
       }
@@ -956,27 +1237,27 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
 
     // addr,X or addr,Y
     if (operand.match(/,\s*X$/i)) {
-      const addrPart = operand.replace(/,\s*X$/i, '').trim();
+      const addrPart = operand.replace(/,\s*X$/i, "").trim();
       const val = this.parseValue(addrPart);
       if (val !== null) {
-        if (val <= 0xFF && opcodes.ZPX) return { mode: 'ZPX', value: val };
-        if (opcodes.ABX) return { mode: 'ABX', value: val & 0xFFFF };
+        if (val <= 0xff && opcodes.ZPX) return { mode: "ZPX", value: val };
+        if (opcodes.ABX) return { mode: "ABX", value: val & 0xffff };
       }
       return null;
     }
     if (operand.match(/,\s*Y$/i)) {
-      const addrPart = operand.replace(/,\s*Y$/i, '').trim();
+      const addrPart = operand.replace(/,\s*Y$/i, "").trim();
       const val = this.parseValue(addrPart);
       if (val !== null) {
-        if (val <= 0xFF && opcodes.ZPY) return { mode: 'ZPY', value: val };
-        if (opcodes.ABY) return { mode: 'ABY', value: val & 0xFFFF };
+        if (val <= 0xff && opcodes.ZPY) return { mode: "ZPY", value: val };
+        if (opcodes.ABY) return { mode: "ABY", value: val & 0xffff };
       }
       return null;
     }
 
     // Accumulator mode (A or empty for shift/rotate)
-    if (operand.toUpperCase() === 'A' && opcodes.ACC) {
-      return { mode: 'ACC', value: null };
+    if (operand.toUpperCase() === "A" && opcodes.ACC) {
+      return { mode: "ACC", value: null };
     }
 
     // Branch relative - just parse the target, we'll show ?? for offset
@@ -984,14 +1265,14 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
       const val = this.parseValue(operand);
       // For branches, we can't calculate offset without knowing current PC
       // Just return the mode with the target value
-      return { mode: 'REL', value: val };
+      return { mode: "REL", value: val };
     }
 
     // Plain address - zero page or absolute
     const val = this.parseValue(operand);
     if (val !== null) {
-      if (val <= 0xFF && opcodes.ZP) return { mode: 'ZP', value: val };
-      if (opcodes.ABS) return { mode: 'ABS', value: val & 0xFFFF };
+      if (val <= 0xff && opcodes.ZP) return { mode: "ZP", value: val };
+      if (opcodes.ABS) return { mode: "ABS", value: val & 0xffff };
     }
 
     return null; // Unresolved
@@ -1012,14 +1293,19 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
   }
 
   _exprSkipSpaces() {
-    while (this._exprPos < this._exprStr.length && this._exprStr[this._exprPos] === ' ') {
+    while (
+      this._exprPos < this._exprStr.length &&
+      this._exprStr[this._exprPos] === " "
+    ) {
       this._exprPos++;
     }
   }
 
   _exprPeek() {
     this._exprSkipSpaces();
-    return this._exprPos < this._exprStr.length ? this._exprStr[this._exprPos] : null;
+    return this._exprPos < this._exprStr.length
+      ? this._exprStr[this._exprPos]
+      : null;
   }
 
   _exprAddSub() {
@@ -1027,12 +1313,12 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     if (val === null) return null;
     while (true) {
       const ch = this._exprPeek();
-      if (ch === '+') {
+      if (ch === "+") {
         this._exprPos++;
         const right = this._exprMulDiv();
         if (right === null) return null;
         val = val + right;
-      } else if (ch === '-') {
+      } else if (ch === "-") {
         this._exprPos++;
         const right = this._exprMulDiv();
         if (right === null) return null;
@@ -1050,12 +1336,12 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     while (true) {
       const ch = this._exprPeek();
       // * here is always multiply — PC reference is handled in _exprPrimary
-      if (ch === '*') {
+      if (ch === "*") {
         this._exprPos++;
         const right = this._exprUnary();
         if (right === null) return null;
         val = val * right;
-      } else if (ch === '/') {
+      } else if (ch === "/") {
         this._exprPos++;
         const right = this._exprUnary();
         if (right === null) return null;
@@ -1069,17 +1355,17 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
 
   _exprUnary() {
     const ch = this._exprPeek();
-    if (ch === '<') {
+    if (ch === "<") {
       this._exprPos++;
       const val = this._exprUnary();
-      return val !== null ? (val & 0xFF) : null;
+      return val !== null ? val & 0xff : null;
     }
-    if (ch === '>') {
+    if (ch === ">") {
       this._exprPos++;
       const val = this._exprUnary();
-      return val !== null ? ((val >> 8) & 0xFF) : null;
+      return val !== null ? (val >> 8) & 0xff : null;
     }
-    if (ch === '-') {
+    if (ch === "-") {
       this._exprPos++;
       const val = this._exprUnary();
       return val !== null ? -val : null;
@@ -1093,27 +1379,33 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     const ch = this._exprStr[this._exprPos];
 
     // Parenthesized sub-expression
-    if (ch === '(') {
+    if (ch === "(") {
       this._exprPos++;
       const val = this._exprAddSub();
       this._exprSkipSpaces();
-      if (this._exprPos < this._exprStr.length && this._exprStr[this._exprPos] === ')') {
+      if (
+        this._exprPos < this._exprStr.length &&
+        this._exprStr[this._exprPos] === ")"
+      ) {
         this._exprPos++;
       }
       return val;
     }
 
     // Current PC: *
-    if (ch === '*') {
+    if (ch === "*") {
       this._exprPos++;
       return this.currentPC !== undefined ? this.currentPC : null;
     }
 
     // Hex: $xxxx
-    if (ch === '$') {
+    if (ch === "$") {
       this._exprPos++;
       let start = this._exprPos;
-      while (this._exprPos < this._exprStr.length && /[0-9A-Fa-f]/.test(this._exprStr[this._exprPos])) {
+      while (
+        this._exprPos < this._exprStr.length &&
+        /[0-9A-Fa-f]/.test(this._exprStr[this._exprPos])
+      ) {
         this._exprPos++;
       }
       if (this._exprPos === start) return null;
@@ -1121,10 +1413,13 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     }
 
     // Binary: %01010101
-    if (ch === '%') {
+    if (ch === "%") {
       this._exprPos++;
       let start = this._exprPos;
-      while (this._exprPos < this._exprStr.length && /[01]/.test(this._exprStr[this._exprPos])) {
+      while (
+        this._exprPos < this._exprStr.length &&
+        /[01]/.test(this._exprStr[this._exprPos])
+      ) {
         this._exprPos++;
       }
       if (this._exprPos === start) return null;
@@ -1137,7 +1432,10 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
       if (this._exprPos >= this._exprStr.length) return null;
       const val = this._exprStr.charCodeAt(this._exprPos);
       this._exprPos++;
-      if (this._exprPos < this._exprStr.length && this._exprStr[this._exprPos] === "'") {
+      if (
+        this._exprPos < this._exprStr.length &&
+        this._exprStr[this._exprPos] === "'"
+      ) {
         this._exprPos++;
       }
       return val;
@@ -1146,7 +1444,10 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     // Decimal number
     if (/[0-9]/.test(ch)) {
       let start = this._exprPos;
-      while (this._exprPos < this._exprStr.length && /[0-9]/.test(this._exprStr[this._exprPos])) {
+      while (
+        this._exprPos < this._exprStr.length &&
+        /[0-9]/.test(this._exprStr[this._exprPos])
+      ) {
         this._exprPos++;
       }
       return parseInt(this._exprStr.substring(start, this._exprPos), 10);
@@ -1155,7 +1456,10 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     // Symbol / label
     if (/[A-Za-z_:\]]/.test(ch)) {
       let start = this._exprPos;
-      while (this._exprPos < this._exprStr.length && /[A-Za-z0-9_:\]]/.test(this._exprStr[this._exprPos])) {
+      while (
+        this._exprPos < this._exprStr.length &&
+        /[A-Za-z0-9_:\]]/.test(this._exprStr[this._exprPos])
+      ) {
         this._exprPos++;
       }
       const name = this._exprStr.substring(start, this._exprPos).toUpperCase();
@@ -1174,7 +1478,7 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
   encodeLineBytes(lineNumber) {
     if (!this.textarea) return;
 
-    const lines = this.textarea.value.split('\n');
+    const lines = this.textarea.value.split("\n");
     if (lineNumber < 1 || lineNumber > lines.length) return;
 
     const line = lines[lineNumber - 1];
@@ -1207,11 +1511,11 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     }
 
     // Build the byte string
-    let bytes = opcode.toString(16).toUpperCase().padStart(2, '0');
+    let bytes = opcode.toString(16).toUpperCase().padStart(2, "0");
 
-    if (operandInfo.mode === 'IMP' || operandInfo.mode === 'ACC') {
+    if (operandInfo.mode === "IMP" || operandInfo.mode === "ACC") {
       // 1 byte - just the opcode
-    } else if (operandInfo.mode === 'REL') {
+    } else if (operandInfo.mode === "REL") {
       // Branch - calculate relative offset if we know target and current PC
       const targetAddr = operandInfo.value;
       const currentPC = this.linePCs?.get(lineNumber);
@@ -1223,34 +1527,43 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
 
         // Check if offset is in valid range (-128 to +127)
         if (offset >= -128 && offset <= 127) {
-          const signedByte = offset < 0 ? (256 + offset) : offset;
-          bytes += ' ' + signedByte.toString(16).toUpperCase().padStart(2, '0');
+          const signedByte = offset < 0 ? 256 + offset : offset;
+          bytes += " " + signedByte.toString(16).toUpperCase().padStart(2, "0");
         } else {
-          bytes += ' ??'; // Out of range
+          bytes += " ??"; // Out of range
         }
       } else {
-        bytes += ' ??'; // Unknown target
+        bytes += " ??"; // Unknown target
       }
-    } else if (['IMM', 'ZP', 'ZPX', 'ZPY', 'IZX', 'IZY', 'ZPI'].includes(operandInfo.mode)) {
+    } else if (
+      ["IMM", "ZP", "ZPX", "ZPY", "IZX", "IZY", "ZPI"].includes(
+        operandInfo.mode,
+      )
+    ) {
       // 2 bytes
       if (operandInfo.value !== null) {
-        bytes += ' ' + (operandInfo.value & 0xFF).toString(16).toUpperCase().padStart(2, '0');
+        bytes +=
+          " " +
+          (operandInfo.value & 0xff)
+            .toString(16)
+            .toUpperCase()
+            .padStart(2, "0");
       } else {
-        bytes += ' ??';
+        bytes += " ??";
       }
-    } else if (['ABS', 'ABX', 'ABY', 'IND', 'IAX'].includes(operandInfo.mode)) {
+    } else if (["ABS", "ABX", "ABY", "IND", "IAX"].includes(operandInfo.mode)) {
       // 3 bytes (little-endian)
       if (operandInfo.value !== null) {
-        const lo = operandInfo.value & 0xFF;
-        const hi = (operandInfo.value >> 8) & 0xFF;
-        bytes += ' ' + lo.toString(16).toUpperCase().padStart(2, '0');
-        bytes += ' ' + hi.toString(16).toUpperCase().padStart(2, '0');
+        const lo = operandInfo.value & 0xff;
+        const hi = (operandInfo.value >> 8) & 0xff;
+        bytes += " " + lo.toString(16).toUpperCase().padStart(2, "0");
+        bytes += " " + hi.toString(16).toUpperCase().padStart(2, "0");
       } else {
-        bytes += ' ?? ??';
+        bytes += " ?? ??";
       }
-    } else if (operandInfo.mode === 'ZPR') {
+    } else if (operandInfo.mode === "ZPR") {
       // 3 bytes: opcode, zp addr, relative offset
-      bytes += ' ?? ??';
+      bytes += " ?? ??";
     }
 
     this.lineBytes.set(lineNumber, bytes);
@@ -1263,7 +1576,7 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     this.lineBytes.clear();
     this.linePCs = new Map(); // Track PC for each line
 
-    const lines = this.textarea.value.split('\n');
+    const lines = this.textarea.value.split("\n");
 
     // Find ORG from source code, default to $0800 if not found yet
     let pc = 0x0800;
@@ -1278,7 +1591,7 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
         const mnem = parsed.opcode.toUpperCase();
 
         // Check for ORG directive and update PC
-        if (mnem === 'ORG') {
+        if (mnem === "ORG") {
           this.currentPC = pc;
           const orgValue = this.parseValue(parsed.operand);
           if (orgValue !== null) {
@@ -1289,7 +1602,7 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
         // Collect label addresses and EQU values
         if (parsed.label) {
           const labelUpper = parsed.label.toUpperCase();
-          if (mnem === 'EQU') {
+          if (mnem === "EQU") {
             this.currentPC = pc;
             const val = this.parseValue(parsed.operand);
             if (val !== null) {
@@ -1311,7 +1624,10 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
       this.linePCs.set(lineNumber, pc);
 
       if (parsed && parsed.opcode) {
-        const size = this.getInstructionSize(parsed.opcode.toUpperCase(), parsed.operand);
+        const size = this.getInstructionSize(
+          parsed.opcode.toUpperCase(),
+          parsed.operand,
+        );
         pc += size;
       }
     }
@@ -1322,12 +1638,12 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
       const parsed = this.parseLine(lines[i]);
       if (parsed && parsed.opcode) {
         const mnem = parsed.opcode.toUpperCase();
-        if (mnem === 'ORG') {
+        if (mnem === "ORG") {
           this.currentPC = pc;
           const orgValue = this.parseValue(parsed.operand);
           if (orgValue !== null) pc = orgValue;
         }
-        if (parsed.label && mnem === 'EQU') {
+        if (parsed.label && mnem === "EQU") {
           this.currentPC = pc;
           const val = this.parseValue(parsed.operand);
           if (val !== null) {
@@ -1337,7 +1653,10 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
       }
       this.currentPC = this.linePCs.get(i + 1);
       if (parsed && parsed.opcode) {
-        const size = this.getInstructionSize(parsed.opcode.toUpperCase(), parsed.operand);
+        const size = this.getInstructionSize(
+          parsed.opcode.toUpperCase(),
+          parsed.operand,
+        );
         pc += size;
       }
     }
@@ -1358,29 +1677,29 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     if (!opcodes) {
       // Check if it's a directive
       const upper = mnemonic.toUpperCase();
-      if (upper === 'ORG' || upper === 'EQU') return 0;
-      if (upper === 'DFB' || upper === 'DB') {
+      if (upper === "ORG" || upper === "EQU") return 0;
+      if (upper === "DFB" || upper === "DB") {
         // Count comma-separated values
         if (!operand) return 1;
-        return operand.split(',').length;
+        return operand.split(",").length;
       }
-      if (upper === 'DW' || upper === 'DA') {
+      if (upper === "DW" || upper === "DA") {
         if (!operand) return 2;
-        return operand.split(',').length * 2;
+        return operand.split(",").length * 2;
       }
-      if (upper === 'ASC' || upper === 'DCI') {
+      if (upper === "ASC" || upper === "DCI") {
         // String length (rough estimate)
         const match = operand?.match(/["']([^"']*)["']/);
         if (match) return match[1].length;
         return 0;
       }
-      if (upper === 'DS') {
+      if (upper === "DS") {
         const val = this.parseValue(operand);
         return val || 0;
       }
-      if (upper === 'HEX') {
+      if (upper === "HEX") {
         // Count hex digits / 2
-        const hex = operand?.replace(/[^0-9A-Fa-f]/g, '') || '';
+        const hex = operand?.replace(/[^0-9A-Fa-f]/g, "") || "";
         return Math.floor(hex.length / 2);
       }
       return 0;
@@ -1391,24 +1710,24 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
 
     // Size based on addressing mode
     switch (operandInfo.mode) {
-      case 'IMP':
-      case 'ACC':
+      case "IMP":
+      case "ACC":
         return 1;
-      case 'IMM':
-      case 'ZP':
-      case 'ZPX':
-      case 'ZPY':
-      case 'IZX':
-      case 'IZY':
-      case 'ZPI':
-      case 'REL':
+      case "IMM":
+      case "ZP":
+      case "ZPX":
+      case "ZPY":
+      case "IZX":
+      case "IZY":
+      case "ZPI":
+      case "REL":
         return 2;
-      case 'ABS':
-      case 'ABX':
-      case 'ABY':
-      case 'IND':
-      case 'IAX':
-      case 'ZPR':
+      case "ABS":
+      case "ABX":
+      case "ABY":
+      case "IND":
+      case "IAX":
+      case "ZPR":
         return 3;
       default:
         return 1;
@@ -1421,7 +1740,7 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
   validateLine(lineNumber) {
     if (!this.textarea) return;
 
-    const lines = this.textarea.value.split('\n');
+    const lines = this.textarea.value.split("\n");
     if (lineNumber < 1 || lineNumber > lines.length) return;
 
     const line = lines[lineNumber - 1];
@@ -1434,7 +1753,7 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
 
     // Full-line comments are valid
     const trimmed = line.trim();
-    if (trimmed.startsWith(';') || trimmed.startsWith('*')) return;
+    if (trimmed.startsWith(";") || trimmed.startsWith("*")) return;
 
     // Parse the line to validate structure
     const error = this.checkLineSyntax(line);
@@ -1459,7 +1778,7 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
       } else if (ch === quoteChar && inQuote) {
         inQuote = false;
         quoteChar = null;
-      } else if (ch === ';' && !inQuote) {
+      } else if (ch === ";" && !inQuote) {
         commentIdx = i;
         break;
       }
@@ -1471,11 +1790,12 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     if (!mainPart.trim()) return null;
 
     // Check if line starts with whitespace (no label)
-    const hasLabel = mainPart.length > 0 && mainPart[0] !== ' ' && mainPart[0] !== '\t';
+    const hasLabel =
+      mainPart.length > 0 && mainPart[0] !== " " && mainPart[0] !== "\t";
 
     // Tokenize the main part
     const tokens = [];
-    let current = '';
+    let current = "";
     let inStr = false;
     let strChar = null;
 
@@ -1490,10 +1810,10 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
         inStr = false;
         strChar = null;
         current += ch;
-      } else if ((ch === ' ' || ch === '\t') && !inStr) {
+      } else if ((ch === " " || ch === "\t") && !inStr) {
         if (current) {
           tokens.push({ text: current, pos: i - current.length });
-          current = '';
+          current = "";
         }
       } else {
         current += ch;
@@ -1532,12 +1852,18 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
           return `Unknown mnemonic or directive: ${tokens[1].text}`;
         }
         // Validate operand for invalid numbers
-        const operandError = this.validateOperandNumbers(tokens[1].text, tokens[2].text);
+        const operandError = this.validateOperandNumbers(
+          tokens[1].text,
+          tokens[2].text,
+        );
         if (operandError) return operandError;
         return null;
       } else if (tokens.length > 3) {
         // Too many tokens - find the extra one
-        const extra = tokens.slice(3).map(t => t.text).join(' ');
+        const extra = tokens
+          .slice(3)
+          .map((t) => t.text)
+          .join(" ");
         return `Unexpected: ${extra}`;
       }
     } else {
@@ -1554,12 +1880,18 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
           return `Unknown mnemonic or directive: ${tokens[0].text}`;
         }
         // Validate operand for invalid numbers
-        const operandError = this.validateOperandNumbers(tokens[0].text, tokens[1].text);
+        const operandError = this.validateOperandNumbers(
+          tokens[0].text,
+          tokens[1].text,
+        );
         if (operandError) return operandError;
         return null;
       } else if (tokens.length > 2) {
         // Too many tokens
-        const extra = tokens.slice(2).map(t => t.text).join(' ');
+        const extra = tokens
+          .slice(2)
+          .map((t) => t.text)
+          .join(" ");
         return `Unexpected: ${extra}`;
       }
     }
@@ -1580,10 +1912,10 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     const upperOpcode = opcode.toUpperCase();
 
     // Directives that expect 8-bit values
-    const byteDirectives = new Set(['DFB', 'DB']);
+    const byteDirectives = new Set(["DFB", "DB"]);
 
     // Check if this is immediate mode (starts with #)
-    const isImmediate = operand.startsWith('#');
+    const isImmediate = operand.startsWith("#");
 
     // Determine max value based on context
     // Immediate mode and byte directives expect 8-bit values
@@ -1599,10 +1931,10 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
       }
       // Check value range
       const value = parseInt(hexDigits, 16);
-      if (value > 0xFFFF) {
+      if (value > 0xffff) {
         return `Value exceeds 16-bit maximum: $${hexDigits}`;
       }
-      if (expects8Bit && value > 0xFF) {
+      if (expects8Bit && value > 0xff) {
         return `Value exceeds 8-bit maximum: $${hexDigits}`;
       }
     }
@@ -1616,10 +1948,10 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
       }
       // Check value range
       const value = parseInt(binDigits, 2);
-      if (value > 0xFFFF) {
+      if (value > 0xffff) {
         return `Value exceeds 16-bit maximum: %${binDigits}`;
       }
-      if (expects8Bit && value > 0xFF) {
+      if (expects8Bit && value > 0xff) {
         return `Value exceeds 8-bit maximum: %${binDigits}`;
       }
     }
@@ -1629,10 +1961,10 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     while ((match = decPattern.exec(operand)) !== null) {
       const decDigits = match[1];
       const value = parseInt(decDigits, 10);
-      if (value > 0xFFFF) {
+      if (value > 0xffff) {
         return `Value exceeds 16-bit maximum: ${decDigits}`;
       }
-      if (expects8Bit && value > 0xFF) {
+      if (expects8Bit && value > 0xff) {
         return `Value exceeds 8-bit maximum: ${decDigits}`;
       }
     }
@@ -1651,12 +1983,63 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
 
     // Check common directives
     const directives = new Set([
-      'ORG', 'EQU', 'DS', 'DFB', 'DB', 'DW', 'DA', 'DDB', 'ASC', 'DCI', 'HEX',
-      'PUT', 'USE', 'OBJ', 'LST', 'DO', 'ELSE', 'FIN', 'LUP', '--^', 'REL',
-      'TYP', 'SAV', 'DSK', 'CHN', 'ENT', 'EXT', 'DUM', 'DEND', 'ERR', 'CYC',
-      'DAT', 'EXP', 'PAU', 'SW', 'USR', 'XC', 'MX', 'TR', 'KBD', 'PMC',
-      'PAG', 'TTL', 'SKP', 'CHK', 'IF', 'ELUP', 'END', 'MAC', 'EOM', '<<<',
-      'ADR', 'ADRL', 'LNK', 'STR', 'STRL', 'REV'
+      "ORG",
+      "EQU",
+      "DS",
+      "DFB",
+      "DB",
+      "DW",
+      "DA",
+      "DDB",
+      "ASC",
+      "DCI",
+      "HEX",
+      "PUT",
+      "USE",
+      "OBJ",
+      "LST",
+      "DO",
+      "ELSE",
+      "FIN",
+      "LUP",
+      "--^",
+      "REL",
+      "TYP",
+      "SAV",
+      "DSK",
+      "CHN",
+      "ENT",
+      "EXT",
+      "DUM",
+      "DEND",
+      "ERR",
+      "CYC",
+      "DAT",
+      "EXP",
+      "PAU",
+      "SW",
+      "USR",
+      "XC",
+      "MX",
+      "TR",
+      "KBD",
+      "PMC",
+      "PAG",
+      "TTL",
+      "SKP",
+      "CHK",
+      "IF",
+      "ELUP",
+      "END",
+      "MAC",
+      "EOM",
+      "<<<",
+      "ADR",
+      "ADRL",
+      "LNK",
+      "STR",
+      "STRL",
+      "REV",
     ]);
 
     return directives.has(upper);
@@ -1667,7 +2050,7 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
    */
   validateAllLines() {
     this.syntaxErrors.clear();
-    const lines = this.textarea.value.split('\n');
+    const lines = this.textarea.value.split("\n");
 
     // First pass: collect all symbol definitions to detect duplicates
     const symbolDefs = new Map(); // symbol name -> first line number
@@ -1679,7 +2062,10 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
         const upperLabel = label.toUpperCase();
         if (symbolDefs.has(upperLabel)) {
           const firstLine = symbolDefs.get(upperLabel);
-          this.syntaxErrors.set(lineNumber, `Duplicate symbol: ${label} (first defined on line ${firstLine})`);
+          this.syntaxErrors.set(
+            lineNumber,
+            `Duplicate symbol: ${label} (first defined on line ${firstLine})`,
+          );
         } else {
           symbolDefs.set(upperLabel, lineNumber);
         }
@@ -1701,21 +2087,21 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
    */
   extractLabel(line) {
     // No label if line starts with whitespace or is empty
-    if (!line || line[0] === ' ' || line[0] === '\t') {
+    if (!line || line[0] === " " || line[0] === "\t") {
       return null;
     }
 
     // Full-line comments have no label
     const trimmed = line.trim();
-    if (trimmed.startsWith(';') || trimmed.startsWith('*')) {
+    if (trimmed.startsWith(";") || trimmed.startsWith("*")) {
       return null;
     }
 
     // Extract first token (the label)
-    let label = '';
+    let label = "";
     for (let i = 0; i < line.length; i++) {
       const ch = line[i];
-      if (ch === ' ' || ch === '\t') {
+      if (ch === " " || ch === "\t") {
         break;
       }
       label += ch;
@@ -1749,15 +2135,16 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     }
 
     if (allErrors.size === 0) {
-      this.errorsOverlay.innerHTML = '';
+      this.errorsOverlay.innerHTML = "";
       return;
     }
 
     const style = getComputedStyle(this.textarea);
-    const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.4;
+    const lineHeight =
+      parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.4;
     const paddingTop = parseFloat(style.paddingTop) || 8;
 
-    let html = '';
+    let html = "";
     for (const [lineNum, msg] of allErrors) {
       // Position at the top of the error line
       const top = paddingTop + (lineNum - 1) * lineHeight;
@@ -1783,7 +2170,7 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     }
 
     // Check if source has ORG directive before any code
-    const hasOrg = text.match(/^\s*ORG\b/mi);
+    const hasOrg = text.match(/^\s*ORG\b/im);
     if (!hasOrg) {
       this.setStatus("ORG directive required before code", false);
       return;
@@ -1799,7 +2186,7 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     // If there are syntax errors, don't proceed with assembly
     if (this.syntaxErrors.size > 0) {
       const count = this.syntaxErrors.size;
-      this.setStatus(`${count} syntax error${count !== 1 ? 's' : ''}`, false);
+      this.setStatus(`${count} syntax error${count !== 1 ? "s" : ""}`, false);
       this.loadBtn.disabled = true;
       this.clearOutputPanels();
       this.updateHighlighting();
@@ -1821,7 +2208,10 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
       const origin = wasm._getAsmOrigin();
       this.lastAssembledSize = size;
       this.lastOrigin = origin;
-      this.setStatus(`OK: ${size} bytes at $${origin.toString(16).toUpperCase().padStart(4, "0")}`, true);
+      this.setStatus(
+        `OK: ${size} bytes at $${origin.toString(16).toUpperCase().padStart(4, "0")}`,
+        true,
+      );
       this.loadBtn.disabled = false;
 
       // Store symbols for byte encoding
@@ -1841,7 +2231,10 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
       this.updateHexOutput(wasm, origin, size);
     } else {
       const errorCount = wasm._getAsmErrorCount();
-      this.setStatus(`${errorCount} error${errorCount !== 1 ? "s" : ""}`, false);
+      this.setStatus(
+        `${errorCount} error${errorCount !== 1 ? "s" : ""}`,
+        false,
+      );
       this.loadBtn.disabled = true;
 
       // Collect errors
@@ -1870,7 +2263,7 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
 
     // Update count badge
     if (this.symbolsCount) {
-      this.symbolsCount.textContent = count > 0 ? count : '';
+      this.symbolsCount.textContent = count > 0 ? count : "";
     }
 
     if (count === 0) {
@@ -1890,12 +2283,13 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
       const namePtr = wasm._getAsmSymbolName(i);
       const name = wasm.UTF8ToString(namePtr);
       const value = wasm._getAsmSymbolValue(i);
-      const hex = "$" + (value & 0xFFFF).toString(16).toUpperCase().padStart(4, "0");
-      const isLocal = name.startsWith(':') || name.startsWith(']');
+      const hex =
+        "$" + (value & 0xffff).toString(16).toUpperCase().padStart(4, "0");
+      const isLocal = name.startsWith(":") || name.startsWith("]");
       const item = { name, hex, isLocal };
 
       // Heuristic: values in ROM range ($F800+) or under $0100 are likely equates
-      if (value >= 0xF800 || value < 0x0100) {
+      if (value >= 0xf800 || value < 0x0100) {
         equates.push(item);
       } else {
         labels.push(item);
@@ -1908,13 +2302,13 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
       html += '<div class="asm-symbol-group">';
       html += '<div class="asm-symbol-group-header">Labels</div>';
       for (const item of labels) {
-        const cls = item.isLocal ? 'asm-sym-local' : 'asm-sym-global';
+        const cls = item.isLocal ? "asm-sym-local" : "asm-sym-global";
         html += `<div class="asm-symbol-row">
           <span class="asm-sym-name ${cls}">${this.escapeHtml(item.name)}</span>
           <span class="asm-sym-value">${item.hex}</span>
         </div>`;
       }
-      html += '</div>';
+      html += "</div>";
     }
 
     if (equates.length > 0) {
@@ -1926,17 +2320,17 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
           <span class="asm-sym-value">${item.hex}</span>
         </div>`;
       }
-      html += '</div>';
+      html += "</div>";
     }
 
-    html += '</div>';
+    html += "</div>";
     this.symbolsContent.innerHTML = html;
   }
 
   updateHexOutput(wasm, origin, size) {
     // Update count badge
     if (this.hexCount) {
-      this.hexCount.textContent = size > 0 ? `${size} bytes` : '';
+      this.hexCount.textContent = size > 0 ? `${size} bytes` : "";
     }
 
     if (size === 0) {
@@ -1953,7 +2347,7 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
 
     // Header showing range
     const endAddr = origin + size - 1;
-    const rangeStr = `$${origin.toString(16).toUpperCase().padStart(4, "0")} - $${(endAddr & 0xFFFF).toString(16).toUpperCase().padStart(4, "0")}`;
+    const rangeStr = `$${origin.toString(16).toUpperCase().padStart(4, "0")} - $${(endAddr & 0xffff).toString(16).toUpperCase().padStart(4, "0")}`;
 
     let html = `<div class="asm-hex-header">
       <span class="asm-hex-range">${rangeStr}</span>
@@ -1965,7 +2359,8 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
 
     for (let offset = 0; offset < size; offset += bytesPerRow) {
       const addr = origin + offset;
-      const addrStr = "$" + (addr & 0xFFFF).toString(16).toUpperCase().padStart(4, "0");
+      const addrStr =
+        "$" + (addr & 0xffff).toString(16).toUpperCase().padStart(4, "0");
 
       let hexPart = "";
       let asciiPart = "";
@@ -1974,14 +2369,16 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
         if (offset + i < size) {
           const byte = data[offset + i];
           hexPart += byte.toString(16).toUpperCase().padStart(2, "0") + " ";
-          asciiPart += (byte >= 0x20 && byte <= 0x7E) ? String.fromCharCode(byte) : "·";
+          asciiPart +=
+            byte >= 0x20 && byte <= 0x7e ? String.fromCharCode(byte) : "·";
         } else {
           hexPart += "   ";
           asciiPart += " ";
         }
       }
 
-      html += `<div class="asm-hex-row">` +
+      html +=
+        `<div class="asm-hex-row">` +
         `<span class="asm-hex-addr">${addrStr}</span>` +
         `<span class="asm-hex-sep">│</span>` +
         `<span class="asm-hex-bytes">${hexPart}</span>` +
@@ -1990,14 +2387,14 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
         `</div>`;
     }
 
-    html += '</div>';
+    html += "</div>";
     this.hexContent.innerHTML = html;
   }
 
   clearOutputPanels() {
     // Clear count badges
-    if (this.symbolsCount) this.symbolsCount.textContent = '';
-    if (this.hexCount) this.hexCount.textContent = '';
+    if (this.symbolsCount) this.symbolsCount.textContent = "";
+    if (this.hexCount) this.hexCount.textContent = "";
 
     this.symbolsContent.innerHTML = `
       <div class="asm-panel-empty asm-panel-error">
@@ -2018,10 +2415,9 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
   }
 
   loadExample() {
-    const example =
-`; Hello World - prints a message and returns to the monitor
+    const example = `; Hello World - prints a message and returns to the monitor
 ;
-; Assemble, Load, then type 800G in the emulator to run.
+; Assemble, Load, then type CALL 2048 from within BASIC.
 
             ORG  $0800
 
@@ -2041,7 +2437,7 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
             DFB  $00           ;Null terminator`;
 
     this.textarea.value = example;
-    this.textarea.dispatchEvent(new Event('input', { bubbles: true }));
+    this.textarea.dispatchEvent(new Event("input", { bubbles: true }));
     this.doClear();
     this.currentFileName = null;
     this.validateAllLines();
@@ -2057,11 +2453,11 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
     this.errors.clear();
     this.syntaxErrors.clear();
     this.loadBtn.disabled = true;
-    this.setStatus('', false);
+    this.setStatus("", false);
 
     // Clear output panels to empty state
-    if (this.symbolsCount) this.symbolsCount.textContent = '';
-    if (this.hexCount) this.hexCount.textContent = '';
+    if (this.symbolsCount) this.symbolsCount.textContent = "";
+    if (this.hexCount) this.hexCount.textContent = "";
     this.symbolsContent.innerHTML = `
       <div class="asm-panel-empty">
         <div class="asm-empty-text">Assemble to see symbols</div>
@@ -2095,7 +2491,10 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
    * Create a new empty file
    */
   newFile() {
-    if (this.textarea.value.trim() && !confirm("Clear current source and start new file?")) {
+    if (
+      this.textarea.value.trim() &&
+      !confirm("Clear current source and start new file?")
+    ) {
       return;
     }
     this.textarea.value = "";
@@ -2242,7 +2641,8 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
 
   setStatus(text, ok) {
     this.statusSpan.textContent = text;
-    this.statusSpan.className = "asm-status" + (ok ? " asm-status-ok" : " asm-status-error");
+    this.statusSpan.className =
+      "asm-status" + (ok ? " asm-status-ok" : " asm-status-error");
   }
 
   goToLine(lineNumber) {
@@ -2258,8 +2658,10 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
 
     // Scroll line into view
     const style = getComputedStyle(this.textarea);
-    const lineHeight = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.4;
-    const targetScroll = (lineNumber - 1) * lineHeight - this.textarea.clientHeight / 2;
+    const lineHeight =
+      parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.4;
+    const targetScroll =
+      (lineNumber - 1) * lineHeight - this.textarea.clientHeight / 2;
     this.textarea.scrollTop = Math.max(0, targetScroll);
   }
 
@@ -2277,7 +2679,7 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
     }
 
     // Check if line has an actual instruction (not just a label or directive)
-    const lines = this.textarea.value.split('\n');
+    const lines = this.textarea.value.split("\n");
     if (lineNumber < 1 || lineNumber > lines.length) return;
 
     const parsed = this.parseLine(lines[lineNumber - 1]);
@@ -2325,7 +2727,7 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
 
   initRomPanel() {
     // Populate category dropdown
-    ROM_CATEGORIES.forEach(cat => {
+    ROM_CATEGORIES.forEach((cat) => {
       const opt = document.createElement("option");
       opt.value = cat;
       opt.textContent = cat === "All" ? "All Categories" : cat;
@@ -2336,9 +2738,11 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
     this.romBtn.addEventListener("click", () => this.toggleRomPanel());
 
     // Close button
-    this.romPanel.querySelector(".asm-rom-close").addEventListener("click", () => {
-      this.hideRomPanel();
-    });
+    this.romPanel
+      .querySelector(".asm-rom-close")
+      .addEventListener("click", () => {
+        this.hideRomPanel();
+      });
 
     // Search input
     this.romSearch.addEventListener("input", () => this.filterRomRoutines());
@@ -2347,18 +2751,24 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
     this.romCategory.addEventListener("change", () => this.filterRomRoutines());
 
     // Back button in detail view
-    this.romPanel.querySelector(".asm-rom-back").addEventListener("click", () => {
-      this.romDetail.classList.add("hidden");
-      this.romList.classList.remove("hidden");
-    });
+    this.romPanel
+      .querySelector(".asm-rom-back")
+      .addEventListener("click", () => {
+        this.romDetail.classList.add("hidden");
+        this.romList.classList.remove("hidden");
+      });
 
     // Insert buttons
-    this.romPanel.querySelector(".asm-rom-insert-equ").addEventListener("click", () => {
-      if (this.selectedRoutine) this.insertRoutineEqu(this.selectedRoutine);
-    });
-    this.romPanel.querySelector(".asm-rom-insert-jsr").addEventListener("click", () => {
-      if (this.selectedRoutine) this.insertRoutineJsr(this.selectedRoutine);
-    });
+    this.romPanel
+      .querySelector(".asm-rom-insert-equ")
+      .addEventListener("click", () => {
+        if (this.selectedRoutine) this.insertRoutineEqu(this.selectedRoutine);
+      });
+    this.romPanel
+      .querySelector(".asm-rom-insert-jsr")
+      .addEventListener("click", () => {
+        if (this.selectedRoutine) this.insertRoutineJsr(this.selectedRoutine);
+      });
 
     // Escape key to close panel
     this.romPanel.addEventListener("keydown", (e) => {
@@ -2400,7 +2810,7 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
     if (query) {
       routines = searchRoutines(query);
       if (category !== "All") {
-        routines = routines.filter(r => r.category === category);
+        routines = routines.filter((r) => r.category === category);
       }
     } else {
       routines = getRoutinesByCategory(category);
@@ -2419,7 +2829,9 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
       return;
     }
 
-    const html = routines.map(r => `
+    const html = routines
+      .map(
+        (r) => `
       <div class="asm-rom-item" data-name="${r.name}">
         <div class="asm-rom-item-header">
           <span class="asm-rom-item-name">${r.name}</span>
@@ -2428,15 +2840,17 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
         <div class="asm-rom-item-desc">${r.description}</div>
         <div class="asm-rom-item-cat">${r.category}</div>
       </div>
-    `).join("");
+    `,
+      )
+      .join("");
 
     this.romList.innerHTML = html;
 
     // Add click handlers
-    this.romList.querySelectorAll(".asm-rom-item").forEach(item => {
+    this.romList.querySelectorAll(".asm-rom-item").forEach((item) => {
       item.addEventListener("click", () => {
         const name = item.dataset.name;
-        const routine = ROM_ROUTINES.find(r => r.name === name);
+        const routine = ROM_ROUTINES.find((r) => r.name === name);
         if (routine) this.showRoutineDetail(routine);
       });
     });
@@ -2458,12 +2872,16 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
         <div class="asm-rom-section">
           <div class="asm-rom-section-title">Inputs</div>
           <div class="asm-rom-section-content">
-            ${routine.inputs.map(i => `
+            ${routine.inputs
+              .map(
+                (i) => `
               <div class="asm-rom-param">
                 <span class="asm-rom-param-reg">${i.register}</span>
                 <span class="asm-rom-param-desc">${i.description}</span>
               </div>
-            `).join("")}
+            `,
+              )
+              .join("")}
           </div>
         </div>
       `;
@@ -2474,12 +2892,16 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
         <div class="asm-rom-section">
           <div class="asm-rom-section-title">Outputs</div>
           <div class="asm-rom-section-content">
-            ${routine.outputs.map(o => `
+            ${routine.outputs
+              .map(
+                (o) => `
               <div class="asm-rom-param">
                 <span class="asm-rom-param-reg">${o.register}</span>
                 <span class="asm-rom-param-desc">${o.description}</span>
               </div>
-            `).join("")}
+            `,
+              )
+              .join("")}
           </div>
         </div>
       `;
@@ -2534,7 +2956,9 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
 
   insertRoutineJsr(routine) {
     // Check if EQU already exists
-    const hasEqu = this.textarea.value.toUpperCase().includes(`${routine.name.toUpperCase()} `);
+    const hasEqu = this.textarea.value
+      .toUpperCase()
+      .includes(`${routine.name.toUpperCase()} `);
 
     this.textarea.focus();
 

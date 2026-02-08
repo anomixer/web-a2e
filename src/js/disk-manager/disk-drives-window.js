@@ -73,7 +73,7 @@ export class DiskDrivesWindow extends BaseWindow {
     const closeBtn = this.headerElement.querySelector(`.${this.cssClasses.close}`);
 
     this._graphicsBtn = document.createElement('button');
-    this._graphicsBtn.className = 'drive-graphics-btn';
+    this._graphicsBtn.className = 'drive-graphics-btn active';
     this._graphicsBtn.title = 'Toggle disk graphics';
     this._graphicsBtn.innerHTML = `
       <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
@@ -101,7 +101,7 @@ export class DiskDrivesWindow extends BaseWindow {
     this._graphicsHidden = !this._graphicsHidden;
     this.contentElement.classList.toggle('hide-graphics', this._graphicsHidden);
     if (this._graphicsBtn) {
-      this._graphicsBtn.classList.toggle('active', this._graphicsHidden);
+      this._graphicsBtn.classList.toggle('active', !this._graphicsHidden);
     }
     this.minHeight = this._graphicsHidden ? this._minHeightCompact : this._minHeightFull;
     this._layoutMetrics = null;
@@ -192,7 +192,7 @@ export class DiskDrivesWindow extends BaseWindow {
     if (state.graphicsHidden) {
       this._graphicsHidden = true;
       this.contentElement.classList.add('hide-graphics');
-      if (this._graphicsBtn) this._graphicsBtn.classList.add('active');
+      if (this._graphicsBtn) this._graphicsBtn.classList.remove('active');
       this.minHeight = this._minHeightCompact;
     }
     if (state.detailsOpen) {

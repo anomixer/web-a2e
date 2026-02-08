@@ -10,7 +10,7 @@ A cycle-accurate Apple II Enhanced emulator running entirely in the browser. Bui
 - **128KB memory** (64KB main + 64KB auxiliary) with Language Card and double hi-res capability
 - **All Apple IIe video modes** -- Text, Lo-Res, Hi-Res, Double Hi-Res, Double Lo-Res, and 80-column text
 - **CRT shader effects** -- scanlines, phosphor glow, screen curvature, chromatic aberration, vignette, and analog noise via WebGL
-- **Disk II emulation** with DSK, DO, PO, NIB, and WOZ format support and real-time surface visualization
+- **Disk II emulation** with DSK, DO, PO, and WOZ format support and real-time surface visualization
 - **Expansion card system** -- Mockingboard (dual AY-3-8910), Thunderclock Plus, Mouse Interface Card
 - **Audio-driven timing** using Web Audio API at 48 kHz for accurate, drift-free emulation even when backgrounded
 - **Save states** -- autosave plus five manual slots stored in IndexedDB
@@ -36,28 +36,28 @@ See [[Getting-Started]] for a full walkthrough.
 
 ### User Guide
 
-| Page | Description |
-|------|-------------|
-| [[Getting-Started]] | First-time setup, powering on, inserting disks, keyboard basics, paste, and full-page mode |
-| [[Display-Settings]] | CRT effects, analog noise, image controls, colour modes, and rendering options |
-| [[Disk-Drives]] | Disk formats, drive UI, surface visualization, write protection, and drive sounds |
-| [[File-Explorer]] | Browsing DOS 3.3 and ProDOS disk contents, viewing files, and disassembly |
-| [[Save-States]] | Autosave, manual save slots, and state management |
-| [[Expansion-Slots]] | Slot configuration, Mockingboard, Thunderclock, Mouse Card |
-| [[Input-Devices]] | Keyboard mapping, joystick/paddle configuration, mouse support |
-| [[Keyboard-Shortcuts]] | Complete keyboard shortcut reference |
+| Page                   | Description                                                                                |
+| ---------------------- | ------------------------------------------------------------------------------------------ |
+| [[Getting-Started]]    | First-time setup, powering on, inserting disks, keyboard basics, paste, and full-page mode |
+| [[Display-Settings]]   | CRT effects, analog noise, image controls, colour modes, and rendering options             |
+| [[Disk-Drives]]        | Disk formats, drive UI, surface visualization, write protection, and drive sounds          |
+| [[File-Explorer]]      | Browsing DOS 3.3 and ProDOS disk contents, viewing files, and disassembly                  |
+| [[Save-States]]        | Autosave, manual save slots, and state management                                          |
+| [[Expansion-Slots]]    | Slot configuration, Mockingboard, Thunderclock, Mouse Card                                 |
+| [[Input-Devices]]      | Keyboard mapping, joystick/paddle configuration, mouse support                             |
+| [[Keyboard-Shortcuts]] | Complete keyboard shortcut reference                                                       |
 
 ### Developer Guide
 
-| Page | Description |
-|------|-------------|
-| [[Architecture-Overview]] | Two-layer design, audio-driven timing, WASM interface pattern |
-| [[CPU-Emulation]] | 65C02 implementation, cycle accuracy, Klaus Dormann test compliance |
-| [[Memory-System]] | MMU soft switches, Language Card, bank switching, auxiliary memory |
-| [[Video-Rendering]] | Scanline rendering, WebGL pipeline, CRT shader architecture |
-| [[Audio-System]] | Speaker toggle emulation, Mockingboard synthesis, AudioWorklet pipeline |
-| [[Disk-System-Internals]] | GCR encoding, WOZ format handling, Disk II controller state machine |
-| [[Debugger]] | CPU debugger, breakpoints, rule builder, memory tools, and debug windows |
+| Page                      | Description                                                              |
+| ------------------------- | ------------------------------------------------------------------------ |
+| [[Architecture-Overview]] | Two-layer design, audio-driven timing, WASM interface pattern            |
+| [[CPU-Emulation]]         | 65C02 implementation, cycle accuracy, Klaus Dormann test compliance      |
+| [[Memory-System]]         | MMU soft switches, Language Card, bank switching, auxiliary memory       |
+| [[Video-Rendering]]       | Scanline rendering, WebGL pipeline, CRT shader architecture              |
+| [[Audio-System]]          | Speaker toggle emulation, Mockingboard synthesis, AudioWorklet pipeline  |
+| [[Disk-System-Internals]] | GCR encoding, WOZ format handling, Disk II controller state machine      |
+| [[Debugger]]              | CPU debugger, breakpoints, rule builder, memory tools, and debug windows |
 
 ---
 
