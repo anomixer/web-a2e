@@ -350,6 +350,36 @@ bool isBasicProgramRunning() {
 }
 
 EMSCRIPTEN_KEEPALIVE
+bool isBasicErrorHit() {
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->isBasicErrorHit();
+}
+
+EMSCRIPTEN_KEEPALIVE
+uint16_t getBasicErrorLine() {
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->getBasicErrorLine();
+}
+
+EMSCRIPTEN_KEEPALIVE
+uint16_t getBasicErrorTxtptr() {
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->getBasicErrorTxtptr();
+}
+
+EMSCRIPTEN_KEEPALIVE
+uint8_t getBasicErrorCode() {
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->getBasicErrorCode();
+}
+
+EMSCRIPTEN_KEEPALIVE
+void clearBasicError() {
+  REQUIRE_EMULATOR();
+  g_emulator->clearBasicError();
+}
+
+EMSCRIPTEN_KEEPALIVE
 void stepBasicLine() {
   REQUIRE_EMULATOR();
   g_emulator->stepBasicLine();

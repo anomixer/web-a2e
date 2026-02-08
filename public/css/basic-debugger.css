@@ -59,40 +59,54 @@
 .basic-dbg-step-stmt:hover {
     background: var(--accent-blue-bg);
     border-color: var(--accent-blue-border);
-    color: var(--accent-blue);
+    color: var(--accent-red);
 }
 
-/* Status Indicator */
+/* Status Chip */
 .basic-dbg-status {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
     margin-left: 8px;
     padding-left: 8px;
     border-left: 1px solid var(--separator-bg);
-    font-family: var(--font-mono);
-    font-size: 10px;
-    font-weight: 500;
-    color: var(--text-secondary);
 }
 
-.basic-dbg-status-dot {
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--text-muted);
+.basic-dbg-status-chip {
+    font-family: var(--font-mono);
+    font-size: 8px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 2px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    transition: all 0.15s;
+    background: var(--input-bg-deep);
+    border: 1px solid var(--glass-border-subtle);
+    color: var(--text-muted);
 }
 
 .basic-dbg-status-idle {
-    background: var(--text-muted);
+    background: var(--input-bg-deep);
+    border: 1px solid var(--glass-border-subtle);
+    color: var(--text-muted);
 }
 
 .basic-dbg-status-running {
-    background: var(--accent-green);
+    background: var(--accent-green-bg-strong);
+    border: 1px solid var(--accent-green-border);
+    color: var(--accent-green);
 }
 
 .basic-dbg-status-paused {
-    background: var(--accent-orange);
+    background: var(--accent-orange-bg-strong);
+    border: 1px solid var(--accent-orange-border-strong);
+    color: var(--accent-orange);
+}
+
+.basic-dbg-status-error {
+    background: var(--accent-red-bg-strong);
+    border: 1px solid var(--accent-red-border);
+    color: var(--accent-red);
 }
 
 /* Info Bar (inline with toolbar) */
@@ -527,9 +541,16 @@
 }
 
 @keyframes shake {
-    0%, 100% { transform: translateX(0); }
-    25% { transform: translateX(-4px); }
-    75% { transform: translateX(4px); }
+    0%,
+    100% {
+        transform: translateX(0);
+    }
+    25% {
+        transform: translateX(-4px);
+    }
+    75% {
+        transform: translateX(4px);
+    }
 }
 
 .basic-dbg-bp-add-btn {

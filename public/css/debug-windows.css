@@ -3343,6 +3343,38 @@
     border-bottom: 2px solid var(--accent-red);
 }
 
+/* Runtime error line highlight */
+.basic-highlight .basic-error-line {
+    background: var(--accent-red-bg) !important;
+}
+
+/* Error statement within a multi-statement line */
+.basic-highlight .basic-error-statement {
+    border-bottom: 2px solid var(--accent-red);
+    background: var(--accent-red-bg-strong);
+    border-radius: 2px;
+}
+
+/* Inline error message label */
+.basic-error-msg {
+    float: right;
+    padding: 0 6px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--accent-red);
+    background: var(--glass-bg);
+    border: 1px solid var(--accent-red-border);
+    border-radius: 3px;
+    white-space: nowrap;
+    margin-right: 4px;
+}
+
+/* Error indicator in gutter */
+.basic-gutter-line.has-error {
+    background: var(--accent-red-bg);
+    border-left-color: var(--accent-red);
+}
+
 .basic-actions {
     display: flex;
     flex-wrap: wrap;
@@ -3355,21 +3387,22 @@
     min-width: 100px;
 }
 
-/* Info button - fixed size, doesn't stretch */
-.basic-actions .basic-info-btn {
-    flex: 0 0 auto;
-    min-width: 28px;
-    width: 28px;
-    padding: 8px 0;
+/* Info button in breakpoints header - matches add button style */
+.basic-dbg-bp-info-btn {
+    padding: 2px 6px;
     font-family: var(--font-serif, Georgia, serif);
     font-style: italic;
     font-weight: 600;
-    font-size: 12px;
+    font-size: 11px;
+    background: var(--control-bg);
+    border: 1px solid var(--control-border);
+    border-radius: 3px;
     color: var(--text-muted);
-    position: relative;
+    cursor: pointer;
+    transition: all 0.12s;
 }
 
-.basic-actions .basic-info-btn:hover {
+.basic-dbg-bp-info-btn:hover {
     color: var(--accent-blue);
     border-color: var(--accent-blue-border);
     background: var(--accent-blue-bg);
@@ -3377,16 +3410,14 @@
 
 /* Info popover */
 .basic-info-popover {
-    position: absolute;
-    bottom: calc(100% + 8px);
-    right: 0;
+    position: fixed;
     width: 260px;
     background: var(--glass-bg-solid);
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-sm);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
     padding: 10px 12px;
-    z-index: 100;
+    z-index: 10001;
     font-style: normal;
     text-align: left;
     cursor: default;

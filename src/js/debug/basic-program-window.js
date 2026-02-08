@@ -17,6 +17,26 @@ import { BasicBreakpointManager } from "./basic-breakpoint-manager.js";
 import { BasicVariableInspector } from "./basic-variable-inspector.js";
 import { BasicProgramParser } from "./basic-program-parser.js";
 
+const BASIC_ERRORS = {
+  0x00: "NEXT WITHOUT FOR",
+  0x10: "SYNTAX ERROR",
+  0x16: "RETURN WITHOUT GOSUB",
+  0x2A: "OUT OF DATA",
+  0x35: "ILLEGAL QUANTITY",
+  0x45: "OVERFLOW",
+  0x4D: "OUT OF MEMORY",
+  0x5A: "UNDEF'D STATEMENT",
+  0x6B: "BAD SUBSCRIPT",
+  0x78: "REDIM'D ARRAY",
+  0x85: "DIVISION BY ZERO",
+  0x95: "ILLEGAL DIRECT",
+  0xA3: "TYPE MISMATCH",
+  0xB0: "STRING TOO LONG",
+  0xBF: "FORMULA TOO COMPLEX",
+  0xD2: "CAN'T CONTINUE",
+  0xE0: "UNDEF'D FUNCTION",
+};
+
 export class BasicProgramWindow extends BaseWindow {
   constructor(wasmModule, inputHandler, isRunningCallback) {
     super({
@@ -45,6 +65,12 @@ export class BasicProgramWindow extends BaseWindow {
     this.expandedArrays = new Set(); // Track which arrays are expanded
     this._varAutoRefresh = false; // Auto-refresh variables while program is running
 
+    // Runtime error state
+    this.errorLineNumber = null;
+    this.errorStatementInfo = null;
+    this.errorMessage = null;
+    this.errorLineContent = null; // Code portion (after line number) for tracking across renumbers
+
     // Editor line map (text line index -> BASIC line number)
     this.lineMap = [];
 
@@ -69,8 +95,7 @@ export class BasicProgramWindow extends BaseWindow {
             <span class="basic-dbg-icon">↓</span> Step
           </button>
           <div class="basic-dbg-status">
-            <span class="basic-dbg-status-dot"></span>
-            <span class="basic-dbg-status-text">Idle</span>
+            <span class="basic-dbg-status-chip basic-dbg-status-idle">Idle</span>
           </div>
           <div class="basic-dbg-info">
             <span class="basic-dbg-line">LINE: ---</span>
@@ -106,7 +131,6 @@ export class BasicProgramWindow extends BaseWindow {
                 <button class="basic-btn basic-format-btn" title="Format code (align line numbers, indent loops)">Format</button>
                 <button class="basic-btn basic-renumber-btn" title="Renumber lines in increments of 10, updating GOTO/GOSUB references">Renumber</button>
                 <button class="basic-btn basic-clear-btn">Clear</button>
-                <button class="basic-btn basic-info-btn" title="Breakpoint help">i</button>
               </div>
             </div>
           </div>
@@ -125,6 +149,7 @@ export class BasicProgramWindow extends BaseWindow {
                 <div class="basic-dbg-bp-add">
                   <input type="text" class="basic-dbg-bp-input" placeholder="Line #" maxlength="5">
                   <button class="basic-dbg-bp-add-btn" title="Add breakpoint">+</button>
+                  <button class="basic-dbg-bp-info-btn" title="Breakpoint help">i</button>
                 </div>
               </div>
               <div class="basic-dbg-bp-list"></div>
@@ -150,7 +175,7 @@ export class BasicProgramWindow extends BaseWindow {
     this.renumberBtn = this.contentElement.querySelector(".basic-renumber-btn");
     this.insertBtn = this.contentElement.querySelector(".basic-insert-btn");
     this.clearBtn = this.contentElement.querySelector(".basic-clear-btn");
-    this.infoBtn = this.contentElement.querySelector(".basic-info-btn");
+    this.infoBtn = this.contentElement.querySelector(".basic-dbg-bp-info-btn");
 
     // Debugger elements
     this.varPanel = this.contentElement.querySelector(".basic-dbg-var-panel");
@@ -191,8 +216,7 @@ export class BasicProgramWindow extends BaseWindow {
     this.bpInput = this.contentElement.querySelector(".basic-dbg-bp-input");
     this.lineSpan = this.contentElement.querySelector(".basic-dbg-line");
     this.ptrSpan = this.contentElement.querySelector(".basic-dbg-ptr");
-    this.statusDot = this.contentElement.querySelector(".basic-dbg-status-dot");
-    this.statusText = this.contentElement.querySelector(".basic-dbg-status-text");
+    this.statusChip = this.contentElement.querySelector(".basic-dbg-status-chip");
 
     // Track current editing line for auto-format on line change
     this.lastEditLine = -1;
@@ -200,6 +224,7 @@ export class BasicProgramWindow extends BaseWindow {
     // Editor event listeners
     this.textarea.addEventListener("input", () => {
       this.updateGutter();
+      this._trackErrorLine();
       this.updateHighlighting();
       this.updateStats();
       this.updateCurrentLineHighlight();
@@ -509,15 +534,19 @@ export class BasicProgramWindow extends BaseWindow {
         lineNumber !== null && this.breakpointManager.hasAnyForLine(lineNumber);
       const isCurrent =
         lineNumber !== null && this.currentLineNumber === lineNumber;
+      const isError =
+        lineNumber !== null && this.errorLineNumber === lineNumber;
 
       const bpClass = hasBp ? "has-bp" : "";
       const currentClass = isCurrent ? "is-current" : "";
+      const errorClass = isError ? "has-error" : "";
       const clickable = lineNumber !== null ? "clickable" : "";
 
       // Gutter shows breakpoint markers with subtle line number tooltip
+      const marker = isError ? "!" : (hasBp ? "●" : "");
       html += `
-        <div class="basic-gutter-line ${bpClass} ${currentClass} ${clickable}" data-index="${i}">
-          <span class="basic-gutter-bp" title="${lineNumber !== null ? `Line ${lineNumber} - Click to toggle breakpoint` : ""}">${hasBp ? "●" : ""}</span>
+        <div class="basic-gutter-line ${bpClass} ${currentClass} ${errorClass} ${clickable}" data-index="${i}">
+          <span class="basic-gutter-bp" title="${lineNumber !== null ? `Line ${lineNumber} - Click to toggle breakpoint` : ""}">${marker}</span>
           <span class="basic-gutter-current">${isCurrent ? "►" : ""}</span>
         </div>
       `;
@@ -743,12 +772,24 @@ export class BasicProgramWindow extends BaseWindow {
       const stmtBPs = lineNumber !== null ? this.breakpointManager.getForLine(lineNumber) : [];
       const isMultiStatement = html && html.includes('<span class="bas-punct">:</span>');
 
+      const isErrorLine = this.errorLineNumber !== null && lineNumber === this.errorLineNumber;
+
+      if (isErrorLine) {
+        lineClass += " basic-error-line";
+      }
+
       if (isCurrentLine && this.currentStatementInfo && this.currentStatementInfo.statementCount > 1) {
         lineClass += " basic-has-statements";
         lineHtml = this._wrapStatements(html, this.currentStatementInfo, stmtBPs);
+      } else if (isErrorLine && this.errorStatementInfo && this.errorStatementInfo.statementCount > 1 && isMultiStatement) {
+        lineHtml = this._wrapStatementsForError(html, this.errorStatementInfo, stmtBPs);
       } else if (isMultiStatement && lineNumber !== null) {
         // Wrap all multi-statement lines so statements are clickable for breakpoints
         lineHtml = this._wrapStatementsForBreakpoints(html, stmtBPs);
+      }
+
+      if (isErrorLine && this.errorMessage) {
+        lineHtml += `<span class="basic-error-msg">${this.errorMessage}</span>`;
       }
 
       // Wrap each line in a div with appropriate classes
@@ -1105,6 +1146,8 @@ export class BasicProgramWindow extends BaseWindow {
       return;
     }
 
+    if (this.errorLineNumber !== null) this._clearError();
+
     // Build textarea content from parsed program lines
     const textLines = lines.map((line) => `${line.lineNumber} ${line.text}`);
     const rawContent = textLines.join("\n");
@@ -1206,9 +1249,11 @@ export class BasicProgramWindow extends BaseWindow {
       </div>
     `;
 
-    // Position relative to the info button
-    this.infoBtn.style.position = "relative";
-    this.infoBtn.appendChild(popover);
+    // Position below the toolbar button
+    const btnRect = this.infoBtn.getBoundingClientRect();
+    popover.style.top = `${btnRect.bottom + 4}px`;
+    popover.style.left = `${btnRect.right - 260}px`;
+    document.body.appendChild(popover);
 
     // Close on click outside
     const close = (e) => {
@@ -1254,6 +1299,7 @@ export class BasicProgramWindow extends BaseWindow {
       this._lastProgramRunning = false;
       this.currentLineNumber = null;
       this.currentStatementInfo = null;
+      if (this.errorLineNumber !== null) this._clearError();
 
       this.wasmModule._setPaused(false);
 
@@ -1778,6 +1824,15 @@ export class BasicProgramWindow extends BaseWindow {
     // Reset breakpoint tracking when BASIC stops running (program ended)
     // so next RUN will properly detect the first breakpoint hit
     if (!state.running && this._lastProgramRunning) {
+      // Check if program stopped due to a runtime error
+      if (this.wasmModule._isBasicErrorHit && this.wasmModule._isBasicErrorHit()) {
+        const errorLine = this.wasmModule._getBasicErrorLine();
+        const errorTxtptr = this.wasmModule._getBasicErrorTxtptr();
+        const errorCode = this.wasmModule._getBasicErrorCode();
+        this._setError(errorLine, errorTxtptr, errorCode);
+        this.wasmModule._clearBasicError();
+      }
+
       this._varAutoRefresh = false;
       this._lastBasicBreakpointHit = false;
       // First unpause, then clear all breakpoint state
@@ -1925,13 +1980,107 @@ export class BasicProgramWindow extends BaseWindow {
            a.statementCount !== b.statementCount;
   }
 
+  _setError(lineNumber, txtptr, errorCode) {
+    this.errorLineNumber = lineNumber;
+    this.errorMessage = BASIC_ERRORS[errorCode] || `ERROR ${errorCode}`;
+    this.errorStatementInfo = this.programParser.getCurrentStatementInfo(lineNumber, txtptr);
+
+    // Capture the code portion of the error line for tracking across renumbers
+    this.errorLineContent = this._getLineContent(lineNumber);
+
+    this.setStatus("error");
+    this.updateGutter();
+    this.updateHighlighting();
+  }
+
+  _clearError() {
+    this.errorLineNumber = null;
+    this.errorStatementInfo = null;
+    this.errorMessage = null;
+    this.errorLineContent = null;
+    this.setStatus("idle");
+  }
+
+  /**
+   * Get the code portion (after the line number) for a given BASIC line number
+   */
+  _getLineContent(lineNumber) {
+    if (!this.textarea) return null;
+    const rawLines = this.textarea.value.split(/\r?\n/);
+    for (const line of rawLines) {
+      const match = line.trim().match(/^(\d+)\s*(.*)/);
+      if (match && parseInt(match[1], 10) === lineNumber) {
+        return match[2];
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Track the error line across edits. If the BASIC line number still exists,
+   * keep it. If it was renumbered, find the line with matching code content
+   * and follow it. If the code content itself was edited or removed, clear.
+   */
+  _trackErrorLine() {
+    if (this.errorLineNumber === null) return;
+
+    const rawLines = this.textarea.value.split(/\r?\n/);
+
+    // Check if the original BASIC line number still exists with the same content
+    for (const line of rawLines) {
+      const match = line.trim().match(/^(\d+)\s*(.*)/);
+      if (match && parseInt(match[1], 10) === this.errorLineNumber) {
+        const content = match[2];
+        if (content === this.errorLineContent) {
+          return; // Line still exists with same content, keep error
+        }
+        // Line number exists but content changed — error no longer applies
+        this._clearError();
+        return;
+      }
+    }
+
+    // Line number not found — check if it was renumbered (same content, different number)
+    if (this.errorLineContent !== null) {
+      for (const line of rawLines) {
+        const match = line.trim().match(/^(\d+)\s*(.*)/);
+        if (match && match[2] === this.errorLineContent) {
+          // Found the same code under a new line number
+          this.errorLineNumber = parseInt(match[1], 10);
+          return;
+        }
+      }
+    }
+
+    // Line was removed entirely
+    this._clearError();
+  }
+
+  _wrapStatementsForError(html, stmtInfo, stmtBPs = []) {
+    const segments = this._splitAtColons(html);
+
+    const bpStmtSet = new Set();
+    for (const bp of stmtBPs) {
+      if (bp.statementIndex >= 0) bpStmtSet.add(bp.statementIndex);
+    }
+
+    let result = "";
+    for (let i = 0; i < segments.length; i++) {
+      let cls = "";
+      if (i === stmtInfo.statementIndex) cls += " basic-error-statement";
+      if (bpStmtSet.has(i)) cls += " basic-statement-bp";
+      result += `<span class="basic-statement${cls}">${segments[i]}</span>`;
+    }
+    return result;
+  }
+
   setStatus(status) {
-    if (!this.statusDot || this._currentStatus === status) return;
+    if (!this.statusChip || this._currentStatus === status) return;
     this._currentStatus = status;
-    this.statusDot.className = "basic-dbg-status-dot";
-    this.statusDot.classList.add(`basic-dbg-status-${status}`);
-    const labels = { idle: "Idle", running: "Running", paused: "Paused" };
-    this.statusText.textContent = labels[status] || status;
+    this.statusChip.className = "basic-dbg-status-chip";
+    this.statusChip.classList.add(`basic-dbg-status-${status}`);
+    const labels = { idle: "Idle", running: "Running", paused: "Paused", error: "Error" };
+    this.statusChip.textContent = labels[status] || status;
   }
 
   /**
