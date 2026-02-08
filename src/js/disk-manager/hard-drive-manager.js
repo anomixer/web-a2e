@@ -34,8 +34,8 @@ export class HardDriveManager {
   constructor(wasmModule) {
     this.wasmModule = wasmModule;
     this.devices = [
-      { filename: null, ejectBtn: null, nameLabel: null, input: null },
-      { filename: null, ejectBtn: null, nameLabel: null, input: null },
+      { filename: null, ejectBtn: null, nameLabel: null, input: null, activityFrames: 0 },
+      { filename: null, ejectBtn: null, nameLabel: null, input: null, activityFrames: 0 },
     ];
     this.canvas = null;
     this.activeDropdown = null;
@@ -305,11 +305,21 @@ export class HardDriveManager {
 
     for (let i = 0; i < 2; i++) {
       const device = this.devices[i];
-      if (device.ledEl) {
-        if (hasActivity && device.filename) {
+
+      if (hasActivity && device.filename) {
+        device.activityFrames = 3;
+        device.lastWrite = isWrite;
+      }
+
+      if (device.activityFrames > 0) {
+        if (device.ledEl) {
           device.ledEl.classList.add("active");
-          device.ledEl.classList.toggle("write", isWrite);
-        } else {
+        }
+        if (!hasActivity) {
+          device.activityFrames--;
+        }
+      } else {
+        if (device.ledEl) {
           device.ledEl.classList.remove("active", "write");
         }
       }
