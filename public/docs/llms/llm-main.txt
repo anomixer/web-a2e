@@ -1,0 +1,25 @@
+# Main Emulator
+
+> Core emulator power and reset controls.
+
+## Tool Operations
+
+**Power control:**
+```
+a2e_command({ command: "emulatorPower", params: { action: "on" } })
+a2e_command({ command: "emulatorPower", params: { action: "off" } })
+a2e_command({ command: "emulatorPower", params: { action: "toggle" } })
+```
+Control emulator power state. Action can be "on", "off", or "toggle" (default).
+
+**Ctrl-Reset:**
+```
+a2e_command({ command: "emulatorCtrlReset", params: {} })
+```
+Warm reset - restarts the emulator without clearing memory.
+
+**Reboot:**
+```
+a2e_command({ command: "emulatorReboot", params: {} })
+```
+Cold reset - full reboot that clears all memory.

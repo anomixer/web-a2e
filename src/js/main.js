@@ -24,6 +24,7 @@ import { SlotConfigurationWindow } from "./ui/slot-configuration-window.js";
 import { WindowSwitcher } from "./ui/window-switcher.js";
 import { StateManager } from "./state/state-manager.js";
 import { SaveStatesWindow } from "./state/save-states-window.js";
+import { AgentManager } from "./agent/index.js";
 import {
   WindowManager,
   CPUDebuggerWindow,
@@ -58,6 +59,7 @@ class AppleIIeEmulator {
     this.stateManager = null;
     this.mouseHandler = null;
     this.themeManager = null;
+    this.agentManager = null;
 
     this.running = false;
   }
@@ -277,6 +279,10 @@ class AppleIIeEmulator {
       this.windowSwitcher = new WindowSwitcher(this.windowManager);
       this.windowSwitcher.create();
 
+      // Set up agent manager for MCP server connection
+      window.emulator = this;
+      this.agentManager = new AgentManager();
+
       // Set up UI controller
       this.uiController = new UIController({
         emulator: this,
@@ -490,6 +496,11 @@ class AppleIIeEmulator {
     if (this.themeManager) {
       this.themeManager.destroy();
       this.themeManager = null;
+    }
+
+    if (this.agentManager) {
+      this.agentManager.disconnect();
+      this.agentManager = null;
     }
 
     this.renderer = null;

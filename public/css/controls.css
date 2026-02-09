@@ -56,6 +56,28 @@
     box-shadow: 0 0 20px rgba(248, 81, 73, 0.3);
 }
 
+/* Agent button */
+.control-btn.agent-btn {
+    color: var(--text-muted);
+}
+
+.control-btn.agent-btn.connected {
+    color: var(--accent-yellow);
+}
+
+.control-btn.agent-btn.connected:hover {
+    background: var(--bg-panel);
+    color: var(--accent-yellow);
+    border-color: var(--accent-yellow);
+    box-shadow: 0 0 20px rgba(253, 184, 39, 0.3);
+}
+
+.control-btn.agent-btn.disconnected:hover {
+    background: var(--bg-light);
+    color: var(--text-secondary);
+    border-color: var(--border-default);
+}
+
 /* Compact text-only header buttons (Ctrl+Reset, Reboot) */
 .header-text-btn {
     padding: 6px 10px;

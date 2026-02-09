@@ -63,6 +63,7 @@ export class UIController {
 
     this.setupMenus();
     this.setupPowerControls();
+    this.setupAgentButton();
     this.setupFullPageModeControls();
     this.setupSoundControls();
     this.setupSystemMenuActions();
@@ -168,6 +169,55 @@ export class UIController {
       }
       this.refocusCanvas();
     });
+  }
+
+  /**
+   * Set up agent button for MCP server connection
+   */
+  setupAgentButton() {
+    console.log("[UIController] setupAgentButton() called");
+    const agentBtn = document.getElementById("btn-agent");
+    console.log("[UIController] agentBtn:", agentBtn);
+    if (!agentBtn) {
+      console.warn("[UIController] Agent button not found");
+      return;
+    }
+
+    const agentManager = this.emulator.agentManager;
+    if (!agentManager) {
+      console.warn("[UIController] AgentManager not available");
+      return;
+    }
+
+    console.log("[UIController] Agent button initialized");
+
+    const updateButtonState = () => {
+      if (agentManager.isConnected()) {
+        agentBtn.classList.remove("disconnected");
+        agentBtn.classList.add("connected");
+        agentBtn.title = "Disconnect from MCP Server";
+      } else {
+        agentBtn.classList.remove("connected");
+        agentBtn.classList.add("disconnected");
+        agentBtn.title = "Connect to MCP Server";
+      }
+    };
+
+    agentBtn.addEventListener("click", () => {
+      console.log("[UIController] Agent button clicked");
+      if (agentManager.isConnected()) {
+        console.log("[UIController] Disconnecting...");
+        agentManager.disconnect();
+      } else {
+        console.log("[UIController] Connecting...");
+        agentManager.connect();
+        setTimeout(() => updateButtonState(), 100);
+      }
+      updateButtonState();
+      this.refocusCanvas();
+    });
+
+    updateButtonState();
   }
 
   /**

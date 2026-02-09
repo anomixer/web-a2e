@@ -1,0 +1,30 @@
+# Disk Drives
+
+> Floppy disk drive management for the Disk II controller (slot 6).
+
+## Tool Operations
+
+**Show the window:**
+```
+showWindow("disk-drives")
+```
+
+**Hide the window:**
+```
+hideWindow("disk-drives")
+```
+
+**Focus the window:**
+```
+focusWindow("disk-drives")
+```
+
+## Overview
+
+The disk-drives window manages 5.25" floppy disk images for Drive 1 and Drive 2.
+
+Supported formats:
+- .dsk / .do (DOS 3.3 sector order, 140KB)
+- .po (ProDOS block order, 140KB)
+- .nib (nibble format)
+- .woz (Woz format)

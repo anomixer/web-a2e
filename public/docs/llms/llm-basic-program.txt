@@ -1,0 +1,136 @@
+# BASIC Program
+
+> View and load Applesoft and Integer BASIC programs from memory.
+
+## Tool Operations
+
+**Show the window:**
+```
+showWindow("basic-program")
+```
+
+**Hide the window:**
+```
+hideWindow("basic-program")
+```
+
+**Focus the window:**
+```
+focusWindow("basic-program")
+```
+
+**Load BASIC program from memory:**
+```
+a2e_command({ command: "basicProgramLoadFromMemory", params: {} })
+```
+Reads the tokenized BASIC program from emulator memory and displays it in the editor.
+
+**Load BASIC program into emulator:**
+```
+a2e_command({ command: "basicProgramLoadIntoEmulator", params: {} })
+```
+Tokenizes the program in the editor and loads it into emulator memory. The emulator must be powered on for this to work.
+
+**Run BASIC program:**
+```
+a2e_command({ command: "basicProgramRun", params: {} })
+```
+Execute the BASIC program in the emulator.
+
+**Pause BASIC program:**
+```
+a2e_command({ command: "basicProgramPause", params: {} })
+```
+Pause BASIC program execution at the next statement.
+
+**Clear BASIC program editor:**
+```
+a2e_command({ command: "basicProgramClear", params: {} })
+```
+Clear all text from the BASIC program editor.
+
+**Renumber BASIC program:**
+```
+a2e_command({ command: "basicProgramRenumber", params: {} })
+```
+Renumber program lines in increments of 10, updating GOTO and GOSUB references.
+
+**Format BASIC program:**
+```
+a2e_command({ command: "basicProgramFormat", params: {} })
+```
+Auto-format the BASIC code with proper alignment and indentation.
+
+**Get line and character count:**
+```
+a2e_command({ command: "basicProgramLineCount", params: {} })
+```
+Returns the number of lines and characters in the editor.
+
+**Get current program:**
+```
+a2e_command({ command: "basicProgramGet", params: {} })
+```
+Returns the current BASIC program text from the editor.
+
+**Edit program (find and replace):**
+```
+a2e_command({ command: "basicProgramEdit", params: { oldText: "text to find", newText: "replacement text" } })
+```
+Find and replace specific text in the program.
+
+**Set program (replace all):**
+```
+a2e_command({ command: "basicProgramSet", params: { program: "full program text" } })
+```
+Replace the entire program with new content.
+
+## Overview
+
+The basic-program window displays BASIC programs currently loaded in memory. It automatically detects whether the program is Applesoft BASIC or Integer BASIC and detokenizes it for viewing.
+
+
+## Features
+
+### Code Editor
+
+Large editable text area displaying the BASIC program with:
+- Line numbers automatically shown
+- Syntax highlighting for BASIC keywords
+- Full editing capabilities (type, copy/paste, edit)
+- Line and character count at bottom
+
+### Control Buttons
+
+**Run**: Execute the BASIC program in the emulator
+**Pause**: Pause program execution
+**Step**: Step through program line by line
+
+### Status Indicators
+
+- **IDLE**: Shows current execution state
+- **LINE**: Current line number being executed (--- when idle)
+- **PTR**: Memory pointer address ($---- when idle)
+
+### Variables Panel
+
+Right sidebar showing:
+- List of active BASIC variables and their current values
+- Shows "No variables" when program not running or no variables defined
+
+### Breakpoints Panel
+
+Right sidebar with tabs:
+- **Breakpoints**: Set line number breakpoints for debugging
+- **Line #**: Enter line number to break on
+- **+** button: Add breakpoint
+- Info button for breakpoint details
+- Shows "No breakpoints" when none are set
+
+### Action Buttons
+
+**Load from Memory**: Read BASIC program currently in emulator memory and display in editor
+**Load into Emulator**: Send program from editor into emulator memory
+**Format**: Auto-format the BASIC program
+**Renumber**: Renumber program lines (typically by 10s)
+**Clear**: Clear the editor

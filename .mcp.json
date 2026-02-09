@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "a2e-agent": {
+      "command": "node",
+      "args": [
+        "/Users/Shawn/code/git/[mikedaley]/web-a2e/mcp/a2e-agent/src/index.js"
+      ]
+    }
+  }
+}
