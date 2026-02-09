@@ -3,6 +3,10 @@
 */
 
 /* Content area */
+#hard-drives.debug-window {
+    overflow: visible;
+}
+
 #hard-drives.debug-window .debug-window-content {
     overflow: visible;
     flex-shrink: 0;

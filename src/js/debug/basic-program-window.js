@@ -16,6 +16,7 @@ import { tokenizeProgram } from "../utils/basic-tokenizer.js";
 import { BasicBreakpointManager } from "./basic-breakpoint-manager.js";
 import { BasicVariableInspector } from "./basic-variable-inspector.js";
 import { BasicProgramParser } from "./basic-program-parser.js";
+import { showToast } from "../ui/toast.js";
 
 const BASIC_ERRORS = {
   0x00: "NEXT WITHOUT FOR",
@@ -146,11 +147,11 @@ export class BasicProgramWindow extends BaseWindow {
             <div class="basic-dbg-breakpoints">
               <div class="basic-dbg-bp-header">
                 <span>Breakpoints</span>
-                <div class="basic-dbg-bp-add">
-                  <input type="text" class="basic-dbg-bp-input" placeholder="Line #" maxlength="5">
-                  <button class="basic-dbg-bp-add-btn" title="Add breakpoint">+</button>
-                  <button class="basic-dbg-bp-info-btn" title="Breakpoint help">i</button>
-                </div>
+              </div>
+              <div class="basic-dbg-bp-toolbar">
+                <input type="text" class="basic-dbg-bp-input" placeholder="Line #" maxlength="5">
+                <button class="basic-dbg-bp-add-btn" title="Add breakpoint">+</button>
+                <button class="basic-dbg-bp-info-btn" title="Breakpoint help">i</button>
               </div>
               <div class="basic-dbg-bp-list"></div>
             </div>
@@ -272,6 +273,11 @@ export class BasicProgramWindow extends BaseWindow {
       this.lineHighlight.classList.remove("visible");
       // Auto-format when leaving the editor
       this.autoFormatCode();
+    });
+
+    this.textarea.addEventListener("paste", () => {
+      // Format after the pasted content has been inserted
+      setTimeout(() => this.autoFormatCode(), 0);
     });
 
     this.insertBtn.addEventListener("click", () => {
@@ -1164,16 +1170,19 @@ export class BasicProgramWindow extends BaseWindow {
 
   loadIntoMemory() {
     if (this.isRunningCallback && !this.isRunningCallback()) {
-      this.showButtonFeedback("Emulator is off", "basic-btn-error");
+      showToast("Emulator is off", "error");
       return;
     }
 
     const text = this.textarea.value;
-    if (!text.trim()) return;
+    if (!text.trim()) {
+      showToast("No program to load", "warning");
+      return;
+    }
 
     const lines = this.parseProgram(text);
     if (lines.length === 0) {
-      console.warn("No valid BASIC lines found");
+      showToast("No valid BASIC lines found", "error");
       return;
     }
 
@@ -1213,18 +1222,8 @@ export class BasicProgramWindow extends BaseWindow {
     // Invalidate the program parser cache so Load from Memory sees new data
     this.programParser.invalidateCache();
 
-    this.showButtonFeedback(`Loaded ${lines.length} lines!`, "basic-btn-success");
+    showToast(`Loaded ${lines.length} lines into emulator`, "info");
     console.log(`BASIC program loaded into memory: ${lines.length} lines, ${bytes.length} bytes`);
-  }
-
-  showButtonFeedback(message, cssClass) {
-    this.insertBtn.textContent = message;
-    this.insertBtn.classList.add(cssClass);
-
-    setTimeout(() => {
-      this.insertBtn.textContent = "Load into Emulator";
-      this.insertBtn.classList.remove(cssClass);
-    }, 1500);
   }
 
   _showBreakpointHelp() {
@@ -1706,7 +1705,7 @@ export class BasicProgramWindow extends BaseWindow {
 
     if (entries.length === 0) {
       this.bpList.innerHTML =
-        '<div class="basic-dbg-empty">No breakpoints</div>';
+        '<div class="basic-dbg-bp-empty">Click a line number in the gutter to toggle a breakpoint, or add one above.</div>';
       return;
     }
 

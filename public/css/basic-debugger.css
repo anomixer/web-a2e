@@ -514,17 +514,20 @@
     background: var(--overlay-subtle);
 }
 
-.basic-dbg-bp-add {
+.basic-dbg-bp-toolbar {
     display: flex;
-    gap: 4px;
+    gap: 3px;
+    padding: 4px;
+    flex-shrink: 0;
 }
 
 .basic-dbg-bp-input {
-    width: 50px;
-    padding: 2px 4px;
+    flex: 1;
+    min-width: 0;
+    padding: 2px 5px;
     font-family: var(--font-mono);
     font-size: 10px;
-    background: var(--control-bg);
+    background: var(--input-bg-deep);
     border: 1px solid var(--control-border);
     border-radius: 3px;
     color: var(--text-primary);
@@ -554,9 +557,10 @@
 }
 
 .basic-dbg-bp-add-btn {
-    padding: 2px 6px;
+    padding: 2px 7px;
     font-family: var(--font-mono);
-    font-size: 12px;
+    font-size: 11px;
+    font-weight: 600;
     background: var(--control-bg);
     border: 1px solid var(--control-border);
     border-radius: 3px;
@@ -566,58 +570,71 @@
 }
 
 .basic-dbg-bp-add-btn:hover {
-    background: var(--accent-green-bg);
+    background: var(--accent-green-bg-strong);
     border-color: var(--accent-green-border);
     color: var(--accent-green);
 }
 
 .basic-dbg-bp-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    padding: 4px;
-    min-height: 24px;
+    flex: 1;
     overflow-y: auto;
+}
+
+.basic-dbg-bp-empty {
+    padding: 12px 8px;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 10px;
+    font-style: italic;
+    opacity: 0.7;
 }
 
 .basic-dbg-bp-item {
     display: flex;
     align-items: center;
     gap: 4px;
-    padding: 2px 6px;
-    background: rgba(224, 58, 62, 0.1);
-    border: 1px solid rgba(224, 58, 62, 0.2);
-    border-radius: 3px;
+    padding: 4px 4px;
     font-family: var(--font-mono);
     font-size: 10px;
+    border-radius: 3px;
+}
+
+.basic-dbg-bp-item:hover {
+    background: var(--overlay-faint);
 }
 
 .basic-dbg-bp-item.disabled {
-    opacity: 0.5;
-    background: var(--control-bg);
-    border-color: var(--control-border);
+    opacity: 0.45;
 }
 
 .basic-dbg-bp-enabled {
-    width: 12px;
-    height: 12px;
+    width: 10px;
+    height: 10px;
+    margin: 0;
     cursor: pointer;
+    flex-shrink: 0;
 }
 
 .basic-dbg-bp-line {
-    color: var(--text-secondary);
+    color: var(--accent-red);
+    flex-shrink: 0;
 }
 
 .basic-dbg-bp-remove {
     background: none;
     border: none;
     color: var(--text-muted);
-    font-size: 12px;
+    font-size: 13px;
     cursor: pointer;
-    padding: 0 2px;
+    padding: 0 4px;
     line-height: 1;
-    opacity: 0.6;
+    opacity: 0;
+    margin-left: auto;
     transition: all 0.12s;
+}
+
+.basic-dbg-bp-item:hover .basic-dbg-bp-remove {
+    opacity: 0.6;
 }
 
 .basic-dbg-bp-remove:hover {

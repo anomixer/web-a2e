@@ -291,6 +291,15 @@ export class UIController {
       });
     }
 
+    const diskLibraryBtn = document.getElementById("btn-disk-library");
+    if (diskLibraryBtn) {
+      diskLibraryBtn.addEventListener("click", () => {
+        this.windowManager.toggleWindow("disk-library");
+        this.closeAllMenus();
+        this.refocusCanvas();
+      });
+    }
+
     const fileExplorerBtn = document.getElementById("btn-file-explorer");
     if (fileExplorerBtn) {
       fileExplorerBtn.addEventListener("click", () => {
@@ -345,6 +354,7 @@ export class UIController {
       heatmap: "memory-heatmap",
       stack: "stack-viewer",
       zeropage: "zeropage-watch",
+      trace: "trace-panel",
       mockingboard: "mockingboard-debug",
       "mouse-card": "mouse-card-debug",
       "basic-debugger": "basic-debugger",
@@ -402,9 +412,13 @@ export class UIController {
       });
     }
 
-    // Update/refresh button - force service worker update
+    // Update/refresh button - only visible when installed as PWA
     const updateBtn = document.getElementById("btn-update");
-    if (updateBtn) {
+    const isInstalled = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+    if (updateBtn && !isInstalled) {
+      updateBtn.style.display = "none";
+    }
+    if (updateBtn && isInstalled) {
       updateBtn.addEventListener("click", async () => {
         this.closeAllMenus();
         if ("serviceWorker" in navigator) {
@@ -808,5 +822,33 @@ export class UIController {
    */
   isInFullPageMode() {
     return this.isFullPageMode;
+  }
+
+  /**
+   * Get the ID of the window that currently has focus, or null if none
+   * @returns {string|null}
+   */
+  get hasFocus() {
+    for (const [id, win] of this.windowManager.windows) {
+      if (win.isVisible && win.element.classList.contains('focused')) {
+        return id;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Bring a window to the front and give it focus
+   * @param {string} id - The window ID to focus
+   */
+  focusWindow(id) {
+    const win = this.windowManager.getWindow(id);
+    if (win) {
+      if (!win.isVisible) {
+        this.windowManager.showWindow(id);
+      } else {
+        this.windowManager.bringToFront(id);
+      }
+    }
   }
 }

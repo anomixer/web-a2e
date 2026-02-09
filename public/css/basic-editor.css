@@ -615,28 +615,6 @@
     color: var(--accent-green);
 }
 
-.basic-btn-success {
-    background: var(--accent-green-bg-stronger) !important;
-    border-color: rgba(63, 185, 80, 0.6) !important;
-    color: var(--accent-green) !important;
-    animation: basic-load-pulse 0.3s ease-out;
-}
-
-@keyframes basic-load-pulse {
-    0% {
-        transform: scale(1);
-        box-shadow: 0 0 0 0 rgba(63, 185, 80, 0.4);
-    }
-    50% {
-        transform: scale(1.02);
-        box-shadow: 0 0 12px 4px rgba(63, 185, 80, 0.3);
-    }
-    100% {
-        transform: scale(1);
-        box-shadow: 0 0 0 0 rgba(63, 185, 80, 0);
-    }
-}
-
 .basic-clear-btn:hover {
     background: var(--accent-red-bg-stronger);
     border-color: var(--accent-red-border);
@@ -651,12 +629,6 @@
 
 .basic-btn-cancel:hover {
     background: var(--accent-orange-bg-stronger) !important;
-}
-
-.basic-btn-error {
-    background: var(--accent-red-bg-stronger) !important;
-    border-color: var(--accent-red-border) !important;
-    color: var(--accent-red) !important;
 }
 
 /* BASIC Autocomplete Dropdown */

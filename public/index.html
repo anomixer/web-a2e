@@ -8,7 +8,7 @@
             content="Apple II Enhanced emulator for the browser"
         />
         <meta name="theme-color" content="#0a0a0b" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="mobile-web-app-capable" content="yes" />
         <meta
             name="apple-mobile-web-app-status-bar-style"
             content="black-translucent"
@@ -23,6 +23,7 @@
         <link rel="stylesheet" href="/css/monitor.css" />
         <link rel="stylesheet" href="/css/disk-drives.css" />
         <link rel="stylesheet" href="/css/hard-drive.css" />
+        <link rel="stylesheet" href="/css/disk-library.css" />
         <link rel="stylesheet" href="/css/controls.css" />
         <link rel="stylesheet" href="/css/modals.css" />
         <link rel="stylesheet" href="/css/debug-base.css" />
@@ -245,6 +246,9 @@
                             <button class="header-menu-item" id="btn-hard-drives">
                                 <span>Hard Drives</span>
                             </button>
+                            <button class="header-menu-item" id="btn-disk-library">
+                                <span>Disk Library</span>
+                            </button>
                             <button
                                 class="header-menu-item"
                                 id="btn-file-explorer"
@@ -326,6 +330,12 @@
                             >
                                 Zero Page Watch
                             </button>
+                            <button
+                                class="header-menu-item"
+                                data-window="trace"
+                            >
+                                Instruction Trace
+                            </button>
                             <div class="header-menu-separator"></div>
                             <button
                                 class="header-menu-item"
@@ -342,7 +352,7 @@
                         </div>
                     </div>
 
-                    <!-- Dev menu -->
+                    <!-- Tools menu -->
                     <div class="header-menu-container" id="dev-menu-container">
                         <button class="header-menu-trigger" id="btn-dev-menu">
                             <span>Dev</span>
@@ -593,15 +603,6 @@
                 </div>
             </div>
 
-            <footer>
-                <span>Apple //e Emulator</span>
-                <span class="separator">|</span>
-                <span>Press <kbd>F1</kbd> for help</span>
-                <span class="separator">|</span>
-                <button id="btn-release-notes" class="footer-link">
-                    Release Notes
-                </button>
-            </footer>
 
             <div id="loading">
                 <div class="loader">

@@ -14,12 +14,14 @@ import { DiskManager } from "./disk-manager/index.js";
 import { DiskDrivesWindow } from "./disk-manager/disk-drives-window.js";
 import { HardDriveManager } from "./disk-manager/hard-drive-manager.js";
 import { HardDriveWindow } from "./disk-manager/hard-drive-window.js";
+import { DiskLibraryWindow } from "./disk-manager/disk-library-window.js";
 import { FileExplorerWindow } from "./file-explorer/index.js";
 import { DisplaySettingsWindow, ScreenWindow } from "./display/index.js";
 import { DocumentationWindow, ReleaseNotesWindow } from "./help/index.js";
 import { ReminderController } from "./ui/reminder-controller.js";
 import { UIController } from "./ui/ui-controller.js";
 import { ThemeManager } from "./ui/theme-manager.js";
+import { showToast } from "./ui/toast.js";
 import { SlotConfigurationWindow } from "./ui/slot-configuration-window.js";
 import { WindowSwitcher } from "./ui/window-switcher.js";
 import { StateManager } from "./state/state-manager.js";
@@ -39,6 +41,7 @@ import {
   BasicProgramWindow,
   RuleBuilderWindow,
   AssemblerEditorWindow,
+  TracePanelWindow,
 } from "./debug/index.js";
 
 class AppleIIeEmulator {
@@ -127,7 +130,13 @@ class AppleIIeEmulator {
       this.hardDriveManager.fileExplorer = this.fileExplorer;
       this.hardDriveManager.init();
 
-      const cpuWindow = new CPUDebuggerWindow(this.wasmModule);
+      // Create disk library window
+      const diskLibraryWindow = new DiskLibraryWindow();
+      diskLibraryWindow.create();
+      diskLibraryWindow.setManagers(this.diskManager, this.hardDriveManager);
+      this.windowManager.register(diskLibraryWindow);
+
+      const cpuWindow = new CPUDebuggerWindow(this.wasmModule, () => this.isRunning());
       cpuWindow.create();
       this.windowManager.register(cpuWindow);
       this.cpuDebuggerWindow = cpuWindow;
@@ -197,6 +206,10 @@ class AppleIIeEmulator {
       const mouseCardWindow = new MouseCardWindow(this.wasmModule);
       mouseCardWindow.create();
       this.windowManager.register(mouseCardWindow);
+
+      const tracePanelWindow = new TracePanelWindow(this.wasmModule);
+      tracePanelWindow.create();
+      this.windowManager.register(tracePanelWindow);
 
       const basicProgramWindow = new BasicProgramWindow(
         this.wasmModule,
@@ -336,7 +349,7 @@ class AppleIIeEmulator {
     } catch (error) {
       console.error("Failed to initialize emulator:", error);
       this.showLoading(false);
-      alert("Failed to initialize emulator: " + error.message);
+      showToast("Failed to initialize emulator: " + error.message, "error");
     }
   }
 
@@ -518,8 +531,9 @@ class AppleIIeEmulator {
   }
 }
 
-// Register service worker for offline support with auto-update
-if ("serviceWorker" in navigator) {
+// Register service worker for offline support only when installed as PWA
+const isInstalled = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+if ("serviceWorker" in navigator && isInstalled) {
   window.addEventListener("load", () => {
     navigator.serviceWorker
       .register("/sw.js")

@@ -5,18 +5,21 @@
  *  Mike Daley <michael_daley@icloud.com>
  */
 
-import { BaseWindow } from '../windows/base-window.js';
+import { BaseWindow } from "../windows/base-window.js";
 
 export class HardDriveWindow extends BaseWindow {
   constructor() {
     super({
-      id: 'hard-drives',
-      title: 'Hard Drives',
-      minWidth: 300,
-      minHeight: 100,
+      id: "hard-drives",
+      title: "Hard Drives",
+      minWidth: 340,
+      minHeight: 225,
+      maxWidth: 340,
+      maxHeight: 225,
       defaultWidth: 340,
-      defaultHeight: 160,
+      defaultHeight: 225,
       defaultPosition: { x: 100, y: 500 },
+      resizeDirections: [],
     });
   }
 

@@ -71,6 +71,9 @@ CMakeFiles/generate_roms_native: generated/roms.cpp
 generated/roms.cpp: /Users/michaeldaley/Source/web-a2e/roms/342-0349-B-C0-FF.bin
 generated/roms.cpp: /Users/michaeldaley/Source/web-a2e/roms/342-0273-A-US-UK.bin
 generated/roms.cpp: /Users/michaeldaley/Source/web-a2e/roms/341-0027.bin
+generated/roms.cpp: /Users/michaeldaley/Source/web-a2e/roms/Thunderclock\ Plus\ ROM.bin
+generated/roms.cpp: /Users/michaeldaley/Source/web-a2e/roms/Apple\ Mouse\ Interface\ Card\ ROM\ -\ 342-0270-C.bin
+generated/roms.cpp: /Users/michaeldaley/Source/web-a2e/scripts/generate_roms.sh
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --blue --bold --progress-dir=/Users/michaeldaley/Source/web-a2e/build-native/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Generating ROM data arrays"
 	/opt/homebrew/bin/cmake -E make_directory /Users/michaeldaley/Source/web-a2e/build-native/generated
 	/Users/michaeldaley/Source/web-a2e/scripts/generate_roms.sh /Users/michaeldaley/Source/web-a2e/roms /Users/michaeldaley/Source/web-a2e/build-native/generated/roms.cpp

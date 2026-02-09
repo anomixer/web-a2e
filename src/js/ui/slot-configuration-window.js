@@ -6,6 +6,7 @@
  */
 
 import { BaseWindow } from "../windows/base-window.js";
+import { showToast } from "./toast.js";
 
 /**
  * SlotConfigurationWindow - Configure Apple IIe expansion slots
@@ -16,10 +17,11 @@ export class SlotConfigurationWindow extends BaseWindow {
       id: "slot-configuration",
       title: "Expansion Slots",
       minWidth: 300,
-      minHeight: 480,
+      minHeight: 520,
       defaultWidth: 340,
       defaultHeight: 480,
       defaultPosition: { x: 100, y: 100 },
+      resizeDirections: [],
     });
 
     this.wasmModule = wasmModule;
@@ -196,6 +198,7 @@ export class SlotConfigurationWindow extends BaseWindow {
     // Fallback to defaults
     const defaults = {
       4: "mockingboard",
+      5: "smartport",
       6: "disk2",
       7: "thunderclock",
     };
@@ -285,13 +288,15 @@ export class SlotConfigurationWindow extends BaseWindow {
     } else if (this.wasmModule && this.wasmModule._reset) {
       this.wasmModule._reset();
     }
+
+    showToast("Expansion slot configuration updated", "info");
   }
 
   applyInitialSettings() {
     // Apply saved settings on startup (before first reset)
     // If no saved settings, default to Thunderclock in slot 7
     const saved = this.loadSettingsFromStorage();
-    const config = saved || { 7: "thunderclock" };
+    const config = saved || { 5: "smartport", 7: "thunderclock" };
     if (this.wasmModule && this.wasmModule._setSlotCard) {
       for (const [slot, cardId] of Object.entries(config)) {
         const slotNum = parseInt(slot, 10);
