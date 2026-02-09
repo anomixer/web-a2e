@@ -14,7 +14,7 @@ import { LabelManager } from "./label-manager.js";
  * CPUDebuggerWindow - CPU registers, disassembly, and breakpoints
  */
 export class CPUDebuggerWindow extends BaseWindow {
-  constructor(wasmModule) {
+  constructor(wasmModule, isRunningCallback) {
     super({
       id: "cpu-debugger",
       title: "CPU Debugger",
@@ -26,6 +26,7 @@ export class CPUDebuggerWindow extends BaseWindow {
     });
 
     this.wasmModule = wasmModule;
+    this.isRunningCallback = isRunningCallback || (() => true);
     this.bpManager = new BreakpointManager(wasmModule);
     this.labelManager = new LabelManager();
     this.lastPC = null;
@@ -66,7 +67,12 @@ export class CPUDebuggerWindow extends BaseWindow {
             <button class="cpu-dbg-btn" id="dbg-step-over" title="Step Over (F10)">Over</button>
             <button class="cpu-dbg-btn" id="dbg-step-out" title="Step Out (Shift+F11)">Out</button>
           </div>
-          <span class="cpu-dbg-status" id="dbg-status">PAUSED</span>
+        </div>
+        <div class="cpu-dbg-status-bar">
+          <div class="cpu-dbg-status-bar-left">
+            <span class="cpu-dbg-status-dot"></span>
+            <span class="cpu-dbg-status" id="dbg-status">PAUSED</span>
+          </div>
         </div>
 
         <div class="cpu-dbg-section">
@@ -790,13 +796,21 @@ export class CPUDebuggerWindow extends BaseWindow {
 
     // Update status indicator
     const statusEl = this.contentElement.querySelector("#dbg-status");
+    const statusBar = this.contentElement.querySelector(".cpu-dbg-status-bar");
     if (statusEl) {
-      if (isPaused) {
+      const emulatorOn = this.isRunningCallback();
+      if (!emulatorOn) {
+        statusEl.textContent = "EMULATOR OFF";
+        statusEl.classList.remove("running");
+        if (statusBar) statusBar.dataset.state = "off";
+      } else if (isPaused) {
         statusEl.textContent = "PAUSED";
         statusEl.classList.remove("running");
+        if (statusBar) statusBar.dataset.state = "paused";
       } else {
         statusEl.textContent = "RUNNING";
         statusEl.classList.add("running");
+        if (statusBar) statusBar.dataset.state = "running";
       }
     }
 

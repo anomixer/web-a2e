@@ -126,7 +126,7 @@ class AppleIIeEmulator {
       this.hardDriveManager.fileExplorer = this.fileExplorer;
       this.hardDriveManager.init();
 
-      const cpuWindow = new CPUDebuggerWindow(this.wasmModule);
+      const cpuWindow = new CPUDebuggerWindow(this.wasmModule, () => this.isRunning());
       cpuWindow.create();
       this.windowManager.register(cpuWindow);
       this.cpuDebuggerWindow = cpuWindow;
