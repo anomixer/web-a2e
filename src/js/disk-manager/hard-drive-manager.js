@@ -14,6 +14,7 @@ import {
   loadRecentImage,
   clearRecentImages,
 } from "./hard-drive-persistence.js";
+import { showToast } from "../ui/toast.js";
 
 function insertImageToWasm(wasmModule, deviceNum, data, filename) {
   const dataPtr = wasmModule._malloc(data.length);
@@ -91,6 +92,10 @@ export class HardDriveManager {
 
     if (device.insertBtn) {
       device.insertBtn.addEventListener("click", () => {
+        if (!this.isSmartPortInstalled()) {
+          showToast("SmartPort card is not installed. Configure it in the Expansion Slots window before loading hard drive images.", "warning");
+          return;
+        }
         device.input?.click();
       });
     }
@@ -107,6 +112,10 @@ export class HardDriveManager {
     if (device.recentBtn) {
       device.recentBtn.addEventListener("click", (e) => {
         e.stopPropagation();
+        if (!this.isSmartPortInstalled()) {
+          showToast("SmartPort card is not installed. Configure it in the Expansion Slots window before loading hard drive images.", "warning");
+          return;
+        }
         this.toggleRecentDropdown(deviceNum);
       });
     }
@@ -147,6 +156,11 @@ export class HardDriveManager {
     }
   }
 
+  isSmartPortInstalled() {
+    return this.wasmModule._isSmartPortCardInstalled &&
+           this.wasmModule._isSmartPortCardInstalled();
+  }
+
   refocusCanvas() {
     if (this.canvas) setTimeout(() => this.canvas.focus(), 0);
   }
@@ -166,11 +180,11 @@ export class HardDriveManager {
         await addToRecentImages(deviceNum, file.name, data);
       } else {
         console.error(`Failed to load HD image: ${file.name}`);
-        alert(`Failed to load hard drive image: ${file.name}`);
+        showToast(`Failed to load hard drive image: ${file.name}`, "error");
       }
     } catch (error) {
       console.error("Error loading HD image:", error);
-      alert("Error loading hard drive image: " + error.message);
+      showToast("Error loading hard drive image: " + error.message, "error");
     }
   }
 

@@ -6,6 +6,7 @@
  */
 
 import { BaseWindow } from "../windows/base-window.js";
+import { showToast } from "../ui/toast.js";
 
 // Predefined watches for common Apple II zero page locations
 const PREDEFINED_WATCHES = {
@@ -215,7 +216,7 @@ export class ZeroPageWatchWindow extends BaseWindow {
 
     const addr = parseInt(addrStr, 16);
     if (isNaN(addr) || addr < 0 || addr > 0xff) {
-      alert("Invalid address. Must be 00-FF.");
+      showToast("Invalid address. Must be 00-FF.", "error");
       return;
     }
 

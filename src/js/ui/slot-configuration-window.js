@@ -196,6 +196,7 @@ export class SlotConfigurationWindow extends BaseWindow {
     // Fallback to defaults
     const defaults = {
       4: "mockingboard",
+      5: "smartport",
       6: "disk2",
       7: "thunderclock",
     };
@@ -291,7 +292,7 @@ export class SlotConfigurationWindow extends BaseWindow {
     // Apply saved settings on startup (before first reset)
     // If no saved settings, default to Thunderclock in slot 7
     const saved = this.loadSettingsFromStorage();
-    const config = saved || { 7: "thunderclock" };
+    const config = saved || { 5: "smartport", 7: "thunderclock" };
     if (this.wasmModule && this.wasmModule._setSlotCard) {
       for (const [slot, cardId] of Object.entries(config)) {
         const slotNum = parseInt(slot, 10);

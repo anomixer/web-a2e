@@ -6,6 +6,7 @@
  */
 
 import { DriveSounds } from "./drive-sounds.js";
+import { showToast } from "../ui/toast.js";
 import { DiskSurfaceRenderer } from "./disk-surface-renderer.js";
 import {
   loadDisk,
@@ -406,7 +407,7 @@ export class DiskManager {
         this.setDiskName(driveNum, filename);
         if (this.onDiskLoaded) this.onDiskLoaded(driveNum, filename);
       },
-      onError: (error) => alert(error),
+      onError: (error) => showToast(error, "error"),
     });
   }
 
@@ -417,7 +418,7 @@ export class DiskManager {
       drive,
       driveNum,
       onSuccess: (filename) => this.setDiskName(driveNum, filename),
-      onError: (error) => alert(error),
+      onError: (error) => showToast(error, "error"),
     });
   }
 
@@ -685,7 +686,7 @@ export class DiskManager {
         this.setDiskName(driveNum, filename);
         if (this.onDiskLoaded) this.onDiskLoaded(driveNum, filename);
       },
-      onError: (error) => alert(error),
+      onError: (error) => showToast(error, "error"),
     });
 
     // Update access time by re-adding to recent list

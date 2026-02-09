@@ -451,3 +451,59 @@ div.modal.hidden {
     background: var(--accent-green);
     color: white;
 }
+
+/* Toast notifications */
+.toast-container {
+    position: fixed;
+    top: var(--space-lg);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 100000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-sm);
+    pointer-events: none;
+}
+
+.toast {
+    pointer-events: auto;
+    cursor: pointer;
+    padding: var(--space-sm) var(--space-lg);
+    border-radius: var(--radius-md);
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    line-height: 1.4;
+    max-width: 420px;
+    text-align: center;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    box-shadow: var(--shadow-lg);
+    opacity: 0;
+    transform: translateY(-12px);
+    transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.toast-visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.toast-info {
+    background: var(--glass-bg);
+    border: 1px solid var(--accent-blue);
+    color: var(--accent-blue);
+}
+
+.toast-warning {
+    background: var(--glass-bg);
+    border: 1px solid var(--accent-orange);
+    color: var(--accent-orange);
+}
+
+.toast-error {
+    background: var(--glass-bg);
+    border: 1px solid var(--accent-red);
+    color: var(--accent-red);
+}

@@ -20,6 +20,7 @@ import { DocumentationWindow, ReleaseNotesWindow } from "./help/index.js";
 import { ReminderController } from "./ui/reminder-controller.js";
 import { UIController } from "./ui/ui-controller.js";
 import { ThemeManager } from "./ui/theme-manager.js";
+import { showToast } from "./ui/toast.js";
 import { SlotConfigurationWindow } from "./ui/slot-configuration-window.js";
 import { WindowSwitcher } from "./ui/window-switcher.js";
 import { StateManager } from "./state/state-manager.js";
@@ -330,7 +331,7 @@ class AppleIIeEmulator {
     } catch (error) {
       console.error("Failed to initialize emulator:", error);
       this.showLoading(false);
-      alert("Failed to initialize emulator: " + error.message);
+      showToast("Failed to initialize emulator: " + error.message, "error");
     }
   }
 
