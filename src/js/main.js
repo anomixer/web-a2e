@@ -14,6 +14,7 @@ import { DiskManager } from "./disk-manager/index.js";
 import { DiskDrivesWindow } from "./disk-manager/disk-drives-window.js";
 import { HardDriveManager } from "./disk-manager/hard-drive-manager.js";
 import { HardDriveWindow } from "./disk-manager/hard-drive-window.js";
+import { DiskLibraryWindow } from "./disk-manager/disk-library-window.js";
 import { FileExplorerWindow } from "./file-explorer/index.js";
 import { DisplaySettingsWindow, ScreenWindow } from "./display/index.js";
 import { DocumentationWindow, ReleaseNotesWindow } from "./help/index.js";
@@ -125,6 +126,12 @@ class AppleIIeEmulator {
       this.hardDriveManager = new HardDriveManager(this.wasmModule);
       this.hardDriveManager.fileExplorer = this.fileExplorer;
       this.hardDriveManager.init();
+
+      // Create disk library window
+      const diskLibraryWindow = new DiskLibraryWindow();
+      diskLibraryWindow.create();
+      diskLibraryWindow.setManagers(this.diskManager, this.hardDriveManager);
+      this.windowManager.register(diskLibraryWindow);
 
       const cpuWindow = new CPUDebuggerWindow(this.wasmModule, () => this.isRunning());
       cpuWindow.create();
