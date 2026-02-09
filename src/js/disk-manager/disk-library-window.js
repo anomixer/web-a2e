@@ -159,10 +159,10 @@ export class DiskLibraryWindow extends BaseWindow {
 
       if (entry.type === "floppy") {
         const driveNum = target === "d1" ? 0 : 1;
-        this._loadFloppy(driveNum, entry, data);
+        this._loadFloppy(driveNum, entry.file, data);
       } else {
         const deviceNum = target === "hd0" ? 0 : 1;
-        this._loadHardDrive(deviceNum, entry, data);
+        this._loadHardDrive(deviceNum, entry.file, data);
       }
 
       // Flash checkmark
@@ -212,7 +212,7 @@ export class DiskLibraryWindow extends BaseWindow {
     return data;
   }
 
-  _loadFloppy(driveNum, entry, data) {
+  _loadFloppy(driveNum, filename, data) {
     if (!this._diskManager) return;
 
     const drive = this._diskManager.drives[driveNum];
@@ -221,30 +221,30 @@ export class DiskLibraryWindow extends BaseWindow {
       wasmModule: this._diskManager.wasmModule,
       drive,
       driveNum,
-      filename: entry.file,
+      filename,
       data,
-      onSuccess: (filename) => {
-        this._diskManager.setDiskName(driveNum, filename);
+      onSuccess: (name) => {
+        this._diskManager.setDiskName(driveNum, name);
         if (this._diskManager.onDiskLoaded) {
-          this._diskManager.onDiskLoaded(driveNum, filename);
+          this._diskManager.onDiskLoaded(driveNum, name);
         }
       },
       onError: (error) => showToast(error, "error"),
     });
 
     // Persist for session restore
-    saveDiskToStorage(driveNum, entry.file, data);
-    addToRecentDisks(driveNum, entry.file, data);
+    saveDiskToStorage(driveNum, filename, data);
+    addToRecentDisks(driveNum, filename, data);
   }
 
-  _loadHardDrive(deviceNum, entry, data) {
+  _loadHardDrive(deviceNum, filename, data) {
     if (!this._hardDriveManager) return;
 
-    this._hardDriveManager.loadImageFromData(deviceNum, entry.file, data);
+    this._hardDriveManager.loadImageFromData(deviceNum, filename, data);
 
     // Persist for session restore
-    saveImageToStorage(deviceNum, entry.file, data);
-    addToRecentImages(deviceNum, entry.file, data);
+    saveImageToStorage(deviceNum, filename, data);
+    addToRecentImages(deviceNum, filename, data);
   }
 
   _fitToContent() {
