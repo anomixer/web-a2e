@@ -126,10 +126,21 @@
 
 .cpu-dbg-status-bar[data-state="running"] .cpu-dbg-status-dot {
     background: var(--accent-green);
+    animation: cpu-status-dot-pulse 1.5s ease-in-out infinite;
+}
+
+.cpu-dbg-status-bar[data-state="paused"] .cpu-dbg-status-dot {
+    animation: none;
 }
 
 .cpu-dbg-status-bar[data-state="off"] .cpu-dbg-status-dot {
     background: var(--text-muted);
+    animation: none;
+}
+
+@keyframes cpu-status-dot-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.75); }
 }
 
 .cpu-dbg-status-bar[data-state="off"] .cpu-dbg-status {

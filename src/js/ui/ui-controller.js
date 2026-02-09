@@ -352,9 +352,13 @@ export class UIController {
       });
     }
 
-    // Update/refresh button - force service worker update
+    // Update/refresh button - only visible when installed as PWA
     const updateBtn = document.getElementById("btn-update");
-    if (updateBtn) {
+    const isInstalled = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+    if (updateBtn && !isInstalled) {
+      updateBtn.style.display = "none";
+    }
+    if (updateBtn && isInstalled) {
       updateBtn.addEventListener("click", async () => {
         this.closeAllMenus();
         if ("serviceWorker" in navigator) {

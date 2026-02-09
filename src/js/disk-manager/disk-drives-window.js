@@ -13,9 +13,8 @@ export class DiskDrivesWindow extends BaseWindow {
       id: "disk-drives",
       title: "Disk Drives",
       minWidth: 460,
-      minHeight: 310,
+      minHeight: 100,
       maxWidth: 460,
-      maxHeight: 310,
       defaultWidth: 460,
       defaultHeight: 310,
       defaultPosition: { x: 100, y: 452 },
@@ -98,6 +97,12 @@ export class DiskDrivesWindow extends BaseWindow {
     this.headerElement.insertBefore(this._detailBtn, closeBtn);
     this._detailBtn.addEventListener("mousedown", (e) => e.stopPropagation());
     this._detailBtn.addEventListener("click", () => this._toggleDetails());
+
+  }
+
+  show() {
+    super.show();
+    this._fitToContent();
   }
 
   _toggleGraphics() {
@@ -106,6 +111,7 @@ export class DiskDrivesWindow extends BaseWindow {
     if (this._graphicsBtn) {
       this._graphicsBtn.classList.toggle("active", !this._graphicsHidden);
     }
+    this._fitToContent();
     if (this.onStateChange) this.onStateChange();
   }
 
@@ -115,7 +121,20 @@ export class DiskDrivesWindow extends BaseWindow {
     if (this._detailBtn) {
       this._detailBtn.classList.toggle("active", this._detailsOpen);
     }
+    this._fitToContent();
     if (this.onStateChange) this.onStateChange();
+  }
+
+  _fitToContent() {
+    if (!this.element) return;
+    // Temporarily set auto height to measure natural size
+    const prevHeight = this.element.style.height;
+    this.element.style.height = 'auto';
+    const newHeight = this.element.offsetHeight;
+    this.element.style.height = `${newHeight}px`;
+    this.currentHeight = newHeight;
+    this.minHeight = newHeight;
+    this.maxHeight = newHeight;
   }
 
   /**

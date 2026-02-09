@@ -508,8 +508,9 @@ class AppleIIeEmulator {
   }
 }
 
-// Register service worker for offline support with auto-update
-if ("serviceWorker" in navigator) {
+// Register service worker for offline support only when installed as PWA
+const isInstalled = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+if ("serviceWorker" in navigator && isInstalled) {
   window.addEventListener("load", () => {
     navigator.serviceWorker
       .register("/sw.js")
