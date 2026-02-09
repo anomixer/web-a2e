@@ -1229,6 +1229,25 @@
     height: 12px;
 }
 
+.trace-clear-btn {
+    padding: 2px 8px;
+    background: var(--control-bg-solid);
+    border: 1px solid var(--control-border);
+    border-radius: var(--radius-sm);
+    color: var(--text-secondary);
+    font-family: var(--font-sans);
+    font-size: 10px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.1s;
+}
+
+.trace-clear-btn:hover {
+    background: var(--accent-red-bg-strong, var(--control-bg-hover));
+    border-color: var(--accent-red-border, var(--control-border));
+    color: var(--accent-red, var(--text-primary));
+}
+
 .trace-count {
     font-size: 10px;
     color: var(--text-muted);

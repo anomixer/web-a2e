@@ -43,6 +43,7 @@ export class TracePanelWindow extends BaseWindow {
     this.ROW_HEIGHT = 14;
     this.scrollTop = 0;
     this.filterAddr = null; // Optional filter by address range
+    this.recording = false;
   }
 
   renderContent() {
@@ -53,7 +54,7 @@ export class TracePanelWindow extends BaseWindow {
             <input type="checkbox" id="trace-enabled">
             <span>Record</span>
           </label>
-          <button class="dbg-btn" id="trace-clear">Clear</button>
+          <button class="trace-clear-btn" id="trace-clear">Clear</button>
           <span class="trace-count" id="trace-count">0 entries</span>
         </div>
         <div class="trace-header">
@@ -75,6 +76,7 @@ export class TracePanelWindow extends BaseWindow {
     const enabledCheck = this.contentElement.querySelector("#trace-enabled");
     if (enabledCheck) {
       enabledCheck.addEventListener("change", () => {
+        this.recording = enabledCheck.checked;
         if (this.wasmModule._setTraceEnabled) {
           this.wasmModule._setTraceEnabled(enabledCheck.checked);
         }
@@ -86,6 +88,7 @@ export class TracePanelWindow extends BaseWindow {
       clearBtn.addEventListener("click", () => {
         if (this.wasmModule._clearTrace) {
           this.wasmModule._clearTrace();
+          this.renderVisibleRows();
         }
       });
     }
@@ -111,6 +114,16 @@ export class TracePanelWindow extends BaseWindow {
     if (countEl && this.wasmModule._getTraceCount) {
       const count = this.wasmModule._getTraceCount();
       countEl.textContent = `${count} entries`;
+
+      // Auto-scroll to latest entry when recording
+      if (this.recording && count > 0) {
+        const container = this.contentElement.querySelector("#trace-scroll");
+        if (container) {
+          const totalHeight = count * this.ROW_HEIGHT;
+          container.scrollTop = totalHeight - container.clientHeight;
+          this.scrollTop = container.scrollTop;
+        }
+      }
     }
 
     this.renderVisibleRows();

@@ -40,6 +40,7 @@ import {
   BasicProgramWindow,
   RuleBuilderWindow,
   AssemblerEditorWindow,
+  TracePanelWindow,
 } from "./debug/index.js";
 
 class AppleIIeEmulator {
@@ -203,6 +204,10 @@ class AppleIIeEmulator {
       const mouseCardWindow = new MouseCardWindow(this.wasmModule);
       mouseCardWindow.create();
       this.windowManager.register(mouseCardWindow);
+
+      const tracePanelWindow = new TracePanelWindow(this.wasmModule);
+      tracePanelWindow.create();
+      this.windowManager.register(tracePanelWindow);
 
       const basicProgramWindow = new BasicProgramWindow(
         this.wasmModule,

@@ -304,6 +304,7 @@ export class UIController {
       heatmap: "memory-heatmap",
       stack: "stack-viewer",
       zeropage: "zeropage-watch",
+      trace: "trace-panel",
       mockingboard: "mockingboard-debug",
       "mouse-card": "mouse-card-debug",
       "basic-debugger": "basic-debugger",
