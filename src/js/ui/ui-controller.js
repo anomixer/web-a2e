@@ -759,4 +759,32 @@ export class UIController {
   isInFullPageMode() {
     return this.isFullPageMode;
   }
+
+  /**
+   * Get the ID of the window that currently has focus, or null if none
+   * @returns {string|null}
+   */
+  get hasFocus() {
+    for (const [id, win] of this.windowManager.windows) {
+      if (win.isVisible && win.element.classList.contains('focused')) {
+        return id;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Bring a window to the front and give it focus
+   * @param {string} id - The window ID to focus
+   */
+  focusWindow(id) {
+    const win = this.windowManager.getWindow(id);
+    if (win) {
+      if (!win.isVisible) {
+        this.windowManager.showWindow(id);
+      } else {
+        this.windowManager.bringToFront(id);
+      }
+    }
+  }
 }
