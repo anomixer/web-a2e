@@ -6,6 +6,7 @@
  */
 
 import { BaseWindow } from "../windows/base-window.js";
+import { showToast } from "./toast.js";
 
 /**
  * SlotConfigurationWindow - Configure Apple IIe expansion slots
@@ -16,10 +17,11 @@ export class SlotConfigurationWindow extends BaseWindow {
       id: "slot-configuration",
       title: "Expansion Slots",
       minWidth: 300,
-      minHeight: 480,
+      minHeight: 520,
       defaultWidth: 340,
       defaultHeight: 480,
       defaultPosition: { x: 100, y: 100 },
+      resizeDirections: [],
     });
 
     this.wasmModule = wasmModule;
@@ -286,6 +288,8 @@ export class SlotConfigurationWindow extends BaseWindow {
     } else if (this.wasmModule && this.wasmModule._reset) {
       this.wasmModule._reset();
     }
+
+    showToast("Expansion slot configuration updated", "info");
   }
 
   applyInitialSettings() {
