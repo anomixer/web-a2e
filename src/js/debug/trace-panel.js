@@ -12,6 +12,25 @@ import { getSymbolInfo } from "./symbols.js";
  * Cached opcode mnemonics from WASM disassembler (populated on first use)
  */
 let MNEMONICS = null;
+let ADDR_MODES = null;
+
+// AddrMode enum values matching disassembler.hpp
+const MODE_IMP = 0;
+const MODE_ACC = 1;
+const MODE_IMM = 2;
+const MODE_ZP  = 3;
+const MODE_ZPX = 4;
+const MODE_ZPY = 5;
+const MODE_ABS = 6;
+const MODE_ABX = 7;
+const MODE_ABY = 8;
+const MODE_IND = 9;
+const MODE_IZX = 10;
+const MODE_IZY = 11;
+const MODE_REL = 12;
+const MODE_ZPI = 13;
+const MODE_AIX = 14;
+const MODE_ZPR = 15;
 
 function getMnemonicTable(wasmModule) {
   if (MNEMONICS) return MNEMONICS;
@@ -21,6 +40,16 @@ function getMnemonicTable(wasmModule) {
     MNEMONICS[i] = ptr ? wasmModule.UTF8ToString(ptr) : "???";
   }
   return MNEMONICS;
+}
+
+function getAddrModeTable(wasmModule) {
+  if (ADDR_MODES) return ADDR_MODES;
+  if (!wasmModule._getOpcodeAddressingMode) return null;
+  ADDR_MODES = new Uint8Array(256);
+  for (let i = 0; i < 256; i++) {
+    ADDR_MODES[i] = wasmModule._getOpcodeAddressingMode(i);
+  }
+  return ADDR_MODES;
 }
 
 /**
@@ -34,7 +63,7 @@ export class TracePanelWindow extends BaseWindow {
       title: "Instruction Trace",
       minWidth: 480,
       minHeight: 300,
-      defaultWidth: 580,
+      defaultWidth: 680,
       defaultHeight: 400,
       defaultPosition: { x: 60, y: window.innerHeight - 460 },
     });
@@ -61,7 +90,8 @@ export class TracePanelWindow extends BaseWindow {
           <span class="trace-col-cycle">Cycle</span>
           <span class="trace-col-pc">PC</span>
           <span class="trace-col-bytes">Bytes</span>
-          <span class="trace-col-instr">Instruction</span>
+          <span class="trace-col-mnemonic">Mnem</span>
+          <span class="trace-col-operand">Operand</span>
           <span class="trace-col-regs">A  X  Y  SP NV-BDIZC</span>
         </div>
         <div class="trace-scroll-container" id="trace-scroll">
@@ -129,6 +159,38 @@ export class TracePanelWindow extends BaseWindow {
     this.renderVisibleRows();
   }
 
+  formatOperand(mode, op1, op2, pc, len) {
+    const b = this.hex2(op1);
+    const w = this.hex2(op2) + this.hex2(op1);
+    switch (mode) {
+      case MODE_IMP: return "";
+      case MODE_ACC: return "A";
+      case MODE_IMM: return `#$${b}`;
+      case MODE_ZP:  return `$${b}`;
+      case MODE_ZPX: return `$${b},X`;
+      case MODE_ZPY: return `$${b},Y`;
+      case MODE_ABS: return `$${w}`;
+      case MODE_ABX: return `$${w},X`;
+      case MODE_ABY: return `$${w},Y`;
+      case MODE_IND: return `($${w})`;
+      case MODE_IZX: return `($${b},X)`;
+      case MODE_IZY: return `($${b}),Y`;
+      case MODE_REL: {
+        const offset = op1 < 128 ? op1 : op1 - 256;
+        const target = (pc + len + offset) & 0xFFFF;
+        return `$${this.hex4(target)}`;
+      }
+      case MODE_ZPI: return `($${b})`;
+      case MODE_AIX: return `($${w},X)`;
+      case MODE_ZPR: {
+        const offset = op2 < 128 ? op2 : op2 - 256;
+        const target = (pc + len + offset) & 0xFFFF;
+        return `$${b},$${this.hex4(target)}`;
+      }
+      default: return "";
+    }
+  }
+
   renderVisibleRows() {
     const container = this.contentElement.querySelector("#trace-scroll");
     const spacer = this.contentElement.querySelector("#trace-spacer");
@@ -162,6 +224,7 @@ export class TracePanelWindow extends BaseWindow {
     // uint32_t cycle;
     const ENTRY_SIZE = 16;
     const heap = this.wasmModule.HEAPU8;
+    const modes = getAddrModeTable(this.wasmModule);
 
     let html = "";
     rowsEl.style.transform = `translateY(${startIdx * this.ROW_HEIGHT}px)`;
@@ -194,13 +257,16 @@ export class TracePanelWindow extends BaseWindow {
       if (len >= 2) bytesStr += " " + this.hex2(op1);
       if (len >= 3) bytesStr += " " + this.hex2(op2);
 
+      const mode = modes ? modes[opcode] : MODE_IMP;
+      const operand = this.formatOperand(mode, op1, op2, pc, len);
       const flags = this.flagsStr(p);
 
       html += `<div class="trace-row">` +
         `<span class="trace-col-cycle">${(cycle >>> 0).toString()}</span>` +
         `<span class="trace-col-pc">${this.hex4(pc)}</span>` +
         `<span class="trace-col-bytes">${bytesStr.padEnd(8)}</span>` +
-        `<span class="trace-col-instr">${mnemonic}</span>` +
+        `<span class="trace-col-mnemonic">${mnemonic}</span>` +
+        `<span class="trace-col-operand">${operand}</span>` +
         `<span class="trace-col-regs">${this.hex2(a)} ${this.hex2(x)} ${this.hex2(y)} ${this.hex2(sp)} ${flags}</span>` +
         `</div>`;
     }

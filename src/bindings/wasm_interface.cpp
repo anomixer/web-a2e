@@ -1437,6 +1437,11 @@ const char* getOpcodeMnemonic(uint8_t opcode) {
   return a2e::getMnemonic(opcode);
 }
 
+EMSCRIPTEN_KEEPALIVE
+uint8_t getOpcodeAddressingMode(uint8_t opcode) {
+  return static_cast<uint8_t>(a2e::getAddressingMode(opcode));
+}
+
 // ============================================================================
 // Call Stack Analysis
 // ============================================================================

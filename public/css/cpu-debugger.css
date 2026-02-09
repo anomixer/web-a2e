@@ -1299,11 +1299,12 @@
     background: var(--overlay-subtle);
 }
 
-.trace-col-cycle { width: 60px; color: var(--text-muted); }
-.trace-col-pc { width: 36px; color: var(--accent-blue); }
-.trace-col-bytes { width: 64px; color: var(--text-muted); }
-.trace-col-instr { width: 40px; color: var(--accent-green); font-weight: 600; }
-.trace-col-regs { flex: 1; color: var(--text-secondary); }
+.trace-col-cycle { width: 64px; flex-shrink: 0; color: var(--text-muted); }
+.trace-col-pc { width: 36px; flex-shrink: 0; color: var(--accent-blue); }
+.trace-col-bytes { width: 68px; flex-shrink: 0; color: var(--text-muted); }
+.trace-col-mnemonic { width: 30px; flex-shrink: 0; color: var(--accent-green); font-weight: 600; }
+.trace-col-operand { width: 80px; flex-shrink: 0; color: var(--accent-orange, var(--text-primary)); }
+.trace-col-regs { flex: 1; color: var(--text-secondary); white-space: nowrap; }
 
 .trace-empty {
     padding: 16px;
