@@ -7,6 +7,7 @@
 
 import { BaseWindow } from "../windows/base-window.js";
 import { showToast } from "../ui/toast.js";
+import { createDatabaseManager } from "../utils/indexeddb-helper.js";
 import { loadDiskFromData } from "./disk-operations.js";
 import {
   saveDiskToStorage,
@@ -16,6 +17,19 @@ import {
   saveImageToStorage,
   addToRecentImages,
 } from "./hard-drive-persistence.js";
+
+const CACHE_STORE = "images";
+
+const cacheDb = createDatabaseManager({
+  dbName: "a2e-disk-library-cache",
+  version: 1,
+  onUpgrade: (event) => {
+    const database = event.target.result;
+    if (!database.objectStoreNames.contains(CACHE_STORE)) {
+      database.createObjectStore(CACHE_STORE, { keyPath: "id" });
+    }
+  },
+});
 
 const FLOPPY_ICON = `<svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor">
   <path d="M2 1.5A1.5 1.5 0 0 1 3.5 0h9A1.5 1.5 0 0 1 14 1.5v13A1.5 1.5 0 0 1 12.5 16h-9A1.5 1.5 0 0 1 2 14.5v-13zM5 1v3h6V1H5zm6.5 7a3.5 3.5 0 1 0-7 0 3.5 3.5 0 0 0 7 0zM8 6a2 2 0 1 1 0 4 2 2 0 0 1 0-4z"/>
@@ -141,10 +155,7 @@ export class DiskLibraryWindow extends BaseWindow {
     btn.disabled = true;
 
     try {
-      const resp = await fetch(`/disks/${entry.file}`);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const arrayBuffer = await resp.arrayBuffer();
-      const data = new Uint8Array(arrayBuffer);
+      const data = await this._getImageData(entry);
 
       if (entry.type === "floppy") {
         const driveNum = target === "d1" ? 0 : 1;
@@ -168,6 +179,37 @@ export class DiskLibraryWindow extends BaseWindow {
     } finally {
       this._loading.delete(loadKey);
     }
+  }
+
+  async _getImageData(entry) {
+    // Try loading from IndexedDB cache first
+    try {
+      const cached = await cacheDb.get(CACHE_STORE, entry.id);
+      if (cached) {
+        return new Uint8Array(cached.data);
+      }
+    } catch (err) {
+      console.warn("Library cache read failed, fetching from server:", err);
+    }
+
+    // Cache miss — fetch from server
+    const resp = await fetch(`/disks/${entry.file}`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const arrayBuffer = await resp.arrayBuffer();
+    const data = new Uint8Array(arrayBuffer);
+
+    // Store in cache for next time
+    try {
+      await cacheDb.put(CACHE_STORE, {
+        id: entry.id,
+        file: entry.file,
+        data: arrayBuffer,
+      });
+    } catch (err) {
+      console.warn("Library cache write failed:", err);
+    }
+
+    return data;
   }
 
   _loadFloppy(driveNum, entry, data) {
