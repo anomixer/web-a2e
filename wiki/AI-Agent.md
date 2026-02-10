@@ -125,6 +125,33 @@ Write this BASIC program to emulator memory:
 What BASIC program is currently in memory?
 ```
 
+### Emulator Control
+
+**Power on:**
+```
+Turn on the emulator
+```
+
+**Power off:**
+```
+Turn off the emulator
+```
+
+**Reboot (cold reset):**
+```
+Reboot the emulator
+```
+
+**Warm reset:**
+```
+Send Ctrl+Reset to the emulator
+```
+
+**Break program:**
+```
+Send Ctrl+C to the emulator
+```
+
 ---
 
 See also: [[Debugger]], [[Disk-Drives]], [[Getting-Started]]

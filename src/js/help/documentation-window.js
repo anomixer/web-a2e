@@ -872,8 +872,8 @@ export class DocumentationWindow extends BaseWindow {
           <li><strong>Power on:</strong> "Turn on the emulator" or "Power on the Apple //e"</li>
           <li><strong>Power off:</strong> "Turn off the emulator" or "Power off"</li>
           <li><strong>Reboot:</strong> "Reboot the emulator" or "Do a cold reset"</li>
-          <li><strong>Warm reset:</strong> "Press Ctrl+Reset" or "Do a warm reset"</li>
-          <li><strong>Break program:</strong> "Press Ctrl+C" or "Stop the running program"</li>
+          <li><strong>Warm reset:</strong> "Send Ctrl+Reset to the emulator" or "Press Ctrl+Reset"</li>
+          <li><strong>Break program:</strong> "Send Ctrl+C to the emulator" or "Stop the running program"</li>
         </ul>
 
         <div class="info-box info">
