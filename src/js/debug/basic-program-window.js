@@ -100,7 +100,6 @@ export class BasicProgramWindow extends BaseWindow {
           <button class="basic-dbg-btn basic-insert-btn" title="Load program into emulator memory">Write</button>
           <button class="basic-dbg-btn basic-format-btn" title="Format code">Format</button>
           <button class="basic-dbg-btn basic-renumber-btn" title="Renumber lines">Renum</button>
-          <button class="basic-dbg-btn basic-clear-btn">Clear</button>
           <div style="width:1px;height:16px;background:var(--separator-bg);margin:0 2px;flex-shrink:0;"></div>
           <button class="basic-dbg-btn basic-dbg-new-btn" title="New">New</button>
           <button class="basic-dbg-btn basic-dbg-open-btn" title="Open File">Open</button>
@@ -177,7 +176,7 @@ export class BasicProgramWindow extends BaseWindow {
     this.formatBtn = this.contentElement.querySelector(".basic-format-btn");
     this.renumberBtn = this.contentElement.querySelector(".basic-renumber-btn");
     this.insertBtn = this.contentElement.querySelector(".basic-insert-btn");
-    this.clearBtn = this.contentElement.querySelector(".basic-clear-btn");
+
     this.infoBtn = this.contentElement.querySelector(".basic-dbg-bp-info-btn");
 
     // Debugger elements
@@ -286,12 +285,7 @@ export class BasicProgramWindow extends BaseWindow {
       this.loadIntoMemory();
     });
 
-    this.clearBtn.addEventListener("click", () => {
-      this.textarea.value = "";
-      this.updateGutter();
-      this.updateHighlighting();
-      this.updateStats();
-    });
+
 
     this.loadBtn.addEventListener("click", () => {
       this.loadFromMemory();
