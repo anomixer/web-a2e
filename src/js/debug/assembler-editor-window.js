@@ -50,19 +50,6 @@ export class AssemblerEditorWindow extends BaseWindow {
     return `
       <div class="asm-editor-content">
         <div class="asm-toolbar">
-          <div class="asm-toolbar-group asm-toolbar-file">
-            <button class="asm-btn asm-btn-icon-only asm-new-btn" title="New (⌘/Ctrl+N)">
-              <span class="asm-btn-icon">+</span>
-            </button>
-            <button class="asm-btn asm-btn-icon-only asm-open-btn" title="Open File (⌘/Ctrl+O)">
-              <span class="asm-btn-icon">📂</span>
-            </button>
-            <button class="asm-btn asm-btn-icon-only asm-save-btn" title="Save File (⌘/Ctrl+S)">
-              <span class="asm-btn-icon">💾</span>
-            </button>
-            <input type="file" class="asm-file-input" accept=".s,.asm,.a65,.txt" style="display:none" />
-          </div>
-          <div class="asm-toolbar-separator"></div>
           <div class="asm-toolbar-group asm-toolbar-actions">
             <button class="asm-btn asm-assemble-btn" title="Assemble (⌘/Ctrl+Enter)">
               <span class="asm-btn-icon">▶</span> Assemble
@@ -79,6 +66,13 @@ export class AssemblerEditorWindow extends BaseWindow {
             <button class="asm-btn asm-rom-btn" title="ROM Routines Reference (F2)">
               <span class="asm-btn-icon">📖</span> ROM
             </button>
+          </div>
+          <div class="asm-toolbar-separator"></div>
+          <div class="asm-toolbar-group asm-toolbar-file">
+            <button class="asm-btn asm-new-btn" title="New (⌘/Ctrl+N)">New</button>
+            <button class="asm-btn asm-open-btn" title="Open File (⌘/Ctrl+O)">Open</button>
+            <button class="asm-btn asm-save-btn" title="Save File (⌘/Ctrl+S)">Save</button>
+            <input type="file" class="asm-file-input" accept=".s,.asm,.a65,.txt" style="display:none" />
           </div>
         </div>
         <div class="asm-status-bar">
