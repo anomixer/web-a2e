@@ -296,6 +296,7 @@
 dialog.modal {
     border: none;
     padding: 0;
+    margin: auto;
     background: transparent;
     max-width: 90vw;
     max-height: 90vh;
