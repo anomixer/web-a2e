@@ -237,7 +237,7 @@ class AppleIIeEmulator {
       this.windowManager.register(basicProgramWindow);
       this.basicProgramWindow = basicProgramWindow;
 
-      const assemblerWindow = new AssemblerEditorWindow(this.wasmModule, cpuWindow.bpManager, () => this.isRunning());
+      const assemblerWindow = new AssemblerEditorWindow(this.wasmModule, cpuWindow.bpManager, () => this.isRunning(), cpuWindow);
       assemblerWindow.create();
       this.windowManager.register(assemblerWindow);
 

@@ -23,7 +23,7 @@ import {
 import { showConfirm } from "../ui/confirm.js";
 
 export class AssemblerEditorWindow extends BaseWindow {
-  constructor(wasmModule, breakpointManager, isRunningCallback) {
+  constructor(wasmModule, breakpointManager, isRunningCallback, cpuDebuggerWindow) {
     super({
       id: "assembler-editor",
       title: "Assembler",
@@ -36,6 +36,7 @@ export class AssemblerEditorWindow extends BaseWindow {
     this.wasmModule = wasmModule;
     this.bpManager = breakpointManager;
     this.isRunningCallback = isRunningCallback || (() => false);
+    this.cpuDebugger = cpuDebuggerWindow;
     this.lastAssembledSize = 0;
     this.lastOrigin = 0;
     this.errors = new Map(); // line number -> error message (from assembler)
@@ -59,11 +60,14 @@ export class AssemblerEditorWindow extends BaseWindow {
             <button class="asm-btn asm-load-btn" disabled title="Write assembled code into memory">
               Write
             </button>
+            <button class="asm-btn asm-debug-btn" disabled title="Open CPU debugger at ORG address">
+              Debug
+            </button>
             <button class="asm-btn asm-example-btn" title="Load example program">
               <span class="asm-btn-icon">Example</span>
             </button>
             <button class="asm-btn asm-rom-btn" title="ROM Routines Reference (F2)">
-              ROM
+              ROM Routines
             </button>
           </div>
           <div class="asm-toolbar-separator"></div>
@@ -198,6 +202,7 @@ export class AssemblerEditorWindow extends BaseWindow {
     );
     this.assembleBtn = this.contentElement.querySelector(".asm-assemble-btn");
     this.loadBtn = this.contentElement.querySelector(".asm-load-btn");
+    this.debugBtn = this.contentElement.querySelector(".asm-debug-btn");
     this.newBtn = this.contentElement.querySelector(".asm-new-btn");
     this.openBtn = this.contentElement.querySelector(".asm-open-btn");
     this.saveBtn = this.contentElement.querySelector(".asm-save-btn");
@@ -328,6 +333,15 @@ export class AssemblerEditorWindow extends BaseWindow {
 
     // Load button
     this.loadBtn.addEventListener("click", () => this.doLoad());
+
+    // Debug button
+    this.debugBtn.addEventListener("click", () => {
+      if (this.cpuDebugger) {
+        this.cpuDebugger.show();
+        this.cpuDebugger.disasmViewAddress = this.lastOrigin;
+        this.cpuDebugger.updateDisassembly();
+      }
+    });
 
     // Clear button
 
@@ -2157,6 +2171,7 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
       const count = this.syntaxErrors.size;
       this.setStatus(`${count} syntax error${count !== 1 ? "s" : ""}`, false);
       this.loadBtn.disabled = true;
+      this.debugBtn.disabled = true;
       this.clearOutputPanels();
       this.updateHighlighting();
       this.updateCyclesGutter();
@@ -2182,6 +2197,7 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
         true,
       );
       this.loadBtn.disabled = !this.isRunningCallback();
+      this.debugBtn.disabled = !this.isRunningCallback();
 
       // Store symbols for byte encoding
       this.symbols.clear();
@@ -2191,6 +2207,18 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
         const name = wasm.UTF8ToString(namePtr);
         const value = wasm._getAsmSymbolValue(i);
         this.symbols.set(name.toUpperCase(), value);
+      }
+
+      // Export symbols to CPU debugger label manager
+      if (this.cpuDebugger) {
+        const lm = this.cpuDebugger.labelManager;
+        lm.clearImportedBySource("assembler");
+        for (const [name, value] of this.symbols) {
+          if (value >= 0 && value <= 0xffff) {
+            lm.importedLabels.set(value, { name, source: "assembler" });
+          }
+        }
+        lm._notify();
       }
 
       // Re-encode all lines with resolved symbols
@@ -2205,6 +2233,7 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
         false,
       );
       this.loadBtn.disabled = true;
+      this.debugBtn.disabled = true;
 
       // Collect errors
       for (let i = 0; i < errorCount; i++) {
@@ -2422,6 +2451,7 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
     this.errors.clear();
     this.syntaxErrors.clear();
     this.loadBtn.disabled = true;
+    this.debugBtn.disabled = true;
     this.setStatus("", false);
 
     // Clear output panels to empty state
@@ -2461,7 +2491,9 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
    */
   async newFile() {
     if (this.textarea.value.trim()) {
-      const confirmed = await showConfirm("Clear current source and start new file?");
+      const confirmed = await showConfirm(
+        "Clear current source and start new file?",
+      );
       if (!confirmed) return;
     }
     this.textarea.value = "";
