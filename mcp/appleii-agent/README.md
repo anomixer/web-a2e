@@ -1,4 +1,4 @@
-# A2E MCP Agent
+# Apple II MCP Agent
 
 Control the Apple //e emulator using Claude Code through the Model Context Protocol (MCP).
 
@@ -14,7 +14,7 @@ This MCP server lets you interact with the Apple //e emulator using natural lang
 
 1. **Install dependencies:**
    ```bash
-   cd mcp/a2e-agent
+   cd mcp/appleii-agent
    npm install
    ```
 
@@ -24,9 +24,9 @@ This MCP server lets you interact with the Apple //e emulator using natural lang
    ```json
    {
      "mcpServers": {
-       "a2e-agent": {
+       "appleii-agent": {
          "command": "node",
-         "args": ["/YOUR/PATH/TO/web-a2e/mcp/a2e-agent/src/index.js"]
+         "args": ["/YOUR/PATH/TO/web-a2e/mcp/appleii-agent/src/index.js"]
        }
      }
    }
@@ -83,7 +83,7 @@ The emulator must be running and connected (green sparkle icon) for commands to 
 ## Troubleshooting
 
 **"Failed to connect to MCP server"**
-- Make sure you've run `npm install` in `mcp/a2e-agent`
+- Make sure you've run `npm install` in `mcp/appleii-agent`
 - Check that the path in `.mcp.json` is correct
 - Restart Claude Code
 

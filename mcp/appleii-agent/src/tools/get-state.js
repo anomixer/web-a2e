@@ -18,7 +18,7 @@ export function handler(args, httpServer) {
   const status = httpServer.getStatus();
   return {
     mcp: {
-      name: "a2e-agent",
+      name: "appleii-agent",
       version: "1.0.0",
       connected: true,
     },

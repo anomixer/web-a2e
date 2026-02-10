@@ -1,5 +1,5 @@
 {
-  "name": "@web-a2e/mcp-agent",
+  "name": "@appleii/mcp-agent",
   "version": "1.0.0",
   "description": "MCP server for Apple //e emulator with AG-UI support",
   "type": "module",

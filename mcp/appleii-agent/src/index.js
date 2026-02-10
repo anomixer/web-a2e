@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /*
- * index.js - Main entry point for A2E MCP Agent
+ * index.js - Main entry point for Apple II MCP Agent
  *
  * Written by
  *  Shawn Bullock <shawn@agenticexpert.ai>
@@ -28,11 +28,11 @@ async function main() {
     await mcpServer.start();
 
     const protocol = USE_HTTPS ? "https" : "http";
-    logger.log("A2E MCP Agent initialized");
+    logger.log("Apple II MCP Agent initialized");
     logger.log(`${protocol.toUpperCase()} server listening on ${protocol}://localhost:${HTTP_PORT}`);
 
   } catch (error) {
-    logger.log("Failed to start A2E MCP Agent:", error);
+    logger.log("Failed to start Apple II MCP Agent:", error);
     process.exit(1);
   }
 }

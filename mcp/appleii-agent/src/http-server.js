@@ -12,6 +12,7 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { execSync } from "child_process";
 import { logger } from "./logger.js";
+import { tools } from "./tools/index.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -95,7 +96,8 @@ export class HttpServer {
    * Handle incoming HTTP requests
    */
   async _handleRequest(req, res) {
-    if (this.debug) {
+    // Log requests in debug mode, but skip heartbeat to reduce noise
+    if (this.debug && req.url !== "/heartbeat") {
       logger.log(`[HTTP] ${req.method} ${req.url}`);
     }
 
@@ -128,6 +130,22 @@ export class HttpServer {
       return;
     }
 
+    if (req.method === "GET" && req.url === "/heartbeat") {
+      // Lightweight heartbeat endpoint for checking if server is running
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
+      });
+      res.end(JSON.stringify({ alive: true }));
+      return;
+    }
+
+    if (req.method === "POST" && req.url === "/call-tool") {
+      // Call an MCP tool from the frontend
+      await this._handleCallTool(req, res);
+      return;
+    }
+
     res.writeHead(404);
     res.end("Not Found");
   }
@@ -147,6 +165,10 @@ export class HttpServer {
       "Connection": "keep-alive",
     });
 
+    // Send initial comment to establish connection
+    // This ensures the browser fires the 'onopen' event
+    res.write(": connected\n\n");
+
     // Add client to set
     const client = { req, res };
     this.clients.add(client);
@@ -162,6 +184,15 @@ export class HttpServer {
         logger.log("[HTTP] SSE client disconnected");
       }
       this.clients.delete(client);
+
+      // Clear event queue when all clients disconnect
+      // This prevents replaying old commands to new sessions
+      if (this.clients.size === 0) {
+        this.eventQueue = [];
+        if (this.debug) {
+          logger.log("[HTTP] All clients disconnected, cleared event queue");
+        }
+      }
     });
   }
 
@@ -202,6 +233,52 @@ export class HttpServer {
       }
       res.writeHead(400, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: error.message }));
+    }
+  }
+
+  /**
+   * Handle call tool request from frontend
+   */
+  async _handleCallTool(req, res) {
+    const body = await this._readBody(req);
+
+    if (this.debug) {
+      logger.log("[HTTP] Call tool request:", body);
+    }
+
+    try {
+      const request = JSON.parse(body);
+      const { tool: toolName, args = {} } = request;
+
+      if (!toolName) {
+        throw new Error("tool parameter is required");
+      }
+
+      // Find the tool
+      const toolModule = tools.find(t => t.tool.name === toolName);
+      if (!toolModule) {
+        throw new Error(`Unknown tool: ${toolName}`);
+      }
+
+      // Call the tool handler
+      const result = await toolModule.handler(args, this);
+
+      if (this.debug) {
+        logger.log(`[HTTP] Tool ${toolName} result:`, JSON.stringify(result));
+      }
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(result));
+
+    } catch (error) {
+      if (this.debug) {
+        logger.log("[HTTP] Error:", error.message);
+      }
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        success: false,
+        error: error.message
+      }));
     }
   }
 

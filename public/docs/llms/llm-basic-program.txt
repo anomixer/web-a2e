@@ -4,6 +4,34 @@
 
 ## Tool Operations
 
+### Direct Memory Access
+
+**Read BASIC program directly from memory:**
+```
+a2e_command({ command: "directReadBasic", params: {} })
+```
+Reads the BASIC program directly from emulator memory via WASM bindings. Does not require the BASIC window to be open or focused. Returns the detokenized program text.
+
+**Write BASIC program directly to memory:**
+```
+a2e_command({ command: "directWriteBasic", params: { program: "10 PRINT \"HELLO\"\n20 GOTO 10" } })
+```
+Writes a BASIC program directly to emulator memory via WASM bindings. Tokenizes the program text and updates all zero-page pointers. Does not require the BASIC window to be open or focused. The emulator must be powered on.
+
+**Run BASIC program directly:**
+```
+a2e_command({ command: "directRunBasic", params: {} })
+```
+Executes the BASIC program currently in memory by simulating the RUN command. Unpauses the emulator and clears any breakpoint flags. Does not require the BASIC window to be open or focused. The emulator must be powered on.
+
+**Clear BASIC program buffer (NEW):**
+```
+a2e_command({ command: "directNewBasic", params: {} })
+```
+Clears the BASIC program buffer by resetting all zero-page pointers and writing the end-of-program marker. Equivalent to the NEW command. Does not require the BASIC window to be open or focused. The emulator must be powered on.
+
+### Window Operations
+
 **Show the window:**
 ```
 showWindow("basic-program")
@@ -18,6 +46,8 @@ hideWindow("basic-program")
 ```
 focusWindow("basic-program")
 ```
+
+### Editor Operations
 
 **Load BASIC program from memory:**
 ```

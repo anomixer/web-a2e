@@ -61,6 +61,23 @@
     color: var(--text-muted);
 }
 
+/* Hidden state - button is completely hidden */
+.control-btn.agent-btn.hidden {
+    display: none;
+}
+
+/* Disconnected state - server available but not connected */
+.control-btn.agent-btn.disconnected {
+    color: var(--text-muted);
+}
+
+.control-btn.agent-btn.disconnected:hover {
+    background: var(--bg-light);
+    color: var(--text-secondary);
+    border-color: var(--border-default);
+}
+
+/* Connected state - yellow */
 .control-btn.agent-btn.connected {
     color: var(--accent-yellow);
 }
@@ -72,10 +89,17 @@
     box-shadow: 0 0 20px rgba(253, 184, 39, 0.3);
 }
 
-.control-btn.agent-btn.disconnected:hover {
-    background: var(--bg-light);
-    color: var(--text-secondary);
-    border-color: var(--border-default);
+/* Severed state - connection lost, reconnecting - subtle dark red border */
+.control-btn.agent-btn.severed {
+    background: rgba(224, 58, 62, 0.08);
+    color: var(--accent-red);
+    border-color: rgba(224, 58, 62, 0.4);
+}
+
+.control-btn.agent-btn.severed:hover {
+    background: rgba(224, 58, 62, 0.15);
+    color: var(--accent-red);
+    border-color: rgba(224, 58, 62, 0.6);
 }
 
 /* Compact text-only header buttons (Ctrl+Reset, Reboot) */

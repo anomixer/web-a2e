@@ -21,7 +21,7 @@ export class McpServer {
     this.httpServer = httpServer;
     this.server = new Server(
       {
-        name: "a2e-agent",
+        name: "appleii-agent",
         version: "1.0.0",
       },
       {

@@ -36,7 +36,7 @@ class Logger {
     // Open log file for appending
     this.logFile = fs.createWriteStream(logPath, { flags: "a" });
 
-    this.log(`=== A2E MCP Agent Started at ${new Date().toISOString()} ===`);
+    this.log(`=== Apple II MCP Agent Started at ${new Date().toISOString()} ===`);
   }
 
   /**
@@ -64,7 +64,7 @@ class Logger {
    */
   close() {
     if (this.logFile) {
-      this.log("=== A2E MCP Agent Stopped ===");
+      this.log("=== Apple II MCP Agent Stopped ===");
       this.logFile.end();
       this.logFile = null;
     }

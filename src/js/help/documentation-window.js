@@ -143,6 +143,12 @@ export class DocumentationWindow extends BaseWindow {
             </svg>
             Dev Tools
           </button>
+          <button data-section="agent">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2l1.5 4.5L18 8l-4.5 1.5L12 14l-1.5-4.5L6 8l4.5-1.5L12 2zM6 16l.75 2.25L9 19l-2.25.75L6 22l-.75-2.25L3 19l2.25-.75L6 16zM18 16l.75 2.25L21 19l-2.25.75L18 22l-.75-2.25L15 19l2.25-.75L18 16z"/>
+            </svg>
+            AI Agent
+          </button>
           <button data-section="tips">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
@@ -789,6 +795,90 @@ export class DocumentationWindow extends BaseWindow {
           <li><strong>Symbols:</strong> Lists all defined labels and their addresses</li>
           <li><strong>Hex Output:</strong> Shows assembled machine code bytes</li>
         </ul>
+      </section>
+
+      <!-- AI Agent Section -->
+      <section id="doc-agent" class="documentation-section">
+        <h3>AI Agent</h3>
+        <p>The AI Agent integration allows LLMs like Claude to control the emulator through natural language commands. The agent can show/hide windows, manage disks, read/write BASIC programs, and inspect emulator state in real time using the AG-UI protocol over an MCP server.</p>
+
+        <h4>Connection Status</h4>
+        <p>The agent connection status is shown by a sparkle icon in the toolbar header:</p>
+        <table class="key-table">
+          <thead>
+            <tr><th>Icon</th><th>Status</th><th>Description</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><svg viewBox="0 0 24 24" width="20" height="20" fill="#6e7681"><path d="M12 2l1.5 4.5L18 8l-4.5 1.5L12 14l-1.5-4.5L6 8l4.5-1.5L12 2zM6 16l.75 2.25L9 19l-2.25.75L6 22l-.75-2.25L3 19l2.25-.75L6 16zM18 16l.75 2.25L21 19l-2.25.75L18 22l-.75-2.25L15 19l2.25-.75L18 16z"/></svg></td>
+              <td>Disconnected</td>
+              <td>MCP server is not running or not reachable</td>
+            </tr>
+            <tr>
+              <td><svg viewBox="0 0 24 24" width="20" height="20" fill="#FDBE34"><path d="M12 2l1.5 4.5L18 8l-4.5 1.5L12 14l-1.5-4.5L6 8l4.5-1.5L12 2zM6 16l.75 2.25L9 19l-2.25.75L6 22l-.75-2.25L3 19l2.25-.75L6 16zM18 16l.75 2.25L21 19l-2.25.75L18 22l-.75-2.25L15 19l2.25-.75L18 16z"/></svg></td>
+              <td>Connected</td>
+              <td>Agent is connected and ready to receive commands</td>
+            </tr>
+            <tr>
+              <td><svg viewBox="0 0 24 24" width="20" height="20" fill="#E5504F"><path d="M12 2l1.5 4.5L18 8l-4.5 1.5L12 14l-1.5-4.5L6 8l4.5-1.5L12 2zM6 16l.75 2.25L9 19l-2.25.75L6 22l-.75-2.25L3 19l2.25-.75L6 16zM18 16l.75 2.25L21 19l-2.25.75L18 22l-.75-2.25L15 19l2.25-.75L18 16z"/></svg></td>
+              <td>Interrupted</td>
+              <td>Connection error or server unavailable</td>
+            </tr>
+          </tbody>
+        </table>
+        <p>Click the sparkle icon to open the agent connection panel and view detailed status information.</p>
+
+        <h4>Setting Up the MCP Server</h4>
+        <p>The AI Agent uses the Model Context Protocol (MCP) to communicate with LLM clients like Claude Code. Configure your MCP client to connect to the emulator's agent server.</p>
+        <p>Add the following to your MCP configuration file (e.g., <code>~/.claude/mcp.json</code>):</p>
+        <pre><code>{
+  "mcpServers": {
+    "appleii-agent": {
+      "command": "node",
+      "args": [
+        "/path/to/mcp/appleii-agent/src/index.js"
+      ]
+    }
+  }
+}</code></pre>
+        <p>The server listens on <code>http://localhost:3033</code> by default.</p>
+
+        <h4>Example Prompts</h4>
+
+        <h5>Window Management</h5>
+        <ul>
+          <li><strong>Show a window:</strong> "Show the CPU debugger window"</li>
+          <li><strong>Hide a window:</strong> "Hide the disk drives window"</li>
+          <li><strong>Focus a window:</strong> "Bring the BASIC program window to the front"</li>
+        </ul>
+
+        <h5>Disk Management</h5>
+        <ul>
+          <li><strong>Insert from filesystem:</strong> "Load ~/Documents/Apple_II/ProDOS_2_4_2.dsk into drive 1"</li>
+          <li><strong>List recent disks:</strong> "What disks are in the recent list for drive 1?"</li>
+          <li><strong>Load from recent:</strong> "Insert the disk named Zork_1.dsk from recent disks into drive 2"</li>
+          <li><strong>Eject a disk:</strong> "Eject the disk from drive 1"</li>
+        </ul>
+
+        <h5>BASIC Programs</h5>
+        <ul>
+          <li><strong>Read from memory:</strong> "Load the BASIC program from memory and show it in the editor"</li>
+          <li><strong>Write to memory:</strong> "Write this BASIC program to emulator memory: 10 PRINT \"HELLO\" 20 GOTO 10"</li>
+          <li><strong>Get listing:</strong> "What BASIC program is currently in memory?"</li>
+        </ul>
+
+        <h5>Emulator Control</h5>
+        <ul>
+          <li><strong>Power on:</strong> "Turn on the emulator" or "Power on the Apple //e"</li>
+          <li><strong>Power off:</strong> "Turn off the emulator" or "Power off"</li>
+          <li><strong>Reboot:</strong> "Reboot the emulator" or "Do a cold reset"</li>
+          <li><strong>Warm reset:</strong> "Press Ctrl+Reset" or "Do a warm reset"</li>
+          <li><strong>Break program:</strong> "Press Ctrl+C" or "Stop the running program"</li>
+        </ul>
+
+        <div class="info-box info">
+          <p><strong>Note:</strong> The MCP server must be running for the agent to connect. The server starts automatically when your MCP client connects.</p>
+        </div>
       </section>
 
       <!-- Tips Section -->
