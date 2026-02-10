@@ -12,7 +12,6 @@ import {
 } from "../utils/basic-highlighting.js";
 import { escapeHtml } from "../utils/string-utils.js";
 import { BasicAutocomplete } from "../utils/basic-autocomplete.js";
-import { tokenizeProgram } from "../utils/basic-tokenizer.js";
 import { BasicBreakpointManager } from "./basic-breakpoint-manager.js";
 import { BasicVariableInspector } from "./basic-variable-inspector.js";
 import { BasicProgramParser } from "./basic-program-parser.js";
@@ -1231,50 +1230,28 @@ export class BasicProgramWindow extends BaseWindow {
       return;
     }
 
-    const lines = this.parseProgram(text);
-    if (lines.length === 0) {
+    // Allocate source string on WASM heap and call C++ tokenizer
+    const encoder = new TextEncoder();
+    const encoded = encoder.encode(text);
+    const ptr = this.wasmModule._malloc(encoded.length + 1);
+    this.wasmModule.HEAPU8.set(encoded, ptr);
+    this.wasmModule.HEAPU8[ptr + encoded.length] = 0; // null terminator
+    const result = this.wasmModule._loadBasicProgram(ptr);
+    this.wasmModule._free(ptr);
+
+    if (result === -1) {
+      showToast("Error loading program into memory", "error");
+      return;
+    }
+    if (result === 0) {
       showToast("No valid BASIC lines found", "error");
       return;
     }
 
-    const txttab = 0x0801;
-    const { bytes, endAddr } = tokenizeProgram(lines, txttab);
-
-    // Write tokenized program bytes into emulator memory
-    for (let i = 0; i < bytes.length; i++) {
-      this.wasmModule._writeMemory(txttab + i, bytes[i]);
-    }
-
-    // Helper to write a 16-bit little-endian pointer to zero page
-    const writePtr = (zpAddr, value) => {
-      this.wasmModule._writeMemory(zpAddr, value & 0xFF);
-      this.wasmModule._writeMemory(zpAddr + 1, (value >> 8) & 0xFF);
-    };
-
-    // Read MEMSIZE ($73) - the ROM sets FRETOP to this on CLR/NEW
-    const memsizeLo = this.wasmModule._readMemory(0x73);
-    const memsizeHi = this.wasmModule._readMemory(0x74);
-    const memsize = memsizeLo | (memsizeHi << 8);
-
-    // Update Applesoft zero page pointers to match what NEW + CLEARC set up:
-    //   SCRTCH ($D64B): TXTTAB, VARTAB, PRGEND
-    //   CLEARC ($D66C): FRETOP=MEMSIZE, ARYTAB=VARTAB, STREND=VARTAB
-    writePtr(0x67, txttab);     // TXTTAB - start of program
-    writePtr(0x69, endAddr);    // VARTAB - start of variable space
-    writePtr(0x6B, endAddr);    // ARYTAB - start of array space
-    writePtr(0x6D, endAddr);    // STREND - end of numeric storage
-    writePtr(0x6F, memsize);    // FRETOP - end of string storage (top of free memory)
-    writePtr(0xAF, endAddr);    // PRGEND - end of program (used by line editor)
-
-    // Set interpreter state for direct mode
-    writePtr(0xB8, txttab - 1); // TXTPTR - interpreter text pointer
-    this.wasmModule._writeMemory(0x76, 0xFF); // CURLIN+1 high byte = $FF (direct mode)
-
     // Invalidate the program parser cache so Load from Memory sees new data
     this.programParser.invalidateCache();
 
-    showToast(`Loaded ${lines.length} lines into emulator`, "info");
-    console.log(`BASIC program loaded into memory: ${lines.length} lines, ${bytes.length} bytes`);
+    showToast(`Loaded ${result} lines into emulator`, "info");
   }
 
   _showBreakpointHelp() {

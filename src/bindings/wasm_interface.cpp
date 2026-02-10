@@ -12,6 +12,7 @@
 #include "../core/filesystem/dos33.hpp"
 #include "../core/filesystem/prodos.hpp"
 #include "../core/basic/basic_detokenizer.hpp"
+#include "../core/basic/basic_tokenizer.hpp"
 #include "../core/input/keyboard.hpp"
 #include <cstdlib>
 #include <cstring>
@@ -1788,6 +1789,18 @@ void loadAsmIntoMemory() {
     g_emulator->writeMemory(static_cast<uint16_t>(addr + i),
                             g_asmResult.output[i]);
   }
+}
+
+// ============================================================================
+// BASIC Tokenizer
+// ============================================================================
+
+EMSCRIPTEN_KEEPALIVE
+int loadBasicProgram(const char* source) {
+  REQUIRE_EMULATOR_OR(-1);
+  auto read = [](uint16_t addr) -> uint8_t { return g_emulator->readMemory(addr); };
+  auto write = [](uint16_t addr, uint8_t val) { g_emulator->writeMemory(addr, val); };
+  return a2e::loadBasicProgram(source, read, write);
 }
 
 } // extern "C"

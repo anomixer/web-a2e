@@ -107,6 +107,14 @@ export class DocumentationWindow extends BaseWindow {
             </svg>
             Disk Drives
           </button>
+          <button data-section="smartport">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="4" y="2" width="16" height="20" rx="2"/>
+              <line x1="8" y1="6" x2="16" y2="6"/>
+              <circle cx="12" cy="14" r="3"/>
+            </svg>
+            SmartPort
+          </button>
           <button data-section="file-explorer">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
@@ -183,9 +191,9 @@ export class DocumentationWindow extends BaseWindow {
           <li><strong>CPU:</strong> 65C02 processor at 1.023 MHz (cycle-accurate)</li>
           <li><strong>Memory:</strong> 128KB RAM (64KB main + 64KB auxiliary)</li>
           <li><strong>Video:</strong> All Apple //e display modes including Double Hi-Res</li>
-          <li><strong>Storage:</strong> Two Disk II floppy drives</li>
+          <li><strong>Storage:</strong> Two Disk II floppy drives, SmartPort hard drives</li>
           <li><strong>Audio:</strong> Speaker with accurate timing, Mockingboard (dual AY-3-8910)</li>
-          <li><strong>Expansion:</strong> Mockingboard, Mouse Card, Thunderclock Plus</li>
+          <li><strong>Expansion:</strong> Mockingboard, Mouse Card, Thunderclock Plus, SmartPort</li>
           <li><strong>ROM:</strong> Apple //e Enhanced ROM set</li>
         </ul>
 
@@ -406,6 +414,7 @@ export class DocumentationWindow extends BaseWindow {
           <li><strong>Recent:</strong> Quick access to recently used disks (per drive)</li>
           <li><strong>Blank:</strong> Create a new formatted blank disk</li>
           <li><strong>Eject:</strong> Remove the disk (prompts to save if modified)</li>
+          <li><strong>Browse:</strong> Open the file explorer to view disk contents</li>
         </ul>
 
         <h4>Drive Information</h4>
@@ -433,6 +442,37 @@ export class DocumentationWindow extends BaseWindow {
 
         <div class="info-box tip">
           <p><strong>Tip:</strong> The Recent disks list is maintained separately for each drive, making it easy to quickly swap disks for multi-disk software.</p>
+        </div>
+      </section>
+
+      <!-- SmartPort Drives Section -->
+      <section id="doc-smartport" class="documentation-section">
+        <h3>SmartPort Drives</h3>
+        <p>The emulator supports SmartPort hard drive emulation, providing high-capacity storage. Open from <strong>View &gt; SmartPort Drives</strong>.</p>
+
+        <h4>Supported Formats</h4>
+        <div class="format-list">
+          <div class="format-item"><code>.HDV</code><span>Hard disk volume image</span></div>
+          <div class="format-item"><code>.PO</code><span>ProDOS order image</span></div>
+          <div class="format-item"><code>.2MG</code><span>Universal disk image (2IMG)</span></div>
+        </div>
+
+        <h4>Device Controls</h4>
+        <ul>
+          <li><strong>Insert:</strong> Load a SmartPort image from your computer</li>
+          <li><strong>Recent:</strong> Quick access to recently used images (per device)</li>
+          <li><strong>Eject:</strong> Remove the image (prompts to save if modified)</li>
+          <li><strong>Browse:</strong> Open the file explorer to view image contents</li>
+        </ul>
+
+        <h4>Setup</h4>
+        <p>The SmartPort card must be installed in an expansion slot before images can be loaded. Configure this in <strong>View &gt; Expansion Slots</strong>.</p>
+
+        <h4>Activity LED</h4>
+        <p>Each device has an LED indicator that glows green when the drive is being accessed.</p>
+
+        <div class="info-box tip">
+          <p><strong>Tip:</strong> SmartPort drives provide much larger storage than floppy disks and are commonly used with ProDOS.</p>
         </div>
       </section>
 
@@ -550,7 +590,6 @@ export class DocumentationWindow extends BaseWindow {
           <li><strong>Speaker:</strong> The Apple II's built-in speaker for music and sound effects</li>
           <li><strong>Mockingboard:</strong> Dual AY-3-8910 sound chips for rich stereo music and sound</li>
           <li><strong>Disk Seek:</strong> Stepper motor sounds when the drive head moves</li>
-          <li><strong>Disk Motor:</strong> Spinning motor sound when drive is active</li>
         </ul>
 
         <h4>Audio Technology</h4>
@@ -733,16 +772,39 @@ export class DocumentationWindow extends BaseWindow {
         <h3>Dev Tools</h3>
         <p>Development tools for writing and testing software. Access via the <strong>Dev</strong> menu in the toolbar.</p>
 
-        <h4>BASIC Program Window</h4>
-        <p>Write, edit, and load Applesoft BASIC programs. Open from <strong>Dev &gt; BASIC Program</strong>.</p>
+        <h4>Applesoft BASIC Window</h4>
+        <p>Write, edit, debug, and load Applesoft BASIC programs. Open from <strong>Dev &gt; Applesoft BASIC</strong>.</p>
+
+        <h5>Editor Features</h5>
         <ul>
           <li><strong>Syntax Highlighting:</strong> BASIC keywords, line numbers, strings, and comments are color-coded</li>
           <li><strong>Autocomplete:</strong> Type to see suggestions for BASIC commands</li>
-          <li><strong>Paste into Emulator:</strong> Click to type your program into the running emulator at 8x speed</li>
-          <li><strong>Cancel:</strong> Stop a paste operation in progress</li>
         </ul>
+
+        <h5>Debugger Controls</h5>
+        <ul>
+          <li><strong>Run:</strong> Execute the BASIC program</li>
+          <li><strong>Pause:</strong> Pause execution</li>
+          <li><strong>Step:</strong> Step through one BASIC line at a time</li>
+        </ul>
+
+        <h5>Program Operations</h5>
+        <ul>
+          <li><strong>Read:</strong> Read the current BASIC program from emulator memory into the editor</li>
+          <li><strong>Write:</strong> Type the program into the running emulator</li>
+          <li><strong>Format:</strong> Auto-format the program text</li>
+          <li><strong>Renum:</strong> Renumber BASIC line numbers</li>
+        </ul>
+
+        <h5>File Operations</h5>
+        <ul>
+          <li><strong>New:</strong> Start a new program</li>
+          <li><strong>Open:</strong> Open a BASIC program file from your computer</li>
+          <li><strong>Save:</strong> Save the current program to a file</li>
+        </ul>
+
         <div class="info-box warning">
-          <p><strong>Note:</strong> The emulator must be powered on to paste a BASIC program.</p>
+          <p><strong>Note:</strong> The Read and Write buttons require the emulator to be powered on.</p>
         </div>
 
         <h4>Assembler</h4>
@@ -772,7 +834,7 @@ export class DocumentationWindow extends BaseWindow {
         <h5>Assembly &amp; Loading</h5>
         <ul>
           <li><strong>Assemble:</strong> Click or press <kbd>Ctrl/⌘</kbd>+<kbd>Enter</kbd> to assemble the code</li>
-          <li><strong>Load:</strong> After successful assembly, click Load to copy the machine code into emulator memory</li>
+          <li><strong>Write:</strong> After successful assembly, click Write to copy the machine code into emulator memory (requires emulator to be powered on)</li>
           <li><strong>ORG Directive:</strong> Your code must include an <code>ORG</code> directive before any instructions</li>
         </ul>
 
