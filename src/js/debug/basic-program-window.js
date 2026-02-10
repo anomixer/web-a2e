@@ -17,6 +17,7 @@ import { BasicBreakpointManager } from "./basic-breakpoint-manager.js";
 import { BasicVariableInspector } from "./basic-variable-inspector.js";
 import { BasicProgramParser } from "./basic-program-parser.js";
 import { showToast } from "../ui/toast.js";
+import { showConfirm } from "../ui/confirm.js";
 
 const BASIC_ERRORS = {
   0x00: "NEXT WITHOUT FOR",
@@ -1149,7 +1150,10 @@ export class BasicProgramWindow extends BaseWindow {
    * Load the current BASIC program from emulator memory into the textarea
    */
   newFile() {
-    if (this.textarea.value.trim() && !confirm("Clear current source and start new file?")) return;
+    if (this.textarea.value.trim()) {
+      const confirmed = await showConfirm("Clear current source and start new file?");
+      if (!confirmed) return;
+    }
     this.textarea.value = "";
     this._fileHandle = null;
     this.updateGutter();

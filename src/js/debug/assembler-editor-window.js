@@ -20,6 +20,7 @@ import {
   searchRoutines,
   getRoutinesByCategory,
 } from "../data/apple2-rom-routines.js";
+import { showConfirm } from "../ui/confirm.js";
 
 export class AssemblerEditorWindow extends BaseWindow {
   constructor(wasmModule, breakpointManager, isRunningCallback) {
@@ -56,13 +57,13 @@ export class AssemblerEditorWindow extends BaseWindow {
               <span class="asm-btn-icon">▶</span> Assemble
             </button>
             <button class="asm-btn asm-load-btn" disabled title="Write assembled code into memory">
-              <span class="asm-btn-icon">↓</span> Write
+              Write
             </button>
-            <button class="asm-btn asm-btn-icon-only asm-example-btn" title="Load example program">
-              <span class="asm-btn-icon">?</span>
+            <button class="asm-btn asm-example-btn" title="Load example program">
+              <span class="asm-btn-icon">Example</span>
             </button>
             <button class="asm-btn asm-rom-btn" title="ROM Routines Reference (F2)">
-              <span class="asm-btn-icon">📖</span> ROM
+              ROM
             </button>
           </div>
           <div class="asm-toolbar-separator"></div>
@@ -2458,12 +2459,10 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
   /**
    * Create a new empty file
    */
-  newFile() {
-    if (
-      this.textarea.value.trim() &&
-      !confirm("Clear current source and start new file?")
-    ) {
-      return;
+  async newFile() {
+    if (this.textarea.value.trim()) {
+      const confirmed = await showConfirm("Clear current source and start new file?");
+      if (!confirmed) return;
     }
     this.textarea.value = "";
     this.currentFileName = null;
@@ -2483,10 +2482,12 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
   async openFile() {
     try {
       const [handle] = await window.showOpenFilePicker({
-        types: [{
-          description: "Assembly source files",
-          accept: { "text/plain": [".s", ".asm", ".a65", ".txt"] },
-        }],
+        types: [
+          {
+            description: "Assembly source files",
+            accept: { "text/plain": [".s", ".asm", ".a65", ".txt"] },
+          },
+        ],
         multiple: false,
       });
       const file = await handle.getFile();
@@ -2522,10 +2523,12 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
       if (!this._fileHandle) {
         this._fileHandle = await window.showSaveFilePicker({
           suggestedName: this.currentFileName || "untitled.s",
-          types: [{
-            description: "Assembly source files",
-            accept: { "text/plain": [".s", ".asm", ".a65", ".txt"] },
-          }],
+          types: [
+            {
+              description: "Assembly source files",
+              accept: { "text/plain": [".s", ".asm", ".a65", ".txt"] },
+            },
+          ],
         });
       }
 
