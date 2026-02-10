@@ -63,8 +63,9 @@ node tests/integration/disk-boot-test.js
 - `input/keyboard.cpp` - Keyboard input handling
 - `cards/` - Pluggable expansion card system (ExpansionCard interface)
 - `cards/mockingboard/` - AY-3-8910 sound chip + VIA 6522 timer
+- `cards/smartport/` - SmartPort hard drive controller (2 block devices, self-built ROM)
 - `filesystem/` - DOS 3.3 and ProDOS filesystem parsers
-- `basic/` - Applesoft and Integer BASIC detokenizer
+- `basic/` - Applesoft and Integer BASIC detokenizer and tokenizer
 - `debug/` - Condition evaluator for breakpoint expressions
 - `emulator.cpp` - Core coordinator, state serialization
 
@@ -73,12 +74,12 @@ node tests/integration/disk-boot-test.js
 - `main.js` - AppleIIeEmulator class orchestrating all subsystems
 - `audio/` - Web Audio API driver and AudioWorklet
 - `display/` - WebGL renderer, CRT shader effects, display settings, screen window
-- `disk-manager/` - Disk drive UI, persistence, surface rendering, drive sounds
+- `disk-manager/` - Disk drive UI, SmartPort hard drives, persistence, surface rendering, drive sounds
 - `file-explorer/` - DOS 3.3 and ProDOS disk browser with disassembler
 - `debug/` - Debug window implementations (see Debugging section)
 - `help/` - Documentation and release notes windows
 - `input/` - Keyboard input, text selection, joystick, mouse
-- `ui/` - Menu wiring, reminders, slot configuration
+- `ui/` - Menu wiring, reminders, slot configuration, custom confirm dialogs
 - `state/` - State serialization and persistence (autosave + 5 manual slots)
 - `config/` - App version
 - `utils/` - Shared utilities (storage, string, BASIC)
@@ -141,9 +142,10 @@ src/
 │   ├── disassembler/   # 65C02 disassembler
 │   ├── input/          # Keyboard handling
 │   ├── cards/          # Expansion card system
-│   │   └── mockingboard/  # AY-3-8910 + VIA 6522
+│   │   ├── mockingboard/  # AY-3-8910 + VIA 6522
+│   │   └── smartport/     # SmartPort hard drive controller
 │   ├── filesystem/     # DOS 3.3 and ProDOS parsers
-│   ├── basic/          # BASIC detokenizer
+│   ├── basic/          # BASIC tokenizer and detokenizer
 │   ├── debug/          # Condition evaluator
 │   ├── emulator.cpp    # Core coordinator, state serialization
 │   └── types.hpp       # Shared constants and types
@@ -162,8 +164,8 @@ src/
     ├── ui/             # Menu wiring, reminders, slot configuration
     ├── utils/          # Shared utilities (storage, string, BASIC)
     └── windows/        # Base window class and window manager
+├── css/                # Stylesheets (bundled by Vite)
 public/                 # Static assets, built WASM files, shaders
-├── css/               # Stylesheets
 ├── shaders/           # CRT vertex/fragment shaders
 ├── assets/            # Images and sounds
 └── index.html         # Main HTML entry point
@@ -213,6 +215,7 @@ class ExpansionCard {
 - `Disk2Card` - Wraps Disk2Controller (slot 6)
 - `MockingboardCard` - Dual AY-3-8910 + VIA 6522, stereo output (slot 4)
 - `MouseCard` - Apple Mouse Interface Card via MC6821 PIA command protocol (slot 4)
+- `SmartPortCard` - SmartPort hard drive controller, 2 block devices, self-built ROM (user-configurable slot)
 - `ThunderclockCard` - ProDOS-compatible real-time clock (slots 5, 7)
 
 ## State Serialization
@@ -236,7 +239,7 @@ Built-in debug windows accessible via Debug menu:
 - Soft Switch Monitor: Apple II switch states ($C000-$C0FF)
 - Mockingboard: unified channel-centric view with AY-3-8910 and VIA registers, inline waveforms, level meters, and per-channel mute controls
 - Mouse Card: PIA registers, position, mode, interrupt state, protocol activity
-- BASIC Program Viewer: view and load BASIC programs from memory
+- BASIC Program Viewer: view, load, and tokenize BASIC programs from memory
 - Rule Builder: complex conditional breakpoints with C-style expressions
 
 ## Keyboard Shortcuts
