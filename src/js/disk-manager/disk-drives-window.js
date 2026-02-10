@@ -46,6 +46,7 @@ export class DiskDrivesWindow extends BaseWindow {
           </div>
           <button class="disk-blank" title="Insert Blank Disk">Blank</button>
           <button class="disk-eject" disabled title="Eject Disk">Eject</button>
+          <button class="disk-browse" disabled title="Browse Files">Browse</button>
         </div>
         <div class="drive-detail-panel">
           <div class="drive-detail-grid">

@@ -34,6 +34,7 @@ function createDriveState() {
     insertBtn: null,
     blankBtn: null,
     ejectBtn: null,
+    browseBtn: null,
     recentBtn: null,
     recentDropdown: null,
     nameLabel: null,
@@ -69,6 +70,9 @@ export class DiskManager {
 
     // Callback for when a disk is loaded
     this.onDiskLoaded = null;
+
+    // File explorer reference (set by main.js)
+    this.fileExplorer = null;
 
     // Set by main.js so surface rendering can be skipped when hidden
     this.drivesWindowVisible = true;
@@ -148,6 +152,7 @@ export class DiskManager {
     drive.insertBtn = container.querySelector(".disk-insert");
     drive.blankBtn = container.querySelector(".disk-blank");
     drive.ejectBtn = container.querySelector(".disk-eject");
+    drive.browseBtn = container.querySelector(".disk-browse");
     drive.recentBtn = container.querySelector(".disk-recent");
     drive.recentDropdown = container.querySelector(".recent-dropdown");
     drive.nameLabel = container.querySelector(".disk-name");
@@ -195,6 +200,16 @@ export class DiskManager {
     if (drive.ejectBtn) {
       drive.ejectBtn.addEventListener("click", () => {
         this.ejectDisk(driveNum);
+        this.refocusCanvas();
+      });
+    }
+
+    // Browse button click
+    if (drive.browseBtn) {
+      drive.browseBtn.addEventListener("click", () => {
+        if (this.fileExplorer) {
+          this.fileExplorer.showFloppyDisk(driveNum);
+        }
         this.refocusCanvas();
       });
     }
@@ -712,12 +727,14 @@ export class DiskManager {
 
         drive.filename = filename;
         if (drive.ejectBtn) drive.ejectBtn.disabled = false;
+        if (drive.browseBtn) drive.browseBtn.disabled = false;
         this.setDiskName(driveNum, filename);
         console.log(`Synced drive ${driveNum + 1}: ${filename}`);
       } else {
         // No disk in drive
         drive.filename = null;
         if (drive.ejectBtn) drive.ejectBtn.disabled = true;
+        if (drive.browseBtn) drive.browseBtn.disabled = true;
         if (drive.input) drive.input.value = "";
         this.setDiskName(driveNum, "No Disk");
       }

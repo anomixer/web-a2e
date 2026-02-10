@@ -124,6 +124,8 @@ class AppleIIeEmulator {
       hardDriveWindow.create();
       this.windowManager.register(hardDriveWindow);
 
+      this.diskManager.fileExplorer = this.fileExplorer;
+
       this.hardDriveManager = new HardDriveManager(this.wasmModule);
       this.hardDriveManager.fileExplorer = this.fileExplorer;
       this.hardDriveManager.init();
