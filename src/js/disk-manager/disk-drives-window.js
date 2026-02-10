@@ -12,10 +12,10 @@ export class DiskDrivesWindow extends BaseWindow {
     super({
       id: "disk-drives",
       title: "Disk Drives",
-      minWidth: 530,
+      minWidth: 600,
       minHeight: 100,
-      maxWidth: 530,
-      defaultWidth: 530,
+      maxWidth: 600,
+      defaultWidth: 600,
       defaultHeight: 310,
       defaultPosition: { x: 100, y: 452 },
       resizeDirections: [],
@@ -98,7 +98,6 @@ export class DiskDrivesWindow extends BaseWindow {
     this.headerElement.insertBefore(this._detailBtn, closeBtn);
     this._detailBtn.addEventListener("mousedown", (e) => e.stopPropagation());
     this._detailBtn.addEventListener("click", () => this._toggleDetails());
-
   }
 
   show() {
@@ -130,12 +129,13 @@ export class DiskDrivesWindow extends BaseWindow {
     if (!this.element) return;
     // Temporarily set auto height to measure natural size
     const prevHeight = this.element.style.height;
-    this.element.style.height = 'auto';
+    this.element.style.height = "auto";
     const newHeight = this.element.offsetHeight;
     this.element.style.height = `${newHeight}px`;
     this.currentHeight = newHeight;
     this.minHeight = newHeight;
     this.maxHeight = newHeight;
+    this.constrainToViewport();
   }
 
   /**
