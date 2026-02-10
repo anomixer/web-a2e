@@ -54,11 +54,8 @@ export class AssemblerEditorWindow extends BaseWindow {
             <button class="asm-btn asm-assemble-btn" title="Assemble (⌘/Ctrl+Enter)">
               <span class="asm-btn-icon">▶</span> Assemble
             </button>
-            <button class="asm-btn asm-load-btn" disabled title="Load assembled code into memory">
-              <span class="asm-btn-icon">↓</span> Load
-            </button>
-            <button class="asm-btn asm-btn-icon-only asm-clear-btn" title="Clear assembly output">
-              <span class="asm-btn-icon">⌫</span>
+            <button class="asm-btn asm-load-btn" disabled title="Write assembled code into memory">
+              <span class="asm-btn-icon">↓</span> Write
             </button>
             <button class="asm-btn asm-btn-icon-only asm-example-btn" title="Load example program">
               <span class="asm-btn-icon">?</span>
@@ -331,9 +328,6 @@ export class AssemblerEditorWindow extends BaseWindow {
     this.loadBtn.addEventListener("click", () => this.doLoad());
 
     // Clear button
-    this.contentElement
-      .querySelector(".asm-clear-btn")
-      .addEventListener("click", () => this.doClear());
 
     // Example button
     this.contentElement
