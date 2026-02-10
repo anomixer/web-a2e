@@ -137,39 +137,27 @@
 
 .basic-dbg-status-chip {
     font-family: var(--font-mono);
-    font-size: 8px;
+    font-size: 9px;
     font-weight: 700;
-    padding: 1px 5px;
-    border-radius: 2px;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
-    letter-spacing: 0.3px;
-    transition: all 0.15s;
-    background: var(--input-bg-deep);
-    border: 1px solid var(--glass-border-subtle);
+    transition: color 0.15s;
     color: var(--text-muted);
 }
 
 .basic-dbg-status-idle {
-    background: var(--input-bg-deep);
-    border: 1px solid var(--glass-border-subtle);
     color: var(--text-muted);
 }
 
 .basic-dbg-status-running {
-    background: var(--accent-green-bg-strong);
-    border: 1px solid var(--accent-green-border);
     color: var(--accent-green);
 }
 
 .basic-dbg-status-paused {
-    background: var(--accent-orange-bg-strong);
-    border: 1px solid var(--accent-orange-border-strong);
     color: var(--accent-orange);
 }
 
 .basic-dbg-status-error {
-    background: var(--accent-red-bg-strong);
-    border: 1px solid var(--accent-red-border);
     color: var(--accent-red);
 }
 
