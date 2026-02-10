@@ -80,11 +80,10 @@ export class AssemblerEditorWindow extends BaseWindow {
               <span class="asm-btn-icon">📖</span> ROM
             </button>
           </div>
-          <div class="asm-toolbar-spacer"></div>
-          <div class="asm-toolbar-group asm-toolbar-status">
-            <span class="asm-status"></span>
-          </div>
-          <div class="asm-toolbar-group asm-toolbar-position">
+        </div>
+        <div class="asm-status-bar">
+          <span class="asm-status"></span>
+          <div style="display:flex;align-items:center;gap:8px;margin-left:auto;">
             <span class="asm-cursor-position">Ln 1, Col 0</span>
             <span class="asm-column-indicator"></span>
           </div>

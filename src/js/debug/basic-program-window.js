@@ -95,6 +95,8 @@ export class BasicProgramWindow extends BaseWindow {
           <button class="basic-dbg-btn basic-dbg-step-line" title="Step to next BASIC statement">
             <span class="basic-dbg-icon">↓</span> Step
           </button>
+        </div>
+        <div class="basic-dbg-status-bar">
           <div class="basic-dbg-status">
             <span class="basic-dbg-status-chip basic-dbg-status-idle">Idle</span>
           </div>
