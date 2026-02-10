@@ -95,6 +95,16 @@ export class BasicProgramWindow extends BaseWindow {
           <button class="basic-dbg-btn basic-dbg-step-line" title="Step to next BASIC statement">
             <span class="basic-dbg-icon">↓</span> Step
           </button>
+          <div style="width:1px;height:16px;background:var(--separator-bg);margin:0 2px;flex-shrink:0;"></div>
+          <button class="basic-dbg-btn basic-load-btn" title="Load program from emulator memory">Read</button>
+          <button class="basic-dbg-btn basic-insert-btn" title="Load program into emulator memory">Write</button>
+          <button class="basic-dbg-btn basic-format-btn" title="Format code">Format</button>
+          <button class="basic-dbg-btn basic-renumber-btn" title="Renumber lines">Renum</button>
+          <button class="basic-dbg-btn basic-clear-btn">Clear</button>
+          <div style="width:1px;height:16px;background:var(--separator-bg);margin:0 2px;flex-shrink:0;"></div>
+          <button class="basic-dbg-btn basic-dbg-new-btn" title="New">New</button>
+          <button class="basic-dbg-btn basic-dbg-open-btn" title="Open File">Open</button>
+          <button class="basic-dbg-btn basic-dbg-save-btn" title="Save File">Save</button>
         </div>
         <div class="basic-dbg-status-bar" data-state="idle">
           <div class="basic-dbg-status">
@@ -104,6 +114,8 @@ export class BasicProgramWindow extends BaseWindow {
           <div class="basic-dbg-info">
             <span class="basic-dbg-line">LINE: ---</span>
             <span class="basic-dbg-ptr">PTR: $----</span>
+            <span class="basic-lines">0 lines</span>
+            <span class="basic-chars">0 chars</span>
           </div>
         </div>
 
@@ -122,19 +134,6 @@ export class BasicProgramWindow extends BaseWindow {
 40 PRINT &quot;HELLO WORLD &quot;;I
 50 NEXT I
 60 END" spellcheck="false"></textarea>
-              </div>
-            </div>
-            <div class="basic-editor-footer">
-              <div class="basic-status">
-                <span class="basic-lines">0 lines</span>
-                <span class="basic-chars">0 chars</span>
-              </div>
-              <div class="basic-actions">
-                <button class="basic-btn basic-load-btn" title="Load program from emulator memory">Load from Memory</button>
-                <button class="basic-btn basic-insert-btn" title="Load program into emulator memory">Load into Emulator</button>
-                <button class="basic-btn basic-format-btn" title="Format code (align line numbers, indent loops)">Format</button>
-                <button class="basic-btn basic-renumber-btn" title="Renumber lines in increments of 10, updating GOTO/GOSUB references">Renumber</button>
-                <button class="basic-btn basic-clear-btn">Clear</button>
               </div>
             </div>
           </div>
@@ -297,6 +296,11 @@ export class BasicProgramWindow extends BaseWindow {
     this.loadBtn.addEventListener("click", () => {
       this.loadFromMemory();
     });
+
+    // File management buttons
+    this.contentElement.querySelector(".basic-dbg-new-btn").addEventListener("click", () => this.newFile());
+    this.contentElement.querySelector(".basic-dbg-open-btn").addEventListener("click", () => this.openFile());
+    this.contentElement.querySelector(".basic-dbg-save-btn").addEventListener("click", () => this.saveFile());
 
     this.formatBtn.addEventListener("click", () => {
       this.autoFormatCode();
@@ -1148,6 +1152,50 @@ export class BasicProgramWindow extends BaseWindow {
   /**
    * Load the current BASIC program from emulator memory into the textarea
    */
+  newFile() {
+    if (this.textarea.value.trim() && !confirm("Clear current source and start new file?")) return;
+    this.textarea.value = "";
+    this._fileHandle = null;
+    this.updateGutter();
+    this.updateHighlighting();
+    this.updateStats();
+  }
+
+  async openFile() {
+    try {
+      const [handle] = await window.showOpenFilePicker({
+        types: [{ description: "BASIC source files", accept: { "text/plain": [".bas", ".txt"] } }],
+        multiple: false,
+      });
+      const file = await handle.getFile();
+      this.textarea.value = await file.text();
+      this._fileHandle = handle;
+      this.updateGutter();
+      this.updateHighlighting();
+      this.updateStats();
+    } catch (err) {
+      if (err.name !== "AbortError") console.error("Failed to open file:", err);
+    }
+  }
+
+  async saveFile() {
+    const content = this.textarea.value;
+    if (!content.trim()) return;
+    try {
+      if (!this._fileHandle) {
+        this._fileHandle = await window.showSaveFilePicker({
+          suggestedName: "program.bas",
+          types: [{ description: "BASIC source files", accept: { "text/plain": [".bas", ".txt"] } }],
+        });
+      }
+      const writable = await this._fileHandle.createWritable();
+      await writable.write(content);
+      await writable.close();
+    } catch (err) {
+      if (err.name !== "AbortError") console.error("Failed to save file:", err);
+    }
+  }
+
   loadFromMemory() {
     const lines = this.programParser.getLines();
     if (lines.length === 0) {

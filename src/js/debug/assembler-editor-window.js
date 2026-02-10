@@ -22,7 +22,7 @@ import {
 } from "../data/apple2-rom-routines.js";
 
 export class AssemblerEditorWindow extends BaseWindow {
-  constructor(wasmModule, breakpointManager) {
+  constructor(wasmModule, breakpointManager, isRunningCallback) {
     super({
       id: "assembler-editor",
       title: "Assembler",
@@ -34,6 +34,7 @@ export class AssemblerEditorWindow extends BaseWindow {
     });
     this.wasmModule = wasmModule;
     this.bpManager = breakpointManager;
+    this.isRunningCallback = isRunningCallback || (() => false);
     this.lastAssembledSize = 0;
     this.lastOrigin = 0;
     this.errors = new Map(); // line number -> error message (from assembler)
@@ -2179,7 +2180,7 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
         `OK: ${size} bytes at $${origin.toString(16).toUpperCase().padStart(4, "0")}`,
         true,
       );
-      this.loadBtn.disabled = false;
+      this.loadBtn.disabled = !this.isRunningCallback();
 
       // Store symbols for byte encoding
       this.symbols.clear();
