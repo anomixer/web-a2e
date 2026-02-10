@@ -173,9 +173,11 @@ export class BasicProgramWindow extends BaseWindow {
     this.linesSpan = this.contentElement.querySelector(".basic-lines");
     this.charsSpan = this.contentElement.querySelector(".basic-chars");
     this.loadBtn = this.contentElement.querySelector(".basic-load-btn");
+    this.loadBtn.disabled = true;
+    this.insertBtn = this.contentElement.querySelector(".basic-insert-btn");
+    this.insertBtn.disabled = true;
     this.formatBtn = this.contentElement.querySelector(".basic-format-btn");
     this.renumberBtn = this.contentElement.querySelector(".basic-renumber-btn");
-    this.insertBtn = this.contentElement.querySelector(".basic-insert-btn");
 
     this.infoBtn = this.contentElement.querySelector(".basic-dbg-bp-info-btn");
 
@@ -1811,6 +1813,11 @@ export class BasicProgramWindow extends BaseWindow {
     const programRunning = this.wasmModule._isBasicProgramRunning
       ? this.wasmModule._isBasicProgramRunning()
       : false;
+
+    // Enable/disable Read and Write buttons based on emulator state
+    const emulatorOn = this.isRunningCallback ? this.isRunningCallback() : false;
+    this.loadBtn.disabled = !emulatorOn;
+    this.insertBtn.disabled = !emulatorOn;
 
     // Update program status indicator
     if (isPaused && programRunning) {
