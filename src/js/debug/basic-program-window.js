@@ -96,8 +96,9 @@ export class BasicProgramWindow extends BaseWindow {
             <span class="basic-dbg-icon">↓</span> Step
           </button>
         </div>
-        <div class="basic-dbg-status-bar">
+        <div class="basic-dbg-status-bar" data-state="idle">
           <div class="basic-dbg-status">
+            <span class="basic-dbg-status-dot"></span>
             <span class="basic-dbg-status-chip basic-dbg-status-idle">Idle</span>
           </div>
           <div class="basic-dbg-info">
@@ -2082,6 +2083,8 @@ export class BasicProgramWindow extends BaseWindow {
     this.statusChip.classList.add(`basic-dbg-status-${status}`);
     const labels = { idle: "Idle", running: "Running", paused: "Paused", error: "Error" };
     this.statusChip.textContent = labels[status] || status;
+    const statusBar = this.contentElement.querySelector(".basic-dbg-status-bar");
+    if (statusBar) statusBar.dataset.state = status;
   }
 
   /**
