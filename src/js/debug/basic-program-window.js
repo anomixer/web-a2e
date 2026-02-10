@@ -97,8 +97,8 @@ export class BasicProgramWindow extends BaseWindow {
             <span class="basic-dbg-icon">↓</span> Step
           </button>
           <div style="width:1px;height:16px;background:var(--separator-bg);margin:0 2px;flex-shrink:0;"></div>
-          <button class="basic-dbg-btn basic-load-btn" title="Load program from emulator memory">Read</button>
-          <button class="basic-dbg-btn basic-insert-btn" title="Load program into emulator memory">Write</button>
+          <button class="basic-dbg-btn basic-load-btn" title="Read program from memory">Read</button>
+          <button class="basic-dbg-btn basic-insert-btn" title="Write program into memory">Write</button>
           <button class="basic-dbg-btn basic-format-btn" title="Format code">Format</button>
           <button class="basic-dbg-btn basic-renumber-btn" title="Renumber lines">Renum</button>
           <div style="width:1px;height:16px;background:var(--separator-bg);margin:0 2px;flex-shrink:0;"></div>
@@ -1149,7 +1149,7 @@ export class BasicProgramWindow extends BaseWindow {
   /**
    * Load the current BASIC program from emulator memory into the textarea
    */
-  newFile() {
+  async newFile() {
     if (this.textarea.value.trim()) {
       const confirmed = await showConfirm("Clear current source and start new file?");
       if (!confirmed) return;
