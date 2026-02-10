@@ -11,13 +11,13 @@ export class HardDriveWindow extends BaseWindow {
   constructor() {
     super({
       id: "hard-drives",
-      title: "Hard Drives",
-      minWidth: 340,
-      minHeight: 225,
-      maxWidth: 340,
-      maxHeight: 225,
-      defaultWidth: 340,
-      defaultHeight: 225,
+      title: "SmartPort Drives",
+      minWidth: 600,
+      minHeight: 140,
+      maxWidth: 600,
+      maxHeight: 140,
+      defaultWidth: 600,
+      defaultHeight: 140,
       defaultPosition: { x: 100, y: 500 },
       resizeDirections: [],
     });
@@ -36,7 +36,7 @@ export class HardDriveWindow extends BaseWindow {
         </div>
         <div class="hd-controls">
           <input type="file" id="hd-device${num}-input" accept=".hdv,.po,.2mg" hidden />
-          <button class="hd-insert" title="Insert Hard Drive Image">Insert</button>
+          <button class="hd-insert" title="Insert SmartPort Image">Insert</button>
           <div class="hd-recent-container">
             <button class="hd-recent" title="Recent Images">Recent</button>
             <div class="hd-recent-dropdown"></div>
@@ -49,7 +49,7 @@ export class HardDriveWindow extends BaseWindow {
 
   renderContent() {
     return `
-      <div class="hd-devices-column">
+      <div class="hd-devices-row">
         ${this._deviceHTML(0)}
         ${this._deviceHTML(1)}
       </div>

@@ -18,28 +18,6 @@
         <link rel="manifest" href="/manifest.json" />
         <link rel="icon" type="image/svg+xml" href="/icons/icon-192.svg" />
         <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
-        <link rel="stylesheet" href="/css/base.css" />
-        <link rel="stylesheet" href="/css/layout.css" />
-        <link rel="stylesheet" href="/css/monitor.css" />
-        <link rel="stylesheet" href="/css/disk-drives.css" />
-        <link rel="stylesheet" href="/css/hard-drive.css" />
-        <link rel="stylesheet" href="/css/disk-library.css" />
-        <link rel="stylesheet" href="/css/controls.css" />
-        <link rel="stylesheet" href="/css/modals.css" />
-        <link rel="stylesheet" href="/css/debug-base.css" />
-        <link rel="stylesheet" href="/css/cpu-debugger.css" />
-        <link rel="stylesheet" href="/css/memory-windows.css" />
-        <link rel="stylesheet" href="/css/settings-windows.css" />
-        <link rel="stylesheet" href="/css/save-states.css" />
-        <link rel="stylesheet" href="/css/rule-builder.css" />
-        <link rel="stylesheet" href="/css/basic-editor.css" />
-        <link rel="stylesheet" href="/css/basic-debugger.css" />
-        <link rel="stylesheet" href="/css/assembler-editor.css" />
-        <link rel="stylesheet" href="/css/release-notes.css" />
-        <link rel="stylesheet" href="/css/file-explorer.css" />
-        <link rel="stylesheet" href="/css/documentation.css" />
-        <link rel="stylesheet" href="/css/window-switcher.css" />
-        <link rel="stylesheet" href="/css/responsive.css" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link
@@ -244,10 +222,7 @@
                                 <span>Disk Drives</span>
                             </button>
                             <button class="header-menu-item" id="btn-hard-drives">
-                                <span>Hard Drives</span>
-                            </button>
-                            <button class="header-menu-item" id="btn-disk-library">
-                                <span>Disk Library</span>
+                                <span>SmartPort Drives</span>
                             </button>
                             <button
                                 class="header-menu-item"
@@ -639,43 +614,6 @@
                 </div>
                 <div class="reminder-arrow"></div>
             </div>
-
-            <!-- Save Hard Drive Modal -->
-            <dialog id="save-hd-modal" class="modal">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h3>Save Hard Drive Image?</h3>
-                    </div>
-                    <div class="modal-body">
-                        <p>
-                            This hard drive image has been modified. Would you
-                            like to save it before ejecting?
-                        </p>
-                        <div class="modal-input-group">
-                            <label for="save-hd-filename">Filename:</label>
-                            <input
-                                type="text"
-                                id="save-hd-filename"
-                                placeholder="harddrive.hdv"
-                            />
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button
-                            id="save-hd-cancel"
-                            class="modal-btn modal-btn-secondary"
-                        >
-                            Don't Save
-                        </button>
-                        <button
-                            id="save-hd-confirm"
-                            class="modal-btn modal-btn-primary"
-                        >
-                            Save
-                        </button>
-                    </div>
-                </div>
-            </dialog>
 
             <!-- Save Disk Modal -->
             <dialog id="save-disk-modal" class="modal">

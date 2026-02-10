@@ -34,7 +34,7 @@ export class SlotConfigurationWindow extends BaseWindow {
       { id: "mockingboard", name: "Mockingboard" },
       { id: "thunderclock", name: "Thunderclock Plus" },
       { id: "mouse", name: "Apple Mouse Card" },
-      { id: "smartport", name: "SmartPort (Hard Drive)" },
+      { id: "smartport", name: "SmartPort" },
     ];
 
     // Slot metadata

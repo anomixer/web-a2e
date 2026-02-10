@@ -5,6 +5,29 @@
  *  Mike Daley <michael_daley@icloud.com>
  */
 
+// CSS imports - bundled by Vite with content hashes for cache busting
+import "../css/base.css";
+import "../css/layout.css";
+import "../css/monitor.css";
+import "../css/disk-drives.css";
+import "../css/hard-drive.css";
+import "../css/controls.css";
+import "../css/modals.css";
+import "../css/debug-base.css";
+import "../css/cpu-debugger.css";
+import "../css/memory-windows.css";
+import "../css/settings-windows.css";
+import "../css/save-states.css";
+import "../css/rule-builder.css";
+import "../css/basic-editor.css";
+import "../css/basic-debugger.css";
+import "../css/assembler-editor.css";
+import "../css/release-notes.css";
+import "../css/file-explorer.css";
+import "../css/documentation.css";
+import "../css/window-switcher.css";
+import "../css/responsive.css";
+
 import { VERSION } from "./config/version.js";
 import { DEFAULT_LAYOUT } from "./config/default-layout.js";
 import { WebGLRenderer } from "./display/webgl-renderer.js";
@@ -14,7 +37,6 @@ import { DiskManager } from "./disk-manager/index.js";
 import { DiskDrivesWindow } from "./disk-manager/disk-drives-window.js";
 import { HardDriveManager } from "./disk-manager/hard-drive-manager.js";
 import { HardDriveWindow } from "./disk-manager/hard-drive-window.js";
-import { DiskLibraryWindow } from "./disk-manager/disk-library-window.js";
 import { FileExplorerWindow } from "./file-explorer/index.js";
 import { DisplaySettingsWindow, ScreenWindow } from "./display/index.js";
 import { DocumentationWindow, ReleaseNotesWindow } from "./help/index.js";
@@ -126,15 +148,12 @@ class AppleIIeEmulator {
       hardDriveWindow.create();
       this.windowManager.register(hardDriveWindow);
 
+      this.diskManager.fileExplorer = this.fileExplorer;
+
       this.hardDriveManager = new HardDriveManager(this.wasmModule);
       this.hardDriveManager.fileExplorer = this.fileExplorer;
       this.hardDriveManager.init();
 
-      // Create disk library window
-      const diskLibraryWindow = new DiskLibraryWindow();
-      diskLibraryWindow.create();
-      diskLibraryWindow.setManagers(this.diskManager, this.hardDriveManager);
-      this.windowManager.register(diskLibraryWindow);
 
       const cpuWindow = new CPUDebuggerWindow(this.wasmModule, () => this.isRunning());
       cpuWindow.create();
@@ -220,7 +239,7 @@ class AppleIIeEmulator {
       this.windowManager.register(basicProgramWindow);
       this.basicProgramWindow = basicProgramWindow;
 
-      const assemblerWindow = new AssemblerEditorWindow(this.wasmModule, cpuWindow.bpManager);
+      const assemblerWindow = new AssemblerEditorWindow(this.wasmModule, cpuWindow.bpManager, () => this.isRunning());
       assemblerWindow.create();
       this.windowManager.register(assemblerWindow);
 

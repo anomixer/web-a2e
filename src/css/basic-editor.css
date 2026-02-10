@@ -584,9 +584,9 @@
 }
 
 .basic-btn {
-    padding: 8px 12px;
+    padding: 4px 8px;
     font-family: var(--font-sans);
-    font-size: 11px;
+    font-size: 10px;
     font-weight: 500;
     background: var(--glass-bg-header);
     border: 1px solid var(--control-border);

@@ -12,10 +12,10 @@ export class DiskDrivesWindow extends BaseWindow {
     super({
       id: "disk-drives",
       title: "Disk Drives",
-      minWidth: 460,
+      minWidth: 600,
       minHeight: 100,
-      maxWidth: 460,
-      defaultWidth: 460,
+      maxWidth: 600,
+      defaultWidth: 600,
       defaultHeight: 310,
       defaultPosition: { x: 100, y: 452 },
       resizeDirections: [],
@@ -46,6 +46,7 @@ export class DiskDrivesWindow extends BaseWindow {
           </div>
           <button class="disk-blank" title="Insert Blank Disk">Blank</button>
           <button class="disk-eject" disabled title="Eject Disk">Eject</button>
+          <button class="disk-browse" disabled title="Browse Files">Browse</button>
         </div>
         <div class="drive-detail-panel">
           <div class="drive-detail-grid">
@@ -97,7 +98,6 @@ export class DiskDrivesWindow extends BaseWindow {
     this.headerElement.insertBefore(this._detailBtn, closeBtn);
     this._detailBtn.addEventListener("mousedown", (e) => e.stopPropagation());
     this._detailBtn.addEventListener("click", () => this._toggleDetails());
-
   }
 
   show() {
@@ -129,12 +129,13 @@ export class DiskDrivesWindow extends BaseWindow {
     if (!this.element) return;
     // Temporarily set auto height to measure natural size
     const prevHeight = this.element.style.height;
-    this.element.style.height = 'auto';
+    this.element.style.height = "auto";
     const newHeight = this.element.offsetHeight;
     this.element.style.height = `${newHeight}px`;
     this.currentHeight = newHeight;
     this.minHeight = newHeight;
     this.maxHeight = newHeight;
+    this.constrainToViewport();
   }
 
   /**

@@ -15,6 +15,20 @@ import {
   clearRecentImages,
 } from "./hard-drive-persistence.js";
 import { showToast } from "../ui/toast.js";
+import { createDatabaseManager } from "../utils/indexeddb-helper.js";
+
+const CACHE_STORE = "images";
+
+const libraryCacheDb = createDatabaseManager({
+  dbName: "a2e-disk-library-cache",
+  version: 1,
+  onUpgrade: (event) => {
+    const database = event.target.result;
+    if (!database.objectStoreNames.contains(CACHE_STORE)) {
+      database.createObjectStore(CACHE_STORE, { keyPath: "id" });
+    }
+  },
+});
 
 function insertImageToWasm(wasmModule, deviceNum, data, filename) {
   const dataPtr = wasmModule._malloc(data.length);
@@ -41,11 +55,6 @@ export class HardDriveManager {
     this.canvas = null;
     this.activeDropdown = null;
     this.fileExplorer = null;
-
-    // Save modal
-    this.saveModal = null;
-    this.saveFilenameInput = null;
-    this.pendingEjectDevice = null;
   }
 
   init() {
@@ -54,8 +63,6 @@ export class HardDriveManager {
     for (let i = 0; i < 2; i++) {
       this.setupDevice(i);
     }
-
-    this.setupSaveModal();
 
     document.addEventListener("click", (e) => {
       if (this.activeDropdown && !e.target.closest(".hd-recent-container")) {
@@ -93,7 +100,7 @@ export class HardDriveManager {
     if (device.insertBtn) {
       device.insertBtn.addEventListener("click", () => {
         if (!this.isSmartPortInstalled()) {
-          showToast("SmartPort card is not installed. Configure it in the Expansion Slots window before loading hard drive images.", "warning");
+          showToast("SmartPort card is not installed. Configure it in the Expansion Slots window before loading SmartPort images.", "warning");
           return;
         }
         device.input?.click();
@@ -113,7 +120,7 @@ export class HardDriveManager {
       device.recentBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         if (!this.isSmartPortInstalled()) {
-          showToast("SmartPort card is not installed. Configure it in the Expansion Slots window before loading hard drive images.", "warning");
+          showToast("SmartPort card is not installed. Configure it in the Expansion Slots window before loading SmartPort images.", "warning");
           return;
         }
         this.toggleRecentDropdown(deviceNum);
@@ -124,34 +131,6 @@ export class HardDriveManager {
       device.ejectBtn.addEventListener("click", () => {
         this.ejectImage(deviceNum);
         this.refocusCanvas();
-      });
-    }
-  }
-
-  setupSaveModal() {
-    this.saveModal = document.getElementById("save-hd-modal");
-    this.saveFilenameInput = document.getElementById("save-hd-filename");
-    const confirmBtn = document.getElementById("save-hd-confirm");
-    const cancelBtn = document.getElementById("save-hd-cancel");
-
-    if (confirmBtn) {
-      confirmBtn.addEventListener("click", () => this.handleSaveConfirm());
-    }
-    if (cancelBtn) {
-      cancelBtn.addEventListener("click", () => this.handleSaveCancel());
-    }
-    if (this.saveModal) {
-      this.saveModal.addEventListener("click", (e) => {
-        if (e.target === this.saveModal) this.handleSaveCancel();
-      });
-      this.saveModal.addEventListener("cancel", (e) => {
-        e.preventDefault();
-        this.handleSaveCancel();
-      });
-    }
-    if (this.saveFilenameInput) {
-      this.saveFilenameInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") this.handleSaveConfirm();
       });
     }
   }
@@ -180,7 +159,7 @@ export class HardDriveManager {
         await addToRecentImages(deviceNum, file.name, data);
       } else {
         console.error(`Failed to load HD image: ${file.name}`);
-        showToast(`Failed to load hard drive image: ${file.name}`, "error");
+        showToast(`Failed to load SmartPort image: ${file.name}`, "error");
       }
     } catch (error) {
       console.error("Error loading HD image:", error);
@@ -202,11 +181,44 @@ export class HardDriveManager {
     const device = this.devices[deviceNum];
     if (!device.filename) return;
 
-    // Check if modified
+    // If modified, show host save dialog directly
     if (this.wasmModule._isSmartPortImageModified &&
         this.wasmModule._isSmartPortImageModified(deviceNum)) {
-      this.showSaveModal(deviceNum);
-      return;
+      let filename = device.filename || `harddrive${deviceNum + 1}.hdv`;
+      if (!filename.includes(".")) filename += ".hdv";
+
+      try {
+        const sizePtr = this.wasmModule._malloc(4);
+        const dataPtr = this.wasmModule._getSmartPortImageData(deviceNum, sizePtr);
+        const size = new DataView(this.wasmModule.HEAPU8.buffer).getUint32(sizePtr, true);
+        this.wasmModule._free(sizePtr);
+
+        if (dataPtr && size > 0) {
+          const data = new Uint8Array(this.wasmModule.HEAPU8.buffer, dataPtr, size);
+          const blob = new Blob([data], { type: "application/octet-stream" });
+
+          if (window.showSaveFilePicker) {
+            const handle = await window.showSaveFilePicker({
+              suggestedName: filename,
+              types: [{ description: "SmartPort Image", accept: { "application/octet-stream": [".hdv", ".po", ".2mg"] } }],
+            });
+            const writable = await handle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+          } else {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
+          }
+        }
+      } catch (error) {
+        if (error.name !== "AbortError") {
+          console.error("Error saving HD image:", error);
+        }
+      }
     }
 
     this.performEject(deviceNum);
@@ -220,81 +232,6 @@ export class HardDriveManager {
     this.updateDeviceUI(deviceNum);
     clearImageFromStorage(deviceNum);
     console.log(`Ejected HD image from device ${deviceNum + 1}`);
-  }
-
-  showSaveModal(deviceNum) {
-    this.pendingEjectDevice = deviceNum;
-    let defaultName = this.devices[deviceNum].filename || `harddrive${deviceNum + 1}.hdv`;
-    if (!defaultName.includes(".")) defaultName += ".hdv";
-
-    if (this.saveFilenameInput) this.saveFilenameInput.value = defaultName;
-    if (this.saveModal) {
-      this.saveModal.showModal();
-      if (this.saveFilenameInput) {
-        this.saveFilenameInput.focus();
-        const dotIndex = defaultName.lastIndexOf(".");
-        if (dotIndex > 0) {
-          this.saveFilenameInput.setSelectionRange(0, dotIndex);
-        } else {
-          this.saveFilenameInput.select();
-        }
-      }
-    }
-  }
-
-  hideSaveModal() {
-    if (this.saveModal && this.saveModal.open) this.saveModal.close();
-    this.pendingEjectDevice = null;
-  }
-
-  async handleSaveConfirm() {
-    if (this.pendingEjectDevice === null) return;
-    const deviceNum = this.pendingEjectDevice;
-    const filename = this.saveFilenameInput?.value || `harddrive${deviceNum + 1}.hdv`;
-    this.hideSaveModal();
-
-    // Export and save via file picker
-    try {
-      const sizePtr = this.wasmModule._malloc(4);
-      const dataPtr = this.wasmModule._getSmartPortImageData(deviceNum, sizePtr);
-      const size = new DataView(this.wasmModule.HEAPU8.buffer).getUint32(sizePtr, true);
-      this.wasmModule._free(sizePtr);
-
-      if (dataPtr && size > 0) {
-        const data = new Uint8Array(this.wasmModule.HEAPU8.buffer, dataPtr, size);
-        const blob = new Blob([data], { type: "application/octet-stream" });
-
-        if (window.showSaveFilePicker) {
-          const handle = await window.showSaveFilePicker({
-            suggestedName: filename,
-            types: [{ description: "Hard Drive Image", accept: { "application/octet-stream": [".hdv", ".po", ".2mg"] } }],
-          });
-          const writable = await handle.createWritable();
-          await writable.write(blob);
-          await writable.close();
-        } else {
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement("a");
-          a.href = url;
-          a.download = filename;
-          a.click();
-          URL.revokeObjectURL(url);
-        }
-      }
-    } catch (error) {
-      if (error.name !== "AbortError") {
-        console.error("Error saving HD image:", error);
-      }
-    }
-
-    this.performEject(deviceNum);
-  }
-
-  handleSaveCancel() {
-    if (this.pendingEjectDevice === null) return;
-    const deviceNum = this.pendingEjectDevice;
-    this.hideSaveModal();
-    this.performEject(deviceNum);
   }
 
   updateDeviceUI(deviceNum) {
@@ -454,6 +391,77 @@ export class HardDriveManager {
         this.closeRecentDropdown();
       });
       device.recentDropdown.appendChild(clearItem);
+    }
+
+    // Append library section
+    await this._appendLibrarySection(device.recentDropdown, deviceNum);
+  }
+
+  async _getLibraryImageData(entry) {
+    try {
+      const cached = await libraryCacheDb.get(CACHE_STORE, entry.id);
+      if (cached) return new Uint8Array(cached.data);
+    } catch (err) {
+      console.warn("Library cache read failed:", err);
+    }
+
+    const resp = await fetch(`/disks/${entry.file}`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const arrayBuffer = await resp.arrayBuffer();
+    const data = new Uint8Array(arrayBuffer);
+
+    try {
+      await libraryCacheDb.put(CACHE_STORE, {
+        id: entry.id,
+        file: entry.file,
+        data: arrayBuffer,
+      });
+    } catch (err) {
+      console.warn("Library cache write failed:", err);
+    }
+
+    return data;
+  }
+
+  async _appendLibrarySection(dropdown, deviceNum) {
+    try {
+      const resp = await fetch("/disks/library.json");
+      if (!resp.ok) return;
+      const library = await resp.json();
+      const entries = library.filter((e) => e.type === "hard-drive");
+      if (entries.length === 0) return;
+
+      const separator = document.createElement("div");
+      separator.className = "recent-separator";
+      dropdown.appendChild(separator);
+
+      const label = document.createElement("div");
+      label.className = "recent-section-label";
+      dropdown.appendChild(label);
+      label.textContent = "Library";
+
+      for (const entry of entries) {
+        const item = document.createElement("div");
+        item.className = "recent-item";
+        item.textContent = entry.name;
+        item.title = entry.description || entry.name;
+        item.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          this.closeRecentDropdown();
+          try {
+            const data = await this._getLibraryImageData(entry);
+            this.loadImageFromData(deviceNum, entry.file, data);
+            await saveImageToStorage(deviceNum, entry.file, data);
+            await addToRecentImages(deviceNum, entry.file, data);
+          } catch (err) {
+            console.error(`Failed to load ${entry.file}:`, err);
+            showToast(`Failed to load ${entry.name}`, "error");
+          }
+        });
+        dropdown.appendChild(item);
+      }
+    } catch (err) {
+      console.error("Failed to load library:", err);
     }
   }
 

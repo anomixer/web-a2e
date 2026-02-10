@@ -43,69 +43,121 @@
     font-size: 9px;
 }
 
-.basic-dbg-run:hover {
+.basic-dbg-run {
     background: var(--accent-green-bg);
     border-color: var(--accent-green-border);
     color: var(--accent-green);
 }
 
-.basic-dbg-pause:hover {
+.basic-dbg-run:hover {
+    background: var(--accent-green-bg-strong);
+    border-color: var(--accent-green-border);
+    color: var(--accent-green);
+}
+
+.basic-dbg-pause {
     background: var(--accent-red-bg);
     border-color: var(--accent-red-border);
     color: var(--accent-red);
 }
 
+.basic-dbg-pause:hover {
+    background: var(--accent-red-bg-strong);
+    border-color: var(--accent-red-border);
+    color: var(--accent-red);
+}
+
+.basic-dbg-step-line,
+.basic-dbg-step-stmt {
+    background: var(--accent-orange-bg);
+    border-color: var(--accent-orange-border);
+    color: var(--accent-orange);
+}
+
 .basic-dbg-step-line:hover,
 .basic-dbg-step-stmt:hover {
-    background: var(--accent-blue-bg);
-    border-color: var(--accent-blue-border);
-    color: var(--accent-red);
+    background: var(--accent-orange-bg-strong);
+    border-color: var(--accent-orange-border);
+    color: var(--accent-orange);
+}
+
+/* Status Bar - matches CPU debugger status bar */
+.basic-dbg-status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 3px 6px;
+    background: var(--input-bg);
+    border: 1px solid var(--glass-border-subtle);
+    border-radius: 4px;
+    margin-bottom: 4px;
+    flex-shrink: 0;
+}
+
+/* Status Dot */
+.basic-dbg-status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.basic-dbg-status-bar[data-state="running"] .basic-dbg-status-dot {
+    background: var(--accent-green);
+    animation: basic-status-dot-pulse 1.5s ease-in-out infinite;
+}
+
+.basic-dbg-status-bar[data-state="paused"] .basic-dbg-status-dot {
+    background: var(--accent-orange);
+    animation: none;
+}
+
+.basic-dbg-status-bar[data-state="error"] .basic-dbg-status-dot {
+    background: var(--accent-red);
+    animation: none;
+}
+
+.basic-dbg-status-bar[data-state="idle"] .basic-dbg-status-dot {
+    background: var(--text-muted);
+    animation: none;
+}
+
+@keyframes basic-status-dot-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.75); }
 }
 
 /* Status Chip */
 .basic-dbg-status {
     display: inline-flex;
     align-items: center;
-    margin-left: 8px;
-    padding-left: 8px;
-    border-left: 1px solid var(--separator-bg);
+    gap: 6px;
 }
 
 .basic-dbg-status-chip {
     font-family: var(--font-mono);
-    font-size: 8px;
+    font-size: 9px;
     font-weight: 700;
-    padding: 1px 5px;
-    border-radius: 2px;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
-    letter-spacing: 0.3px;
-    transition: all 0.15s;
-    background: var(--input-bg-deep);
-    border: 1px solid var(--glass-border-subtle);
+    transition: color 0.15s;
     color: var(--text-muted);
 }
 
 .basic-dbg-status-idle {
-    background: var(--input-bg-deep);
-    border: 1px solid var(--glass-border-subtle);
     color: var(--text-muted);
 }
 
 .basic-dbg-status-running {
-    background: var(--accent-green-bg-strong);
-    border: 1px solid var(--accent-green-border);
     color: var(--accent-green);
 }
 
 .basic-dbg-status-paused {
-    background: var(--accent-orange-bg-strong);
-    border: 1px solid var(--accent-orange-border-strong);
     color: var(--accent-orange);
 }
 
 .basic-dbg-status-error {
-    background: var(--accent-red-bg-strong);
-    border: 1px solid var(--accent-red-border);
     color: var(--accent-red);
 }
 
@@ -113,9 +165,6 @@
 .basic-dbg-info {
     display: flex;
     gap: 12px;
-    margin-left: 8px;
-    padding-left: 8px;
-    border-left: 1px solid var(--separator-bg);
     font-family: var(--font-mono);
     font-size: 10px;
     color: var(--text-muted);

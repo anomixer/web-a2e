@@ -18,11 +18,26 @@ import {
 } from "./disk-operations.js";
 import {
   loadDiskFromStorage,
+  saveDiskToStorage,
   getRecentDisks,
   loadRecentDisk,
   addToRecentDisks,
   clearRecentDisks,
 } from "./disk-persistence.js";
+import { createDatabaseManager } from "../utils/indexeddb-helper.js";
+
+const CACHE_STORE = "images";
+
+const libraryCacheDb = createDatabaseManager({
+  dbName: "a2e-disk-library-cache",
+  version: 1,
+  onUpgrade: (event) => {
+    const database = event.target.result;
+    if (!database.objectStoreNames.contains(CACHE_STORE)) {
+      database.createObjectStore(CACHE_STORE, { keyPath: "id" });
+    }
+  },
+});
 
 /**
  * Create a new drive state object with default values
@@ -34,6 +49,7 @@ function createDriveState() {
     insertBtn: null,
     blankBtn: null,
     ejectBtn: null,
+    browseBtn: null,
     recentBtn: null,
     recentDropdown: null,
     nameLabel: null,
@@ -69,6 +85,9 @@ export class DiskManager {
 
     // Callback for when a disk is loaded
     this.onDiskLoaded = null;
+
+    // File explorer reference (set by main.js)
+    this.fileExplorer = null;
 
     // Set by main.js so surface rendering can be skipped when hidden
     this.drivesWindowVisible = true;
@@ -148,6 +167,7 @@ export class DiskManager {
     drive.insertBtn = container.querySelector(".disk-insert");
     drive.blankBtn = container.querySelector(".disk-blank");
     drive.ejectBtn = container.querySelector(".disk-eject");
+    drive.browseBtn = container.querySelector(".disk-browse");
     drive.recentBtn = container.querySelector(".disk-recent");
     drive.recentDropdown = container.querySelector(".recent-dropdown");
     drive.nameLabel = container.querySelector(".disk-name");
@@ -195,6 +215,16 @@ export class DiskManager {
     if (drive.ejectBtn) {
       drive.ejectBtn.addEventListener("click", () => {
         this.ejectDisk(driveNum);
+        this.refocusCanvas();
+      });
+    }
+
+    // Browse button click
+    if (drive.browseBtn) {
+      drive.browseBtn.addEventListener("click", () => {
+        if (this.fileExplorer) {
+          this.fileExplorer.showFloppyDisk(driveNum);
+        }
         this.refocusCanvas();
       });
     }
@@ -661,6 +691,95 @@ export class DiskManager {
       });
       drive.recentDropdown.appendChild(clearItem);
     }
+
+    // Append library section
+    await this._appendLibrarySection(drive.recentDropdown, driveNum, "floppy");
+  }
+
+  /**
+   * Fetch a library image with IndexedDB caching
+   */
+  async _getLibraryImageData(entry) {
+    try {
+      const cached = await libraryCacheDb.get(CACHE_STORE, entry.id);
+      if (cached) return new Uint8Array(cached.data);
+    } catch (err) {
+      console.warn("Library cache read failed:", err);
+    }
+
+    const resp = await fetch(`/disks/${entry.file}`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const arrayBuffer = await resp.arrayBuffer();
+    const data = new Uint8Array(arrayBuffer);
+
+    try {
+      await libraryCacheDb.put(CACHE_STORE, {
+        id: entry.id,
+        file: entry.file,
+        data: arrayBuffer,
+      });
+    } catch (err) {
+      console.warn("Library cache write failed:", err);
+    }
+
+    return data;
+  }
+
+  /**
+   * Append library entries to a recent dropdown
+   */
+  async _appendLibrarySection(dropdown, driveNum, type) {
+    try {
+      const resp = await fetch("/disks/library.json");
+      if (!resp.ok) return;
+      const library = await resp.json();
+      const entries = library.filter((e) => e.type === type);
+      if (entries.length === 0) return;
+
+      const separator = document.createElement("div");
+      separator.className = "recent-separator";
+      dropdown.appendChild(separator);
+
+      const label = document.createElement("div");
+      label.className = "recent-section-label";
+      label.textContent = "Library";
+      dropdown.appendChild(label);
+
+      for (const entry of entries) {
+        const item = document.createElement("div");
+        item.className = "recent-item";
+        item.textContent = entry.name;
+        item.title = entry.description || entry.name;
+        item.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          this.closeRecentDropdown();
+          try {
+            const data = await this._getLibraryImageData(entry);
+            const drive = this.drives[driveNum];
+            loadDiskFromData({
+              wasmModule: this.wasmModule,
+              drive,
+              driveNum,
+              filename: entry.file,
+              data,
+              onSuccess: (filename) => {
+                this.setDiskName(driveNum, filename);
+                if (this.onDiskLoaded) this.onDiskLoaded(driveNum, filename);
+              },
+              onError: (error) => showToast(error, "error"),
+            });
+            saveDiskToStorage(driveNum, entry.file, data);
+            addToRecentDisks(driveNum, entry.file, data);
+          } catch (err) {
+            console.error(`Failed to load ${entry.file}:`, err);
+            showToast(`Failed to load ${entry.name}`, "error");
+          }
+        });
+        dropdown.appendChild(item);
+      }
+    } catch (err) {
+      console.error("Failed to load library:", err);
+    }
   }
 
   /**
@@ -712,12 +831,14 @@ export class DiskManager {
 
         drive.filename = filename;
         if (drive.ejectBtn) drive.ejectBtn.disabled = false;
+        if (drive.browseBtn) drive.browseBtn.disabled = false;
         this.setDiskName(driveNum, filename);
         console.log(`Synced drive ${driveNum + 1}: ${filename}`);
       } else {
         // No disk in drive
         drive.filename = null;
         if (drive.ejectBtn) drive.ejectBtn.disabled = true;
+        if (drive.browseBtn) drive.browseBtn.disabled = true;
         if (drive.input) drive.input.value = "";
         this.setDiskName(driveNum, "No Disk");
       }

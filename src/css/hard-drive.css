@@ -12,18 +12,25 @@
     flex-shrink: 0;
 }
 
-.hd-devices-column {
+.hd-devices-row {
     display: flex;
-    flex-direction: column;
     gap: var(--space-md);
     width: 100%;
     padding: var(--space-sm);
 }
 
 .hd-device {
+    flex: 1;
     display: flex;
     flex-direction: column;
     gap: var(--space-xs);
+    min-width: 0;
+}
+
+/* Vertical separator between the two drives */
+.hd-device + .hd-device {
+    border-left: 1px solid var(--border-default);
+    padding-left: var(--space-md);
 }
 
 .hd-header {
@@ -34,14 +41,14 @@
 
 .hd-label {
     font-family: var(--font-mono);
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
     font-weight: 600;
     color: var(--text-secondary);
 }
 
 .hd-led {
-    width: 10px;
-    height: 10px;
+    width: 7px;
+    height: 7px;
     border-radius: 50%;
     background: var(--overlay-white-10);
     border: 1px solid var(--border-subtle);

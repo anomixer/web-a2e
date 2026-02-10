@@ -2,6 +2,11 @@
    Disk drive UI components
 */
 
+/* Allow recent dropdown to render outside the window bounds */
+#disk-drives.debug-window {
+    overflow: visible;
+}
+
 /* Content area: don't shrink or clip — window height follows content */
 #disk-drives.debug-window .debug-window-content {
     overflow: visible;
@@ -22,6 +27,12 @@
     flex-direction: column;
     gap: var(--space-sm);
     min-width: 0;
+}
+
+/* Vertical separator between the two drives */
+.disk-drive + .disk-drive {
+    border-left: 1px solid var(--border-default);
+    padding-left: var(--space-md);
 }
 
 .drive-image-container {
@@ -117,7 +128,8 @@
 .disk-insert,
 .disk-blank,
 .disk-eject,
-.disk-recent {
+.disk-recent,
+.disk-browse {
     flex: 1;
     padding: var(--space-xs) var(--space-sm);
     background: var(--control-bg-solid);
@@ -133,7 +145,8 @@
 
 .disk-insert:hover,
 .disk-blank:hover,
-.disk-eject:hover:not(:disabled) {
+.disk-eject:hover:not(:disabled),
+.disk-browse:hover:not(:disabled) {
     background: var(--control-bg-hover);
     color: var(--text-primary);
 }
@@ -151,6 +164,11 @@
 }
 
 .disk-eject:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.disk-browse:disabled {
     opacity: 0.4;
     cursor: not-allowed;
 }
@@ -223,6 +241,17 @@
 .recent-item.recent-clear {
     color: var(--text-muted);
     text-align: center;
+}
+
+.recent-section-label {
+    padding: var(--space-xs) var(--space-md);
+    font-family: var(--font-sans);
+    font-size: 0.625rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    cursor: default;
 }
 
 .recent-item.recent-clear:hover {

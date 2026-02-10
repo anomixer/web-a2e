@@ -319,6 +319,15 @@ export class FileExplorerWindow extends BaseWindow {
     this.show();
   }
 
+  /**
+   * Open the file explorer showing a specific floppy drive
+   */
+  showFloppyDisk(driveNum) {
+    this.sourceType = "floppy";
+    this.selectedDrive = driveNum;
+    this.show();
+  }
+
   loadDisk() {
     if (this.sourceType === "hd") {
       this.loadHardDrive();

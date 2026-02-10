@@ -58,6 +58,7 @@ export async function loadDisk({ wasmModule, drive, driveNum, file, onSuccess, o
     if (success) {
       drive.filename = file.name;
       if (drive.ejectBtn) drive.ejectBtn.disabled = false;
+      if (drive.browseBtn) drive.browseBtn.disabled = false;
       console.log(`Inserted disk in drive ${driveNum + 1}: ${file.name}`);
 
       // Save to IndexedDB for persistence across sessions
@@ -96,6 +97,7 @@ export function loadDiskFromData({ wasmModule, drive, driveNum, filename, data, 
     if (success) {
       drive.filename = filename;
       if (drive.ejectBtn) drive.ejectBtn.disabled = false;
+      if (drive.browseBtn) drive.browseBtn.disabled = false;
       console.log(`Restored disk in drive ${driveNum + 1}: ${filename}`);
       if (onSuccess) onSuccess(filename);
     } else {
@@ -149,6 +151,7 @@ export function performEject({ wasmModule, drive, driveNum, onEject }) {
 
   drive.filename = null;
   if (drive.ejectBtn) drive.ejectBtn.disabled = true;
+  if (drive.browseBtn) drive.browseBtn.disabled = true;
   if (drive.input) drive.input.value = "";
 
   // Clear from IndexedDB

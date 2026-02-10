@@ -17,6 +17,7 @@ import { BasicBreakpointManager } from "./basic-breakpoint-manager.js";
 import { BasicVariableInspector } from "./basic-variable-inspector.js";
 import { BasicProgramParser } from "./basic-program-parser.js";
 import { showToast } from "../ui/toast.js";
+import { showConfirm } from "../ui/confirm.js";
 
 const BASIC_ERRORS = {
   0x00: "NEXT WITHOUT FOR",
@@ -95,12 +96,26 @@ export class BasicProgramWindow extends BaseWindow {
           <button class="basic-dbg-btn basic-dbg-step-line" title="Step to next BASIC statement">
             <span class="basic-dbg-icon">↓</span> Step
           </button>
+          <div style="width:1px;height:16px;background:var(--separator-bg);margin:0 2px;flex-shrink:0;"></div>
+          <button class="basic-dbg-btn basic-load-btn" title="Read program from memory">Read</button>
+          <button class="basic-dbg-btn basic-insert-btn" title="Write program into memory">Write</button>
+          <button class="basic-dbg-btn basic-format-btn" title="Format code">Format</button>
+          <button class="basic-dbg-btn basic-renumber-btn" title="Renumber lines">Renum</button>
+          <div style="width:1px;height:16px;background:var(--separator-bg);margin:0 2px;flex-shrink:0;"></div>
+          <button class="basic-dbg-btn basic-dbg-new-btn" title="New">New</button>
+          <button class="basic-dbg-btn basic-dbg-open-btn" title="Open File">Open</button>
+          <button class="basic-dbg-btn basic-dbg-save-btn" title="Save File">Save</button>
+        </div>
+        <div class="basic-dbg-status-bar" data-state="idle">
           <div class="basic-dbg-status">
+            <span class="basic-dbg-status-dot"></span>
             <span class="basic-dbg-status-chip basic-dbg-status-idle">Idle</span>
           </div>
           <div class="basic-dbg-info">
             <span class="basic-dbg-line">LINE: ---</span>
             <span class="basic-dbg-ptr">PTR: $----</span>
+            <span class="basic-lines">0 lines</span>
+            <span class="basic-chars">0 chars</span>
           </div>
         </div>
 
@@ -119,19 +134,6 @@ export class BasicProgramWindow extends BaseWindow {
 40 PRINT &quot;HELLO WORLD &quot;;I
 50 NEXT I
 60 END" spellcheck="false"></textarea>
-              </div>
-            </div>
-            <div class="basic-editor-footer">
-              <div class="basic-status">
-                <span class="basic-lines">0 lines</span>
-                <span class="basic-chars">0 chars</span>
-              </div>
-              <div class="basic-actions">
-                <button class="basic-btn basic-load-btn" title="Load program from emulator memory">Load from Memory</button>
-                <button class="basic-btn basic-insert-btn" title="Load program into emulator memory">Load into Emulator</button>
-                <button class="basic-btn basic-format-btn" title="Format code (align line numbers, indent loops)">Format</button>
-                <button class="basic-btn basic-renumber-btn" title="Renumber lines in increments of 10, updating GOTO/GOSUB references">Renumber</button>
-                <button class="basic-btn basic-clear-btn">Clear</button>
               </div>
             </div>
           </div>
@@ -172,10 +174,12 @@ export class BasicProgramWindow extends BaseWindow {
     this.linesSpan = this.contentElement.querySelector(".basic-lines");
     this.charsSpan = this.contentElement.querySelector(".basic-chars");
     this.loadBtn = this.contentElement.querySelector(".basic-load-btn");
+    this.loadBtn.disabled = true;
+    this.insertBtn = this.contentElement.querySelector(".basic-insert-btn");
+    this.insertBtn.disabled = true;
     this.formatBtn = this.contentElement.querySelector(".basic-format-btn");
     this.renumberBtn = this.contentElement.querySelector(".basic-renumber-btn");
-    this.insertBtn = this.contentElement.querySelector(".basic-insert-btn");
-    this.clearBtn = this.contentElement.querySelector(".basic-clear-btn");
+
     this.infoBtn = this.contentElement.querySelector(".basic-dbg-bp-info-btn");
 
     // Debugger elements
@@ -284,16 +288,16 @@ export class BasicProgramWindow extends BaseWindow {
       this.loadIntoMemory();
     });
 
-    this.clearBtn.addEventListener("click", () => {
-      this.textarea.value = "";
-      this.updateGutter();
-      this.updateHighlighting();
-      this.updateStats();
-    });
+
 
     this.loadBtn.addEventListener("click", () => {
       this.loadFromMemory();
     });
+
+    // File management buttons
+    this.contentElement.querySelector(".basic-dbg-new-btn").addEventListener("click", () => this.newFile());
+    this.contentElement.querySelector(".basic-dbg-open-btn").addEventListener("click", () => this.openFile());
+    this.contentElement.querySelector(".basic-dbg-save-btn").addEventListener("click", () => this.saveFile());
 
     this.formatBtn.addEventListener("click", () => {
       this.autoFormatCode();
@@ -1145,6 +1149,53 @@ export class BasicProgramWindow extends BaseWindow {
   /**
    * Load the current BASIC program from emulator memory into the textarea
    */
+  async newFile() {
+    if (this.textarea.value.trim()) {
+      const confirmed = await showConfirm("Clear current source and start new file?");
+      if (!confirmed) return;
+    }
+    this.textarea.value = "";
+    this._fileHandle = null;
+    this.updateGutter();
+    this.updateHighlighting();
+    this.updateStats();
+  }
+
+  async openFile() {
+    try {
+      const [handle] = await window.showOpenFilePicker({
+        types: [{ description: "BASIC source files", accept: { "text/plain": [".bas", ".txt"] } }],
+        multiple: false,
+      });
+      const file = await handle.getFile();
+      this.textarea.value = await file.text();
+      this._fileHandle = handle;
+      this.updateGutter();
+      this.updateHighlighting();
+      this.updateStats();
+    } catch (err) {
+      if (err.name !== "AbortError") console.error("Failed to open file:", err);
+    }
+  }
+
+  async saveFile() {
+    const content = this.textarea.value;
+    if (!content.trim()) return;
+    try {
+      if (!this._fileHandle) {
+        this._fileHandle = await window.showSaveFilePicker({
+          suggestedName: "program.bas",
+          types: [{ description: "BASIC source files", accept: { "text/plain": [".bas", ".txt"] } }],
+        });
+      }
+      const writable = await this._fileHandle.createWritable();
+      await writable.write(content);
+      await writable.close();
+    } catch (err) {
+      if (err.name !== "AbortError") console.error("Failed to save file:", err);
+    }
+  }
+
   loadFromMemory() {
     const lines = this.programParser.getLines();
     if (lines.length === 0) {
@@ -1767,6 +1818,11 @@ export class BasicProgramWindow extends BaseWindow {
       ? this.wasmModule._isBasicProgramRunning()
       : false;
 
+    // Enable/disable Read and Write buttons based on emulator state
+    const emulatorOn = this.isRunningCallback ? this.isRunningCallback() : false;
+    this.loadBtn.disabled = !emulatorOn;
+    this.insertBtn.disabled = !emulatorOn;
+
     // Update program status indicator
     if (isPaused && programRunning) {
       this.setStatus("paused");
@@ -2080,6 +2136,8 @@ export class BasicProgramWindow extends BaseWindow {
     this.statusChip.classList.add(`basic-dbg-status-${status}`);
     const labels = { idle: "Idle", running: "Running", paused: "Paused", error: "Error" };
     this.statusChip.textContent = labels[status] || status;
+    const statusBar = this.contentElement.querySelector(".basic-dbg-status-bar");
+    if (statusBar) statusBar.dataset.state = status;
   }
 
   /**
