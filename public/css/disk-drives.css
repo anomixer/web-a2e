@@ -122,7 +122,8 @@
 .disk-insert,
 .disk-blank,
 .disk-eject,
-.disk-recent {
+.disk-recent,
+.disk-browse {
     flex: 1;
     padding: var(--space-xs) var(--space-sm);
     background: var(--control-bg-solid);
@@ -138,7 +139,8 @@
 
 .disk-insert:hover,
 .disk-blank:hover,
-.disk-eject:hover:not(:disabled) {
+.disk-eject:hover:not(:disabled),
+.disk-browse:hover:not(:disabled) {
     background: var(--control-bg-hover);
     color: var(--text-primary);
 }
@@ -156,6 +158,11 @@
 }
 
 .disk-eject:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.disk-browse:disabled {
     opacity: 0.4;
     cursor: not-allowed;
 }

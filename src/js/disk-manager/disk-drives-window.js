@@ -12,10 +12,10 @@ export class DiskDrivesWindow extends BaseWindow {
     super({
       id: "disk-drives",
       title: "Disk Drives",
-      minWidth: 460,
+      minWidth: 530,
       minHeight: 100,
-      maxWidth: 460,
-      defaultWidth: 460,
+      maxWidth: 530,
+      defaultWidth: 530,
       defaultHeight: 310,
       defaultPosition: { x: 100, y: 452 },
       resizeDirections: [],
