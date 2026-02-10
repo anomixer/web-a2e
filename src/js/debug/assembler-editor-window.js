@@ -72,7 +72,6 @@ export class AssemblerEditorWindow extends BaseWindow {
             <button class="asm-btn asm-new-btn" title="New (⌘/Ctrl+N)">New</button>
             <button class="asm-btn asm-open-btn" title="Open File (⌘/Ctrl+O)">Open</button>
             <button class="asm-btn asm-save-btn" title="Save File (⌘/Ctrl+S)">Save</button>
-            <input type="file" class="asm-file-input" accept=".s,.asm,.a65,.txt" style="display:none" />
           </div>
         </div>
         <div class="asm-status-bar">
@@ -158,24 +157,6 @@ export class AssemblerEditorWindow extends BaseWindow {
           <span class="asm-shortcut"><kbd>F9</kbd> Breakpoint</span>
           <span class="asm-shortcut"><kbd>F2</kbd> ROM Reference</span>
         </div>
-        <div class="asm-save-modal hidden">
-          <div class="asm-save-dialog">
-            <div class="asm-save-header">
-              <span class="asm-save-title">Save As</span>
-            </div>
-            <div class="asm-save-content">
-              <label class="asm-save-label">Filename</label>
-              <div class="asm-save-input-row">
-                <input type="text" class="asm-save-input" spellcheck="false" placeholder="myprogram" />
-                <span class="asm-save-ext">.s</span>
-              </div>
-            </div>
-            <div class="asm-save-actions">
-              <button class="asm-btn asm-save-cancel">Cancel</button>
-              <button class="asm-btn asm-save-confirm">Save</button>
-            </div>
-          </div>
-        </div>
         <div class="asm-rom-panel hidden">
           <div class="asm-rom-header">
             <span class="asm-rom-title">ROM Routines</span>
@@ -221,9 +202,9 @@ export class AssemblerEditorWindow extends BaseWindow {
     this.newBtn = this.contentElement.querySelector(".asm-new-btn");
     this.openBtn = this.contentElement.querySelector(".asm-open-btn");
     this.saveBtn = this.contentElement.querySelector(".asm-save-btn");
-    this.fileInput = this.contentElement.querySelector(".asm-file-input");
     this.statusSpan = this.contentElement.querySelector(".asm-status");
     this.currentFileName = null;
+    this._fileHandle = null;
     this.columnIndicator = this.contentElement.querySelector(
       ".asm-column-indicator",
     );
@@ -361,9 +342,8 @@ export class AssemblerEditorWindow extends BaseWindow {
 
     // File management buttons
     this.newBtn.addEventListener("click", () => this.newFile());
-    this.openBtn.addEventListener("click", () => this.fileInput.click());
+    this.openBtn.addEventListener("click", () => this.openFile());
     this.saveBtn.addEventListener("click", () => this.saveFile());
-    this.fileInput.addEventListener("change", (e) => this.openFile(e));
 
     // Editor support (Tab nav, smart enter, autocomplete, etc.)
     this.editorSupport = new MerlinEditorSupport(
@@ -412,7 +392,7 @@ export class AssemblerEditorWindow extends BaseWindow {
         this.newFile();
       } else if (modKey && e.key.toLowerCase() === "o") {
         e.preventDefault();
-        this.fileInput.click();
+        this.openFile();
       } else if (modKey && e.key.toLowerCase() === "s") {
         e.preventDefault();
         this.saveFile();
@@ -2492,6 +2472,7 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
     }
     this.textarea.value = "";
     this.currentFileName = null;
+    this._fileHandle = null;
     this.updateTitle("Assembler");
     this.updateHighlighting();
     this.updateGutter();
@@ -2502,34 +2483,37 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
   }
 
   /**
-   * Open a file from the local filesystem
+   * Open a file from the local filesystem using the host file picker
    */
-  openFile(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      this.textarea.value = e.target.result;
+  async openFile() {
+    try {
+      const [handle] = await window.showOpenFilePicker({
+        types: [{
+          description: "Assembly source files",
+          accept: { "text/plain": [".s", ".asm", ".a65", ".txt"] },
+        }],
+        multiple: false,
+      });
+      const file = await handle.getFile();
+      const text = await file.text();
+      this.textarea.value = text;
       this.currentFileName = file.name;
+      this._fileHandle = handle;
       this.updateTitle(`Assembler - ${file.name}`);
       this.updateHighlighting();
       this.validateAllLines();
       this.encodeAllLineBytes();
       this.updateGutter();
       this.setStatus(`Opened: ${file.name}`, true);
-    };
-    reader.onerror = () => {
-      this.setStatus("Failed to read file", false);
-    };
-    reader.readAsText(file);
-
-    // Reset file input so the same file can be opened again
-    event.target.value = "";
+    } catch (err) {
+      if (err.name !== "AbortError") {
+        this.setStatus("Failed to open file", false);
+      }
+    }
   }
 
   /**
-   * Save the current source to a file
+   * Save the current source to a file using the host save dialog
    */
   async saveFile() {
     const content = this.textarea.value;
@@ -2538,88 +2522,31 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
       return;
     }
 
-    // Prompt for filename if this is a new file
-    let filename = this.currentFileName;
-    if (!filename) {
-      filename = await this.showSaveDialog();
-      if (!filename) {
-        return; // User cancelled
+    try {
+      // Reuse existing handle if we have one, otherwise prompt
+      if (!this._fileHandle) {
+        this._fileHandle = await window.showSaveFilePicker({
+          suggestedName: this.currentFileName || "untitled.s",
+          types: [{
+            description: "Assembly source files",
+            accept: { "text/plain": [".s", ".asm", ".a65", ".txt"] },
+          }],
+        });
       }
+
+      const writable = await this._fileHandle.createWritable();
+      await writable.write(content);
+      await writable.close();
+
+      const filename = this._fileHandle.name;
       this.currentFileName = filename;
       this.updateTitle(`Assembler - ${filename}`);
+      this.setStatus(`Saved: ${filename}`, true);
+    } catch (err) {
+      if (err.name !== "AbortError") {
+        this.setStatus("Failed to save file", false);
+      }
     }
-
-    // Create blob and download link
-    const blob = new Blob([content], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    this.setStatus(`Saved: ${filename}`, true);
-  }
-
-  /**
-   * Show the save dialog modal and return the filename
-   */
-  showSaveDialog() {
-    return new Promise((resolve) => {
-      const modal = this.contentElement.querySelector(".asm-save-modal");
-      const input = modal.querySelector(".asm-save-input");
-      const cancelBtn = modal.querySelector(".asm-save-cancel");
-      const confirmBtn = modal.querySelector(".asm-save-confirm");
-
-      // Reset and show
-      input.value = "untitled";
-      modal.classList.remove("hidden");
-      input.focus();
-      input.select();
-
-      const cleanup = () => {
-        modal.classList.add("hidden");
-        input.removeEventListener("keydown", onKeyDown);
-        cancelBtn.removeEventListener("click", onCancel);
-        confirmBtn.removeEventListener("click", onConfirm);
-      };
-
-      const onCancel = () => {
-        cleanup();
-        resolve(null);
-      };
-
-      const onConfirm = () => {
-        const name = input.value.trim();
-        cleanup();
-        if (name) {
-          // Add .s extension if no recognized extension
-          if (!name.match(/\.(s|asm|a65|txt)$/i)) {
-            resolve(name + ".s");
-          } else {
-            resolve(name);
-          }
-        } else {
-          resolve(null);
-        }
-      };
-
-      const onKeyDown = (e) => {
-        if (e.key === "Escape") {
-          e.preventDefault();
-          onCancel();
-        } else if (e.key === "Enter") {
-          e.preventDefault();
-          onConfirm();
-        }
-      };
-
-      input.addEventListener("keydown", onKeyDown);
-      cancelBtn.addEventListener("click", onCancel);
-      confirmBtn.addEventListener("click", onConfirm);
-    });
   }
 
   /**
