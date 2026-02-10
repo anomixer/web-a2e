@@ -237,6 +237,17 @@
     text-align: center;
 }
 
+.recent-section-label {
+    padding: var(--space-xs) var(--space-md);
+    font-family: var(--font-sans);
+    font-size: 0.625rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    cursor: default;
+}
+
 .recent-item.recent-clear:hover {
     color: var(--error);
     background: var(--bg-light);

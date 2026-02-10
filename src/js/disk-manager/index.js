@@ -18,11 +18,26 @@ import {
 } from "./disk-operations.js";
 import {
   loadDiskFromStorage,
+  saveDiskToStorage,
   getRecentDisks,
   loadRecentDisk,
   addToRecentDisks,
   clearRecentDisks,
 } from "./disk-persistence.js";
+import { createDatabaseManager } from "../utils/indexeddb-helper.js";
+
+const CACHE_STORE = "images";
+
+const libraryCacheDb = createDatabaseManager({
+  dbName: "a2e-disk-library-cache",
+  version: 1,
+  onUpgrade: (event) => {
+    const database = event.target.result;
+    if (!database.objectStoreNames.contains(CACHE_STORE)) {
+      database.createObjectStore(CACHE_STORE, { keyPath: "id" });
+    }
+  },
+});
 
 /**
  * Create a new drive state object with default values
@@ -675,6 +690,95 @@ export class DiskManager {
         this.closeRecentDropdown();
       });
       drive.recentDropdown.appendChild(clearItem);
+    }
+
+    // Append library section
+    await this._appendLibrarySection(drive.recentDropdown, driveNum, "floppy");
+  }
+
+  /**
+   * Fetch a library image with IndexedDB caching
+   */
+  async _getLibraryImageData(entry) {
+    try {
+      const cached = await libraryCacheDb.get(CACHE_STORE, entry.id);
+      if (cached) return new Uint8Array(cached.data);
+    } catch (err) {
+      console.warn("Library cache read failed:", err);
+    }
+
+    const resp = await fetch(`/disks/${entry.file}`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const arrayBuffer = await resp.arrayBuffer();
+    const data = new Uint8Array(arrayBuffer);
+
+    try {
+      await libraryCacheDb.put(CACHE_STORE, {
+        id: entry.id,
+        file: entry.file,
+        data: arrayBuffer,
+      });
+    } catch (err) {
+      console.warn("Library cache write failed:", err);
+    }
+
+    return data;
+  }
+
+  /**
+   * Append library entries to a recent dropdown
+   */
+  async _appendLibrarySection(dropdown, driveNum, type) {
+    try {
+      const resp = await fetch("/disks/library.json");
+      if (!resp.ok) return;
+      const library = await resp.json();
+      const entries = library.filter((e) => e.type === type);
+      if (entries.length === 0) return;
+
+      const separator = document.createElement("div");
+      separator.className = "recent-separator";
+      dropdown.appendChild(separator);
+
+      const label = document.createElement("div");
+      label.className = "recent-section-label";
+      label.textContent = "Library";
+      dropdown.appendChild(label);
+
+      for (const entry of entries) {
+        const item = document.createElement("div");
+        item.className = "recent-item";
+        item.textContent = entry.name;
+        item.title = entry.description || entry.name;
+        item.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          this.closeRecentDropdown();
+          try {
+            const data = await this._getLibraryImageData(entry);
+            const drive = this.drives[driveNum];
+            loadDiskFromData({
+              wasmModule: this.wasmModule,
+              drive,
+              driveNum,
+              filename: entry.file,
+              data,
+              onSuccess: (filename) => {
+                this.setDiskName(driveNum, filename);
+                if (this.onDiskLoaded) this.onDiskLoaded(driveNum, filename);
+              },
+              onError: (error) => showToast(error, "error"),
+            });
+            saveDiskToStorage(driveNum, entry.file, data);
+            addToRecentDisks(driveNum, entry.file, data);
+          } catch (err) {
+            console.error(`Failed to load ${entry.file}:`, err);
+            showToast(`Failed to load ${entry.name}`, "error");
+          }
+        });
+        dropdown.appendChild(item);
+      }
+    } catch (err) {
+      console.error("Failed to load library:", err);
     }
   }
 

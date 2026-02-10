@@ -15,6 +15,20 @@ import {
   clearRecentImages,
 } from "./hard-drive-persistence.js";
 import { showToast } from "../ui/toast.js";
+import { createDatabaseManager } from "../utils/indexeddb-helper.js";
+
+const CACHE_STORE = "images";
+
+const libraryCacheDb = createDatabaseManager({
+  dbName: "a2e-disk-library-cache",
+  version: 1,
+  onUpgrade: (event) => {
+    const database = event.target.result;
+    if (!database.objectStoreNames.contains(CACHE_STORE)) {
+      database.createObjectStore(CACHE_STORE, { keyPath: "id" });
+    }
+  },
+});
 
 function insertImageToWasm(wasmModule, deviceNum, data, filename) {
   const dataPtr = wasmModule._malloc(data.length);
@@ -377,6 +391,77 @@ export class HardDriveManager {
         this.closeRecentDropdown();
       });
       device.recentDropdown.appendChild(clearItem);
+    }
+
+    // Append library section
+    await this._appendLibrarySection(device.recentDropdown, deviceNum);
+  }
+
+  async _getLibraryImageData(entry) {
+    try {
+      const cached = await libraryCacheDb.get(CACHE_STORE, entry.id);
+      if (cached) return new Uint8Array(cached.data);
+    } catch (err) {
+      console.warn("Library cache read failed:", err);
+    }
+
+    const resp = await fetch(`/disks/${entry.file}`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const arrayBuffer = await resp.arrayBuffer();
+    const data = new Uint8Array(arrayBuffer);
+
+    try {
+      await libraryCacheDb.put(CACHE_STORE, {
+        id: entry.id,
+        file: entry.file,
+        data: arrayBuffer,
+      });
+    } catch (err) {
+      console.warn("Library cache write failed:", err);
+    }
+
+    return data;
+  }
+
+  async _appendLibrarySection(dropdown, deviceNum) {
+    try {
+      const resp = await fetch("/disks/library.json");
+      if (!resp.ok) return;
+      const library = await resp.json();
+      const entries = library.filter((e) => e.type === "hard-drive");
+      if (entries.length === 0) return;
+
+      const separator = document.createElement("div");
+      separator.className = "recent-separator";
+      dropdown.appendChild(separator);
+
+      const label = document.createElement("div");
+      label.className = "recent-section-label";
+      dropdown.appendChild(label);
+      label.textContent = "Library";
+
+      for (const entry of entries) {
+        const item = document.createElement("div");
+        item.className = "recent-item";
+        item.textContent = entry.name;
+        item.title = entry.description || entry.name;
+        item.addEventListener("click", async (e) => {
+          e.stopPropagation();
+          this.closeRecentDropdown();
+          try {
+            const data = await this._getLibraryImageData(entry);
+            this.loadImageFromData(deviceNum, entry.file, data);
+            await saveImageToStorage(deviceNum, entry.file, data);
+            await addToRecentImages(deviceNum, entry.file, data);
+          } catch (err) {
+            console.error(`Failed to load ${entry.file}:`, err);
+            showToast(`Failed to load ${entry.name}`, "error");
+          }
+        });
+        dropdown.appendChild(item);
+      }
+    } catch (err) {
+      console.error("Failed to load library:", err);
     }
   }
 

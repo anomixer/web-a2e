@@ -241,14 +241,6 @@ export class UIController {
       });
     }
 
-    const diskLibraryBtn = document.getElementById("btn-disk-library");
-    if (diskLibraryBtn) {
-      diskLibraryBtn.addEventListener("click", () => {
-        this.windowManager.toggleWindow("disk-library");
-        this.closeAllMenus();
-        this.refocusCanvas();
-      });
-    }
 
     const fileExplorerBtn = document.getElementById("btn-file-explorer");
     if (fileExplorerBtn) {
