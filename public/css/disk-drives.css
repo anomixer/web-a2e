@@ -2,6 +2,11 @@
    Disk drive UI components
 */
 
+/* Allow recent dropdown to render outside the window bounds */
+#disk-drives.debug-window {
+    overflow: visible;
+}
+
 /* Content area: don't shrink or clip — window height follows content */
 #disk-drives.debug-window .debug-window-content {
     overflow: visible;
