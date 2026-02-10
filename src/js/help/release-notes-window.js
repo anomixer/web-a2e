@@ -6,10 +6,10 @@
  */
 
 import { BaseWindow } from '../windows/base-window.js';
-import { RELEASE_NOTES, groupByDate, formatDate } from './release-notes.js';
+import { RELEASE_NOTES } from './release-notes.js';
 
 /**
- * ReleaseNotesWindow - Displays git commit history as release notes
+ * ReleaseNotesWindow - Displays curated weekly release notes
  */
 export class ReleaseNotesWindow extends BaseWindow {
   constructor() {
@@ -18,58 +18,54 @@ export class ReleaseNotesWindow extends BaseWindow {
       title: 'Release Notes',
       minWidth: 400,
       minHeight: 300,
-      defaultWidth: 500,
-      defaultHeight: 500,
-      defaultPosition: { x: Math.max(50, (window.innerWidth - 500) / 2), y: 80 }
+      defaultWidth: 520,
+      defaultHeight: 560,
+      defaultPosition: { x: Math.max(50, (window.innerWidth - 520) / 2), y: 80 }
     });
   }
 
   renderContent() {
-    const grouped = groupByDate(RELEASE_NOTES);
-    const dates = Object.keys(grouped).sort().reverse();
-
     let html = '<div class="release-notes-content">';
 
-    for (const date of dates) {
-      const notes = grouped[date];
-      html += `
-        <div class="release-date-group">
-          <h3 class="release-date">${formatDate(date)}</h3>
-          <ul class="release-commits">
-      `;
+    for (const week of RELEASE_NOTES) {
+      html += `<div class="release-week">`;
+      html += `<h3 class="release-week-header">Week of ${this.escapeHtml(week.week)}</h3>`;
 
-      for (const note of notes) {
-        // Categorize the commit message
-        const category = this.categorizeCommit(note.message);
-        html += `
-          <li class="release-commit ${category}">
-            <span class="commit-hash">${note.hash}</span>
-            <span class="commit-message">${this.escapeHtml(note.message)}</span>
-          </li>
-        `;
+      if (week.features.length > 0) {
+        html += `<div class="release-section">`;
+        html += `<h4 class="release-section-header release-section-features"><span class="release-dot release-dot-feature"></span>Features</h4>`;
+        html += `<ul class="release-entries">`;
+        for (const entry of week.features) {
+          html += `
+            <li class="release-entry">
+              <span class="release-entry-title">${this.escapeHtml(entry.title)}</span>
+              <p class="release-entry-description">${this.escapeHtml(entry.description)}</p>
+            </li>
+          `;
+        }
+        html += `</ul></div>`;
       }
 
-      html += `
-          </ul>
-        </div>
-      `;
+      if (week.fixes.length > 0) {
+        html += `<div class="release-section">`;
+        html += `<h4 class="release-section-header release-section-fixes"><span class="release-dot release-dot-fix"></span>Fixes</h4>`;
+        html += `<ul class="release-entries">`;
+        for (const entry of week.fixes) {
+          html += `
+            <li class="release-entry">
+              <span class="release-entry-title">${this.escapeHtml(entry.title)}</span>
+              <p class="release-entry-description">${this.escapeHtml(entry.description)}</p>
+            </li>
+          `;
+        }
+        html += `</ul></div>`;
+      }
+
+      html += `</div>`;
     }
 
     html += '</div>';
     return html;
-  }
-
-  /**
-   * Categorize commit message for styling
-   */
-  categorizeCommit(message) {
-    const lower = message.toLowerCase();
-    if (lower.startsWith('fix')) return 'commit-fix';
-    if (lower.startsWith('add')) return 'commit-feature';
-    if (lower.startsWith('improve') || lower.startsWith('enhance')) return 'commit-improve';
-    if (lower.startsWith('refactor')) return 'commit-refactor';
-    if (lower.startsWith('update')) return 'commit-update';
-    return 'commit-other';
   }
 
   /**

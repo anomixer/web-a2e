@@ -6,170 +6,127 @@
  */
 
 /**
- * Release notes data generated from git history
- * Run: git log --pretty=format:"%h|%ad|%s" --date=short
+ * Curated release notes organized by week
  */
 
 export const RELEASE_NOTES = [
-  { hash: "8c15d5e", date: "2026-01-24", message: "Fix PAGE2 soft switch detection in text selection" },
-  { hash: "7cd6baa", date: "2026-01-24", message: "Add context-aware IntelliSense with variable/line number suggestions" },
-  { hash: "7ae1a55", date: "2026-01-24", message: "Fix text selection character conversion for Apple II screen codes" },
-  { hash: "24a855d", date: "2026-01-24", message: "Fix arrow key navigation in autocomplete dropdown" },
-  { hash: "5aabc28", date: "2026-01-24", message: "Fix BASIC autocomplete dropdown issues" },
-  { hash: "b7d68f9", date: "2026-01-24", message: "Add IntelliSense autocomplete to BASIC Program window" },
-  { hash: "d7a123e", date: "2026-01-24", message: "Constrain monitor and drives to stay fully on screen" },
-  { hash: "dedf838", date: "2026-01-24", message: "Add drag-to-move functionality for disk drives" },
-  { hash: "257982b", date: "2026-01-24", message: "Fix monitor drag to only work on bezel, not screen area" },
-  { hash: "bb4c316", date: "2026-01-24", message: "Add drag-to-move functionality for monitor positioning" },
-  { hash: "c114fee", date: "2026-01-24", message: "Add BASIC Program window for loading programs directly into memory" },
-  { hash: "36e1e5c", date: "2026-01-24", message: "Complete Mockingboard integration and bump version to 1.1.0" },
-  { hash: "11e9cab", date: "2026-01-24", message: "Fix Mockingboard PSG reset and add debug window" },
-  { hash: "2eeeb65", date: "2026-01-23", message: "Add Mockingboard sound card emulation (WIP)" },
-  { hash: "6307c3b", date: "2026-01-23", message: "Add floating joystick window for paddle/joystick input" },
-  { hash: "7eff0c3", date: "2026-01-23", message: "Improve hex viewer styling and add symbol tooltips" },
-  { hash: "6cda537", date: "2026-01-23", message: "Reset keyboard and disk state on reboot/power cycle" },
-  { hash: "65861ab", date: "2026-01-23", message: "Change screen border to black and brighten edge highlight" },
-  { hash: "21cfe43", date: "2026-01-23", message: "Add rounded corners and edge highlight to CRT shader" },
-  { hash: "1210412", date: "2026-01-23", message: "Convert help to moveable window with comprehensive documentation" },
-  { hash: "499413b", date: "2026-01-23", message: "Add release notes page and automatic update checking" },
-  { hash: "702d9e7", date: "2026-01-23", message: "Fix keyboard, debugger, and DHGR rendering issues" },
-  { hash: "9a0e20e", date: "2026-01-23", message: "Enhance disassembler with categorized symbols and tooltips" },
-  { hash: "8c7cedf", date: "2026-01-23", message: "Improve debug UI: fix dropdowns, heat map colors, add Memory Map window" },
-  { hash: "a07b23e", date: "2026-01-23", message: "Simplify toolbar buttons to icon-only style" },
-  { hash: "44f58bd", date: "2026-01-23", message: "Add service worker update button and improve caching strategy" },
-  { hash: "5de8fe7", date: "2026-01-23", message: "Fix DSK disk corruption and improve BASIC viewer indentation" },
-  { hash: "85e8f7b", date: "2026-01-22", message: "Add PWA support for offline functionality" },
-  { hash: "0c5c34e", date: "2026-01-22", message: "Add version display and WOZ disk file explorer support" },
-  { hash: "729b23b", date: "2026-01-22", message: "Refactor: Phase 3 architecture improvements" },
-  { hash: "656b57c", date: "2026-01-22", message: "Refactor: Phase 2 code consolidation" },
-  { hash: "1958e94", date: "2026-01-22", message: "Refactor: Phase 1 code cleanup from review" },
-  { hash: "0deaf06", date: "2026-01-22", message: "Make file explorer window semi-transparent with blur" },
-  { hash: "3952b62", date: "2026-01-22", message: "Add folder navigation for ProDOS disks in file explorer" },
-  { hash: "82046a0", date: "2026-01-22", message: "Fix BASIC detokenization for ProDOS files" },
-  { hash: "78eaf35", date: "2026-01-22", message: "Add ProDOS disk image support to file explorer" },
-  { hash: "6cbb83c", date: "2026-01-22", message: "Add spacing around operators in BASIC view" },
-  { hash: "c63206a", date: "2026-01-22", message: "Fix BASIC line navigation highlighting accuracy" },
-  { hash: "9847775", date: "2026-01-22", message: "Add highlighted navigation for disassembler and BASIC" },
-  { hash: "62219f3", date: "2026-01-22", message: "Add clickable jump targets and first-visit power reminder" },
-  { hash: "9fe5dba", date: "2026-01-22", message: "Add recursive descent disassembly with flow analysis" },
-  { hash: "19d96a6", date: "2026-01-22", message: "Refactor disassembler to return structured data" },
-  { hash: "7fda977", date: "2026-01-22", message: "Add C++ disassembler with virtual scrolling for file explorer" },
-  { hash: "37498e0", date: "2026-01-22", message: "Add File Explorer window for browsing DOS 3.3 disk contents" },
-  { hash: "b682cf2", date: "2026-01-22", message: "Change full page exit from Escape to Ctrl+Escape" },
-  { hash: "7784920", date: "2026-01-22", message: "Update drives button to show green when visible, grey when hidden" },
-  { hash: "0b05e51", date: "2026-01-22", message: "Fix monochrome mode to bypass NTSC artifact coloring" },
-  { hash: "170f0a2", date: "2026-01-22", message: "Add monochrome display mode (green, amber, white)" },
-  { hash: "b687816", date: "2026-01-22", message: "Hide power reminder when restoring state" },
-  { hash: "7587e5e", date: "2026-01-22", message: "Add state persistence with auto-save and documentation updates" },
-  { hash: "066be1d", date: "2026-01-21", message: "Fix Disk II stepper motor timing to match real hardware" },
-  { hash: "86ce2c5", date: "2026-01-21", message: "Add softswitch implementation comparison with AppleWin" },
-  { hash: "6b30855", date: "2026-01-21", message: "Add per-drive recent disks lists" },
-  { hash: "9711f76", date: "2026-01-21", message: "Fix Recent button to match other disk drive buttons" },
-  { hash: "88b4061", date: "2026-01-21", message: "Improve recent disks dropdown and add clear option" },
-  { hash: "5af33e8", date: "2026-01-21", message: "Fix Double Lo-Res color palette mapping" },
-  { hash: "9ded311", date: "2026-01-21", message: "Fix 65C02 CPU emulation bugs and add Klaus functional tests" },
-  { hash: "ad8bb3b", date: "2026-01-20", message: "Update documentation with recent disks and persistence features" },
-  { hash: "4f0802b", date: "2026-01-20", message: "Add recent disks feature with dropdown menu" },
-  { hash: "411aab0", date: "2026-01-20", message: "Fill alternating patterns in Hi-Res mode for continuous colored lines" },
-  { hash: "7e62565", date: "2026-01-20", message: "Improve Hi-Res and DHGR rendering documentation" },
-  { hash: "9b65b39", date: "2026-01-20", message: "Add disk persistence across browser sessions" },
-  { hash: "da2a134", date: "2026-01-20", message: "Move NTSC color fringing from C++ to shader" },
-  { hash: "be1a7c2", date: "2026-01-20", message: "Update color palette to new values" },
-  { hash: "8da1c48", date: "2026-01-20", message: "Add BASIC reminder for users without disk images" },
-  { hash: "4a576a5", date: "2026-01-20", message: "Drive image tweaks" },
-  { hash: "2f79df4", date: "2026-01-20", message: "Fix window resize behavior and drives initialization" },
-  { hash: "022a068", date: "2026-01-20", message: "Add smooth slide animation for disk drives toggle" },
-  { hash: "17467a7", date: "2026-01-20", message: "Replace resize reminder with grab handle texture in bottom-right corner" },
-  { hash: "77190af", date: "2026-01-19", message: "Fix breakpoint clicks, Help button styling, and documentation colors" },
-  { hash: "1b49d05", date: "2026-01-19", message: "Fix breakpoint click using event delegation" },
-  { hash: "b5e5e4b", date: "2026-01-19", message: "Add debug logging for breakpoint click" },
-  { hash: "a8369cf", date: "2026-01-19", message: "Fix breakpoint toggle on disassembly click" },
-  { hash: "17bc08e", date: "2026-01-19", message: "Improve CPU debugger disassembly view" },
-  { hash: "016f626", date: "2026-01-19", message: "Add Help & Documentation modal with F1 shortcut" },
-  { hash: "3faf9ab", date: "2026-01-19", message: "Fix window position/size persistence for hidden windows" },
-  { hash: "9c60ab9", date: "2026-01-19", message: "Add color fringing toggle for HGR graphics" },
-  { hash: "326f3be", date: "2026-01-19", message: "Prevent Ctrl+C from reaching emulator when copying selection" },
-  { hash: "905e6d2", date: "2026-01-19", message: "Fix text selection tracking when mouse leaves canvas" },
-  { hash: "111bc7d", date: "2026-01-19", message: "Fix TextSelection memory leak and code quality issues" },
-  { hash: "9bbf2af", date: "2026-01-19", message: "Extract MonitorResizer and ReminderController from main.js" },
-  { hash: "147b517", date: "2026-01-19", message: "Consolidate code, improve error handling, and convert modal to dialog" },
-  { hash: "a6dab70", date: "2026-01-19", message: "Add mute/unmute methods, utility modules, and accessibility improvements" },
-  { hash: "50972bc", date: "2026-01-19", message: "Refactor CSS into modular files and remove unused styles" },
-  { hash: "fdff954", date: "2026-01-19", message: "Add responsive mobile layout and virtual keyboard support" },
-  { hash: "d2b057e", date: "2026-01-19", message: "Add floating reminders for resize and disk drives toggle" },
-  { hash: "c24c7c8", date: "2026-01-19", message: "Add mouse-based screen resizing with 4:3 aspect ratio lock" },
-  { hash: "406e2e2", date: "2026-01-19", message: "Add disk drives show/hide toggle and clean up debug menu" },
-  { hash: "b52e51c", date: "2026-01-18", message: "Fix UK/US character set toggle persistence and logic" },
-  { hash: "042cb39", date: "2026-01-18", message: "Add UK/US character set switch and text selection feature" },
-  { hash: "06dd366", date: "2026-01-18", message: "Fix power reminder positioning during window resize" },
-  { hash: "391a467", date: "2026-01-18", message: "Add professional debug tools and full-page mode" },
-  { hash: "6c76cbd", date: "2026-01-18", message: "Move keyboard mapping from JavaScript to C++ core" },
-  { hash: "c444877", date: "2026-01-18", message: "Refactor disk-manager into modules and move WOZ creation to C++ core" },
-  { hash: "6ddda3d", date: "2026-01-18", message: "Switch drive images from SVG to JPG and add drive numbers" },
-  { hash: "8f722be", date: "2026-01-18", message: "Add labels to control buttons and floating power-on reminder" },
-  { hash: "a3a08a6", date: "2026-01-18", message: "Add comprehensive soft switch support and fix drive light state" },
-  { hash: "1351688", date: "2026-01-17", message: "Add sound popup with volume, mute, and drive sounds controls" },
-  { hash: "b2125af", date: "2026-01-17", message: "Add scrolling animation for long disk filenames" },
-  { hash: "d41818c", date: "2026-01-17", message: "Add clangd configuration with compile_commands.json support" },
-  { hash: "131cd6b", date: "2026-01-16", message: "Fix Enhanced character ROM rendering and add sound settings" },
-  { hash: "fc2b5bb", date: "2026-01-16", message: "New drives images" },
-  { hash: "7922fff", date: "2026-01-16", message: "Fix flash character rendering and add disk seek sound" },
-  { hash: "f8a6d4a", date: "2026-01-16", message: "Add volume slider with persistent setting" },
-  { hash: "0c70b72", date: "2026-01-16", message: "Add non-side-effecting peekMemory for debugger" },
-  { hash: "3d6bda5", date: "2026-01-16", message: "Improve display settings layout and update defaults" },
-  { hash: "090c29f", date: "2026-01-16", message: "Fix debug window minimum size enforcement on state restore" },
-  { hash: "285572b", date: "2026-01-16", message: "Convert display settings to movable window" },
-  { hash: "ca69792", date: "2026-01-16", message: "Refocus canvas after button clicks for keyboard input" },
-  { hash: "d36d9cc", date: "2026-01-16", message: "Add debug window buttons and CSS styling" },
-  { hash: "00ed20e", date: "2026-01-16", message: "Add debug window system with viewport constraint on resize" },
-  { hash: "362be20", date: "2026-01-16", message: "Enhance debugger disassembler with full opcode display" },
-  { hash: "4665929", date: "2026-01-15", message: "Fix $C800-$CFFF expansion ROM space handling" },
-  { hash: "01792d1", date: "2026-01-15", message: "Fix CXXX ROM space handling for INTCXROM soft switch" },
-  { hash: "d8eb16a", date: "2026-01-15", message: "Fix 80STORE memory banking for display pages" },
-  { hash: "05b7f87", date: "2026-01-15", message: "Fix Language Card write behavior for prewrite reset" },
-  { hash: "8fb2e39", date: "2026-01-15", message: "Fix Language Card double-read requirement and 6502 RMW timing" },
-  { hash: "0de049d", date: "2026-01-15", message: "Fix soft switch read side effects for $C000-$C00F" },
-  { hash: "7d49c60", date: "2026-01-15", message: "Fix DHR mode detection, 80-col text, and add paste functionality" },
-  { hash: "d85361c", date: "2026-01-15", message: "Fix WOZ disk write/read timing and add disk export functionality" },
-  { hash: "6623f4e", date: "2026-01-15", message: "Latest" },
-  { hash: "cf10ed9", date: "2026-01-15", message: "Video updates to get hi and double res working" },
-  { hash: "b11e1aa", date: "2026-01-15", message: "Update .gitignore to exclude build artifacts and local config" },
-  { hash: "fd430a9", date: "2026-01-15", message: "UI improvements: 4:3 monitor ratio and floating panels" },
-  { hash: "8a3db82", date: "2026-01-14", message: "Working on fixing hi-res and double hi-res mode" },
-  { hash: "b2d21eb", date: "2026-01-14", message: "Latest" },
-  { hash: "fff4d2f", date: "2026-01-14", message: "Latest" },
-  { hash: "8617426", date: "2026-01-13", message: "Dark theme for disk drive buttons and add blank disk option" },
-  { hash: "feeb8a9", date: "2026-01-13", message: "Add power indicator light to monitor frame" },
-  { hash: "c7ac5a7", date: "2026-01-13", message: "Fix hi-res graphics artifact color rendering" },
-  { hash: "f99611f", date: "2026-01-13", message: "UI improvements and keyboard fixes" },
-  { hash: "af95d8c", date: "2026-01-13", message: "Fix Language Card switch handling - disk boot now works" },
-  { hash: "11dcedc", date: "2026-01-13", message: "Working on getting the disk controller working" },
-  { hash: "905ed04", date: "2026-01-05", message: "Apple //e emulator with audio-driven frame sync" },
-];
-
-/**
- * Group release notes by date
- */
-export function groupByDate(notes) {
-  const grouped = {};
-  for (const note of notes) {
-    if (!grouped[note.date]) {
-      grouped[note.date] = [];
-    }
-    grouped[note.date].push(note);
+  {
+    week: "February 9, 2026",
+    features: [
+      { title: "BASIC tokenizer in WASM", description: "Moved the Applesoft BASIC tokenizer from JavaScript to C++ WebAssembly for faster and more accurate tokenization. Fixed detokenizer spacing for numbers and variables." },
+      { title: "Assembler symbol integration", description: "Assembler symbols are now automatically loaded into the CPU debugger, so breakpoints and disassembly show your label names. Added a Debug button to the assembler toolbar." },
+      { title: "Instruction Trace window", description: "New debug window that records a full disassembled instruction trace with auto-scroll, clear, and column-aligned display." },
+      { title: "Disk Library", description: "Added a Disk Library window for one-click loading of bundled disk images, cached locally in IndexedDB for instant access." },
+      { title: "SmartPort hard drive UI", description: "SmartPort Drives window now uses a side-by-side layout with drive separators. Added toast notifications and slot validation." },
+      { title: "Browse button on floppy drives", description: "Floppy disk drives now have a Browse button that opens the File Explorer for the inserted disk." },
+      { title: "Custom confirm dialogs", description: "Replaced all native browser confirm() dialogs with styled in-app modals that match the emulator theme." },
+      { title: "CSS bundling via Vite", description: "Moved all CSS into src/css/ so Vite can bundle and minify stylesheets for production builds." },
+    ],
+    fixes: [
+      { title: "Warm reset behavior", description: "Warm reset (Ctrl+Reset) now resets soft switches and stops the disk motor like real hardware, while preserving memory contents." },
+      { title: "Disk II write support", description: "Fixed Disk II write failures by correctly converting the level signal to flux transitions." },
+      { title: "Disk drives window layout", description: "Fixed Browse button styling, widened the drives window to fit content, and constrained it to the viewport after resize." },
+      { title: "Cold reset cleanup", description: "Clearing stale frame sync and BASIC state on cold reset to prevent ghost state from previous sessions." },
+    ]
+  },
+  {
+    week: "February 2, 2026",
+    features: [
+      { title: "65C02 assembler editor", description: "Full-featured assembler with syntax highlighting, gutter line numbers, breakpoints, validation, error display, ROM routine reference panel, and file save/load." },
+      { title: "BASIC debugger", description: "Added breakpoints, statement-level stepping, variable inspection and editing, runtime error detection, and line highlighting for Applesoft BASIC programs." },
+      { title: "SmartPort expansion card", description: "New SmartPort hard drive controller supporting two ProDOS block devices with a self-built ROM. Includes pulsing LED activity indicator and hard drive file browsing." },
+      { title: "Light and dark themes", description: "Added light, dark, and system-follow theme support. All accent colors are derived from the six-stripe Apple rainbow logo palette." },
+      { title: "Save States window", description: "New save states manager with an autosave slot and five manual save slots, including high-res hover previews of each state." },
+      { title: "Mouse Interface Card", description: "Apple Mouse Interface Card emulation using the AppleWin PIA command protocol, with a dedicated debug window showing PIA registers and position." },
+      { title: "Per-scanline raster rendering", description: "Video output is now rendered scanline-by-scanline with sub-scanline precision and a 2-cycle pipeline delay, enabling accurate raster bar effects." },
+      { title: "Mockingboard improvements", description: "Unified channel-centric debug window with inline waveforms, level meters, per-channel mute, and MAME-aligned PSG audio engine." },
+      { title: "Window management", description: "Added window switcher overlay (Ctrl+`), Option+Tab cycling, focused window highlighting, viewport-lock for the screen, and auto-hiding toolbar in full-page mode." },
+      { title: "Canvas-based disk surface", description: "Replaced disk drive PNG images with real-time canvas-rendered disk surfaces showing track position and read/write activity." },
+      { title: "Core logic moved to WASM", description: "Migrated debug evaluation, filesystem parsing, BASIC detokenization, screen text extraction, and input handling from JavaScript to C++ WebAssembly." },
+      { title: "Beam position breakpoints", description: "CPU debugger can now break at specific scanline and horizontal beam positions, with wildcard support and a multi-beam tab panel." },
+      { title: "Dev menu", description: "New Dev menu grouping the Assembler and BASIC Program windows, with a dedicated category in the window switcher." },
+      { title: "Color bleed CRT effect", description: "Added a color bleed shader parameter for more authentic CRT monitor appearance." },
+      { title: "Merlin source viewer", description: "File Explorer can now display Merlin assembler source files from disk images." },
+    ],
+    fixes: [
+      { title: "Disk II accuracy", description: "Replaced the nibble-at-a-time disk model with a P6 ROM-driven Logic State Sequencer for cycle-accurate disk emulation." },
+      { title: "Speaker audio quality", description: "Fixed speaker pitch drift on subsequent beeps and audio mixing clipping when speaker and Mockingboard play simultaneously." },
+      { title: "AY-3-8910 sound chip", description: "Fixed noise LFSR polynomial, envelope timing, period-zero handling, PSG phase cancellation, and aligned output with MAME reference." },
+      { title: "Double Low-Res rendering", description: "Fixed color rendering using wrong palette and missing auxiliary memory nibble rotation." },
+      { title: "Paste performance", description: "Replaced slow keyboard-paste BASIC loading with instant direct memory insertion. Fixed paste queue setTimeout violations." },
+      { title: "Theme consistency", description: "Fixed hardcoded dark-theme colors in CPU Debugger and BASIC Program windows." },
+    ]
+  },
+  {
+    week: "January 26, 2026",
+    features: [
+      { title: "Expansion card architecture", description: "Added a pluggable expansion card system matching real Apple IIe hardware, with an Expansion Slots configuration UI for managing cards in slots 1-7." },
+      { title: "Thunderclock Plus", description: "ProDOS-compatible real-time clock card that provides the current date and time to software. Configurable for slot 5 or 7." },
+      { title: "Dropdown menus", description: "Replaced header buttons with grouped dropdown menus (File, View, Debug, Dev, Help) for a cleaner toolbar." },
+      { title: "Emulation speed multiplier", description: "Adjustable speed control for fast-forwarding through slow operations like BASIC program loading and disk access." },
+      { title: "Mockingboard waveform scope", description: "Split Mockingboard window into detail and scope views with real-time waveform visualization and channel muting." },
+      { title: "Stereo audio output", description: "Mockingboard now outputs in stereo with proper PSG channel separation between left and right speakers." },
+      { title: "Viewport-lock for screen", description: "Screen window can be locked to fill the browser viewport, with proper aspect ratio enforcement." },
+      { title: "Window option persistence", description: "All window toggle states, view modes, and mute settings are now saved between sessions via localStorage." },
+    ],
+    fixes: [
+      { title: "VIA 6522 timer interrupts", description: "Fixed timer interrupt handling on mode transitions and ensured timers always decrement for proper Mockingboard detection." },
+      { title: "Mockingboard audio clipping", description: "Fixed audio timing, clipping, and output normalization issues in the Mockingboard sound engine." },
+      { title: "PSG register timing", description: "Added timestamped PSG register writes for cycle-accurate audio, with proper bipolar AC-coupled output." },
+      { title: "Window positioning", description: "Constrained all windows to visible viewport bounds and computed sensible default positions." },
+      { title: "NTSC fringing in monochrome", description: "Monochrome display modes now correctly skip NTSC color artifact rendering." },
+    ]
+  },
+  {
+    week: "January 19, 2026",
+    features: [
+      { title: "Mockingboard sound card", description: "Dual AY-3-8910 PSG chips with VIA 6522 timers, providing stereo music and sound effects for supported software." },
+      { title: "BASIC Program window", description: "Load Applesoft BASIC programs directly into emulator memory with IntelliSense autocomplete for keywords, variables, and line numbers." },
+      { title: "Drag-to-move", description: "Monitor and disk drives can now be repositioned by dragging, with viewport constraint to keep everything on screen." },
+      { title: "Recent disks", description: "Per-drive recent disks dropdown menus with clear option, so frequently used disk images are always one click away." },
+      { title: "Disk persistence", description: "Inserted disk images and any modifications are preserved across browser sessions automatically." },
+      { title: "Joystick window", description: "Floating joystick window for paddle and joystick input with snap-back-to-center behavior." },
+      { title: "CRT shader enhancements", description: "Added rounded corners, edge highlights, and color fringing toggle for more realistic CRT monitor appearance." },
+      { title: "Help system", description: "Comprehensive help window (F1) with documentation, plus release notes page with automatic update checking." },
+    ],
+    fixes: [
+      { title: "65C02 CPU compliance", description: "Fixed CPU emulation bugs discovered by Klaus Dormann's 65C02 functional test suite." },
+      { title: "Double Lo-Res colors", description: "Corrected the color palette mapping for Double Lo-Res graphics mode." },
+      { title: "Disk II stepper motor", description: "Fixed stepper motor timing to match real hardware quarter-track behavior." },
+      { title: "Hi-Res color rendering", description: "Fixed alternating fill patterns for continuous colored lines and artifact color accuracy." },
+      { title: "DSK disk corruption", description: "Fixed a bug that corrupted DSK disk images during write operations." },
+      { title: "Keyboard and DHGR", description: "Fixed keyboard input issues and Double Hi-Res rendering problems." },
+    ]
+  },
+  {
+    week: "January 12, 2026",
+    features: [
+      { title: "File Explorer", description: "Browse the contents of DOS 3.3 and ProDOS disk images, view BASIC listings with syntax formatting, and disassemble binary files with recursive descent flow analysis." },
+      { title: "C++ disassembler", description: "New disassembler running in WebAssembly with virtual scrolling, categorized symbols, clickable jump targets, and tooltips." },
+      { title: "Monochrome display modes", description: "Green, amber, and white phosphor display modes that bypass NTSC artifact coloring for a classic terminal look." },
+      { title: "Debug window system", description: "Movable, resizable debug windows with viewport constraints, minimum size enforcement, and state persistence. Includes Memory Map, heat map, and soft switch monitor." },
+      { title: "Display settings window", description: "Converted display settings to a movable window with improved layout, brightness, contrast, saturation, and CRT effect controls." },
+      { title: "Text selection", description: "Select and copy text directly from the emulator screen with Ctrl+C support and proper Apple II screen code conversion." },
+      { title: "Full-page mode", description: "Expand the emulator to fill the entire browser window, exit with Ctrl+Escape." },
+      { title: "Mobile layout", description: "Responsive layout with virtual keyboard support for mobile devices." },
+      { title: "PWA support", description: "Progressive Web App with offline functionality, service worker caching, and an update notification button." },
+      { title: "UK/US character set", description: "Toggle between UK and US character ROMs with persistent setting." },
+      { title: "Sound controls", description: "Volume slider, mute toggle, and disk drive seek sound with persistent settings." },
+      { title: "State persistence", description: "Auto-save emulator state on exit and restore on reload, including all window positions and sizes." },
+    ],
+    fixes: [
+      { title: "Memory banking", description: "Fixed Language Card write behavior, double-read requirement, 80STORE banking, and expansion ROM space handling ($C800-$CFFF)." },
+      { title: "Soft switches", description: "Fixed read side effects for $C000-$C00F, INTCXROM handling, and comprehensive soft switch support." },
+      { title: "WOZ disk timing", description: "Fixed WOZ disk write/read timing and added disk image export functionality." },
+      { title: "Hi-Res and Double Hi-Res", description: "Fixed DHR mode detection, 80-column text rendering, and hi-res graphics artifact colors." },
+      { title: "Character ROM", description: "Fixed Enhanced character ROM rendering and flash character display." },
+    ]
+  },
+  {
+    week: "January 5, 2026",
+    features: [
+      { title: "Initial release", description: "Apple //e emulator with cycle-accurate 65C02 CPU, audio-driven frame sync at 60Hz, Disk II controller with DSK/DO/PO/NIB/WOZ support, WebGL rendering, and CRT shader effects." },
+    ],
+    fixes: []
   }
-  return grouped;
-}
-
-/**
- * Format date for display
- */
-export function formatDate(dateStr) {
-  const date = new Date(dateStr + 'T00:00:00');
-  return date.toLocaleDateString('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  });
-}
+];

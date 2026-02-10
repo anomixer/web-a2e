@@ -8,123 +8,94 @@
     height: 100%;
 }
 
-.release-date-group {
-    margin-bottom: 20px;
+.release-week {
+    margin-bottom: 24px;
 }
 
-.release-date-group:last-child {
+.release-week:last-child {
     margin-bottom: 0;
 }
 
-.release-date {
+.release-week-header {
     font-family: var(--font-sans);
     font-size: 0.85rem;
     font-weight: 600;
     color: var(--text-primary);
-    margin: 0 0 10px 0;
+    margin: 0 0 12px 0;
     padding-bottom: 6px;
     border-bottom: 1px solid var(--glass-border);
 }
 
-.release-commits {
+.release-section {
+    margin-bottom: 12px;
+}
+
+.release-section:last-child {
+    margin-bottom: 0;
+}
+
+.release-section-header {
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0 0 8px 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.release-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.release-dot-feature {
+    background: var(--accent-green);
+}
+
+.release-dot-fix {
+    background: var(--accent-red);
+}
+
+.release-entries {
     list-style: none;
     margin: 0;
     padding: 0;
 }
 
-.release-commit {
-    display: flex;
-    gap: 10px;
+.release-entry {
     padding: 6px 8px;
     margin-bottom: 4px;
     border-radius: 4px;
-    font-size: 0.75rem;
     background: var(--control-bg);
-    align-items: flex-start;
 }
 
-.release-commit:hover {
-    background: rgba(33, 38, 45, 0.7);
+.release-entry:last-child {
+    margin-bottom: 0;
 }
 
-.commit-hash {
-    font-family: var(--font-mono);
-    font-size: 0.7rem;
-    color: var(--text-muted);
-    flex-shrink: 0;
-    padding: 2px 6px;
-    background: var(--input-bg-deeper);
-    border-radius: 3px;
+.release-entry:hover {
+    background: var(--control-bg-hover, rgba(33, 38, 45, 0.7));
 }
 
-.commit-message {
-    color: var(--text-secondary);
+.release-entry-title {
+    font-family: var(--font-sans);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-primary);
     line-height: 1.4;
 }
 
-/* Commit type indicators */
-.commit-fix .commit-message::before {
-    content: "";
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--accent-red);
-    margin-right: 6px;
-    vertical-align: middle;
-}
-
-.commit-feature .commit-message::before {
-    content: "";
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--accent-green);
-    margin-right: 6px;
-    vertical-align: middle;
-}
-
-.commit-improve .commit-message::before {
-    content: "";
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--accent-blue);
-    margin-right: 6px;
-    vertical-align: middle;
-}
-
-.commit-refactor .commit-message::before {
-    content: "";
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--accent-purple);
-    margin-right: 6px;
-    vertical-align: middle;
-}
-
-.commit-update .commit-message::before {
-    content: "";
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--accent-orange);
-    margin-right: 6px;
-    vertical-align: middle;
-}
-
-.commit-other .commit-message::before {
-    content: "";
-    display: inline-block;
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: var(--text-secondary);
-    margin-right: 6px;
-    vertical-align: middle;
+.release-entry-description {
+    font-family: var(--font-sans);
+    font-size: 0.7rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin: 2px 0 0 0;
 }
