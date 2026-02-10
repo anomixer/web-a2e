@@ -29,6 +29,12 @@
     min-width: 0;
 }
 
+/* Vertical separator between the two drives */
+.disk-drive + .disk-drive {
+    border-left: 1px solid var(--border-default);
+    padding-left: var(--space-md);
+}
+
 .drive-image-container {
     width: 100%;
     position: relative;

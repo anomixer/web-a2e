@@ -100,7 +100,7 @@ export class HardDriveManager {
     if (device.insertBtn) {
       device.insertBtn.addEventListener("click", () => {
         if (!this.isSmartPortInstalled()) {
-          showToast("SmartPort card is not installed. Configure it in the Expansion Slots window before loading hard drive images.", "warning");
+          showToast("SmartPort card is not installed. Configure it in the Expansion Slots window before loading SmartPort images.", "warning");
           return;
         }
         device.input?.click();
@@ -120,7 +120,7 @@ export class HardDriveManager {
       device.recentBtn.addEventListener("click", (e) => {
         e.stopPropagation();
         if (!this.isSmartPortInstalled()) {
-          showToast("SmartPort card is not installed. Configure it in the Expansion Slots window before loading hard drive images.", "warning");
+          showToast("SmartPort card is not installed. Configure it in the Expansion Slots window before loading SmartPort images.", "warning");
           return;
         }
         this.toggleRecentDropdown(deviceNum);
@@ -159,7 +159,7 @@ export class HardDriveManager {
         await addToRecentImages(deviceNum, file.name, data);
       } else {
         console.error(`Failed to load HD image: ${file.name}`);
-        showToast(`Failed to load hard drive image: ${file.name}`, "error");
+        showToast(`Failed to load SmartPort image: ${file.name}`, "error");
       }
     } catch (error) {
       console.error("Error loading HD image:", error);
@@ -200,7 +200,7 @@ export class HardDriveManager {
           if (window.showSaveFilePicker) {
             const handle = await window.showSaveFilePicker({
               suggestedName: filename,
-              types: [{ description: "Hard Drive Image", accept: { "application/octet-stream": [".hdv", ".po", ".2mg"] } }],
+              types: [{ description: "SmartPort Image", accept: { "application/octet-stream": [".hdv", ".po", ".2mg"] } }],
             });
             const writable = await handle.createWritable();
             await writable.write(blob);
