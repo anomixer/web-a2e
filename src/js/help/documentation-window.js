@@ -869,6 +869,14 @@ export class DocumentationWindow extends BaseWindow {
           <li><strong>Save to file:</strong> "Save the BASIC program from the editor to ~/Documents/myprogram.bas"</li>
         </ul>
 
+        <h5>Assembly Programs</h5>
+        <ul>
+          <li><strong>Get status:</strong> "What's the status of the assembler?" or "Get the assembly origin address"</li>
+          <li><strong>Execute program:</strong> "Run the assembled program" or "Execute the code at the origin"</li>
+          <li><strong>Execute at address:</strong> "Execute the code at $0800" or "Run code at address 2048"</li>
+          <li><strong>Set PC without executing:</strong> "Set PC to $0800 but don't execute yet"</li>
+        </ul>
+
         <h5>Emulator Control</h5>
         <ul>
           <li><strong>Power on:</strong> "Turn on the emulator" or "Power on the Apple //e"</li>

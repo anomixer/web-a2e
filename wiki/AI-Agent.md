@@ -12,6 +12,7 @@ The AI Agent integration allows LLMs like Claude to control the emulator through
   - [Window Management](#window-management)
   - [Disk Management](#disk-management)
   - [BASIC Programs](#basic-programs)
+  - [Assembly Programs](#assembly-programs)
 
 ---
 
@@ -133,6 +134,28 @@ Save the BASIC program from the editor to ~/Documents/myprogram.bas
 **Save program from memory to file:**
 ```
 Save the BASIC program from memory to ~/Documents/myprogram.bas
+```
+
+### Assembly Programs
+
+**Get assembly status:**
+```
+What's the status of the assembler?
+```
+
+**Execute assembled program:**
+```
+Run the assembled program
+```
+
+**Execute at specific address:**
+```
+Execute the code at $0800
+```
+
+**Set PC without executing:**
+```
+Set PC to $0800 but don't execute yet
 ```
 
 ### Emulator Control

@@ -31,6 +31,12 @@ emma_command({ command: "asmWrite", params: {} })
 ```
 Writes the assembled machine code into emulator memory.
 
+**Execute assembled code:**
+```
+emma_command({ command: "directExecuteAssemblyAt", params: { addr: 0x0800, paused: false } })
+```
+Sets PC to the specified address and controls execution. If `addr` is omitted, uses the origin from the last successful assembly. Set `paused: true` to pause after setting PC (useful for debugging). Default is `paused: false` (executes immediately).
+
 **Load example program:**
 ```
 emma_command({ command: "asmLoadExample", params: {} })
@@ -48,6 +54,12 @@ Clears the editor and starts a new assembly file.
 emma_command({ command: "asmGet", params: {} })
 ```
 Retrieves the current assembly source code from the editor.
+
+**Get assembly status:**
+```
+emma_command({ command: "asmGetStatus", params: {} })
+```
+Returns the assembly status (none/ok/error), status text, origin address, and assembled size. Status is "none" when no program has been assembled.
 
 **Set assembly source:**
 ```
