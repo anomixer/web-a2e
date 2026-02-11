@@ -86,10 +86,23 @@ export class StateManager {
       }
     });
 
-    // Periodic auto-save while running
+    // Periodic auto-save while running, deferred to idle time to avoid
+    // stalling the audio/render loop (which causes stutters in Safari/Brave)
+    this.autoSavePending = false;
+    this.autoSaveIdleHandle = null;
     this.autoSaveInterval = setInterval(() => {
-      if (this.emulator.isRunning() && !document.hidden && this.autoSaveEnabled) {
-        this.saveState();
+      if (this.emulator.isRunning() && !document.hidden && this.autoSaveEnabled && !this.autoSavePending) {
+        this.autoSavePending = true;
+        const doSave = () => {
+          this.autoSavePending = false;
+          this.saveState();
+        };
+        if (typeof requestIdleCallback === "function") {
+          this.autoSaveIdleHandle = requestIdleCallback(doSave, { timeout: AUTO_SAVE_INTERVAL_MS });
+        } else {
+          // Safari <16.4 fallback — setTimeout(0) yields to the render loop
+          this.autoSaveIdleHandle = setTimeout(doSave, 0);
+        }
       }
     }, AUTO_SAVE_INTERVAL_MS);
   }
@@ -254,7 +267,7 @@ export class StateManager {
       offscreen.height = THUMBNAIL_HEIGHT;
       const ctx = offscreen.getContext("2d");
       ctx.drawImage(canvas, 0, 0, THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT);
-      return offscreen.toDataURL("image/png");
+      return offscreen.toDataURL("image/jpeg", 0.85);
     } catch (error) {
       console.error("Failed to capture screenshot:", error);
       return null;
@@ -275,7 +288,7 @@ export class StateManager {
       offscreen.height = PREVIEW_HEIGHT;
       const ctx = offscreen.getContext("2d");
       ctx.drawImage(canvas, 0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
-      return offscreen.toDataURL("image/png");
+      return offscreen.toDataURL("image/jpeg", 0.85);
     } catch (error) {
       console.error("Failed to capture preview:", error);
       return null;

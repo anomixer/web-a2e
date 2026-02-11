@@ -32,6 +32,11 @@ export class AudioDriver {
     // Frame synchronization callback
     this.onFrameReady = null;
 
+    // Pre-allocated WASM buffer for audio sample generation to avoid
+    // malloc/free churn (~375 calls/sec) that causes GC stutter in Safari/Brave
+    this.wasmBufferPtr = 0;
+    this.wasmBufferSamples = 0;
+
     // Sync C++ audio state with saved JS settings
     if (this.wasmModule._setAudioVolume) {
       this.wasmModule._setAudioVolume(this.volume);
@@ -227,18 +232,28 @@ export class AudioDriver {
    * @param {number} count - Number of audio samples to generate
    * @returns {Float32Array} Generated audio samples in range [-1, 1]
    */
-  generateSamples(count) {
-    // Stereo output (interleaved L/R): PSG1 on left, PSG2 on right
-    const samples = new Float32Array(count * 2);
-
-    const bufferPtr = this.wasmModule._malloc(count * 2 * 4); // count * 2 floats * 4 bytes
-    this.wasmModule._generateStereoAudioSamples(bufferPtr, count);
-
-    // Copy interleaved stereo samples from WASM memory
-    for (let i = 0; i < count * 2; i++) {
-      samples[i] = this.wasmModule.HEAPF32[(bufferPtr >> 2) + i];
+  ensureWasmBuffer(count) {
+    if (this.wasmBufferSamples < count) {
+      if (this.wasmBufferPtr) {
+        this.wasmModule._free(this.wasmBufferPtr);
+      }
+      this.wasmBufferPtr = this.wasmModule._malloc(count * 2 * 4);
+      this.wasmBufferSamples = count;
     }
-    this.wasmModule._free(bufferPtr);
+  }
+
+  generateSamples(count) {
+    this.ensureWasmBuffer(count);
+
+    this.wasmModule._generateStereoAudioSamples(this.wasmBufferPtr, count);
+
+    // Copy interleaved stereo samples from WASM memory into a new Float32Array.
+    // A new array is required because the worklet path transfers buffer ownership.
+    const samples = new Float32Array(
+      this.wasmModule.HEAPF32.buffer,
+      this.wasmBufferPtr,
+      count * 2,
+    ).slice();
 
     // Check if we've accumulated enough samples for one or more frames
     const framesReady = this.wasmModule._consumeFrameSamples();
@@ -277,6 +292,12 @@ export class AudioDriver {
     if (this.fallbackInterval) {
       clearInterval(this.fallbackInterval);
       this.fallbackInterval = null;
+    }
+
+    if (this.wasmBufferPtr) {
+      this.wasmModule._free(this.wasmBufferPtr);
+      this.wasmBufferPtr = 0;
+      this.wasmBufferSamples = 0;
     }
 
     if (this.audioContext) {
