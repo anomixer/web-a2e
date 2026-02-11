@@ -32,7 +32,7 @@ import { VERSION } from "./config/version.js";
 import { DEFAULT_LAYOUT } from "./config/default-layout.js";
 import { WebGLRenderer } from "./display/webgl-renderer.js";
 import { AudioDriver } from "./audio/audio-driver.js";
-import { InputHandler, TextSelection, JoystickWindow, MouseHandler, GamepadHandler } from "./input/index.js";
+import { InputHandler, TextSelection, JoystickWindow, MouseHandler } from "./input/index.js";
 import { DiskManager } from "./disk-manager/index.js";
 import { DiskDrivesWindow } from "./disk-manager/disk-drives-window.js";
 import { HardDriveManager } from "./disk-manager/hard-drive-manager.js";
@@ -48,6 +48,7 @@ import { SlotConfigurationWindow } from "./ui/slot-configuration-window.js";
 import { WindowSwitcher } from "./ui/window-switcher.js";
 import { StateManager } from "./state/state-manager.js";
 import { SaveStatesWindow } from "./state/save-states-window.js";
+import { AgentManager } from "./agent/index.js";
 import {
   WindowManager,
   CPUDebuggerWindow,
@@ -82,8 +83,8 @@ class AppleIIeEmulator {
     this.uiController = null;
     this.stateManager = null;
     this.mouseHandler = null;
-    this.gamepadHandler = null;
     this.themeManager = null;
+    this.agentManager = null;
 
     this.running = false;
   }
@@ -220,10 +221,6 @@ class AppleIIeEmulator {
       joystickWindow.create();
       this.windowManager.register(joystickWindow);
 
-      // Set up gamepad handler for physical controller support
-      this.gamepadHandler = new GamepadHandler(this.wasmModule, joystickWindow);
-      joystickWindow.gamepadHandler = this.gamepadHandler;
-
       const mockingboardWindow = new MockingboardWindow(this.wasmModule);
       mockingboardWindow.create();
       this.windowManager.register(mockingboardWindow);
@@ -316,6 +313,10 @@ class AppleIIeEmulator {
       // Set up window switcher (Ctrl+`)
       this.windowSwitcher = new WindowSwitcher(this.windowManager);
       this.windowSwitcher.create();
+
+      // Set up agent manager for MCP server connection
+      window.emulator = this;
+      this.agentManager = new AgentManager();
 
       // Set up UI controller
       this.uiController = new UIController({
@@ -413,7 +414,6 @@ class AppleIIeEmulator {
     this.running = true;
     this.renderer.setNoSignal(false);
     this.audioDriver.start();
-    if (this.gamepadHandler) this.gamepadHandler.start();
     if (this.uiController) {
       this.uiController.updatePowerButton(true);
     }
@@ -425,7 +425,6 @@ class AppleIIeEmulator {
 
     this.running = false;
     this.audioDriver.stop();
-    if (this.gamepadHandler) this.gamepadHandler.stop();
 
     if (this.wasmModule._stopDiskMotor) {
       this.wasmModule._stopDiskMotor();
@@ -537,11 +536,16 @@ class AppleIIeEmulator {
       this.themeManager = null;
     }
 
+    if (this.agentManager) {
+      this.agentManager.disconnect();
+      this.agentManager = null;
+    }
+
     if (this.gamepadHandler) {
       this.gamepadHandler.destroy();
       this.gamepadHandler = null;
     }
-
+    
     this.renderer = null;
     this.diskManager = null;
     this.hardDriveManager = null;

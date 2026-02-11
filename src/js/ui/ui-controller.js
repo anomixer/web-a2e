@@ -63,6 +63,7 @@ export class UIController {
 
     this.setupMenus();
     this.setupPowerControls();
+    this.setupAgentButton();
     this.setupFullPageModeControls();
     this.setupSoundControls();
     this.setupSystemMenuActions();
@@ -168,6 +169,93 @@ export class UIController {
       }
       this.refocusCanvas();
     });
+  }
+
+  /**
+   * Set up agent button for MCP server connection
+   */
+  setupAgentButton() {
+    console.log("[UIController] setupAgentButton() called");
+    const agentBtn = document.getElementById("btn-agent");
+    console.log("[UIController] agentBtn:", agentBtn);
+    if (!agentBtn) {
+      console.warn("[UIController] Agent button not found");
+      return;
+    }
+
+    const agentManager = this.emulator.agentManager;
+    if (!agentManager) {
+      console.warn("[UIController] AgentManager not available");
+      return;
+    }
+
+    console.log("[UIController] Agent button initialized");
+
+    // Hide button by default
+    agentBtn.classList.add("hidden");
+
+    const updateButtonState = () => {
+      const state = agentManager.getState();
+
+      // Remove all state classes
+      agentBtn.classList.remove("connected", "disconnected", "severed", "hidden");
+
+      if (!state.serverAvailable) {
+        // Hide button when server is not available
+        agentBtn.classList.add("hidden");
+        agentBtn.title = "MCP Server not available";
+      } else if (state.connected) {
+        // Connected - yellow
+        agentBtn.classList.add("connected");
+        agentBtn.title = "Disconnect";
+      } else if (state.reconnecting) {
+        // Connection severed but reconnecting - light red
+        agentBtn.classList.add("severed");
+        agentBtn.title = "Connection lost - Attempting to Reconnect";
+      } else {
+        // Server available but not connected - default appearance
+        agentBtn.classList.add("disconnected");
+        agentBtn.title = "Connect to Agent";
+      }
+    };
+
+    // Set up callbacks
+    agentManager.onServerAvailable = () => {
+      console.log("[UIController] Server became available - showing button");
+      updateButtonState();
+    };
+
+    agentManager.onServerUnavailable = () => {
+      console.log("[UIController] Server became unavailable - hiding button");
+      updateButtonState();
+    };
+
+    agentManager.onConnectionChange = (connected) => {
+      console.log(`[UIController] Connection changed: ${connected}`);
+      updateButtonState();
+    };
+
+    // Handle button click
+    agentBtn.addEventListener("click", () => {
+      console.log("[UIController] Agent button clicked");
+      if (agentManager.isConnected()) {
+        console.log("[UIController] Disconnecting...");
+        agentManager.disconnect();
+        // Resume heartbeat polling after manual disconnect
+        agentManager.startHeartbeatPolling();
+      } else {
+        console.log("[UIController] Connecting...");
+        agentManager.connect();
+        setTimeout(() => updateButtonState(), 100);
+      }
+      updateButtonState();
+      this.refocusCanvas();
+    });
+
+    // Start heartbeat polling to detect when server becomes available
+    agentManager.startHeartbeatPolling();
+
+    updateButtonState();
   }
 
   /**

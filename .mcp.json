@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "appleii-agent": {
+      "command": "node",
+      "args": [
+        "/Users/Shawn/code/git/[mikedaley]/web-a2e/mcp/appleii-agent/src/index.js"
+      ]
+    }
+  }
+}

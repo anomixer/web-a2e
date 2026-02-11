@@ -1,0 +1,66 @@
+# Expansion Slot Configuration
+
+> View and manage expansion cards in the Apple IIe's 7 expansion slots.
+
+## Tool Operations
+
+**Show the window:**
+```
+showWindow("slot-configuration")
+```
+
+**Hide the window:**
+```
+hideWindow("slot-configuration")
+```
+
+**Focus the window:**
+```
+focusWindow("slot-configuration")
+```
+
+**List all slots:**
+```
+emma_command({ command: "slotsListAll", params: {} })
+```
+Returns all 7 slots with current card, compatible cards, and which compatible cards are available (not installed elsewhere). Use this to see the full slot map before making changes.
+
+**Install a card into a slot:**
+```
+emma_command({ command: "slotsInstallCard", params: { slot: 7, card: "smartport" } })
+```
+Install a card into a compatible slot. If the card is already installed in another slot, it is automatically moved. Displaces any existing card in the target slot. Triggers an emulator reset.
+
+**Remove a card from a slot:**
+```
+emma_command({ command: "slotsRemoveCard", params: { slot: 4 } })
+```
+Remove the card from a slot, setting it to empty. Triggers an emulator reset.
+
+**Move a card between slots:**
+```
+emma_command({ command: "slotsMoveCard", params: { fromSlot: 5, toSlot: 7 } })
+```
+Move a card from one slot to another. The card must be compatible with the target slot. The target slot must be empty — use slotsRemoveCard first if occupied. Triggers an emulator reset.
+
+## Slot Map
+
+| Slot | Default | Compatible Cards |
+|------|---------|-----------------|
+| 1 | Empty | *(none)* |
+| 2 | Empty | SmartPort |
+| 3 | 80-Column | *(fixed)* |
+| 4 | Mockingboard | Mockingboard, Mouse, SmartPort |
+| 5 | SmartPort | Thunderclock, SmartPort |
+| 6 | Disk II | Disk II |
+| 7 | Thunderclock | Thunderclock, SmartPort |
+
+## Card IDs
+
+Use these IDs when working with slot tools: `disk2`, `mockingboard`, `thunderclock`, `mouse`, `smartport`.
+
+## Notes
+
+- Slot 3 is fixed (80-column firmware) and cannot be changed.
+- Each card can only be installed in one slot at a time.
+- Slot changes require an emulator reset to take effect.

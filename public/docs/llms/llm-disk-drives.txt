@@ -1,0 +1,66 @@
+# Disk Drives
+
+> Floppy disk drive management for the Disk II controller (slot 6).
+
+## Tool Operations
+
+**Show the window:**
+```
+showWindow("disk-drives")
+```
+
+**Hide the window:**
+```
+hideWindow("disk-drives")
+```
+
+**Focus the window:**
+```
+focusWindow("disk-drives")
+```
+
+**Insert disk image by path:**
+```
+emma_command({ command: "driveInsertDisc", params: { driveNum: 1, path: "/path/to/disk.dsk" } })
+```
+Insert a disk image into drive 1 or 2 by providing a file path. The driveNum parameter defaults to 1 if not specified. The path can be a local filesystem path (with ~ expansion) or URL.
+
+**Get list of recent disks:**
+```
+emma_command({ command: "driveRecentsList", params: { driveNum: 1 } })
+```
+Get the list of recently used disks for drive 1 or 2. Returns an array of disk entries with filename and access time. The driveNum parameter defaults to 1 if not specified.
+
+**Clear recent disks:**
+```
+emma_command({ command: "drivesClearRecent", params: { driveNum: 1 } })
+```
+Clear all recent disks for drive 1 or 2. Removes all entries from the recent list for that drive. The driveNum parameter defaults to 1 if not specified.
+
+**Insert a recent disk:**
+```
+emma_command({ command: "driveInsertRecent", params: { driveNum: 1, name: "ProDOS_2_4_2.dsk" } })
+```
+Insert a disk from the recent disks list into drive 1 or 2. The name parameter must match a filename from the recent list. The driveNum parameter defaults to 1 if not specified.
+
+**Load a recent disk:**
+```
+emma_command({ command: "driveLoadRecent", params: { driveNum: 1, file: "ProDOS_2_4_2.dsk" } })
+```
+Load a disk from the recent disks list into drive 1 or 2. The file parameter must match a filename from the recent list. The driveNum parameter defaults to 1 if not specified.
+
+## Overview
+
+The disk-drives window manages 5.25" floppy disk images for Drive 1 and Drive 2.
+
+## Supported Formats
+
+| Format | Extension | Description |
+|--------|-----------|-------------|
+| DSK | .dsk | Raw sector-order disk image (140KB). Most common format. DOS 3.3 logical order. |
+| DO | .do | Identical to DSK format. Extension explicitly indicates DOS 3.3 sector ordering. |
+| PO | .po | ProDOS-order disk image (140KB). Sectors in ProDOS physical order. |
+| NIB | .nib | Nibblised disk image (232,960 bytes). Raw GCR-encoded data as it appears on disk surface. |
+| WOZ | .woz | Bit-level disk image with timing and metadata. Most accurate format for copy-protected disks. |
+
+See /wiki/Disk-Drives.md for complete details on disk formats and operations.

@@ -1,0 +1,49 @@
+# Apple //e Emulator
+
+> Cycle-accurate Apple IIe emulator running in the browser using WebAssembly.
+
+## Default Tools
+
+- **showWindow(windowId)**: Show and bring a window to front
+- **hideWindow(windowId)**: Hide a window
+- **focusWindow(windowId)**: Bring a window to front
+- **emma_command({ command, params })**: Execute emulator commands
+
+## Main
+
+- [main](/docs/llms/llm-main.txt) Core emulator power, reset controls, and memory operations for loading/saving binary data
+
+## Windows
+
+### Core
+- screen-window
+- [disk-drives](/docs/llms/llm-disk-drives.txt) Disk drives window and operations related to disks
+- [hard-drives](/docs/llms/llm-hard-drives.txt) SmartPort hard drives and operations related to hard drive images
+- save-states
+
+### Debug
+- cpu-debugger
+- rule-builder
+- soft-switches
+- memory-browser
+- memory-heatmap
+- memory-map
+- stack-viewer
+- zeropage-watch
+- trace-panel
+
+### Development
+- [basic-program](/docs/llms/llm-basic-program.txt) Applesoft BASIC program editor and operations related to editing, debugging, and managing BASIC programs
+- [assembler-editor](/docs/llms/llm-assembler.txt) 65C02 assembly editor and operations related to editing, assembling, and managing assembly programs
+- [file-explorer](/docs/llms/llm-file-explorer.txt) File explorer for browsing and reading files from DOS 3.3 and ProDOS disk images
+
+### Hardware
+- joystick
+- display-settings
+- [slot-configuration](/docs/llms/llm-slot-configuration.txt) Expansion slot configuration and operations for listing, installing, and managing expansion cards
+- mockingboard-debug
+- mouse-card-debug
+
+### Help
+- documentation-window
+- release-notes

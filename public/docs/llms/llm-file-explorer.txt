@@ -1,0 +1,50 @@
+# File Explorer
+
+> Browse and read files from DOS 3.3 and ProDOS disk images.
+
+## Tool Operations
+
+**Show the window:**
+```
+showWindow("file-explorer-window")
+```
+
+**Hide the window:**
+```
+hideWindow("file-explorer-window")
+```
+
+**Focus the window:**
+```
+focusWindow("file-explorer-window")
+```
+
+**List files in a drive:**
+```
+emma_command({ command: "listDiskFiles", params: { drive: 0 } })
+```
+Lists all files on the disk in the specified drive (0 for drive 1, 1 for drive 2). Returns file catalog with filenames, types, sizes, and format (DOS 3.3 or ProDOS). Format the results as a table for the user, not as raw JSON.
+
+**Get file content from disk:**
+```
+emma_command({ command: "getDiskFileContent", params: { drive: 0, filename: "HELLO", isBinary: true } })
+```
+Reads a file from the disk. Set `isBinary: false` for text files to get plain text content, or `isBinary: true` (default) for binary files to get base64-encoded data. For ProDOS, can use full path like "SUBDIR/FILE". Text files (TXT, BAS) should use `isBinary: false`.
+
+**Save disk file to local filesystem (MCP tool):**
+```
+save_disk_file({ path: "~/Documents/file.bin", contentBase64: "<base64 data>", overwrite: false })
+```
+Saves file content to the local filesystem. Content must be base64 encoded (as returned by getDiskFileContent). Supports ~ for home directory.
+
+## Workflow Examples
+
+**Reading and displaying a text file:**
+1. List files: `listDiskFiles({ drive: 0 })`
+2. Get text content: `getDiskFileContent({ drive: 0, filename: "README", isBinary: false })`
+3. Display the `content` field directly to the user
+
+**Saving a binary file to local filesystem:**
+1. List files: `listDiskFiles({ drive: 0 })`
+2. Get binary content: `getDiskFileContent({ drive: 0, filename: "HELLO", isBinary: true })`
+3. Save locally: `save_disk_file({ path: "~/file.bin", contentBase64: result.contentBase64 })`

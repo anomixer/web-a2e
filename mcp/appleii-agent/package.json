@@ -1,0 +1,26 @@
+{
+  "name": "@appleii/mcp-agent",
+  "version": "1.0.0",
+  "description": "MCP server for Apple //e emulator with AG-UI support",
+  "type": "module",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "start:https": "HTTPS=true node src/index.js",
+    "generate-cert": "openssl req -x509 -newkey rsa:2048 -nodes -sha256 -subj '/CN=localhost' -keyout key.pem -out cert.pem -days 365"
+  },
+  "keywords": [
+    "mcp",
+    "ag-ui",
+    "apple-iie",
+    "emulator"
+  ],
+  "author": "Mike Daley <michael_daley@icloud.com>",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4"
+  }
+}

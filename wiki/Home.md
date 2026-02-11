@@ -45,6 +45,7 @@ See [[Getting-Started]] for a full walkthrough.
 | [[Save-States]]        | Autosave, manual save slots, and state management                                          |
 | [[Expansion-Slots]]    | Slot configuration, Mockingboard, Thunderclock, Mouse Card                                 |
 | [[Input-Devices]]      | Keyboard mapping, joystick/paddle configuration, mouse support                             |
+| [[AI-Agent]]           | LLM integration via MCP, connection status, server setup, and example prompts              |
 | [[Keyboard-Shortcuts]] | Complete keyboard shortcut reference                                                       |
 
 ### Developer Guide
