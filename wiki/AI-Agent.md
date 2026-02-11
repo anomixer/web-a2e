@@ -12,6 +12,7 @@ The AI Agent integration allows LLMs like Claude to control the emulator through
   - [Window Management](#window-management)
   - [Disk Management](#disk-management)
   - [SmartPort Hard Drives](#smartport-hard-drives)
+  - [Slot Configuration](#slot-configuration)
   - [BASIC Programs](#basic-programs)
   - [Assembly Programs](#assembly-programs)
   - [Memory Operations](#memory-operations)
@@ -111,21 +112,6 @@ Eject the disk from drive 1
 
 ### SmartPort Hard Drives
 
-**Check slot status:**
-```
-Is the SmartPort card installed?
-```
-
-**List compatible slots:**
-```
-List SmartPort-compatible slots
-```
-
-**Install the card:**
-```
-Install the SmartPort card in slot 7
-```
-
 **Insert an image from the filesystem:**
 ```
 Load ~/Images/Total_Replay.hdv into SmartPort device 1
@@ -144,6 +130,28 @@ Insert Apple Pascal from recent SmartPort images
 **Clear recent images:**
 ```
 Clear the recent images list for SmartPort device 1
+```
+
+### Slot Configuration
+
+**List all slots:**
+```
+Show me the current expansion slot configuration
+```
+
+**Install a card:**
+```
+Install the Mockingboard in slot 4
+```
+
+**Remove a card:**
+```
+Remove the card from slot 5
+```
+
+**Move a card:**
+```
+Move the SmartPort card from slot 7 to slot 5
 ```
 
 ### BASIC Programs

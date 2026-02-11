@@ -949,12 +949,18 @@ export class DocumentationWindow extends BaseWindow {
 
         <h5>SmartPort Hard Drives</h5>
         <ul>
-          <li><strong>Check slot status:</strong> "Is the SmartPort card installed?" or "List SmartPort-compatible slots"</li>
-          <li><strong>Install card:</strong> "Install the SmartPort card in slot 7"</li>
           <li><strong>Insert image:</strong> "Load ~/Images/Total_Replay.hdv into SmartPort device 1"</li>
           <li><strong>List recent images:</strong> "What images are in the recent list for SmartPort device 1?"</li>
           <li><strong>Load from recent:</strong> "Insert Apple Pascal from recent SmartPort images"</li>
           <li><strong>Clear recent:</strong> "Clear the recent images list for SmartPort device 1"</li>
+        </ul>
+
+        <h5>Slot Configuration</h5>
+        <ul>
+          <li><strong>List all slots:</strong> "Show me the current expansion slot configuration"</li>
+          <li><strong>Install a card:</strong> "Install the Mockingboard in slot 4"</li>
+          <li><strong>Remove a card:</strong> "Remove the card from slot 5"</li>
+          <li><strong>Move a card:</strong> "Move the SmartPort card from slot 7 to slot 5"</li>
         </ul>
 
         <h5>Emulator Control</h5>

@@ -13,9 +13,6 @@ import {
   addToRecentImages,
 } from "../disk-manager/hard-drive-persistence.js";
 
-// Slots where SmartPort can be installed (matches slot-configuration-window.js)
-const SMARTPORT_COMPATIBLE_SLOTS = [2, 4, 5, 7];
-
 function requireSmartPort() {
   const wasmModule = window.emulator?.wasmModule;
   if (!wasmModule) {
@@ -24,120 +21,13 @@ function requireSmartPort() {
   if (!wasmModule._isSmartPortCardInstalled ||
       !wasmModule._isSmartPortCardInstalled()) {
     throw new Error(
-      "SmartPort card is not installed. Use smartportInstallCard to install it in a compatible slot."
+      "SmartPort card is not installed. Use slotsInstallCard to install it in a compatible slot."
     );
   }
   return wasmModule;
 }
 
 export const smartportTools = {
-  /**
-   * List SmartPort-compatible slots with current occupant and availability
-   */
-  smartportListSlots: async () => {
-    const wasmModule = window.emulator?.wasmModule;
-    if (!wasmModule) {
-      throw new Error("WASM module not available");
-    }
-
-    const slots = SMARTPORT_COMPATIBLE_SLOTS.map(slot => {
-      const ptr = wasmModule._getSlotCard(slot);
-      const currentCard = ptr ? wasmModule.UTF8ToString(ptr) : "empty";
-      return {
-        slot,
-        currentCard,
-        isEmpty: currentCard === "empty",
-        hasSmartPort: currentCard === "smartport",
-      };
-    });
-
-    const installed = slots.find(s => s.hasSmartPort);
-
-    return {
-      success: true,
-      compatibleSlots: slots,
-      smartportInstalled: !!installed,
-      smartportSlot: installed ? installed.slot : null,
-      message: installed
-        ? `SmartPort is installed in slot ${installed.slot}`
-        : "SmartPort is not installed",
-    };
-  },
-
-  /**
-   * Install SmartPort card into a compatible slot
-   */
-  smartportInstallCard: async (args) => {
-    const { slot } = args;
-
-    if (slot === undefined || slot === null) {
-      throw new Error("slot parameter is required");
-    }
-
-    if (!SMARTPORT_COMPATIBLE_SLOTS.includes(slot)) {
-      throw new Error(
-        `Slot ${slot} is not SmartPort-compatible. Compatible slots: ${SMARTPORT_COMPATIBLE_SLOTS.join(", ")}`
-      );
-    }
-
-    const wasmModule = window.emulator?.wasmModule;
-    if (!wasmModule) {
-      throw new Error("WASM module not available");
-    }
-
-    // Check if SmartPort is already installed somewhere
-    if (wasmModule._isSmartPortCardInstalled &&
-        wasmModule._isSmartPortCardInstalled()) {
-      // Find which slot it's in
-      for (const s of SMARTPORT_COMPATIBLE_SLOTS) {
-        const ptr = wasmModule._getSlotCard(s);
-        const card = ptr ? wasmModule.UTF8ToString(ptr) : "empty";
-        if (card === "smartport" && s === slot) {
-          return {
-            success: true,
-            slot,
-            message: `SmartPort is already installed in slot ${slot}`,
-            reset: false,
-          };
-        }
-      }
-    }
-
-    // Check what's currently in the target slot
-    const ptr = wasmModule._getSlotCard(slot);
-    const displaced = ptr ? wasmModule.UTF8ToString(ptr) : "empty";
-
-    // Install SmartPort via WASM
-    const cardId = "smartport";
-    const cardIdPtr = wasmModule._malloc(cardId.length + 1);
-    wasmModule.stringToUTF8(cardId, cardIdPtr, cardId.length + 1);
-    wasmModule._setSlotCard(slot, cardIdPtr);
-    wasmModule._free(cardIdPtr);
-
-    // Update localStorage to match slot-configuration-window.js persistence
-    try {
-      const saved = localStorage.getItem("a2e-slot-config");
-      const config = saved ? JSON.parse(saved) : {};
-      config[slot] = "smartport";
-      localStorage.setItem("a2e-slot-config", JSON.stringify(config));
-    } catch (e) {
-      // Non-fatal
-    }
-
-    // Reset required for slot changes to take effect
-    wasmModule._reset();
-
-    return {
-      success: true,
-      slot,
-      displaced: displaced !== "empty" ? displaced : null,
-      message: displaced !== "empty"
-        ? `SmartPort installed in slot ${slot} (replaced ${displaced}). Emulator reset.`
-        : `SmartPort installed in slot ${slot}. Emulator reset.`,
-      reset: true,
-    };
-  },
-
   /**
    * Insert a SmartPort image into a device by path
    */

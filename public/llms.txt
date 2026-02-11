@@ -40,7 +40,7 @@
 ### Hardware
 - joystick
 - display-settings
-- slot-configuration
+- [slot-configuration](/docs/llms/llm-slot-configuration.txt) Expansion slot configuration and operations for listing, installing, and managing expansion cards
 - mockingboard-debug
 - mouse-card-debug
 

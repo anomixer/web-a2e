@@ -12,6 +12,7 @@ import { fileExplorerTools } from "./file-explorer-tools.js";
 import { mainTools } from "./main-tools.js";
 import { diskTools } from "./disk-tools.js";
 import { smartportTools } from "./smartport-tools.js";
+import { slotTools } from "./slot-tools.js";
 
 /**
  * Registry of available frontend tools
@@ -26,6 +27,7 @@ const AGENT_TOOLS = {
   ...mainTools,
   ...diskTools,
   ...smartportTools,
+  ...slotTools,
   /**
    * Generic command wrapper (from MCP server)
    */
