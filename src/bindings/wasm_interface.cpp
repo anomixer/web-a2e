@@ -11,6 +11,7 @@
 #include "../core/debug/condition_evaluator.hpp"
 #include "../core/filesystem/dos33.hpp"
 #include "../core/filesystem/prodos.hpp"
+#include "../core/filesystem/pascal.hpp"
 #include "../core/basic/basic_detokenizer.hpp"
 #include "../core/basic/basic_tokenizer.hpp"
 #include "../core/input/keyboard.hpp"
@@ -1702,6 +1703,90 @@ const uint8_t* getProDOSFileBuffer() {
 EMSCRIPTEN_KEEPALIVE
 int mapProDOSFileType(uint8_t prodosType) {
   return a2e::ProDOS::mapFileTypeForViewer(prodosType);
+}
+
+// ============================================================================
+// Pascal Filesystem
+// ============================================================================
+
+static a2e::PascalCatalogEntry g_pascalCatalog[77];
+static int g_pascalCatalogCount = 0;
+static a2e::PascalVolumeInfo g_pascalVolumeInfo;
+static uint8_t g_pascalFileBuffer[128 * 1024]; // 128KB max file
+
+EMSCRIPTEN_KEEPALIVE
+bool isPascalFormat(const uint8_t* data, int size) {
+  return a2e::Pascal::isPascal(data, static_cast<size_t>(size));
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool getPascalVolumeInfo(const uint8_t* data, int size) {
+  return a2e::Pascal::parseVolumeInfo(data, static_cast<size_t>(size), &g_pascalVolumeInfo);
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char* getPascalVolumeName() {
+  return g_pascalVolumeInfo.volumeName;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getPascalTotalBlocks() {
+  return g_pascalVolumeInfo.totalBlocks;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getPascalCatalog(const uint8_t* data, int size) {
+  g_pascalCatalogCount = a2e::Pascal::readCatalog(data, static_cast<size_t>(size),
+                                                    g_pascalCatalog, 77);
+  return g_pascalCatalogCount;
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char* getPascalEntryFilename(int index) {
+  if (index < 0 || index >= g_pascalCatalogCount) return "";
+  return g_pascalCatalog[index].filename;
+}
+
+EMSCRIPTEN_KEEPALIVE
+uint8_t getPascalEntryFileType(int index) {
+  if (index < 0 || index >= g_pascalCatalogCount) return 0;
+  return g_pascalCatalog[index].fileType;
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char* getPascalEntryFileTypeName(int index) {
+  if (index < 0 || index >= g_pascalCatalogCount) return "???";
+  return g_pascalCatalog[index].fileTypeName;
+}
+
+EMSCRIPTEN_KEEPALIVE
+uint32_t getPascalEntryFileSize(int index) {
+  if (index < 0 || index >= g_pascalCatalogCount) return 0;
+  return g_pascalCatalog[index].fileSize;
+}
+
+EMSCRIPTEN_KEEPALIVE
+uint16_t getPascalEntryBlocksUsed(int index) {
+  if (index < 0 || index >= g_pascalCatalogCount) return 0;
+  return g_pascalCatalog[index].nextBlock - g_pascalCatalog[index].startBlock;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int readPascalFile(const uint8_t* data, int size, int index) {
+  if (index < 0 || index >= g_pascalCatalogCount) return 0;
+  return a2e::Pascal::readFile(data, static_cast<size_t>(size),
+                                &g_pascalCatalog[index],
+                                g_pascalFileBuffer, sizeof(g_pascalFileBuffer));
+}
+
+EMSCRIPTEN_KEEPALIVE
+const uint8_t* getPascalFileBuffer() {
+  return g_pascalFileBuffer;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int mapPascalFileType(uint8_t pascalType) {
+  return a2e::Pascal::mapFileTypeForViewer(pascalType);
 }
 
 // ============================================================================

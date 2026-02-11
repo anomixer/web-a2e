@@ -34,6 +34,18 @@ const DOS33_FILE_DESCRIPTIONS = {
   0x40: "Type b",
 };
 
+const PASCAL_FILE_DESCRIPTIONS = {
+  0: "Volume",
+  1: "Bad Blocks",
+  2: "Code",
+  3: "Text",
+  4: "Info",
+  5: "Data",
+  6: "Graphics",
+  7: "Photo",
+  8: "Secure Dir",
+};
+
 const PRODOS_FILE_DESCRIPTIONS = {
   0x00: "Unknown",
   0x01: "Bad Block",
@@ -86,7 +98,7 @@ export class FileExplorerWindow extends BaseWindow {
     this.selectedFile = null;
     this.diskDataPtr = 0; // Pointer to disk data in WASM heap
     this.diskDataSize = 0; // Size of disk data
-    this.diskFormat = null; // 'dos33' | 'prodos' | null
+    this.diskFormat = null; // 'dos33' | 'prodos' | 'pascal' | null
     this.currentPath = ""; // Current directory path for ProDOS navigation
     this.directoryStack = []; // Stack of {path, startBlock} for HD navigation
     this.binaryViewMode = "asm"; // 'asm', 'hex', or 'merlin'
@@ -380,7 +392,7 @@ export class FileExplorerWindow extends BaseWindow {
     const filenamePtr = wasm._getSmartPortImageFilename(this.selectedDrive);
     const filename = filenamePtr ? wasm.UTF8ToString(filenamePtr) : "Unknown";
 
-    // HD images are always ProDOS block devices
+    // HD images - try ProDOS first, then Pascal
     if (wasm._isProDOSFormat(dataPtr, size)) {
       this.diskFormat = "prodos";
       wasm._getProDOSVolumeInfo(dataPtr, size);
@@ -391,6 +403,14 @@ export class FileExplorerWindow extends BaseWindow {
       this.currentPath = "";
       this.directoryStack = [];
       this.loadProDOSDirectory(2, "");
+    } else if (wasm._isPascalFormat(dataPtr, size)) {
+      this.diskFormat = "pascal";
+      wasm._getPascalVolumeInfo(dataPtr, size);
+      const volumeName = wasm.UTF8ToString(wasm._getPascalVolumeName());
+      this.volumeInfo = { volumeName };
+      diskInfo.textContent = `${filename} (Pascal: ${volumeName})`;
+
+      this.loadPascalCatalog();
     } else {
       this.diskFormat = null;
       diskInfo.textContent = `${filename} (Unknown format)`;
@@ -481,6 +501,14 @@ export class FileExplorerWindow extends BaseWindow {
       // Reset to root directory and render
       this.currentPath = "";
       this.renderProDOSCatalog();
+    } else if (wasm._isPascalFormat(dataPtr, size)) {
+      this.diskFormat = "pascal";
+      wasm._getPascalVolumeInfo(dataPtr, size);
+      const volumeName = wasm.UTF8ToString(wasm._getPascalVolumeName());
+      this.volumeInfo = { volumeName };
+      diskInfo.textContent = `${filename} (Pascal: ${volumeName})`;
+
+      this.loadPascalCatalog();
     } else if (wasm._isDOS33Format(dataPtr, size)) {
       this.diskFormat = "dos33";
       diskInfo.textContent = `${filename} (DOS 3.3)`;
@@ -578,6 +606,50 @@ export class FileExplorerWindow extends BaseWindow {
     this.selectedFile = null;
     this.clearFileView();
     this.renderProDOSCatalog();
+  }
+
+  /**
+   * Load and render the Pascal catalog (flat directory, no subdirectories)
+   */
+  loadPascalCatalog() {
+    const wasm = this.wasmModule;
+    const catalogList = this.element.querySelector(".fe-catalog-list");
+    const pathBar = this.element.querySelector(".fe-path-bar");
+
+    // Hide path bar (Pascal has no subdirectories)
+    pathBar.classList.add("hidden");
+    pathBar.innerHTML = "";
+
+    const count = wasm._getPascalCatalog(this.diskDataPtr, this.diskDataSize);
+    this.catalog = [];
+    for (let i = 0; i < count; i++) {
+      this.catalog.push({
+        filename: wasm.UTF8ToString(wasm._getPascalEntryFilename(i)),
+        fileType: wasm._getPascalEntryFileType(i),
+        fileTypeName: wasm.UTF8ToString(wasm._getPascalEntryFileTypeName(i)),
+        fileTypeDescription:
+          PASCAL_FILE_DESCRIPTIONS[wasm._getPascalEntryFileType(i)] || "Unknown",
+        fileSize: wasm._getPascalEntryFileSize(i),
+        blocksUsed: wasm._getPascalEntryBlocksUsed(i),
+        _wasmIndex: i,
+      });
+    }
+
+    if (this.catalog.length === 0) {
+      catalogList.innerHTML = '<div class="fe-empty">Disk is empty</div>';
+    } else {
+      catalogList.innerHTML = this.catalog
+        .map(
+          (entry, index) => `
+          <div class="fe-catalog-item" data-index="${index}">
+            <span class="fe-file-type">${entry.fileTypeName}</span>
+            <span class="fe-file-name">${escapeHtml(entry.filename)}</span>
+            <span class="fe-file-sectors">${entry.blocksUsed}</span>
+          </div>
+        `,
+        )
+        .join("");
+    }
   }
 
   /**
@@ -748,26 +820,33 @@ export class FileExplorerWindow extends BaseWindow {
     titleEl.textContent = displayName;
 
     // Format file size info based on disk format
-    const sizeInfo =
-      this.diskFormat === "prodos"
-        ? formatFileSize(this.selectedFile.blocksUsed * 2) // ProDOS uses 512-byte blocks
-        : formatFileSize(this.selectedFile.sectorCount);
+    let sizeInfo;
+    if (this.diskFormat === "pascal") {
+      sizeInfo = `${this.selectedFile.fileSize} bytes (${this.selectedFile.blocksUsed} blocks)`;
+    } else if (this.diskFormat === "prodos") {
+      sizeInfo = formatFileSize(this.selectedFile.blocksUsed * 2); // ProDOS uses 512-byte blocks
+    } else {
+      sizeInfo = formatFileSize(this.selectedFile.sectorCount);
+    }
     infoEl.textContent = `${this.selectedFile.fileTypeDescription} - ${sizeInfo}`;
 
     // Determine if this is a binary file based on disk format
     // DOS 3.3: fileType 0x04 is Binary
     // ProDOS: fileType 0x06 (BIN) or 0xFF (SYS) are binary
-    const isBinary =
-      this.diskFormat === "prodos"
-        ? this.selectedFile.fileType === 0x06 ||
-          this.selectedFile.fileType === 0xff
-        : this.selectedFile.fileType === 0x04;
-
-    // Determine if this is a text file
-    const isText =
-      this.diskFormat === "prodos"
-        ? this.selectedFile.fileType === 0x04
-        : this.selectedFile.fileType === 0x00;
+    // Pascal: fileType 2 (CODE) is binary
+    let isBinary, isText;
+    if (this.diskFormat === "pascal") {
+      isBinary = this.selectedFile.fileType === 2; // CODE
+      isText = this.selectedFile.fileType === 3;   // TEXT
+    } else if (this.diskFormat === "prodos") {
+      isBinary =
+        this.selectedFile.fileType === 0x06 ||
+        this.selectedFile.fileType === 0xff;
+      isText = this.selectedFile.fileType === 0x04;
+    } else {
+      isBinary = this.selectedFile.fileType === 0x04;
+      isText = this.selectedFile.fileType === 0x00;
+    }
 
     // Show/hide view toggles based on file type
     viewToggle.classList.toggle("hidden", !isBinary);
@@ -804,7 +883,21 @@ export class FileExplorerWindow extends BaseWindow {
         const wasmIdx = this.selectedFile._wasmIndex;
         let bytesRead;
 
-        if (this.diskFormat === "prodos") {
+        if (this.diskFormat === "pascal") {
+          bytesRead = wasm._readPascalFile(
+            this.diskDataPtr,
+            this.diskDataSize,
+            wasmIdx,
+          );
+          const bufPtr = wasm._getPascalFileBuffer();
+          const fileData = new Uint8Array(bytesRead);
+          fileData.set(new Uint8Array(wasm.HEAPU8.buffer, bufPtr, bytesRead));
+          this.currentFileData = {
+            filename: cacheKey,
+            data: fileData,
+            fileType: this.selectedFile.fileType,
+          };
+        } else if (this.diskFormat === "prodos") {
           bytesRead = wasm._readProDOSFile(
             this.diskDataPtr,
             this.diskDataSize,
@@ -843,7 +936,13 @@ export class FileExplorerWindow extends BaseWindow {
         let info;
         let displayData;
 
-        if (this.diskFormat === "prodos") {
+        if (this.diskFormat === "pascal") {
+          info = {
+            address: 0,
+            length: this.selectedFile.fileSize,
+          };
+          displayData = fileData; // Pascal binary data doesn't have header
+        } else if (this.diskFormat === "prodos") {
           info = {
             address: this.selectedFile.auxType,
             length: this.selectedFile.eof,
@@ -917,7 +1016,7 @@ export class FileExplorerWindow extends BaseWindow {
           // address/length in the file's aux_type field, not in the file data itself.
           // We create a synthetic header for ProDOS files so the disassembler works uniformly.
           let dataForDisasm;
-          if (this.diskFormat === "prodos") {
+          if (this.diskFormat === "prodos" || this.diskFormat === "pascal") {
             // Create header: 2 bytes address + 2 bytes length + actual data
             dataForDisasm = new Uint8Array(4 + fileData.length);
             dataForDisasm[0] = info.address & 0xff;
@@ -937,10 +1036,14 @@ export class FileExplorerWindow extends BaseWindow {
         }
       } else {
         // Non-binary files - use formatFileContents with mapped file type
-        const viewerFileType =
-          this.diskFormat === "prodos"
-            ? wasm._mapProDOSFileType(this.selectedFile.fileType)
-            : this.selectedFile.fileType;
+        let viewerFileType;
+        if (this.diskFormat === "pascal") {
+          viewerFileType = wasm._mapPascalFileType(this.selectedFile.fileType);
+        } else if (this.diskFormat === "prodos") {
+          viewerFileType = wasm._mapProDOSFileType(this.selectedFile.fileType);
+        } else {
+          viewerFileType = this.selectedFile.fileType;
+        }
 
         // If mapFileTypeForViewer returns -1, use hex dump
         if (viewerFileType === -1) {
@@ -983,9 +1086,9 @@ export class FileExplorerWindow extends BaseWindow {
           return;
         }
 
-        // ProDOS BASIC files don't have the 2-byte length header that DOS 3.3 files have
+        // ProDOS and Pascal files don't have the 2-byte length header that DOS 3.3 files have
         this.hexDisplayState = null;
-        const hasLengthHeader = this.diskFormat !== "prodos";
+        const hasLengthHeader = this.diskFormat === "dos33";
         const formatted = formatFileContents(fileData, viewerFileType, {
           hasLengthHeader,
         });
