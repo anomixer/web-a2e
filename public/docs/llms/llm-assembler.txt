@@ -33,9 +33,19 @@ Writes the assembled machine code into emulator memory.
 
 **Execute assembled code:**
 ```
-emma_command({ command: "directExecuteAssemblyAt", params: { addr: 0x0800, paused: false } })
+emma_command({ command: "directExecuteAssemblyAt", params: { addr: "$0800" } })
+emma_command({ command: "directExecuteAssemblyAt", params: { addr: "$0800", returnTo: "monitor" } })
+emma_command({ command: "directExecuteAssemblyAt", params: { addr: "$0800", returnTo: "basic" } })
+emma_command({ command: "directExecuteAssemblyAt", params: { addr: "$0800", returnTo: "$E003" } })
 ```
-Sets PC to the specified address and controls execution. If `addr` is omitted, uses the origin from the last successful assembly. Set `paused: true` to pause after setting PC (useful for debugging). Default is `paused: false` (executes immediately).
+Sets PC to the specified address and executes. Address supports hex (`"$0800"`) or decimal (`2048`). If `addr` is omitted, uses the origin from the last successful assembly. Set `paused: true` to pause after setting PC (useful for debugging). Default is `paused: false` (executes immediately).
+
+`returnTo` pushes a return address onto the stack so programs ending with RTS return cleanly. Defaults to `"auto"`. Accepts:
+- `"auto"` (default) - captures current PC as return address (returns to whatever was running)
+- `"monitor"` - return to Apple II monitor ($FF69)
+- `"basic"` - return to Applesoft BASIC prompt ($E003)
+- `"$AABB"` - hex address
+- `12345` - decimal address
 
 **Load example program:**
 ```

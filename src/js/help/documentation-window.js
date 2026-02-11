@@ -936,7 +936,15 @@ export class DocumentationWindow extends BaseWindow {
           <li><strong>Get status:</strong> "What's the status of the assembler?" or "Get the assembly origin address"</li>
           <li><strong>Execute program:</strong> "Run the assembled program" or "Execute the code at the origin"</li>
           <li><strong>Execute at address:</strong> "Execute the code at $0800" or "Run code at address 2048"</li>
+          <li><strong>Execute with return:</strong> "Execute $0800 and return to BASIC" or "Run $0800 and return to monitor"</li>
           <li><strong>Set PC without executing:</strong> "Set PC to $0800 but don't execute yet"</li>
+        </ul>
+
+        <h5>Memory Operations</h5>
+        <ul>
+          <li><strong>Load binary to memory:</strong> "Load the file ~/program.bin into memory at address $2000"</li>
+          <li><strong>Save memory range:</strong> "Save 256 bytes from memory address $0800 to ~/output.bin"</li>
+          <li><strong>Save memory region:</strong> "Read 1024 bytes starting at $4000 and save them to ~/dump.bin"</li>
         </ul>
 
         <h5>Emulator Control</h5>

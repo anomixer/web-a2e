@@ -14,6 +14,7 @@ import * as showWindow from "./show-window.js";
 import * as hideWindow from "./hide-window.js";
 import * as focusWindow from "./focus-window.js";
 import * as loadDiskImage from "./load-disk-image.js";
+import * as loadFile from "./load-file.js";
 import * as saveBasicFile from "./save-basic-file.js";
 import * as saveAsmFile from "./save-asm-file.js";
 import * as saveDiskFile from "./save-disk-file.js";
@@ -28,6 +29,7 @@ export const tools = [
   focusWindow,
   emmaCommand,
   loadDiskImage,
+  loadFile,
   saveBasicFile,
   saveAsmFile,
   saveDiskFile,

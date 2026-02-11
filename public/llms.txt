@@ -11,7 +11,7 @@
 
 ## Main
 
-- [main](/docs/llms/llm-main.txt) Core emulator power and reset controls
+- [main](/docs/llms/llm-main.txt) Core emulator power, reset controls, and memory operations for loading/saving binary data
 
 ## Windows
 

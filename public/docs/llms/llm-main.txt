@@ -23,3 +23,29 @@ Warm reset - restarts the emulator without clearing memory.
 emma_command({ command: "emulatorReboot", params: {} })
 ```
 Cold reset - full reboot that clears all memory.
+
+## Memory Operations
+
+**Load binary data to memory:**
+```
+emma_command({ command: "directLoadBinaryAt", params: { address: "$2000", contentBase64: "<base64 data>" } })
+emma_command({ command: "directLoadBinaryAt", params: { address: 8192, contentBase64: "<base64 data>" } })
+```
+Loads binary data (base64 encoded) directly into emulator memory at the specified address. Address can be hex (`"$2000"` or `"0x2000"`) or decimal (`8192` or `"8192"`). Use with MCP tool `load_file` to load files from local filesystem.
+
+**Save memory range to binary:**
+```
+emma_command({ command: "directSaveBinaryRangeTo", params: { address: "$2000", length: "$0100" } })
+emma_command({ command: "directSaveBinaryRangeTo", params: { address: 8192, length: 256 } })
+```
+Reads a range of memory and returns it as base64-encoded binary data. Both address and length can be hex (`"$0100"`) or decimal (`256`). Use with MCP tool `save_disk_file` to save to local filesystem.
+
+## Workflow Examples
+
+**Loading binary file from local filesystem to memory:**
+1. Load file: `load_file({ path: "~/program.bin", binary: true })`
+2. Load to memory: `directLoadBinaryAt({ address: "$2000", contentBase64: result.contentBase64 })`
+
+**Saving memory range to local filesystem:**
+1. Read memory: `directSaveBinaryRangeTo({ address: "$0800", length: "$0400" })`
+2. Save to file: `save_disk_file({ path: "~/output.bin", contentBase64: result.contentBase64 })`

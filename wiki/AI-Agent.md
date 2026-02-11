@@ -13,6 +13,7 @@ The AI Agent integration allows LLMs like Claude to control the emulator through
   - [Disk Management](#disk-management)
   - [BASIC Programs](#basic-programs)
   - [Assembly Programs](#assembly-programs)
+  - [Memory Operations](#memory-operations)
 
 ---
 
@@ -153,9 +154,36 @@ Run the assembled program
 Execute the code at $0800
 ```
 
+**Execute with return to BASIC:**
+```
+Execute $0800 and return to BASIC
+```
+
+**Execute with return to monitor:**
+```
+Run $0800 and return to monitor
+```
+
 **Set PC without executing:**
 ```
 Set PC to $0800 but don't execute yet
+```
+
+### Memory Operations
+
+**Load binary file to memory:**
+```
+Load the file ~/program.bin into memory at address $2000
+```
+
+**Save memory range to file:**
+```
+Save 256 bytes from memory address $0800 to ~/output.bin
+```
+
+**Save memory region:**
+```
+Read 1024 bytes starting at $4000 and save them to ~/dump.bin
 ```
 
 ### Emulator Control

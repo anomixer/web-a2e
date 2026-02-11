@@ -244,12 +244,17 @@ export const assemblerTools = {
   directExecuteAssemblyAt: async (args) => {
     const { paused = false, addr } = args;
 
-    const windowManager = window.emulator?.windowManager;
+    const emulator = window.emulator;
+    if (!emulator) {
+      throw new Error("Emulator not available");
+    }
+
+    const windowManager = emulator.windowManager;
     if (!windowManager) {
       throw new Error("Window manager not available");
     }
 
-    const wasmModule = window.emulator?.wasmModule;
+    const wasmModule = emulator.wasmModule;
     if (!wasmModule) {
       throw new Error("WASM module not available");
     }
@@ -257,7 +262,19 @@ export const assemblerTools = {
     // Determine address to execute
     let address;
     if (addr !== undefined) {
-      address = addr;
+      // Support hex ($xxxx or 0xXXXX) or decimal
+      if (typeof addr === "string") {
+        const trimmed = addr.trim();
+        if (trimmed.startsWith("$")) {
+          address = parseInt(trimmed.substring(1), 16);
+        } else if (trimmed.toLowerCase().startsWith("0x")) {
+          address = parseInt(trimmed, 16);
+        } else {
+          address = parseInt(trimmed, 10);
+        }
+      } else {
+        address = addr;
+      }
     } else {
       // Use origin from last successful assembly
       const asmWindow = windowManager.getWindow("assembler-editor");
@@ -272,21 +289,67 @@ export const assemblerTools = {
       }
     }
 
+    // Pause first to ensure clean state
+    wasmModule._setPaused(true);
+
+    // Push return address onto stack if specified
+    const { returnTo = "auto" } = args;
+    let returnAddr = null;
+    if (returnTo !== undefined) {
+      const NAMED_RETURNS = {
+        "monitor": 0xFF69,
+        "basic": 0xE003,
+        "auto": wasmModule._getPC(),
+      };
+
+      if (typeof returnTo === "string") {
+        const lower = returnTo.trim().toLowerCase();
+        if (NAMED_RETURNS[lower] !== undefined) {
+          returnAddr = NAMED_RETURNS[lower];
+        } else if (returnTo.trim().startsWith("$")) {
+          returnAddr = parseInt(returnTo.trim().substring(1), 16);
+        } else if (returnTo.trim().toLowerCase().startsWith("0x")) {
+          returnAddr = parseInt(returnTo.trim(), 16);
+        } else {
+          returnAddr = parseInt(returnTo.trim(), 10);
+        }
+      } else {
+        returnAddr = returnTo;
+      }
+
+      if (isNaN(returnAddr)) {
+        throw new Error(`Invalid returnTo address: ${returnTo}`);
+      }
+
+      // RTS pops address and adds 1, so push (returnAddr - 1)
+      const rtsAddr = (returnAddr - 1) & 0xFFFF;
+      const sp = wasmModule._getSP();
+      wasmModule._writeMemory(0x0100 + sp, (rtsAddr >> 8) & 0xFF);
+      wasmModule._writeMemory(0x0100 + ((sp - 1) & 0xFF), rtsAddr & 0xFF);
+      wasmModule._setRegSP((sp - 2) & 0xFF);
+    }
+
     // Set PC to target address
     wasmModule._setRegPC(address);
 
-    // Set paused state: true = pause execution, false = resume execution
+    // Set final paused state: true = stay paused, false = resume execution
     wasmModule._setPaused(paused);
 
     const addrHex = "$" + address.toString(16).toUpperCase().padStart(4, "0");
+    const returnHex = returnAddr !== null
+      ? "$" + returnAddr.toString(16).toUpperCase().padStart(4, "0")
+      : null;
+    const returnMsg = returnHex ? `, return to ${returnHex}` : "";
     const statusMsg = paused
-      ? `PC set to ${addrHex} (paused)`
-      : `Executing at ${addrHex}`;
+      ? `PC set to ${addrHex} (paused${returnMsg})`
+      : `Executing at ${addrHex}${returnMsg}`;
 
     return {
       success: true,
       address: address,
       addressHex: addrHex,
+      returnTo: returnAddr,
+      returnToHex: returnHex,
       paused: paused,
       message: statusMsg,
     };
