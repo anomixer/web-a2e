@@ -33,7 +33,7 @@ export async function saveStateToStorage(stateData, thumbnail, preview) {
   try {
     const stateRecord = {
       id: "autosave",
-      data: new Uint8Array(stateData),
+      data: stateData,
       savedAt: Date.now(),
       thumbnail: thumbnail || null,
       preview: preview || null,

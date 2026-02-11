@@ -110,9 +110,12 @@ class AppleIIeEmulator {
       // Set up audio driver (drives timing)
       this.audioDriver = new AudioDriver(this.wasmModule);
 
-      // Connect audio-driven frame sync to rendering
-      this.audioDriver.onFrameReady = (frameCount) => {
-        this.renderFrame();
+      // Connect audio-driven frame sync to rendering via rAF flag
+      // (avoids doing GPU texture uploads from the audio callback context,
+      // which causes stutters in Safari and Brave under heavy I/O)
+      this.frameReady = false;
+      this.audioDriver.onFrameReady = () => {
+        this.frameReady = true;
       };
 
       // Set up input handler
@@ -470,7 +473,10 @@ class AppleIIeEmulator {
         this.renderer.setParam("beamX", -1.0);
       }
 
-      if (!this.running || isPaused) {
+      if (this.frameReady) {
+        this.frameReady = false;
+        this.renderFrame();
+      } else if (!this.running || isPaused) {
         // Force a complete re-render of the framebuffer from current video
         // memory so the display shows the full screen after stepping/pausing,
         // not a partial frame based on beam position.
