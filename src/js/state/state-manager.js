@@ -49,7 +49,7 @@ export class StateManager {
     this.cpuDebuggerWindow = deps.cpuDebuggerWindow || null;
     this.basicProgramWindow = deps.basicProgramWindow || null;
 
-    this.autoSaveEnabled = true;
+    this.autoSaveEnabled = false;
     this.autoSaveInterval = null;
 
     /** @type {function|null} Called after each autosave completes */
@@ -70,7 +70,7 @@ export class StateManager {
   setupAutoSave() {
     // Load saved auto-save setting (default to enabled)
     const savedAutosave = localStorage.getItem("a2e-autosave-state");
-    this.autoSaveEnabled = savedAutosave !== "false";
+    this.autoSaveEnabled = savedAutosave === "true";
 
     // Save window states and emulator state when page is closed
     window.addEventListener("beforeunload", () => {
