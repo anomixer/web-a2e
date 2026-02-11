@@ -35,7 +35,7 @@
 ### Development
 - [basic-program](/docs/llms/llm-basic-program.txt) Applesoft BASIC program editor and operations related to editing, debugging, and managing BASIC programs
 - [assembler-editor](/docs/llms/llm-assembler.txt) 65C02 assembly editor and operations related to editing, assembling, and managing assembly programs
-- file-explorer-window
+- [file-explorer](/docs/llms/llm-file-explorer.txt) File explorer for browsing and reading files from DOS 3.3 and ProDOS disk images
 
 ### Hardware
 - joystick

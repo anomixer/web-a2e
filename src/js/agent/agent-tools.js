@@ -8,6 +8,7 @@
 import { windowTools } from "./window-tools.js";
 import { basicProgramTools } from "./basic-program-tools.js";
 import { assemblerTools } from "./assembler-tools.js";
+import { fileExplorerTools } from "./file-explorer-tools.js";
 import { mainTools } from "./main-tools.js";
 import { diskTools } from "./disk-tools.js";
 
@@ -20,6 +21,7 @@ const AGENT_TOOLS = {
   ...windowTools,
   ...basicProgramTools,
   ...assemblerTools,
+  ...fileExplorerTools,
   ...mainTools,
   ...diskTools,
   /**
