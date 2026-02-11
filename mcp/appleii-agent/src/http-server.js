@@ -35,15 +35,28 @@ export class HttpServer {
    * Generate self-signed certificate for HTTPS
    */
   _generateCertificate(certPath, keyPath) {
-    logger.log("Generating self-signed HTTPS certificate...");
+    // Try mkcert first (locally-trusted certs), fall back to openssl (self-signed)
+    try {
+      execSync("mkcert -version", { stdio: "pipe" });
+      logger.log("Generating locally-trusted certificate with mkcert...");
+      execSync(`mkcert -key-file "${keyPath}" -cert-file "${certPath}" localhost 127.0.0.1 ::1`, { stdio: "pipe" });
+      logger.log("Certificate generated successfully (trusted by browser)");
+      return;
+    } catch (e) {
+      // mkcert not available, fall back to openssl
+    }
+
+    logger.log("Generating self-signed HTTPS certificate with openssl...");
+    logger.log("Tip: Install mkcert for browser-trusted certs: brew install mkcert && mkcert -install");
 
     try {
       const cmd = `openssl req -x509 -newkey rsa:2048 -nodes -sha256 -subj '/CN=localhost' -keyout "${keyPath}" -out "${certPath}" -days 365`;
       execSync(cmd, { stdio: "pipe" });
-      logger.log("Certificate generated successfully");
+      logger.log("Certificate generated (self-signed — browser may not trust it)");
     } catch (error) {
       throw new Error(
-        "Failed to generate certificate. Please install OpenSSL:\n" +
+        "Failed to generate certificate. Install mkcert (recommended) or OpenSSL:\n" +
+        "  mkcert: brew install mkcert && mkcert -install\n" +
         "  macOS: brew install openssl\n" +
         "  Linux: sudo apt-get install openssl\n" +
         "  Windows: https://slproweb.com/products/Win32OpenSSL.html"
@@ -101,10 +114,11 @@ export class HttpServer {
       logger.log(`[HTTP] ${req.method} ${req.url}`);
     }
 
-    // Enable CORS
+    // Enable CORS with Private Network Access (required for public HTTPS → localhost)
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Private-Network", "true");
 
     if (req.method === "OPTIONS") {
       res.writeHead(204);
