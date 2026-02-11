@@ -11,6 +11,7 @@ The AI Agent integration allows LLMs like Claude to control the emulator through
 - [Example Prompts](#example-prompts)
   - [Window Management](#window-management)
   - [Disk Management](#disk-management)
+  - [SmartPort Hard Drives](#smartport-hard-drives)
   - [BASIC Programs](#basic-programs)
   - [Assembly Programs](#assembly-programs)
   - [Memory Operations](#memory-operations)
@@ -106,6 +107,43 @@ Insert the disk named "Zork_1.dsk" from recent disks into drive 2
 **Eject a disk:**
 ```
 Eject the disk from drive 1
+```
+
+### SmartPort Hard Drives
+
+**Check slot status:**
+```
+Is the SmartPort card installed?
+```
+
+**List compatible slots:**
+```
+List SmartPort-compatible slots
+```
+
+**Install the card:**
+```
+Install the SmartPort card in slot 7
+```
+
+**Insert an image from the filesystem:**
+```
+Load ~/Images/Total_Replay.hdv into SmartPort device 1
+```
+
+**List recent images:**
+```
+What images are in the recent list for SmartPort device 1?
+```
+
+**Load from recent images:**
+```
+Insert Apple Pascal from recent SmartPort images
+```
+
+**Clear recent images:**
+```
+Clear the recent images list for SmartPort device 1
 ```
 
 ### BASIC Programs

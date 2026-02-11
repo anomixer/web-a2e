@@ -18,6 +18,7 @@ import * as loadFile from "./load-file.js";
 import * as saveBasicFile from "./save-basic-file.js";
 import * as saveAsmFile from "./save-asm-file.js";
 import * as saveDiskFile from "./save-disk-file.js";
+import * as loadSmartportImage from "./load-smartport-image.js";
 
 export const tools = [
   serverControl,
@@ -29,6 +30,7 @@ export const tools = [
   focusWindow,
   emmaCommand,
   loadDiskImage,
+  loadSmartportImage,
   loadFile,
   saveBasicFile,
   saveAsmFile,

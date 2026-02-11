@@ -18,7 +18,7 @@
 ### Core
 - screen-window
 - [disk-drives](/docs/llms/llm-disk-drives.txt) Disk drives window and operations related to disks
-- hard-drives
+- [hard-drives](/docs/llms/llm-hard-drives.txt) SmartPort hard drives and operations related to hard drive images
 - save-states
 
 ### Debug

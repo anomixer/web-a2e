@@ -1,0 +1,74 @@
+# SmartPort Hard Drives
+
+> SmartPort hard drive image management for devices 1 and 2.
+
+## Tool Operations
+
+**Show the window:**
+```
+showWindow("hard-drives")
+```
+
+**Hide the window:**
+```
+hideWindow("hard-drives")
+```
+
+**Focus the window:**
+```
+focusWindow("hard-drives")
+```
+
+**List SmartPort-compatible slots:**
+```
+emma_command({ command: "smartportListSlots", params: {} })
+```
+Lists compatible expansion slots (2, 4, 5, 7) with current occupant and whether SmartPort is installed. Use this to find an available slot before installing.
+
+**Install SmartPort card into a slot:**
+```
+emma_command({ command: "smartportInstallCard", params: { slot: 7 } })
+```
+Installs the SmartPort card into the specified slot. Replaces any existing card in that slot. Triggers an emulator reset. Compatible slots: 2, 4, 5, 7. The SmartPort card must be installed before images can be loaded.
+
+**Insert SmartPort image by path:**
+```
+emma_command({ command: "smartportInsertImage", params: { deviceNum: 1, path: "/path/to/image.hdv" } })
+```
+Insert a SmartPort hard drive image into device 1 or 2 by providing a file path. The deviceNum parameter defaults to 1 if not specified.
+
+**Get list of recent images:**
+```
+emma_command({ command: "smartportRecentsList", params: { deviceNum: 1 } })
+```
+Get the list of recently used images for device 1 or 2. Returns an array of image entries with filename and access time. The deviceNum parameter defaults to 1 if not specified.
+
+**Insert a recent image:**
+```
+emma_command({ command: "smartportInsertRecent", params: { deviceNum: 1, name: "Total Replay.hdv" } })
+```
+Insert an image from the recent list into device 1 or 2. The name parameter must match a filename from the recent list. The deviceNum parameter defaults to 1 if not specified.
+
+**Clear recent images:**
+```
+emma_command({ command: "smartportClearRecent", params: { deviceNum: 1 } })
+```
+Clear all recent images for device 1 or 2. The deviceNum parameter defaults to 1 if not specified.
+
+**Load SmartPort image from filesystem (MCP tool):**
+```
+load_smartport_image({ path: "~/images/prodos.hdv" })
+```
+Load a SmartPort image file from the local filesystem and return as base64. Supports ~ for home directory.
+
+## Supported Formats
+
+| Format | Extension | Description |
+|--------|-----------|-------------|
+| HDV | .hdv | Raw block device image. Most common SmartPort format. |
+| PO | .po | ProDOS-order block image. |
+| 2IMG | .2mg | Universal disk image with metadata header. |
+
+## Notes
+
+The SmartPort card must be installed in a compatible expansion slot before images can be loaded. Use `smartportListSlots` to check, and `smartportInstallCard` to install if needed. Installing or changing slot configuration triggers an emulator reset.

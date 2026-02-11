@@ -947,6 +947,16 @@ export class DocumentationWindow extends BaseWindow {
           <li><strong>Save memory region:</strong> "Read 1024 bytes starting at $4000 and save them to ~/dump.bin"</li>
         </ul>
 
+        <h5>SmartPort Hard Drives</h5>
+        <ul>
+          <li><strong>Check slot status:</strong> "Is the SmartPort card installed?" or "List SmartPort-compatible slots"</li>
+          <li><strong>Install card:</strong> "Install the SmartPort card in slot 7"</li>
+          <li><strong>Insert image:</strong> "Load ~/Images/Total_Replay.hdv into SmartPort device 1"</li>
+          <li><strong>List recent images:</strong> "What images are in the recent list for SmartPort device 1?"</li>
+          <li><strong>Load from recent:</strong> "Insert Apple Pascal from recent SmartPort images"</li>
+          <li><strong>Clear recent:</strong> "Clear the recent images list for SmartPort device 1"</li>
+        </ul>
+
         <h5>Emulator Control</h5>
         <ul>
           <li><strong>Power on:</strong> "Turn on the emulator" or "Power on the Apple //e"</li>
