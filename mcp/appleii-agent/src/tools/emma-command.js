@@ -1,12 +1,12 @@
 /*
- * a2e-command.js - Generic command tool for emulator
+ * emma-command.js - Generic command tool for emulator
  *
  * Written by
  *  Shawn Bullock <shawn@agenticexpert.ai>
  */
 
 export const tool = {
-  name: "a2e_command",
+  name: "emma_command",
   description: "Send a command to the Apple //e emulator",
   inputSchema: {
     type: "object",
@@ -32,7 +32,7 @@ export async function handler(args, httpServer) {
   await httpServer.sendEvent({
     type: "TOOL_CALL_START",
     tool_call_id: toolCallId,
-    tool_call_name: "a2e_command",
+    tool_call_name: "emma_command",
   });
 
   // Send TOOL_CALL_ARGS

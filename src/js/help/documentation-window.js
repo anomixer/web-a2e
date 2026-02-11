@@ -742,6 +742,7 @@ export class DocumentationWindow extends BaseWindow {
         <h4>BASIC Program Window</h4>
         <p>Write, edit, and load Applesoft BASIC programs. Open from <strong>Dev &gt; BASIC Program</strong>.</p>
         <ul>
+          <li><strong>New:</strong> Clear the editor and start a new program</li>
           <li><strong>Syntax Highlighting:</strong> BASIC keywords, line numbers, strings, and comments are color-coded</li>
           <li><strong>Autocomplete:</strong> Type to see suggestions for BASIC commands</li>
           <li><strong>Paste into Emulator:</strong> Click to type your program into the running emulator at 8x speed</li>
@@ -865,6 +866,7 @@ export class DocumentationWindow extends BaseWindow {
           <li><strong>Read from memory:</strong> "Load the BASIC program from memory and show it in the editor"</li>
           <li><strong>Write to memory:</strong> "Write this BASIC program to emulator memory: 10 PRINT \"HELLO\" 20 GOTO 10"</li>
           <li><strong>Get listing:</strong> "What BASIC program is currently in memory?"</li>
+          <li><strong>Save to file:</strong> "Save the BASIC program from the editor to ~/Documents/myprogram.bas"</li>
         </ul>
 
         <h5>Emulator Control</h5>

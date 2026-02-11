@@ -7,6 +7,7 @@
 
 import { windowTools } from "./window-tools.js";
 import { basicProgramTools } from "./basic-program-tools.js";
+import { assemblerTools } from "./assembler-tools.js";
 import { mainTools } from "./main-tools.js";
 import { diskTools } from "./disk-tools.js";
 
@@ -18,12 +19,13 @@ const AGENT_TOOLS = {
   // Import feature-specific tools
   ...windowTools,
   ...basicProgramTools,
+  ...assemblerTools,
   ...mainTools,
   ...diskTools,
   /**
    * Generic command wrapper (from MCP server)
    */
-  a2e_command: async (args) => {
+  emma_command: async (args) => {
     const { command, params = {} } = args;
     if (!command) {
       throw new Error("command parameter is required");

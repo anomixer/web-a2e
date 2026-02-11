@@ -8,27 +8,45 @@
 
 **Read BASIC program directly from memory:**
 ```
-a2e_command({ command: "directReadBasic", params: {} })
+emma_command({ command: "directReadBasic", params: {} })
 ```
 Reads the BASIC program directly from emulator memory via WASM bindings. Does not require the BASIC window to be open or focused. Returns the detokenized program text.
 
 **Write BASIC program directly to memory:**
 ```
-a2e_command({ command: "directWriteBasic", params: { program: "10 PRINT \"HELLO\"\n20 GOTO 10" } })
+emma_command({ command: "directWriteBasic", params: { program: "10 PRINT \"HELLO\"\n20 GOTO 10" } })
 ```
 Writes a BASIC program directly to emulator memory via WASM bindings. Tokenizes the program text and updates all zero-page pointers. Does not require the BASIC window to be open or focused. The emulator must be powered on.
 
 **Run BASIC program directly:**
 ```
-a2e_command({ command: "directRunBasic", params: {} })
+emma_command({ command: "directRunBasic", params: {} })
 ```
 Executes the BASIC program currently in memory by simulating the RUN command. Unpauses the emulator and clears any breakpoint flags. Does not require the BASIC window to be open or focused. The emulator must be powered on.
 
 **Clear BASIC program buffer (NEW):**
 ```
-a2e_command({ command: "directNewBasic", params: {} })
+emma_command({ command: "directNewBasic", params: {} })
 ```
 Clears the BASIC program buffer by resetting all zero-page pointers and writing the end-of-program marker. Equivalent to the NEW command. Does not require the BASIC window to be open or focused. The emulator must be powered on.
+
+**Get BASIC program content from editor:**
+```
+emma_command({ command: "saveBasicInEditorToLocal", params: {} })
+```
+Retrieves the BASIC program text from the editor. Returns the content as a string. Use with save_basic_file MCP tool to save to filesystem.
+
+**Get BASIC program content from memory:**
+```
+emma_command({ command: "directSaveBasicInMemoryToLocal", params: { path: "~/Documents/myprogram.bas" } })
+```
+Reads the BASIC program from emulator memory and returns the content. Use with save_basic_file MCP tool to save to filesystem.
+
+**Save BASIC program to filesystem (MCP tool):**
+```
+save_basic_file({ path: "~/Documents/myprogram.bas", content: "<program text>", overwrite: false })
+```
+Saves BASIC program text to a file on the local filesystem. Supports ~ for home directory. Set overwrite: true to replace existing files. Can be used with saveBasicInEditorToLocal (from editor) or directSaveBasicInMemoryToLocal (from memory) to get the content first.
 
 ### Window Operations
 
@@ -51,67 +69,67 @@ focusWindow("basic-program")
 
 **Load BASIC program from memory:**
 ```
-a2e_command({ command: "basicProgramLoadFromMemory", params: {} })
+emma_command({ command: "basicProgramLoadFromMemory", params: {} })
 ```
 Reads the tokenized BASIC program from emulator memory and displays it in the editor.
 
 **Load BASIC program into emulator:**
 ```
-a2e_command({ command: "basicProgramLoadIntoEmulator", params: {} })
+emma_command({ command: "basicProgramLoadIntoEmulator", params: {} })
 ```
 Tokenizes the program in the editor and loads it into emulator memory. The emulator must be powered on for this to work.
 
 **Run BASIC program:**
 ```
-a2e_command({ command: "basicProgramRun", params: {} })
+emma_command({ command: "basicProgramRun", params: {} })
 ```
 Execute the BASIC program in the emulator.
 
 **Pause BASIC program:**
 ```
-a2e_command({ command: "basicProgramPause", params: {} })
+emma_command({ command: "basicProgramPause", params: {} })
 ```
 Pause BASIC program execution at the next statement.
 
-**Clear BASIC program editor:**
+**New BASIC program (clear editor):**
 ```
-a2e_command({ command: "basicProgramClear", params: {} })
+emma_command({ command: "basicProgramNew", params: {} })
 ```
-Clear all text from the BASIC program editor.
+Clear all text from the BASIC program editor and start a new program.
 
 **Renumber BASIC program:**
 ```
-a2e_command({ command: "basicProgramRenumber", params: {} })
+emma_command({ command: "basicProgramRenumber", params: {} })
 ```
 Renumber program lines in increments of 10, updating GOTO and GOSUB references.
 
 **Format BASIC program:**
 ```
-a2e_command({ command: "basicProgramFormat", params: {} })
+emma_command({ command: "basicProgramFormat", params: {} })
 ```
 Auto-format the BASIC code with proper alignment and indentation.
 
 **Get line and character count:**
 ```
-a2e_command({ command: "basicProgramLineCount", params: {} })
+emma_command({ command: "basicProgramLineCount", params: {} })
 ```
 Returns the number of lines and characters in the editor.
 
 **Get current program:**
 ```
-a2e_command({ command: "basicProgramGet", params: {} })
+emma_command({ command: "basicProgramGet", params: {} })
 ```
 Returns the current BASIC program text from the editor.
 
 **Edit program (find and replace):**
 ```
-a2e_command({ command: "basicProgramEdit", params: { oldText: "text to find", newText: "replacement text" } })
+emma_command({ command: "basicProgramEdit", params: { oldText: "text to find", newText: "replacement text" } })
 ```
 Find and replace specific text in the program.
 
 **Set program (replace all):**
 ```
-a2e_command({ command: "basicProgramSet", params: { program: "full program text" } })
+emma_command({ command: "basicProgramSet", params: { program: "full program text" } })
 ```
 Replace the entire program with new content.
 
@@ -163,4 +181,4 @@ Right sidebar with tabs:
 **Load into Emulator**: Send program from editor into emulator memory
 **Format**: Auto-format the BASIC program
 **Renumber**: Renumber program lines (typically by 10s)
-**Clear**: Clear the editor
+**New**: Clear the editor and start a new program

@@ -243,6 +243,71 @@ export const basicProgramTools = {
   },
 
   /**
+   * Get BASIC program content from editor (used with save_basic_file MCP tool)
+   */
+  saveBasicInEditorToLocal: async (args) => {
+    const windowManager = window.emulator?.windowManager;
+    if (!windowManager) {
+      throw new Error("Window manager not available");
+    }
+
+    const basicWindow = windowManager.getWindow("basic-program");
+    if (!basicWindow) {
+      throw new Error("BASIC program window not found");
+    }
+
+    const content = basicWindow.textarea ? basicWindow.textarea.value : "";
+    if (!content.trim()) {
+      throw new Error("No program in editor to save");
+    }
+
+    return {
+      success: true,
+      content: content,
+      lines: content.split("\n").length,
+      message: "BASIC program content retrieved from editor",
+    };
+  },
+
+  /**
+   * Save BASIC program from emulator memory to local file
+   * Combines directReadBasic + save to filesystem
+   */
+  directSaveBasicInMemoryToLocal: async (args) => {
+    const { path } = args;
+
+    if (!path) {
+      throw new Error("path parameter is required");
+    }
+
+    const wasmModule = window.emulator?.wasmModule;
+    if (!wasmModule) {
+      throw new Error("WASM module not available");
+    }
+
+    // Read BASIC program from memory
+    const parser = new BasicProgramParser(wasmModule);
+    const lines = parser.getLines();
+
+    if (lines.length === 0) {
+      throw new Error("No BASIC program in memory to save");
+    }
+
+    // Format as program text (line number + text)
+    const programText = lines
+      .map((line) => `${line.lineNumber} ${line.text}`)
+      .join("\n");
+
+    return {
+      success: true,
+      content: programText,
+      lines: lines.length,
+      path: path,
+      message: `BASIC program read from memory (${lines.length} lines), ready to save to ${path}`,
+    };
+  },
+
+  /**
    * Load BASIC program from emulator memory into editor
    */
   basicProgramLoadFromMemory: async (args) => {
@@ -331,9 +396,10 @@ export const basicProgramTools = {
   },
 
   /**
-   * Clear BASIC program editor
+   * Clear BASIC program editor and start new program
+   * Emulates the newFile() method without confirmation dialog
    */
-  basicProgramClear: async (args) => {
+  basicProgramNew: async (args) => {
     const windowManager = window.emulator?.windowManager;
     if (!windowManager) {
       throw new Error("Window manager not available");
@@ -344,8 +410,10 @@ export const basicProgramTools = {
       throw new Error("BASIC program window not found");
     }
 
+    // Emulate newFile() behavior without confirmation
     if (basicWindow.textarea) {
       basicWindow.textarea.value = "";
+      basicWindow._fileHandle = null;
       basicWindow.updateGutter();
       basicWindow.updateHighlighting();
       basicWindow.updateStats();
@@ -447,45 +515,6 @@ export const basicProgramTools = {
       success: true,
       program: text,
       message: "BASIC program retrieved",
-    };
-  },
-
-  /**
-   * Edit BASIC program (find and replace text)
-   */
-  basicProgramEdit: async (args) => {
-    const { oldText, newText } = args;
-
-    if (oldText === undefined) {
-      throw new Error("oldText parameter is required");
-    }
-
-    if (newText === undefined) {
-      throw new Error("newText parameter is required");
-    }
-
-    const windowManager = window.emulator?.windowManager;
-    if (!windowManager) {
-      throw new Error("Window manager not available");
-    }
-
-    const basicWindow = windowManager.getWindow("basic-program");
-    if (!basicWindow) {
-      throw new Error("BASIC program window not found");
-    }
-
-    if (basicWindow.textarea) {
-      const currentText = basicWindow.textarea.value;
-      const updatedText = currentText.replace(oldText, newText);
-      basicWindow.textarea.value = updatedText;
-      basicWindow.updateGutter();
-      basicWindow.updateHighlighting();
-      basicWindow.updateStats();
-    }
-
-    return {
-      success: true,
-      message: "BASIC program edited",
     };
   },
 

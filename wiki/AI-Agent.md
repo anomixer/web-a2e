@@ -125,6 +125,16 @@ Write this BASIC program to emulator memory:
 What BASIC program is currently in memory?
 ```
 
+**Save program to file:**
+```
+Save the BASIC program from the editor to ~/Documents/myprogram.bas
+```
+
+**Save program from memory to file:**
+```
+Save the BASIC program from memory to ~/Documents/myprogram.bas
+```
+
 ### Emulator Control
 
 **Power on:**

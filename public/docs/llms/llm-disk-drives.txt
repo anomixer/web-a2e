@@ -21,31 +21,31 @@ focusWindow("disk-drives")
 
 **Insert disk image by path:**
 ```
-a2e_command({ command: "driveInsertDisc", params: { driveNum: 1, path: "/path/to/disk.dsk" } })
+emma_command({ command: "driveInsertDisc", params: { driveNum: 1, path: "/path/to/disk.dsk" } })
 ```
 Insert a disk image into drive 1 or 2 by providing a file path. The driveNum parameter defaults to 1 if not specified. The path can be a local filesystem path (with ~ expansion) or URL.
 
 **Get list of recent disks:**
 ```
-a2e_command({ command: "driveRecentsList", params: { driveNum: 1 } })
+emma_command({ command: "driveRecentsList", params: { driveNum: 1 } })
 ```
 Get the list of recently used disks for drive 1 or 2. Returns an array of disk entries with filename and access time. The driveNum parameter defaults to 1 if not specified.
 
 **Clear recent disks:**
 ```
-a2e_command({ command: "drivesClearRecent", params: { driveNum: 1 } })
+emma_command({ command: "drivesClearRecent", params: { driveNum: 1 } })
 ```
 Clear all recent disks for drive 1 or 2. Removes all entries from the recent list for that drive. The driveNum parameter defaults to 1 if not specified.
 
 **Insert a recent disk:**
 ```
-a2e_command({ command: "driveInsertRecent", params: { driveNum: 1, name: "ProDOS_2_4_2.dsk" } })
+emma_command({ command: "driveInsertRecent", params: { driveNum: 1, name: "ProDOS_2_4_2.dsk" } })
 ```
 Insert a disk from the recent disks list into drive 1 or 2. The name parameter must match a filename from the recent list. The driveNum parameter defaults to 1 if not specified.
 
 **Load a recent disk:**
 ```
-a2e_command({ command: "driveLoadRecent", params: { driveNum: 1, file: "ProDOS_2_4_2.dsk" } })
+emma_command({ command: "driveLoadRecent", params: { driveNum: 1, file: "ProDOS_2_4_2.dsk" } })
 ```
 Load a disk from the recent disks list into drive 1 or 2. The file parameter must match a filename from the recent list. The driveNum parameter defaults to 1 if not specified.
 

@@ -5,7 +5,7 @@
  *  Shawn Bullock <shawn@agenticexpert.ai>
  */
 
-import * as a2eCommand from "./a2e-command.js";
+import * as emmaCommand from "./emma-command.js";
 import * as serverControl from "./server-control.js";
 import * as setHttps from "./set-https.js";
 import * as setDebug from "./set-debug.js";
@@ -14,6 +14,8 @@ import * as showWindow from "./show-window.js";
 import * as hideWindow from "./hide-window.js";
 import * as focusWindow from "./focus-window.js";
 import * as loadDiskImage from "./load-disk-image.js";
+import * as saveBasicFile from "./save-basic-file.js";
+import * as saveAsmFile from "./save-asm-file.js";
 
 export const tools = [
   serverControl,
@@ -23,6 +25,8 @@ export const tools = [
   showWindow,
   hideWindow,
   focusWindow,
-  a2eCommand,
+  emmaCommand,
   loadDiskImage,
+  saveBasicFile,
+  saveAsmFile,
 ];
