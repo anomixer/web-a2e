@@ -528,6 +528,81 @@
     border-color: rgba(48, 54, 61, 0.8);
 }
 
+/* Gamepad controls in joystick window */
+.gamepad-section {
+    border-top: 1px solid var(--glass-border);
+    padding-top: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.gamepad-status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.gamepad-toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+.gamepad-toggle {
+    margin: 0;
+    cursor: pointer;
+}
+
+.gamepad-toggle-text {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--text-primary);
+}
+
+.gamepad-status {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.gamepad-status.connected {
+    color: var(--accent-green);
+}
+
+.gamepad-deadzone-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.gamepad-deadzone-label {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    flex-shrink: 0;
+}
+
+.gamepad-deadzone-slider {
+    flex: 1;
+    height: 4px;
+    cursor: pointer;
+}
+
+.gamepad-deadzone-value {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--text-secondary);
+    min-width: 28px;
+    text-align: right;
+}
+
 
 /* ============================================
    SLOT CONFIGURATION WINDOW

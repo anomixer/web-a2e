@@ -9,7 +9,8 @@
     "build:wasm": "mkdir -p build && cd build && emcmake cmake .. && emmake make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu)",
     "preview": "vite preview",
     "clean": "rm -rf build dist public/a2e.js public/a2e.wasm",
-    "deploy": "rsync -avz --delete dist/ vps-mike:web-a2e/data/"
+    "deploy": "rsync -avz --delete dist/ vps-mike:web-a2e/data/",
+    "deploy:staging": "rsync -avz --delete dist/ vps-mike:/home/mike/web-a2e-staging/data/"
   },
   "devDependencies": {
     "vite": "^5.0.0"

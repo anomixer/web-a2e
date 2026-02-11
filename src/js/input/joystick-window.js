@@ -13,9 +13,9 @@ export class JoystickWindow extends BaseWindow {
       id: "joystick",
       title: "Joystick",
       defaultWidth: 240,
-      defaultHeight: 280,
+      defaultHeight: 340,
       minWidth: 200,
-      minHeight: 300,
+      minHeight: 340,
       defaultPosition: { x: 100, y: 150 },
     });
     this.wasmModule = wasmModule;
@@ -24,6 +24,7 @@ export class JoystickWindow extends BaseWindow {
     this.knobY = 0.5;
     this.button0Pressed = false;
     this.button1Pressed = false;
+    this.gamepadHandler = null;
   }
 
   renderContent() {
@@ -50,6 +51,20 @@ export class JoystickWindow extends BaseWindow {
         <div class="joystick-center-btn-container">
           <button class="joystick-center-btn">Center</button>
         </div>
+        <div class="gamepad-section">
+          <div class="gamepad-status-row">
+            <label class="gamepad-toggle-label">
+              <input type="checkbox" class="gamepad-toggle" />
+              <span class="gamepad-toggle-text">Gamepad</span>
+            </label>
+            <span class="gamepad-status">No controller</span>
+          </div>
+          <div class="gamepad-deadzone-row">
+            <span class="gamepad-deadzone-label">Deadzone</span>
+            <input type="range" class="gamepad-deadzone-slider" min="0" max="50" step="1" value="10" />
+            <span class="gamepad-deadzone-value">0.10</span>
+          </div>
+        </div>
       </div>
     `;
   }
@@ -63,7 +78,14 @@ export class JoystickWindow extends BaseWindow {
     this.button1Element = this.contentElement.querySelector(".joystick-btn-1");
     this.centerBtn = this.contentElement.querySelector(".joystick-center-btn");
 
+    // Gamepad UI elements
+    this.gamepadToggle = this.contentElement.querySelector(".gamepad-toggle");
+    this.gamepadStatus = this.contentElement.querySelector(".gamepad-status");
+    this.gamepadDeadzoneSlider = this.contentElement.querySelector(".gamepad-deadzone-slider");
+    this.gamepadDeadzoneValue = this.contentElement.querySelector(".gamepad-deadzone-value");
+
     this.setupJoystickEventListeners();
+    this.setupGamepadEventListeners();
     this.updateKnobPosition();
     this.updatePaddleValues();
 
@@ -210,6 +232,84 @@ export class JoystickWindow extends BaseWindow {
     if (this.wasmModule._setPaddleValue) {
       this.wasmModule._setPaddleValue(0, paddleX);
       this.wasmModule._setPaddleValue(1, paddleY);
+    }
+  }
+
+  setupGamepadEventListeners() {
+    if (this.gamepadToggle) {
+      // Restore persisted state
+      const enabled = localStorage.getItem("gamepad-enabled") !== "false";
+      this.gamepadToggle.checked = enabled;
+
+      this.gamepadToggle.addEventListener("change", () => {
+        if (this.gamepadHandler) {
+          this.gamepadHandler.setEnabled(this.gamepadToggle.checked);
+        }
+      });
+    }
+
+    if (this.gamepadDeadzoneSlider) {
+      // Restore persisted deadzone
+      const dz = parseFloat(localStorage.getItem("gamepad-deadzone")) || 0.1;
+      this.gamepadDeadzoneSlider.value = Math.round(dz * 100);
+      this.gamepadDeadzoneValue.textContent = dz.toFixed(2);
+
+      this.gamepadDeadzoneSlider.addEventListener("input", () => {
+        const value = this.gamepadDeadzoneSlider.value / 100;
+        this.gamepadDeadzoneValue.textContent = value.toFixed(2);
+        if (this.gamepadHandler) {
+          this.gamepadHandler.setDeadzone(value);
+        }
+      });
+    }
+  }
+
+  /**
+   * Called by GamepadHandler to move the knob from external input.
+   * @param {number} normX - 0..1 position
+   * @param {number} normY - 0..1 position
+   */
+  setExternalPosition(normX, normY) {
+    this.knobX = normX;
+    this.knobY = normY;
+    this.updateKnobPosition();
+
+    // Update value display only (paddle values set by GamepadHandler)
+    const paddleX = Math.round(normX * 255);
+    const paddleY = Math.round(normY * 255);
+    if (this.xValueSpan) this.xValueSpan.textContent = paddleX.toString();
+    if (this.yValueSpan) this.yValueSpan.textContent = paddleY.toString();
+  }
+
+  /**
+   * Called by GamepadHandler to reflect physical button state in the UI.
+   * @param {number} button - 0 or 1
+   * @param {boolean} pressed
+   */
+  setExternalButton(button, pressed) {
+    const el = button === 0 ? this.button0Element : this.button1Element;
+    if (!el) return;
+    if (pressed) {
+      el.classList.add("pressed");
+    } else {
+      el.classList.remove("pressed");
+    }
+  }
+
+  /**
+   * Called by GamepadHandler when connection state changes.
+   * @param {string|null} name - Controller name or null if disconnected
+   * @param {boolean} enabled - Whether gamepad input is enabled
+   */
+  updateGamepadStatus(name, enabled) {
+    if (this.gamepadStatus) {
+      this.gamepadStatus.textContent = name
+        ? name.substring(0, 30)
+        : "No controller";
+      this.gamepadStatus.classList.toggle("connected", !!name);
+    }
+    if (this.gamepadToggle) {
+      this.gamepadToggle.checked = enabled;
     }
   }
 

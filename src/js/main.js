@@ -541,6 +541,11 @@ class AppleIIeEmulator {
       this.agentManager = null;
     }
 
+    if (this.gamepadHandler) {
+      this.gamepadHandler.destroy();
+      this.gamepadHandler = null;
+    }
+    
     this.renderer = null;
     this.diskManager = null;
     this.hardDriveManager = null;
