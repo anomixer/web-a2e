@@ -171,6 +171,18 @@ export class LabelManager {
   }
 
   /**
+   * Clear imported labels from a specific source
+   */
+  clearImportedBySource(source) {
+    for (const [addr, info] of this.importedLabels) {
+      if (info.source === source) {
+        this.importedLabels.delete(addr);
+      }
+    }
+    this._notify();
+  }
+
+  /**
    * Clear all imported labels
    */
   clearImported() {

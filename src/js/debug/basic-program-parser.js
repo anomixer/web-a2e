@@ -379,11 +379,46 @@ export class BasicProgramParser {
       // Regular character
       const char = String.fromCharCode(byte & 0x7f);
 
-      // Add space before alphanumeric char if last char was also alphanumeric
-      // (handles spacing after tokens like FOR, TO, NEXT, etc.)
-      const lastChar = result.length > 0 ? result[result.length - 1] : "";
-      if (isAlphaNum(char) && isAlphaNum(lastChar)) {
-        result += " ";
+      // Consume contiguous number (digits + optional decimal point)
+      if (byte >= 0x30 && byte <= 0x39) {
+        const lastChar = result.length > 0 ? result[result.length - 1] : "";
+        if (isAlphaNum(lastChar)) {
+          result += " ";
+        }
+        result += char;
+        while (i + 1 < bytes.length) {
+          const next = bytes[i + 1];
+          if ((next >= 0x30 && next <= 0x39) || next === 0x2e) {
+            result += String.fromCharCode(next);
+            i++;
+          } else {
+            break;
+          }
+        }
+        continue;
+      }
+
+      // Consume contiguous variable name (letters + digits + $ + %)
+      const isLetter = (byte >= 0x41 && byte <= 0x5a) || (byte >= 0x61 && byte <= 0x7a);
+      if (isLetter) {
+        const lastChar = result.length > 0 ? result[result.length - 1] : "";
+        if (isAlphaNum(lastChar)) {
+          result += " ";
+        }
+        result += char;
+        while (i + 1 < bytes.length) {
+          const next = bytes[i + 1];
+          const nextIsLetter =
+            (next >= 0x41 && next <= 0x5a) || (next >= 0x61 && next <= 0x7a);
+          const nextIsDigit = next >= 0x30 && next <= 0x39;
+          if (nextIsLetter || nextIsDigit || next === 0x24 || next === 0x25) {
+            result += String.fromCharCode(next);
+            i++;
+          } else {
+            break;
+          }
+        }
+        continue;
       }
 
       result += char;
