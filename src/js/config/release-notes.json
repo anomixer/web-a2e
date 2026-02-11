@@ -1,5 +1,78 @@
 [
   {
+    "period": "Feb 5 - 11, 2026",
+    "sections": [
+      {
+        "title": "New Features",
+        "type": "features",
+        "items": [
+          {
+            "area": "Physical Gamepad Support",
+            "description": "Added physical gamepad controller support via the browser Gamepad API for paddle and joystick input."
+          },
+          {
+            "area": "Pascal Filesystem",
+            "description": "Added Pascal filesystem support to the file explorer for browsing Apple Pascal disk images."
+          },
+          {
+            "area": "SmartPort Hard Drive Controller",
+            "description": "Added a SmartPort expansion card for ProDOS block device support with two hard drive units. Includes a side-by-side SmartPort Drives window with pulsing green LED activity indicators, hard drive file browsing with on-demand directory loading, and toast notifications for card validation."
+          },
+          {
+            "area": "Disk Library",
+            "description": "Added a Disk Library window for one-click loading of bundled disk images, cached in IndexedDB for offline access."
+          },
+          {
+            "area": "Instruction Trace",
+            "description": "Added an Instruction Trace window with full disassembled instruction display, proper column layout, auto-scroll when recording, and a Clear button."
+          },
+          {
+            "area": "BASIC Debugger",
+            "description": "Added statement-level BASIC breakpoints with Option+click, statement-level stepping and highlighting, runtime error detection and highlighting in the editor, variable and array editing with value change flash, and line-boundary pause behavior."
+          },
+          {
+            "area": "BASIC Editor",
+            "description": "Added line sorting and renumber feature. Replaced slow keyboard-paste loading with instant direct memory insertion. File buttons added to toolbar with Read/Write disabled when emulator is off."
+          },
+          {
+            "area": "Assembler Editor",
+            "description": "Added Debug button that auto-loads assembler symbols into the CPU debugger. Host file picker dialogs for open and save. Wider label column, expression evaluator, and example program."
+          },
+          {
+            "area": "Disk Drives",
+            "description": "Added Browse button to floppy disk drives to open the file explorer directly."
+          }
+        ]
+      },
+      {
+        "title": "Fixes",
+        "type": "fixes",
+        "items": [
+          {
+            "area": "Rendering",
+            "description": "Fixed rendering stutters in Safari and Brave during hard drive I/O. Defaulted autosave to off to avoid rendering stutters. Fixed Double Low-Res color rendering using wrong palette and missing aux nibble rotation. Added forced full-frame render for debugger screen refresh."
+          },
+          {
+            "area": "Disk Emulation",
+            "description": "Fixed Disk II write failure by converting level signal to flux transitions. Reset disk image positioning state on reboot/power cycle. Stop disk motor on warm reset."
+          },
+          {
+            "area": "Warm Reset",
+            "description": "Fixed warm reset to preserve memory instead of performing full reboot. Fixed warm reset to reset soft switches like real hardware."
+          },
+          {
+            "area": "BASIC",
+            "description": "Moved BASIC tokenizer to C++ WASM, fixed detokenizer spacing for numbers and variables. Fixed breakpoint not highlighting first statement on multi-statement lines. Clear stale frame sync and BASIC state on cold reset."
+          },
+          {
+            "area": "UI & Windowing",
+            "description": "Replaced native confirm() dialogs with custom showConfirm modal. Constrained disk drives window to viewport after resizing. Fixed Browse button styling. Unified assembler and BASIC window buttons and status bars to match CPU debugger. Removed motor hum and swish sounds, keeping only stepper motor click."
+          }
+        ]
+      }
+    ]
+  },
+  {
     "period": "Feb 5, 2026",
     "sections": [
       {
