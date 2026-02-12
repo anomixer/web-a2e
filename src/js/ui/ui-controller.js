@@ -447,6 +447,10 @@ export class UIController {
     const isInstalled = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
     if (updateBtn && !isInstalled) {
       updateBtn.style.display = "none";
+      const separator = updateBtn.previousElementSibling;
+      if (separator && separator.classList.contains("header-menu-separator")) {
+        separator.style.display = "none";
+      }
     }
     if (updateBtn && isInstalled) {
       updateBtn.addEventListener("click", async () => {
