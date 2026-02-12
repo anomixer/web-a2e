@@ -37,35 +37,49 @@ Click the sparkle icon to open the agent connection panel and view detailed stat
 
 The AI Agent uses the Model Context Protocol (MCP) to communicate with LLM clients like Claude Code. Configure your MCP client to connect to the emulator's agent server.
 
-### Configuration Example
+### Configuration
 
-Add the following to your MCP configuration file (e.g., `~/.claude/mcp.json` or `.mcp.json` in your project):
+Add the following to your MCP configuration file (e.g., `~/.claude.json` or `.mcp.json` in your project):
+
+**Using bunx (recommended):**
 
 ```json
 {
   "mcpServers": {
     "appleii-agent": {
-      "command": "node",
+      "type": "stdio",
+      "command": "bunx",
       "args": [
-        "/path/to/mcp/appleii-agent/src/index.js"
+        "-y",
+        "@retrotech71/appleii-agent"
       ]
     }
   }
 }
 ```
 
-Replace `/path/to/` with the actual path to the emulator's MCP server directory.
+**Using npx:**
 
-### Starting the Server
-
-The MCP server starts automatically when your MCP client connects. You can also start it manually:
-
-```bash
-cd mcp/appleii-agent
-node src/index.js
+```json
+{
+  "mcpServers": {
+    "appleii-agent": {
+      "type": "stdio",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@retrotech71/appleii-agent"
+      ]
+    }
+  }
+}
 ```
 
-The server listens on `http://localhost:3033` by default and uses the AG-UI protocol to communicate with the emulator frontend.
+No installation required — the agent is downloaded and run automatically on first use. `bunx` ([Bun](https://bun.sh)) is recommended as it is more likely to work out of the box; `npx` (Node.js) may experience timeout issues on first run while downloading the package.
+
+### How It Works
+
+The MCP server starts automatically when your MCP client (e.g., Claude Code) connects. It listens on `http://localhost:3033` and uses the AG-UI protocol to communicate with the emulator frontend running in your browser.
 
 ---
 
