@@ -51,7 +51,7 @@ export class WindowManager {
       this.bringToFront(id);
       this.saveState();
       if (typeof umami !== 'undefined') {
-        umami.track('window-open', { window: id });
+        umami.track(`window-open-${id}`);
       }
     }
   }
@@ -67,7 +67,7 @@ export class WindowManager {
       this.focusTopWindow();
       this.saveState();
       if (typeof umami !== 'undefined') {
-        umami.track('window-close', { window: id });
+        umami.track(`window-close-${id}`);
       }
     }
   }
@@ -82,13 +82,13 @@ export class WindowManager {
       if (window.isVisible) {
         this.bringToFront(id);
         if (typeof umami !== 'undefined') {
-          umami.track('window-open', { window: id });
+          umami.track(`window-open-${id}`);
         }
       } else {
         window.element.classList.remove('focused');
         this.focusTopWindow();
         if (typeof umami !== 'undefined') {
-          umami.track('window-close', { window: id });
+          umami.track(`window-close-${id}`);
         }
       }
       this.saveState();
