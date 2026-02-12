@@ -14,13 +14,14 @@ import { showToast } from "./toast.js";
  */
 export class SlotConfigurationWindow extends BaseWindow {
   constructor(wasmModule, onResetCallback) {
+    const maxHeight = 625;
     super({
       id: "slot-configuration",
       title: "Expansion Slots",
-      minWidth: 420,
-      minHeight: 520,
-      defaultWidth: 480,
-      defaultHeight: 540,
+      minWidth: 450,
+      minHeight: maxHeight,
+      defaultWidth: 450,
+      defaultHeight: maxHeight,
       defaultPosition: { x: 100, y: 100 },
       resizeDirections: [],
     });
@@ -49,12 +50,38 @@ export class SlotConfigurationWindow extends BaseWindow {
     // Slot metadata
     this.slots = [
       { slot: 1, label: "Slot 1", available: [], note: "Printer / Serial" },
-      { slot: 2, label: "Slot 2", available: ["smartport"], note: "Serial / Modem" },
-      { slot: 3, label: "Slot 3", available: [], note: "80-Column (Built-in)", fixed: true },
-      { slot: 4, label: "Slot 4", available: ["mockingboard", "mouse", "smartport"], note: "Sound / Mouse" },
-      { slot: 5, label: "Slot 5", available: ["thunderclock", "smartport"], note: "Clock / Drive" },
+      {
+        slot: 2,
+        label: "Slot 2",
+        available: ["smartport"],
+        note: "Serial / Modem",
+      },
+      {
+        slot: 3,
+        label: "Slot 3",
+        available: [],
+        note: "80-Column (Built-in)",
+        fixed: true,
+      },
+      {
+        slot: 4,
+        label: "Slot 4",
+        available: ["mockingboard", "mouse", "smartport"],
+        note: "Sound / Mouse",
+      },
+      {
+        slot: 5,
+        label: "Slot 5",
+        available: ["thunderclock", "smartport"],
+        note: "Clock / Drive",
+      },
       { slot: 6, label: "Slot 6", available: ["disk2"], note: "Disk drives" },
-      { slot: 7, label: "Slot 7", available: ["thunderclock", "smartport"], note: "RAM / Clock" },
+      {
+        slot: 7,
+        label: "Slot 7",
+        available: ["thunderclock", "smartport"],
+        note: "RAM / Clock",
+      },
     ];
 
     // Current slot assignments (working state for drag-and-drop)
@@ -85,10 +112,6 @@ export class SlotConfigurationWindow extends BaseWindow {
           <div class="motherboard-slots" id="motherboard-slots"></div>
         </div>
         <div class="slot-footer">
-          <div class="slot-warning hidden" id="slot-warning">
-            <span class="warning-icon">&#9888;</span>
-            <span>Changes require reset</span>
-          </div>
           <button id="slot-apply-btn" class="slot-apply-btn" disabled>Apply &amp; Reset</button>
         </div>
       </div>`;
@@ -256,8 +279,12 @@ export class SlotConfigurationWindow extends BaseWindow {
     // Dim the source element
     const sourceEl =
       sourceType === "tray"
-        ? this.contentElement.querySelector(`.card-tray .card-tile[data-card-id="${cardId}"]`)
-        : this.contentElement.querySelector(`.mb-slot-card[data-card-id="${cardId}"][data-slot="${sourceSlot}"]`);
+        ? this.contentElement.querySelector(
+            `.card-tray .card-tile[data-card-id="${cardId}"]`,
+          )
+        : this.contentElement.querySelector(
+            `.mb-slot-card[data-card-id="${cardId}"][data-slot="${sourceSlot}"]`,
+          );
     if (sourceEl) sourceEl.classList.add("card-dragging");
 
     // Highlight compatible slots
@@ -340,7 +367,9 @@ export class SlotConfigurationWindow extends BaseWindow {
   }
 
   highlightSlots(cardId) {
-    const rows = this.contentElement.querySelectorAll(".mb-slot-row[data-slot]");
+    const rows = this.contentElement.querySelectorAll(
+      ".mb-slot-row[data-slot]",
+    );
     rows.forEach((row) => {
       const slot = parseInt(row.dataset.slot, 10);
       if (this.isCompatible(cardId, slot)) {
@@ -352,7 +381,9 @@ export class SlotConfigurationWindow extends BaseWindow {
   }
 
   flashIncompatible(slot) {
-    const row = this.contentElement.querySelector(`.mb-slot-row[data-slot="${slot}"]`);
+    const row = this.contentElement.querySelector(
+      `.mb-slot-row[data-slot="${slot}"]`,
+    );
     if (!row) return;
     row.classList.add("mb-slot-reject");
     setTimeout(() => row.classList.remove("mb-slot-reject"), 400);
@@ -365,10 +396,14 @@ export class SlotConfigurationWindow extends BaseWindow {
       this.ghostElement = null;
     }
     // Remove drag styling
-    this.contentElement.querySelectorAll(".card-dragging").forEach((el) => el.classList.remove("card-dragging"));
-    this.contentElement.querySelectorAll(".mb-slot-compat, .mb-slot-incompat").forEach((el) => {
-      el.classList.remove("mb-slot-compat", "mb-slot-incompat");
-    });
+    this.contentElement
+      .querySelectorAll(".card-dragging")
+      .forEach((el) => el.classList.remove("card-dragging"));
+    this.contentElement
+      .querySelectorAll(".mb-slot-compat, .mb-slot-incompat")
+      .forEach((el) => {
+        el.classList.remove("mb-slot-compat", "mb-slot-incompat");
+      });
     this.dragState = null;
   }
 
@@ -410,20 +445,27 @@ export class SlotConfigurationWindow extends BaseWindow {
       }
     }
 
-    const defaults = { 4: "mockingboard", 5: "smartport", 6: "disk2", 7: "thunderclock" };
+    const defaults = {
+      4: "mockingboard",
+      5: "smartport",
+      6: "disk2",
+      7: "thunderclock",
+    };
     return defaults[slot] || "empty";
   }
 
   updateUI() {
-    const warning = this.contentElement.querySelector("#slot-warning");
     const applyBtn = this.contentElement.querySelector("#slot-apply-btn");
+    if (!applyBtn) return;
 
     if (this.hasChanges) {
-      warning?.classList.remove("hidden");
-      if (applyBtn) applyBtn.disabled = false;
+      applyBtn.disabled = false;
+      applyBtn.textContent = "Apply & Reset";
+      applyBtn.classList.add("has-changes");
     } else {
-      warning?.classList.add("hidden");
-      if (applyBtn) applyBtn.disabled = true;
+      applyBtn.disabled = true;
+      applyBtn.textContent = "No Changes";
+      applyBtn.classList.remove("has-changes");
     }
   }
 

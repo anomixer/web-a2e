@@ -1181,26 +1181,6 @@
     border-top: 1px solid var(--control-border);
 }
 
-.slot-warning {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    padding: 8px 10px;
-    background: var(--accent-orange-bg);
-    border: 1px solid var(--accent-orange-border);
-    border-radius: var(--radius-sm);
-    font-size: 10px;
-    color: var(--accent-orange);
-}
-
-.slot-warning.hidden {
-    display: none;
-}
-
-.warning-icon {
-    font-size: 12px;
-}
-
 .slot-apply-btn {
     width: 100%;
     padding: 6px 12px;
@@ -1219,6 +1199,12 @@
     background: var(--accent-green-bg-strong);
     border-color: var(--accent-green-border);
     color: var(--accent-green);
+}
+
+.slot-apply-btn.has-changes {
+    background: var(--accent-orange-bg);
+    border-color: var(--accent-orange-border);
+    color: var(--accent-orange);
 }
 
 .slot-apply-btn:disabled {

@@ -98,6 +98,9 @@ export class DiskDrivesWindow extends BaseWindow {
     this.headerElement.insertBefore(this._detailBtn, closeBtn);
     this._detailBtn.addEventListener("mousedown", (e) => e.stopPropagation());
     this._detailBtn.addEventListener("click", () => this._toggleDetails());
+
+    // Set initial size from content so defaultHeight doesn't need to be kept in sync
+    this._fitToContent();
   }
 
   show() {
