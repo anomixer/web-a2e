@@ -277,17 +277,15 @@ async function handleTypeTextCommand(params) {
     throw new Error("Input handler not available");
   }
 
-  // Type text character by character
-  for (let i = 0; i < text.length; i++) {
-    const char = text.charCodeAt(i);
-    inputHandler.handleTextInput(char);
-    // Add small delay between characters
-    await new Promise(resolve => setTimeout(resolve, 50));
-  }
-
-  return {
-    success: true,
-    length: text.length,
-    message: `Typed ${text.length} characters`,
-  };
+  return new Promise((resolve) => {
+    inputHandler.queueTextInput(text, {
+      onComplete: () => {
+        resolve({
+          success: true,
+          length: text.length,
+          message: `Typed ${text.length} characters`,
+        });
+      },
+    });
+  });
 }
