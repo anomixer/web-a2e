@@ -16,7 +16,6 @@ export class JoystickWindow extends BaseWindow {
       defaultHeight: 380,
       minWidth: 240,
       minHeight: 380,
-      defaultPosition: { x: 100, y: 150 },
     });
     this.wasmModule = wasmModule;
     this.isDraggingKnob = false;

@@ -15,7 +15,7 @@ export class BaseWindow {
     this.maxHeight = config.maxHeight || Infinity;
     this.defaultWidth = config.defaultWidth || 400;
     this.defaultHeight = config.defaultHeight || 300;
-    this.defaultPosition = config.defaultPosition || { x: 100, y: 100 };
+    this.defaultPosition = config.defaultPosition || null;
     this.closable = config.closable !== false;
 
     // Customizable CSS class names (defaults to debug-window style)
@@ -55,8 +55,8 @@ export class BaseWindow {
     this.resizeDirection = null;
 
     // Track current position/size (needed because getBoundingClientRect returns zeros for hidden elements)
-    this.currentX = config.defaultPosition?.x || 100;
-    this.currentY = config.defaultPosition?.y || 100;
+    this.currentX = config.defaultPosition?.x ?? 0;
+    this.currentY = config.defaultPosition?.y ?? 0;
     this.currentWidth = config.defaultWidth || 400;
     this.currentHeight = config.defaultHeight || 300;
 
@@ -76,6 +76,21 @@ export class BaseWindow {
    * Create the window DOM structure
    */
   create() {
+    // Calculate centered position if no explicit default was provided
+    if (!this.defaultPosition) {
+      const header = document.querySelector("header");
+      const footer = document.querySelector("footer");
+      const minTop = header ? header.offsetHeight : 0;
+      const footerHeight = footer ? footer.offsetHeight : 0;
+      const availHeight = window.innerHeight - minTop - footerHeight;
+      this.defaultPosition = {
+        x: Math.max(0, Math.round((window.innerWidth - this.defaultWidth) / 2)),
+        y: Math.max(minTop, Math.round(minTop + (availHeight - this.defaultHeight) / 2)),
+      };
+      this.currentX = this.defaultPosition.x;
+      this.currentY = this.defaultPosition.y;
+    }
+
     // Create main window element
     this.element = document.createElement("div");
     this.element.id = this.id;

@@ -18,7 +18,6 @@ export class SoftSwitchWindow extends BaseWindow {
       maxHeight: Infinity,
       defaultWidth: 325,
       defaultHeight: 500,
-      defaultPosition: { x: window.innerWidth - 400, y: 100 },
     });
 
     this.wasmModule = wasmModule;

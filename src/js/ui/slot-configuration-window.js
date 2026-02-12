@@ -22,7 +22,6 @@ export class SlotConfigurationWindow extends BaseWindow {
       minHeight: maxHeight,
       defaultWidth: 450,
       defaultHeight: maxHeight,
-      defaultPosition: { x: 100, y: 100 },
       resizeDirections: [],
     });
 

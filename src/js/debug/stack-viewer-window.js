@@ -17,7 +17,6 @@ export class StackViewerWindow extends BaseWindow {
       minWidth: 280,
       minHeight: 250,
       maxWidth: 280,
-      defaultPosition: { x: 250, y: 250 },
     });
     this.wasmModule = wasmModule;
     this.previousSP = 0xff;

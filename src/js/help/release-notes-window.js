@@ -20,7 +20,6 @@ export class ReleaseNotesWindow extends BaseWindow {
       minHeight: 300,
       defaultWidth: 520,
       defaultHeight: 560,
-      defaultPosition: { x: Math.max(50, (window.innerWidth - 520) / 2), y: 80 }
     });
   }
 

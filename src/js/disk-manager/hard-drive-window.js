@@ -18,7 +18,6 @@ export class HardDriveWindow extends BaseWindow {
       maxHeight: 140,
       defaultWidth: 600,
       defaultHeight: 140,
-      defaultPosition: { x: 100, y: 500 },
       resizeDirections: [],
     });
   }

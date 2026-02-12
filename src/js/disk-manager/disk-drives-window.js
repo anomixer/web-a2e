@@ -17,7 +17,6 @@ export class DiskDrivesWindow extends BaseWindow {
       maxWidth: 600,
       defaultWidth: 600,
       defaultHeight: 310,
-      defaultPosition: { x: 100, y: 452 },
       resizeDirections: [],
     });
 

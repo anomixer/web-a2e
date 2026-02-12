@@ -65,7 +65,6 @@ export class MockingboardWindow extends BaseWindow {
       minHeight: 500,
       defaultWidth: 760,
       defaultHeight: 700,
-      defaultPosition: { x: window.innerWidth - 840, y: 100 },
     });
 
     this.wasmModule = wasmModule;

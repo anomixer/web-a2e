@@ -31,7 +31,6 @@ export class AssemblerEditorWindow extends BaseWindow {
       defaultHeight: 600,
       minWidth: 480,
       minHeight: 400,
-      defaultPosition: { x: 180, y: 60 },
     });
     this.wasmModule = wasmModule;
     this.bpManager = breakpointManager;

@@ -22,7 +22,6 @@ export class MemoryMapWindow extends BaseWindow {
       maxHeight: 405,
       defaultWidth: 260,
       defaultHeight: 405,
-      defaultPosition: { x: window.innerWidth - 360, y: 150 },
     });
 
     this.wasmModule = wasmModule;

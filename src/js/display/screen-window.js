@@ -16,7 +16,6 @@ export class ScreenWindow extends BaseWindow {
       minHeight: 244, // 210 min canvas + ~34px header
       defaultWidth: 480,
       defaultHeight: 394,
-      defaultPosition: { x: 100, y: 50 },
       closable: false,
     });
 

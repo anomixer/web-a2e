@@ -33,7 +33,6 @@ export class SaveStatesWindow extends BaseWindow {
       defaultHeight: 560,
       minWidth: 400,
       minHeight: 380,
-      defaultPosition: { x: 200, y: 150 },
     });
     this.stateManager = stateManager;
     this.uiController = uiController;

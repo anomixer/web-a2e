@@ -81,7 +81,6 @@ export class FileExplorerWindow extends BaseWindow {
       minHeight: 300,
       defaultWidth: 700,
       defaultHeight: 500,
-      defaultPosition: { x: 150, y: 100 },
       storageKey: "a2e-file-explorer",
     });
 

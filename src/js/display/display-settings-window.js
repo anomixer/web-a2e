@@ -19,7 +19,6 @@ export class DisplaySettingsWindow extends BaseWindow {
       minHeight: 300,
       defaultWidth: 300,
       defaultHeight: 500,
-      defaultPosition: { x: 20, y: 60 },
     });
 
     this.renderer = renderer;
