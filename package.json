@@ -13,6 +13,6 @@
     "deploy:staging": "rsync -avz --delete dist/ vps-mike:/home/mike/web-a2e-staging/data/"
   },
   "devDependencies": {
-    "vite": "^5.0.0"
+    "vite": "^7.3.1"
   }
 }
