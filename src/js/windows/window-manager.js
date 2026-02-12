@@ -66,6 +66,9 @@ export class WindowManager {
       window.element.classList.remove('focused');
       this.focusTopWindow();
       this.saveState();
+      if (typeof umami !== 'undefined') {
+        umami.track('window-close', { window: id });
+      }
     }
   }
 
@@ -78,9 +81,15 @@ export class WindowManager {
       window.toggle();
       if (window.isVisible) {
         this.bringToFront(id);
+        if (typeof umami !== 'undefined') {
+          umami.track('window-open', { window: id });
+        }
       } else {
         window.element.classList.remove('focused');
         this.focusTopWindow();
+        if (typeof umami !== 'undefined') {
+          umami.track('window-close', { window: id });
+        }
       }
       this.saveState();
     }
