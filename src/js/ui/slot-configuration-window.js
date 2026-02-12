@@ -127,10 +127,9 @@ export class SlotConfigurationWindow extends BaseWindow {
 
   create() {
     super.create();
-    this.loadSettings();
+    this.applyInitialSettings();
     this.initSlotAssignments();
     this.setupContentEventListeners();
-    this.applyInitialSettings();
     this.updateView();
   }
 

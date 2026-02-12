@@ -131,13 +131,15 @@ export class DiskDrivesWindow extends BaseWindow {
   _fitToContent() {
     if (!this.element) return;
     // Temporarily set auto height to measure natural size
-    const prevHeight = this.element.style.height;
     this.element.style.height = "auto";
     const newHeight = this.element.offsetHeight;
     this.element.style.height = `${newHeight}px`;
     this.currentHeight = newHeight;
     this.minHeight = newHeight;
     this.maxHeight = newHeight;
+    // Recalculate edge distances before constraining so the window
+    // isn't repositioned based on stale distances from a different height
+    this.updateEdgeDistances();
     this.constrainToViewport();
   }
 
