@@ -134,10 +134,15 @@ export class AgentManager {
       this.eventSource = null;
     }
 
+    // Detect current domain (where the emulator is running)
+    const domain = `${window.location.protocol}//${window.location.host}`;
+
     console.log(`[AgentManager] Connecting to ${this.serverUrl}/events`);
+    console.log(`[AgentManager] Emulator domain: ${domain}`);
 
     try {
-      this.eventSource = new EventSource(`${this.serverUrl}/events`);
+      // Send domain as query parameter so MCP server can fetch llms.txt
+      this.eventSource = new EventSource(`${this.serverUrl}/events?domain=${encodeURIComponent(domain)}`);
 
       this.eventSource.onopen = () => {
         console.log("[AgentManager] Connected to MCP server");

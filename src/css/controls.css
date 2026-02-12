@@ -89,17 +89,28 @@
     box-shadow: 0 0 20px rgba(253, 184, 39, 0.3);
 }
 
-/* Severed state - connection lost, reconnecting - subtle dark red border */
+/* Severed state - connection lost, reconnecting - spinning sparkles */
 .control-btn.agent-btn.severed {
     background: rgba(224, 58, 62, 0.08);
     color: var(--accent-red);
     border-color: rgba(224, 58, 62, 0.4);
+    cursor: pointer; /* Clickable - can cancel */
 }
 
 .control-btn.agent-btn.severed:hover {
     background: rgba(224, 58, 62, 0.15);
     color: var(--accent-red);
     border-color: rgba(224, 58, 62, 0.6);
+}
+
+/* Spin the sparkles icon during reconnection */
+.control-btn.agent-btn.severed svg {
+    animation: gentle-spin 2.5s linear infinite;
+}
+
+@keyframes gentle-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }
 
 /* Compact text-only header buttons (Ctrl+Reset, Reboot) */
