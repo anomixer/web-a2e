@@ -12,10 +12,10 @@ export class JoystickWindow extends BaseWindow {
     super({
       id: "joystick",
       title: "Joystick",
-      defaultWidth: 240,
-      defaultHeight: 340,
-      minWidth: 200,
-      minHeight: 340,
+      defaultWidth: 260,
+      defaultHeight: 380,
+      minWidth: 240,
+      minHeight: 380,
       defaultPosition: { x: 100, y: 150 },
     });
     this.wasmModule = wasmModule;
@@ -30,34 +30,59 @@ export class JoystickWindow extends BaseWindow {
   renderContent() {
     return `
       <div class="joystick-container">
-        <div class="joystick-area">
-          <div class="joystick-crosshair"></div>
-          <div class="joystick-knob"></div>
-        </div>
-        <div class="joystick-values">
-          <div class="joystick-value-row">
-            <span class="joystick-label">X:</span>
-            <span class="joystick-value joystick-x-value">128</span>
+        <div class="joystick-area-wrapper">
+          <span class="joystick-axis-label joystick-axis-l">L</span>
+          <span class="joystick-axis-label joystick-axis-r">R</span>
+          <span class="joystick-axis-label joystick-axis-u">U</span>
+          <span class="joystick-axis-label joystick-axis-d">D</span>
+          <div class="joystick-area">
+            <div class="joystick-ring joystick-ring-75"></div>
+            <div class="joystick-ring joystick-ring-50"></div>
+            <div class="joystick-ring joystick-ring-25"></div>
+            <div class="joystick-crosshair"></div>
+            <div class="joystick-home-dot"></div>
+            <div class="joystick-knob"><div class="joystick-knob-highlight"></div></div>
           </div>
-          <div class="joystick-value-row">
-            <span class="joystick-label">Y:</span>
-            <span class="joystick-value joystick-y-value">128</span>
+        </div>
+        <div class="joystick-gauges">
+          <div class="joystick-gauge-row">
+            <span class="joystick-gauge-label">PDL0</span>
+            <div class="joystick-gauge-track joystick-gauge-x-track">
+              <div class="joystick-gauge-fill joystick-gauge-x-fill"></div>
+            </div>
+            <span class="joystick-gauge-value joystick-x-value">128</span>
+          </div>
+          <div class="joystick-gauge-row">
+            <span class="joystick-gauge-label">PDL1</span>
+            <div class="joystick-gauge-track joystick-gauge-y-track">
+              <div class="joystick-gauge-fill joystick-gauge-y-fill"></div>
+            </div>
+            <span class="joystick-gauge-value joystick-y-value">128</span>
           </div>
         </div>
         <div class="joystick-buttons">
-          <button class="joystick-btn joystick-btn-0" data-button="0">Button 0</button>
-          <button class="joystick-btn joystick-btn-1" data-button="1">Button 1</button>
+          <button class="joystick-btn joystick-btn-0" data-button="0">
+            <span class="joystick-btn-led"></span>
+            <span class="joystick-btn-label">PB0</span>
+          </button>
+          <button class="joystick-btn joystick-btn-1" data-button="1">
+            <span class="joystick-btn-led"></span>
+            <span class="joystick-btn-label">PB1</span>
+          </button>
         </div>
         <div class="joystick-center-btn-container">
-          <button class="joystick-center-btn">Center</button>
+          <button class="joystick-center-btn" title="Center (reset to 128,128)">&#x2316;</button>
         </div>
         <div class="gamepad-section">
           <div class="gamepad-status-row">
             <label class="gamepad-toggle-label">
-              <input type="checkbox" class="gamepad-toggle" />
+              <div class="gamepad-toggle-switch">
+                <input type="checkbox" class="gamepad-toggle" />
+                <span class="gamepad-toggle-slider"></span>
+              </div>
               <span class="gamepad-toggle-text">Gamepad</span>
             </label>
-            <span class="gamepad-status">No controller</span>
+            <span class="gamepad-status"><span class="gamepad-status-dot"></span><span class="gamepad-status-text">No controller</span></span>
           </div>
           <div class="gamepad-deadzone-row">
             <span class="gamepad-deadzone-label">Deadzone</span>
@@ -74,13 +99,16 @@ export class JoystickWindow extends BaseWindow {
     this.knobElement = this.contentElement.querySelector(".joystick-knob");
     this.xValueSpan = this.contentElement.querySelector(".joystick-x-value");
     this.yValueSpan = this.contentElement.querySelector(".joystick-y-value");
+    this.xGaugeFill = this.contentElement.querySelector(".joystick-gauge-x-fill");
+    this.yGaugeFill = this.contentElement.querySelector(".joystick-gauge-y-fill");
     this.button0Element = this.contentElement.querySelector(".joystick-btn-0");
     this.button1Element = this.contentElement.querySelector(".joystick-btn-1");
     this.centerBtn = this.contentElement.querySelector(".joystick-center-btn");
 
     // Gamepad UI elements
     this.gamepadToggle = this.contentElement.querySelector(".gamepad-toggle");
-    this.gamepadStatus = this.contentElement.querySelector(".gamepad-status");
+    this.gamepadStatusText = this.contentElement.querySelector(".gamepad-status-text");
+    this.gamepadStatusDot = this.contentElement.querySelector(".gamepad-status-dot");
     this.gamepadDeadzoneSlider = this.contentElement.querySelector(".gamepad-deadzone-slider");
     this.gamepadDeadzoneValue = this.contentElement.querySelector(".gamepad-deadzone-value");
 
@@ -100,6 +128,7 @@ export class JoystickWindow extends BaseWindow {
     // Knob dragging
     this.knobElement.addEventListener("mousedown", (e) => {
       this.isDraggingKnob = true;
+      this.knobElement.classList.add("dragging");
       e.preventDefault();
       e.stopPropagation();
     });
@@ -108,9 +137,12 @@ export class JoystickWindow extends BaseWindow {
     this.joystickArea.addEventListener("mousedown", (e) => {
       if (
         e.target === this.joystickArea ||
-        e.target.classList.contains("joystick-crosshair")
+        e.target.classList.contains("joystick-crosshair") ||
+        e.target.classList.contains("joystick-ring") ||
+        e.target.classList.contains("joystick-home-dot")
       ) {
         this.isDraggingKnob = true;
+        this.knobElement.classList.add("dragging");
         this.updateKnobFromMouse(e);
         e.preventDefault();
       }
@@ -125,6 +157,7 @@ export class JoystickWindow extends BaseWindow {
     document.addEventListener("mouseup", () => {
       if (this.isDraggingKnob) {
         this.isDraggingKnob = false;
+        this.knobElement.classList.remove("dragging");
         // Snap back to center when released
         this.knobX = 0.5;
         this.knobY = 0.5;
@@ -185,18 +218,24 @@ export class JoystickWindow extends BaseWindow {
 
   updateKnobFromMouse(e) {
     const rect = this.joystickArea.getBoundingClientRect();
-    const knobRadius = 12; // Half of knob size
-    const padding = 4;
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+    const radius = Math.min(rect.width, rect.height) / 2;
 
-    // Calculate position within the area, accounting for knob radius
-    let x =
-      (e.clientX - rect.left - knobRadius) / (rect.width - knobRadius * 2);
-    let y =
-      (e.clientY - rect.top - knobRadius) / (rect.height - knobRadius * 2);
+    // Calculate offset from center
+    let dx = e.clientX - centerX;
+    let dy = e.clientY - centerY;
 
-    // Clamp to 0-1 range
-    this.knobX = Math.max(0, Math.min(1, x));
-    this.knobY = Math.max(0, Math.min(1, y));
+    // Clamp to circle
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > radius) {
+      dx = (dx / dist) * radius;
+      dy = (dy / dist) * radius;
+    }
+
+    // Convert to 0-1 range
+    this.knobX = Math.max(0, Math.min(1, 0.5 + dx / (radius * 2)));
+    this.knobY = Math.max(0, Math.min(1, 0.5 + dy / (radius * 2)));
 
     this.updateKnobPosition();
     this.updatePaddleValues();
@@ -206,17 +245,18 @@ export class JoystickWindow extends BaseWindow {
     if (!this.joystickArea || !this.knobElement) return;
 
     const rect = this.joystickArea.getBoundingClientRect();
-    const knobSize = 24;
+    const knobSize = 28;
+    const areaSize = Math.min(rect.width, rect.height);
+    const radius = areaSize / 2;
+    const offsetX = (rect.width - areaSize) / 2;
+    const offsetY = (rect.height - areaSize) / 2;
 
-    // Position knob within the area
-    const maxX = rect.width - knobSize;
-    const maxY = rect.height - knobSize;
+    // Convert 0-1 to position within the circular area
+    const cx = offsetX + radius + (this.knobX - 0.5) * areaSize;
+    const cy = offsetY + radius + (this.knobY - 0.5) * areaSize;
 
-    const left = this.knobX * maxX;
-    const top = this.knobY * maxY;
-
-    this.knobElement.style.left = `${left}px`;
-    this.knobElement.style.top = `${top}px`;
+    this.knobElement.style.left = `${cx - knobSize / 2}px`;
+    this.knobElement.style.top = `${cy - knobSize / 2}px`;
   }
 
   updatePaddleValues() {
@@ -227,6 +267,12 @@ export class JoystickWindow extends BaseWindow {
     // Update display
     if (this.xValueSpan) this.xValueSpan.textContent = paddleX.toString();
     if (this.yValueSpan) this.yValueSpan.textContent = paddleY.toString();
+
+    // Update gauge bars
+    const pctX = (paddleX / 255) * 100;
+    const pctY = (paddleY / 255) * 100;
+    if (this.xGaugeFill) this.xGaugeFill.style.width = `${pctX}%`;
+    if (this.yGaugeFill) this.yGaugeFill.style.width = `${pctY}%`;
 
     // Send to emulator
     if (this.wasmModule._setPaddleValue) {
@@ -274,11 +320,16 @@ export class JoystickWindow extends BaseWindow {
     this.knobY = normY;
     this.updateKnobPosition();
 
-    // Update value display only (paddle values set by GamepadHandler)
+    // Update value display and gauge bars (paddle values set by GamepadHandler)
     const paddleX = Math.round(normX * 255);
     const paddleY = Math.round(normY * 255);
     if (this.xValueSpan) this.xValueSpan.textContent = paddleX.toString();
     if (this.yValueSpan) this.yValueSpan.textContent = paddleY.toString();
+
+    const pctX = (paddleX / 255) * 100;
+    const pctY = (paddleY / 255) * 100;
+    if (this.xGaugeFill) this.xGaugeFill.style.width = `${pctX}%`;
+    if (this.yGaugeFill) this.yGaugeFill.style.width = `${pctY}%`;
   }
 
   /**
@@ -302,11 +353,13 @@ export class JoystickWindow extends BaseWindow {
    * @param {boolean} enabled - Whether gamepad input is enabled
    */
   updateGamepadStatus(name, enabled) {
-    if (this.gamepadStatus) {
-      this.gamepadStatus.textContent = name
+    if (this.gamepadStatusText) {
+      this.gamepadStatusText.textContent = name
         ? name.substring(0, 30)
         : "No controller";
-      this.gamepadStatus.classList.toggle("connected", !!name);
+    }
+    if (this.gamepadStatusDot) {
+      this.gamepadStatusDot.classList.toggle("connected", !!name);
     }
     if (this.gamepadToggle) {
       this.gamepadToggle.checked = enabled;

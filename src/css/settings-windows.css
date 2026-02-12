@@ -374,31 +374,85 @@
    Joystick Window
    ============================================ */
 
+/* ---- Joystick Window ---- */
 .joystick-container {
     display: flex;
     flex-direction: column;
     height: 100%;
     padding: 8px;
-    gap: 8px;
+    gap: 6px;
 }
 
-.joystick-area {
-    flex: 1;
-    background: rgba(22, 27, 34, 0.8);
-    border: 1px solid var(--glass-border);
-    border-radius: var(--radius-sm);
+/* Wrapper positions axis labels around the circular area */
+.joystick-area-wrapper {
     position: relative;
-    min-height: 120px;
-    cursor: crosshair;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 14px;
 }
 
+.joystick-axis-label {
+    position: absolute;
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    color: var(--text-muted);
+    opacity: 0.5;
+    pointer-events: none;
+    user-select: none;
+    letter-spacing: 0.02em;
+}
+
+.joystick-axis-l { left: 2px;  top: 50%; transform: translateY(-50%); }
+.joystick-axis-r { right: 2px; top: 50%; transform: translateY(-50%); }
+.joystick-axis-u { top: 0;     left: 50%; transform: translateX(-50%); }
+.joystick-axis-d { bottom: 0;  left: 50%; transform: translateX(-50%); }
+
+/* The circular joystick area - padding-bottom trick forces square aspect ratio */
+.joystick-area {
+    width: 100%;
+    max-width: 190px;
+    height: 0;
+    padding-bottom: min(100%, 190px);
+    background: radial-gradient(circle at center, var(--input-bg-deep) 0%, var(--control-bg) 70%, var(--control-bg-solid) 100%);
+    border: 1px solid var(--glass-border);
+    border-radius: 50%;
+    position: relative;
+    cursor: crosshair;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+/* Concentric range guide rings */
+.joystick-ring {
+    position: absolute;
+    border: 1px dashed var(--glass-border-subtle);
+    border-radius: 50%;
+    pointer-events: none;
+    box-sizing: border-box;
+}
+
+.joystick-ring-75 {
+    width: 75%; height: 75%;
+    top: 12.5%; left: 12.5%;
+}
+
+.joystick-ring-50 {
+    width: 50%; height: 50%;
+    top: 25%; left: 25%;
+}
+
+.joystick-ring-25 {
+    width: 25%; height: 25%;
+    top: 37.5%; left: 37.5%;
+}
+
+/* Dashed crosshair lines */
 .joystick-crosshair {
     position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 100%;
-    height: 100%;
-    transform: translate(-50%, -50%);
+    inset: 0;
     pointer-events: none;
 }
 
@@ -406,135 +460,242 @@
 .joystick-crosshair::after {
     content: "";
     position: absolute;
-    background: var(--separator-bg);
 }
 
 .joystick-crosshair::before {
-    /* Vertical line */
-    width: 1px;
+    width: 0;
     height: 100%;
     left: 50%;
     top: 0;
+    border-left: 1px dashed var(--separator-bg);
 }
 
 .joystick-crosshair::after {
-    /* Horizontal line */
     width: 100%;
-    height: 1px;
+    height: 0;
     top: 50%;
     left: 0;
+    border-top: 1px dashed var(--separator-bg);
 }
 
+/* Home position dot at center */
+.joystick-home-dot {
+    position: absolute;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    opacity: 0.35;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+/* 3D convex knob */
 .joystick-knob {
     position: absolute;
-    width: 24px;
-    height: 24px;
-    background: linear-gradient(135deg, var(--accent-blue), #4DC4F0);
+    width: 28px;
+    height: 28px;
+    background: linear-gradient(145deg, #6dd0f7 0%, var(--accent-blue) 60%, #0a7bb5 100%);
     border: 2px solid var(--accent-blue);
     border-radius: 50%;
     cursor: grab;
-    box-shadow: 0 2px 8px rgba(24, 171, 234, 0.4);
-    transition: transform 0.1s ease, box-shadow 0.1s ease;
+    box-shadow: 0 2px 8px var(--accent-blue-bg-strong), inset 0 1px 2px rgba(255,255,255,0.25);
+    transition: box-shadow 0.15s ease;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.joystick-knob-highlight {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 38% 32%, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0) 65%);
+    pointer-events: none;
 }
 
 .joystick-knob:hover {
-    transform: scale(1.1);
-    box-shadow: 0 2px 12px rgba(56, 139, 253, 0.6);
+    box-shadow: 0 2px 16px var(--accent-blue-bg-stronger), inset 0 1px 2px rgba(255,255,255,0.25);
 }
 
-.joystick-knob:active {
+.joystick-knob:active,
+.joystick-knob.dragging {
     cursor: grabbing;
-    transform: scale(1.05);
+    animation: joystick-knob-pulse 0.9s ease-in-out infinite;
 }
 
-.joystick-values {
-    display: flex;
-    justify-content: center;
-    gap: 16px;
-    padding: 4px 0;
+@keyframes joystick-knob-pulse {
+    0%, 100% { box-shadow: 0 0 0 4px var(--accent-blue-bg), 0 2px 14px var(--accent-blue-bg-stronger), inset 0 1px 2px rgba(255,255,255,0.25); }
+    50%      { box-shadow: 0 0 0 8px var(--accent-blue-bg), 0 2px 20px var(--accent-blue-bg-stronger), inset 0 1px 2px rgba(255,255,255,0.25); }
 }
 
-.joystick-value-row {
+/* Horizontal gauge bars */
+.joystick-gauges {
     display: flex;
+    flex-direction: column;
+    gap: 5px;
+    flex-shrink: 0;
+}
+
+.joystick-gauge-row {
+    display: flex;
+    flex-direction: row;
     align-items: center;
-    gap: 4px;
+    gap: 6px;
+    height: 16px;
 }
 
-.joystick-label {
+.joystick-gauge-label {
     font-family: var(--font-mono);
-    font-size: 0.75rem;
+    font-size: 0.65rem;
     color: var(--text-muted);
+    width: 32px;
+    flex: 0 0 32px;
+    text-align: left;
 }
 
-.joystick-value {
+.joystick-gauge-track {
+    flex: 1 1 0%;
+    min-width: 0;
+    height: 8px;
+    background: var(--input-bg-deeper);
+    border: 1px solid var(--glass-border-subtle);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+}
+
+.joystick-gauge-fill {
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    border-radius: 3px;
+    width: 50%;
+    transition: width 0.05s linear;
+}
+
+.joystick-gauge-x-fill {
+    background: linear-gradient(90deg, var(--accent-blue-bg-stronger) 0%, var(--accent-blue) 100%);
+}
+
+.joystick-gauge-y-fill {
+    background: linear-gradient(90deg, var(--accent-orange-bg-strong) 0%, var(--accent-orange) 100%);
+}
+
+.joystick-gauge-value {
     font-family: var(--font-mono);
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     color: var(--accent-green);
-    min-width: 24px;
+    width: 26px;
+    flex: 0 0 26px;
     text-align: right;
 }
 
+/* Arcade-style buttons with LED indicators */
 .joystick-buttons {
     display: flex;
     gap: 8px;
+    flex-shrink: 0;
 }
 
 .joystick-btn {
     flex: 1;
-    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 12px;
     font-family: var(--font-mono);
     font-size: 0.7rem;
     color: var(--text-primary);
-    background: rgba(33, 38, 45, 0.8);
+    background: var(--control-bg);
     border: 1px solid var(--glass-border);
+    border-bottom: 3px solid var(--glass-border);
     border-radius: var(--radius-sm);
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: all 0.1s ease;
     user-select: none;
 }
 
+.joystick-btn-led {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    opacity: 0.25;
+    flex-shrink: 0;
+    transition: all 0.1s ease;
+    box-shadow: inset 0 0 2px rgba(0,0,0,0.3);
+}
+
+.joystick-btn-label {
+    pointer-events: none;
+}
+
 .joystick-btn:hover {
-    background: rgba(48, 54, 61, 0.8);
-    border-color: rgba(56, 139, 253, 0.4);
+    background: var(--control-bg-hover);
+    border-color: var(--control-border-hover);
 }
 
 .joystick-btn.pressed,
 .joystick-btn:active {
-    background: rgba(56, 139, 253, 0.3);
-    border-color: var(--accent-blue);
-    color: var(--accent-blue);
+    background: var(--accent-green-bg);
+    border-color: var(--accent-green-border);
+    border-bottom-width: 1px;
+    transform: translateY(2px);
+    color: var(--accent-green);
 }
 
+.joystick-btn.pressed .joystick-btn-led,
+.joystick-btn:active .joystick-btn-led {
+    background: var(--accent-green);
+    opacity: 1;
+    box-shadow: 0 0 6px var(--accent-green-bg-stronger), 0 0 2px var(--accent-green);
+}
+
+/* Center / target icon button */
 .joystick-center-btn-container {
     display: flex;
     justify-content: center;
+    flex-shrink: 0;
 }
 
 .joystick-center-btn {
-    padding: 4px 16px;
-    font-family: var(--font-mono);
-    font-size: 0.65rem;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    font-size: 0.95rem;
+    line-height: 1;
     color: var(--text-muted);
     background: var(--glass-bg-header);
     border: 1px solid var(--control-border);
-    border-radius: var(--radius-sm);
+    border-radius: 50%;
     cursor: pointer;
     transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .joystick-center-btn:hover {
     color: var(--text-primary);
-    background: var(--glass-border);
-    border-color: rgba(48, 54, 61, 0.8);
+    background: var(--control-bg-hover);
+    border-color: var(--control-border-hover);
 }
 
-/* Gamepad controls in joystick window */
+/* Gamepad section */
 .gamepad-section {
     border-top: 1px solid var(--glass-border);
     padding-top: 8px;
     display: flex;
     flex-direction: column;
     gap: 6px;
+    flex-shrink: 0;
 }
 
 .gamepad-status-row {
@@ -547,14 +708,62 @@
 .gamepad-toggle-label {
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 8px;
     cursor: pointer;
     flex-shrink: 0;
 }
 
-.gamepad-toggle {
+/* Custom pill-shaped toggle switch */
+.gamepad-toggle-switch {
+    position: relative;
+    display: inline-block;
+    width: 34px;
+    height: 18px;
+    flex-shrink: 0;
+}
+
+.gamepad-toggle-switch > input.gamepad-toggle {
+    position: absolute;
+    width: 34px;
+    height: 18px;
     margin: 0;
+    padding: 0;
+    opacity: 0;
     cursor: pointer;
+    z-index: 1;
+}
+
+.gamepad-toggle-slider {
+    position: absolute;
+    inset: 0;
+    background: var(--control-bg-solid);
+    border: 1px solid var(--glass-border);
+    border-radius: 9px;
+    pointer-events: none;
+    transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.gamepad-toggle-slider::before {
+    content: "";
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    left: 2px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--text-muted);
+    border-radius: 50%;
+    transition: left 0.2s ease, background 0.2s ease;
+}
+
+.gamepad-toggle:checked ~ .gamepad-toggle-slider {
+    background: var(--accent-green-bg-strong);
+    border-color: var(--accent-green-border);
+}
+
+.gamepad-toggle:checked ~ .gamepad-toggle-slider::before {
+    left: 18px;
+    background: var(--accent-green);
 }
 
 .gamepad-toggle-text {
@@ -563,17 +772,39 @@
     color: var(--text-primary);
 }
 
+/* Gamepad status with dot indicator */
 .gamepad-status {
+    display: flex;
+    align-items: center;
+    gap: 4px;
     font-family: var(--font-mono);
     font-size: 0.65rem;
     color: var(--text-muted);
     overflow: hidden;
-    text-overflow: ellipsis;
     white-space: nowrap;
+    min-width: 0;
 }
 
-.gamepad-status.connected {
-    color: var(--accent-green);
+.gamepad-status-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    opacity: 0.25;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+}
+
+.gamepad-status-dot.connected {
+    background: var(--accent-green);
+    opacity: 1;
+    box-shadow: 0 0 4px var(--accent-green-bg-stronger);
+}
+
+.gamepad-status-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .gamepad-deadzone-row {
