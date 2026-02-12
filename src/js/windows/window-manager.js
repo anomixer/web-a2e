@@ -50,6 +50,9 @@ export class WindowManager {
       window.show();
       this.bringToFront(id);
       this.saveState();
+      if (typeof umami !== 'undefined') {
+        umami.track('window-open', { window: id });
+      }
     }
   }
 
