@@ -147,7 +147,7 @@ float staticNoise(vec2 uv, float time) {
     if (u_staticNoise < 0.001) return 0.0;
 
     // Blocky TV static - sized for authentic CRT look
-    vec2 blockSize = vec2(2.0, 2.0);
+    vec2 blockSize = vec2(1.0, 1.0);
     vec2 pixelCoord = floor(uv * u_textureSize / blockSize);
 
     // Animate the noise - change every frame
