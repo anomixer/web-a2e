@@ -1,7 +1,0 @@
-klaus_65c02_extended_test 9 0.0946707
-klaus_6502_functional_test 9 0.18774
-thunderclock_card_test 4 0
-thunderclock_mmu_integration_test 4 0
----
-thunderclock_card_test
-thunderclock_mmu_integration_test

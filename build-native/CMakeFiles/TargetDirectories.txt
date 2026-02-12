@@ -1,8 +1,0 @@
-/Users/michaeldaley/Source/web-a2e/build-native/CMakeFiles/klaus_65c02_test.dir
-/Users/michaeldaley/Source/web-a2e/build-native/CMakeFiles/klaus_6502_test.dir
-/Users/michaeldaley/Source/web-a2e/build-native/CMakeFiles/generate_roms_native.dir
-/Users/michaeldaley/Source/web-a2e/build-native/CMakeFiles/thunderclock_test.dir
-/Users/michaeldaley/Source/web-a2e/build-native/CMakeFiles/thunderclock_mmu_test.dir
-/Users/michaeldaley/Source/web-a2e/build-native/CMakeFiles/test.dir
-/Users/michaeldaley/Source/web-a2e/build-native/CMakeFiles/edit_cache.dir
-/Users/michaeldaley/Source/web-a2e/build-native/CMakeFiles/rebuild_cache.dir
