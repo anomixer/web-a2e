@@ -49,7 +49,6 @@ export class MemoryBrowserWindow extends BaseWindow {
       minWidth: 600,
       minHeight: 300,
       maxWidth: 600,
-      defaultPosition: { x: 150, y: 150 },
     });
     this.wasmModule = wasmModule;
     this.baseAddress = 0x0000;

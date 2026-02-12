@@ -50,6 +50,9 @@ export class WindowManager {
       window.show();
       this.bringToFront(id);
       this.saveState();
+      if (typeof umami !== 'undefined') {
+        umami.track(`window-open-${id}`);
+      }
     }
   }
 
@@ -63,6 +66,9 @@ export class WindowManager {
       window.element.classList.remove('focused');
       this.focusTopWindow();
       this.saveState();
+      if (typeof umami !== 'undefined') {
+        umami.track(`window-close-${id}`);
+      }
     }
   }
 
@@ -75,9 +81,15 @@ export class WindowManager {
       window.toggle();
       if (window.isVisible) {
         this.bringToFront(id);
+        if (typeof umami !== 'undefined') {
+          umami.track(`window-open-${id}`);
+        }
       } else {
         window.element.classList.remove('focused');
         this.focusTopWindow();
+        if (typeof umami !== 'undefined') {
+          umami.track(`window-close-${id}`);
+        }
       }
       this.saveState();
     }

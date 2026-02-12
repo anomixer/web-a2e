@@ -16,7 +16,6 @@ export class RuleBuilderWindow extends BaseWindow {
       minHeight: 300,
       defaultWidth: 540,
       defaultHeight: 440,
-      defaultPosition: { x: 200, y: 120 },
     });
 
     this.rules = null; // Root group node

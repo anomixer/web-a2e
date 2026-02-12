@@ -22,7 +22,6 @@ export class CPUDebuggerWindow extends BaseWindow {
       minHeight: 400,
       defaultWidth: 500,
       defaultHeight: 660,
-      defaultPosition: { x: window.innerWidth - 480, y: 60 },
     });
 
     this.wasmModule = wasmModule;

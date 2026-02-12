@@ -51,7 +51,6 @@ export class MemoryHeatMapWindow extends BaseWindow {
       maxWidth: 580,
       maxHeight: 435,
 
-      defaultPosition: { x: 200, y: 200 },
     });
     this.wasmModule = wasmModule;
     this.isTracking = false;

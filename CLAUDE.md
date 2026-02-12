@@ -256,3 +256,99 @@ Built-in debug windows accessible via Debug menu:
 | F10              | Step Over                |
 | F11              | Step Into                |
 | Shift+F11        | Step Out                 |
+
+## Agent / MCP Integration
+
+The emulator exposes an AI agent interface via the Model Context Protocol (MCP) and AG-UI event protocol. This allows AI agents (including Claude Code) to fully control the emulator programmatically.
+
+### Architecture
+
+Two coordinated components:
+
+- **MCP Server** (`mcp/appleii-agent/`) — Node.js process providing MCP tools over stdio + an HTTP/HTTPS server (port 3033) implementing the AG-UI event protocol (SSE)
+- **Frontend Agent Manager** (`src/js/agent/agent-manager.js`) — Browser-side AG-UI client that connects to the server, receives tool calls via SSE, executes them against the emulator, and returns results
+
+### Configuration
+
+- `.mcp.json` (repo root) — MCP client config pointing to `@retrotech71/appleii-agent`
+- Environment variables: `PORT` (default 3033), `HTTPS=true` for TLS mode
+
+### MCP Server Tools (`mcp/appleii-agent/src/tools/`)
+
+| Tool | Description |
+| ---- | ----------- |
+| `emma_command` | Generic command wrapper — delegates to any frontend tool |
+| `server_control` | Start/stop/restart the agent server |
+| `set_https` | Enable/disable HTTPS mode |
+| `set_debug` | Set debug logging level |
+| `get_state` | Return current emulator state |
+| `show_window` / `hide_window` / `focus_window` | Window management |
+| `load_disk_image` | Load disk image (.dsk/.do/.po/.nib/.woz) from filesystem, returns base64 |
+| `load_file` | Load arbitrary file from filesystem |
+| `save_basic_file` | Save BASIC program to disk |
+| `save_asm_file` | Save assembler source to disk |
+| `save_disk_file` | Save extracted disk file to filesystem |
+| `load_smartport_image` | Load hard drive image (.hdv/.po/.2mg) from filesystem |
+
+### Frontend Agent Tools (`src/js/agent/`)
+
+Registered in `agent-tools.js`, organized by category:
+
+**Emulator Control** (`main-tools.js`)
+- `emulatorPower` — on/off/toggle
+- `emulatorCtrlReset` — warm reset (Ctrl+Reset)
+- `emulatorReboot` — cold reset
+- `directLoadBinaryAt` — load base64 data to memory address
+- `directSaveBinaryRangeTo` — read memory range as base64
+
+**BASIC Program** (`basic-program-tools.js`)
+- `directReadBasic` / `directWriteBasic` / `directRunBasic` / `directNewBasic` — direct memory operations
+- `basicProgramLoadFromMemory` / `basicProgramLoadIntoEmulator` — transfer between editor and emulator
+- `basicProgramRun` / `basicProgramPause` / `basicProgramNew` / `basicProgramRenumber` / `basicProgramFormat`
+- `basicProgramGet` / `basicProgramSet` / `basicProgramLineCount`
+- `saveBasicInEditorToLocal` — export from editor
+
+**Assembler** (`assembler-tools.js`)
+- `asmAssemble` — compile source code
+- `asmWrite` — load assembled code into memory
+- `asmLoadExample` — load template program
+- `asmNew` / `asmGet` / `asmSet` — editor operations
+- `asmGetStatus` — compilation status (origin, size, errors)
+- `directExecuteAssemblyAt` — execute at address with optional return address
+
+**Disk Drives** (`disk-tools.js`)
+- `driveInsertDisc` — load disk image (calls MCP `load_disk_image`)
+- `driveRecentsList` / `driveInsertRecent` / `driveLoadRecent` / `drivesClearRecent` — recent disk management
+
+**SmartPort Hard Drives** (`smartport-tools.js`)
+- `smartportInsertImage` — load hard drive image (calls MCP `load_smartport_image`)
+- `smartportRecentsList` / `smartportInsertRecent` / `smartportClearRecent` — recent image management
+- Validates SmartPort card is installed before operations
+
+**File Explorer** (`file-explorer-tools.js`)
+- `listDiskFiles` — enumerate DOS 3.3/ProDOS catalog (returns filename, type, size, locked status)
+- `getDiskFileContent` — read file from disk (base64 for binary, plaintext for text)
+
+**Window Management** (`window-tools.js`)
+- `showWindow` / `hideWindow` / `focusWindow`
+
+**Expansion Slots** (`slot-tools.js`)
+- `slotsListAll` — list all slots with current cards and available options
+- `slotsInstallCard` / `slotsRemoveCard` / `slotsMoveCard` — card management
+- Persists to localStorage, triggers emulator reset after changes
+
+### WASM APIs Used by Agent Tools
+
+The frontend tools hook into these WASM exports (changes to these require updating agent tools):
+
+- **CPU/Execution**: `_isPaused()`, `_setPaused(bool)`, `_getPC()`, `_setRegPC()`, `_getA/X/Y/SP()`, `_setRegA/X/Y/SP()`, `_getTotalCycles()`, `_reset()`, `_warmReset()`
+- **Memory**: `_readMemory(addr)`, `_writeMemory(addr, val)`, `_peekMemory(addr)`, `_malloc()`, `_free()`
+- **Disk**: `_isDiskInserted(drive)`, `_getDiskSectorData()`, `_isDOS33Format()`, `_isProDOSFormat()`, `_getDOS33Catalog()`, `_getProDOSCatalog()`, `_readDOS33File()`, `_readProDOSFile()`, `_getDOS33FileBuffer()`, `_getProDOSFileBuffer()`
+- **Slots**: `_getSlotCard(slot)`, `_setSlotCard(slot, cardId)`, `_isSmartPortCardInstalled()`
+- **Strings**: `stringToUTF8()`, `UTF8ToString()`
+
+### Data Flow
+
+1. Agent calls MCP tool (e.g., `load_disk_image`) → MCP server reads file from filesystem → returns base64
+2. Agent calls frontend tool (e.g., `driveInsertDisc`) via `emma_command` → AG-UI SSE delivers tool call to browser
+3. Frontend decodes data, calls disk manager / WASM APIs → emulator state updates → result returned via `/tool-result` POST

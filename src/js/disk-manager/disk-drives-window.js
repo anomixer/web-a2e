@@ -17,7 +17,6 @@ export class DiskDrivesWindow extends BaseWindow {
       maxWidth: 600,
       defaultWidth: 600,
       defaultHeight: 310,
-      defaultPosition: { x: 100, y: 452 },
       resizeDirections: [],
     });
 
@@ -98,6 +97,9 @@ export class DiskDrivesWindow extends BaseWindow {
     this.headerElement.insertBefore(this._detailBtn, closeBtn);
     this._detailBtn.addEventListener("mousedown", (e) => e.stopPropagation());
     this._detailBtn.addEventListener("click", () => this._toggleDetails());
+
+    // Set initial size from content so defaultHeight doesn't need to be kept in sync
+    this._fitToContent();
   }
 
   show() {
@@ -128,13 +130,15 @@ export class DiskDrivesWindow extends BaseWindow {
   _fitToContent() {
     if (!this.element) return;
     // Temporarily set auto height to measure natural size
-    const prevHeight = this.element.style.height;
     this.element.style.height = "auto";
     const newHeight = this.element.offsetHeight;
     this.element.style.height = `${newHeight}px`;
     this.currentHeight = newHeight;
     this.minHeight = newHeight;
     this.maxHeight = newHeight;
+    // Recalculate edge distances before constraining so the window
+    // isn't repositioned based on stale distances from a different height
+    this.updateEdgeDistances();
     this.constrainToViewport();
   }
 

@@ -65,7 +65,6 @@ export class TracePanelWindow extends BaseWindow {
       minHeight: 300,
       defaultWidth: 680,
       defaultHeight: 400,
-      defaultPosition: { x: 60, y: window.innerHeight - 460 },
     });
 
     this.wasmModule = wasmModule;

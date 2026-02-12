@@ -47,7 +47,6 @@ export class BasicProgramWindow extends BaseWindow {
       defaultHeight: 500,
       minWidth: 450,
       minHeight: 400,
-      defaultPosition: { x: 150, y: 100 },
     });
     this.wasmModule = wasmModule;
     this.inputHandler = inputHandler;

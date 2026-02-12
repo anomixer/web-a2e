@@ -1,0 +1,9 @@
+services:
+  a2e-staging:
+    image: nginx:alpine
+    container_name: a2e-staging
+    ports:
+      - "8080:80"
+    volumes:
+      - ./web-a2e-staging/data:/usr/share/nginx/html:ro
+    restart: unless-stopped

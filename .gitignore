@@ -1,6 +1,8 @@
 # Build outputs
 build/
+build-native/
 dist/
+Testing/
 public/a2e.js
 public/a2e.wasm
 

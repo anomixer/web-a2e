@@ -15,7 +15,7 @@ export class BaseWindow {
     this.maxHeight = config.maxHeight || Infinity;
     this.defaultWidth = config.defaultWidth || 400;
     this.defaultHeight = config.defaultHeight || 300;
-    this.defaultPosition = config.defaultPosition || { x: 100, y: 100 };
+    this.defaultPosition = config.defaultPosition || null;
     this.closable = config.closable !== false;
 
     // Customizable CSS class names (defaults to debug-window style)
@@ -55,8 +55,8 @@ export class BaseWindow {
     this.resizeDirection = null;
 
     // Track current position/size (needed because getBoundingClientRect returns zeros for hidden elements)
-    this.currentX = config.defaultPosition?.x || 100;
-    this.currentY = config.defaultPosition?.y || 100;
+    this.currentX = config.defaultPosition?.x ?? 0;
+    this.currentY = config.defaultPosition?.y ?? 0;
     this.currentWidth = config.defaultWidth || 400;
     this.currentHeight = config.defaultHeight || 300;
 
@@ -76,6 +76,21 @@ export class BaseWindow {
    * Create the window DOM structure
    */
   create() {
+    // Calculate centered position if no explicit default was provided
+    if (!this.defaultPosition) {
+      const header = document.querySelector("header");
+      const footer = document.querySelector("footer");
+      const minTop = header ? header.offsetHeight : 0;
+      const footerHeight = footer ? footer.offsetHeight : 0;
+      const availHeight = window.innerHeight - minTop - footerHeight;
+      this.defaultPosition = {
+        x: Math.max(0, Math.round((window.innerWidth - this.defaultWidth) / 2)),
+        y: Math.max(minTop, Math.round(minTop + (availHeight - this.defaultHeight) / 2)),
+      };
+      this.currentX = this.defaultPosition.x;
+      this.currentY = this.defaultPosition.y;
+    }
+
     // Create main window element
     this.element = document.createElement("div");
     this.element.id = this.id;
@@ -404,17 +419,28 @@ export class BaseWindow {
   }
 
   /**
+   * Whether this window supports resizing
+   */
+  get isResizable() {
+    return this.resizeDirections.length > 0;
+  }
+
+  /**
    * Get window state for persistence
    */
   getState() {
     // Use tracked values instead of getBoundingClientRect which returns zeros for hidden elements
-    return {
+    const state = {
       x: this.currentX,
       y: this.currentY,
-      width: this.currentWidth,
-      height: this.currentHeight,
       visible: this.isVisible,
     };
+    // Only persist size for resizable windows; fixed-size windows always use their defaults
+    if (this.isResizable) {
+      state.width = this.currentWidth;
+      state.height = this.currentHeight;
+    }
+    return state;
   }
 
   /**
@@ -429,16 +455,18 @@ export class BaseWindow {
       this.element.style.top = `${state.y}px`;
       this.currentY = state.y;
     }
-    // Enforce min/max dimensions when restoring
-    if (state.width !== undefined) {
-      const width = Math.min(this.maxWidth, Math.max(state.width, this.minWidth));
-      this.element.style.width = `${width}px`;
-      this.currentWidth = width;
-    }
-    if (state.height !== undefined) {
-      const height = Math.min(this.maxHeight, Math.max(state.height, this.minHeight));
-      this.element.style.height = `${height}px`;
-      this.currentHeight = height;
+    // Only restore size for resizable windows; fixed-size windows keep their defaults
+    if (this.isResizable) {
+      if (state.width !== undefined) {
+        const width = Math.min(this.maxWidth, Math.max(state.width, this.minWidth));
+        this.element.style.width = `${width}px`;
+        this.currentWidth = width;
+      }
+      if (state.height !== undefined) {
+        const height = Math.min(this.maxHeight, Math.max(state.height, this.minHeight));
+        this.element.style.height = `${height}px`;
+        this.currentHeight = height;
+      }
     }
 
     // Ensure window is within current viewport bounds
@@ -570,16 +598,16 @@ export class BaseWindow {
   saveSettings() {
     if (!this.storageKey) return;
     try {
-      localStorage.setItem(
-        this.storageKey,
-        JSON.stringify({
-          x: this.currentX,
-          y: this.currentY,
-          width: this.currentWidth,
-          height: this.currentHeight,
-          visible: this.isVisible,
-        }),
-      );
+      const settings = {
+        x: this.currentX,
+        y: this.currentY,
+        visible: this.isVisible,
+      };
+      if (this.isResizable) {
+        settings.width = this.currentWidth;
+        settings.height = this.currentHeight;
+      }
+      localStorage.setItem(this.storageKey, JSON.stringify(settings));
     } catch (e) {
       console.warn(`Failed to save ${this.storageKey} settings:`, e.message);
     }
@@ -596,15 +624,19 @@ export class BaseWindow {
         const state = JSON.parse(saved);
         if (state.x !== undefined) this.currentX = state.x;
         if (state.y !== undefined) this.currentY = state.y;
-        if (state.width !== undefined)
-          this.currentWidth = Math.min(this.maxWidth, Math.max(state.width, this.minWidth));
-        if (state.height !== undefined)
-          this.currentHeight = Math.min(this.maxHeight, Math.max(state.height, this.minHeight));
 
         this.element.style.left = `${this.currentX}px`;
         this.element.style.top = `${this.currentY}px`;
-        this.element.style.width = `${this.currentWidth}px`;
-        this.element.style.height = `${this.currentHeight}px`;
+
+        // Only restore size for resizable windows; fixed-size windows keep their defaults
+        if (this.isResizable) {
+          if (state.width !== undefined)
+            this.currentWidth = Math.min(this.maxWidth, Math.max(state.width, this.minWidth));
+          if (state.height !== undefined)
+            this.currentHeight = Math.min(this.maxHeight, Math.max(state.height, this.minHeight));
+          this.element.style.width = `${this.currentWidth}px`;
+          this.element.style.height = `${this.currentHeight}px`;
+        }
       }
     } catch (e) {
       console.warn(`Failed to load ${this.storageKey} settings:`, e.message);

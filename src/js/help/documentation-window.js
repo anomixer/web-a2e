@@ -21,7 +21,6 @@ export class DocumentationWindow extends BaseWindow {
       minHeight: 400,
       defaultWidth: 750,
       defaultHeight: 550,
-      defaultPosition: { x: 80, y: 40 },
     });
 
     this.navButtons = null;

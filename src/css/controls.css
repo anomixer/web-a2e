@@ -181,6 +181,32 @@
     transform: rotate(180deg);
 }
 
+/* Update available badge on Help button */
+.header-menu-trigger {
+    position: relative;
+}
+
+.update-badge {
+    display: none;
+}
+
+.header-menu-trigger.update-available .update-badge {
+    display: block;
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 8px;
+    height: 8px;
+    background: var(--accent-orange);
+    border-radius: 50%;
+    animation: badge-pulse 2s ease-in-out infinite;
+}
+
+@keyframes badge-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
 /* Dropdown panel */
 .header-menu {
     position: absolute;

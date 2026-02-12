@@ -18,7 +18,6 @@ export class MouseCardWindow extends BaseWindow {
       maxHeight: 480,
       defaultWidth: 340,
       defaultHeight: 480,
-      defaultPosition: { x: window.innerWidth - 420, y: 100 },
     });
 
     this.wasmModule = wasmModule;

@@ -67,7 +67,6 @@ export class ZeroPageWatchWindow extends BaseWindow {
       minWidth: 400,
       minHeight: 300,
       maxWidth: 400,
-      defaultPosition: { x: 300, y: 300 },
     });
     this.wasmModule = wasmModule;
     this.customWatches = this.loadCustomWatches();
