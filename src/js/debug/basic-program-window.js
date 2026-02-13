@@ -1878,16 +1878,16 @@ export class BasicProgramWindow extends BaseWindow {
       this.renderVariables();
     }
 
-    // Refresh variables at 10fps while auto-refresh is active
+    // Refresh variables at 30fps while auto-refresh is active
     if (this._varAutoRefresh) {
-      if (!this._lastVarUpdateTime || now - this._lastVarUpdateTime >= 100) {
+      if (!this._lastVarUpdateTime || now - this._lastVarUpdateTime >= 33) {
         this._lastVarUpdateTime = now;
         this.renderVariables();
       }
     }
 
-    // Throttle other updates to 10fps (100ms) to reduce CPU load
-    if (this._lastUpdateTime && now - this._lastUpdateTime < 100) {
+    // Throttle other updates to 30fps (33ms) to reduce CPU load
+    if (this._lastUpdateTime && now - this._lastUpdateTime < 33) {
       return;
     }
     this._lastUpdateTime = now;
