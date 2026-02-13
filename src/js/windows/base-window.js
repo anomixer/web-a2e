@@ -17,6 +17,7 @@ export class BaseWindow {
     this.defaultHeight = config.defaultHeight || 300;
     this.defaultPosition = config.defaultPosition || null;
     this.closable = config.closable !== false;
+    this.focusCanvas = config.focusCanvas || false;
 
     // Customizable CSS class names (defaults to debug-window style)
     this.cssClasses = {
@@ -162,10 +163,42 @@ export class BaseWindow {
         });
       });
 
-    // Bring to front on click
-    this.element.addEventListener("mousedown", () => {
+    // Bring to front on click — if the window isn't focused, consume the
+    // first click so it only brings the window to front without interacting
+    // with content like text areas. Buttons and interactive controls are
+    // allowed through so they respond on the first click.
+    this._consumeNextClick = false;
+    this.element.addEventListener("mousedown", (e) => {
+      const wasFocused = this.element.classList.contains("focused");
       if (this.onFocus) this.onFocus(this.id);
-    });
+      if (this.focusCanvas && !this.headerElement.contains(e.target)) {
+        // Focus the emulator canvas so keystrokes go to the emulator.
+        // Blur first to release any focused element (e.g. BASIC textarea),
+        // then focus the canvas on next frame after browser focus handling.
+        if (document.activeElement && document.activeElement !== document.body) {
+          document.activeElement.blur();
+        }
+        e.preventDefault();
+        const canvas = document.getElementById("screen");
+        if (canvas) setTimeout(() => canvas.focus(), 0);
+        return;
+      }
+      if (!wasFocused && !this.headerElement.contains(e.target)) {
+        const clickable = e.target.closest("button, input, select, label, a, .toggle-switch");
+        if (!clickable) {
+          this._consumeNextClick = true;
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }
+    }, true);
+    this.element.addEventListener("click", (e) => {
+      if (this._consumeNextClick) {
+        this._consumeNextClick = false;
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }, true);
 
     // Global mouse events for drag/resize
     document.addEventListener("mousemove", this.handleMouseMove);
@@ -434,6 +467,7 @@ export class BaseWindow {
       x: this.currentX,
       y: this.currentY,
       visible: this.isVisible,
+      zIndex: this.zIndex,
     };
     // Only persist size for resizable windows; fixed-size windows always use their defaults
     if (this.isResizable) {

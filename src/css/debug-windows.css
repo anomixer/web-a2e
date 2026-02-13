@@ -3207,6 +3207,12 @@
     border-bottom: 2px solid var(--accent-red);
 }
 
+/* Hover highlight for statement breakpoint targeting */
+.basic-highlight .basic-statement.basic-statement-hover {
+    background: var(--accent-blue-bg);
+    border-radius: 2px;
+}
+
 /* Runtime error line highlight */
 .basic-highlight .basic-error-line {
     background: var(--accent-red-bg) !important;

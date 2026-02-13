@@ -11,6 +11,90 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "February 14, 2026",
+    features: [
+      {
+        title: "BASIC Stop button",
+        description:
+          "New Stop button in the BASIC debugger toolbar sends Ctrl+C to the emulator to break a running program. Also unpauses the emulator if paused so the keystroke is processed.",
+      },
+      {
+        title: "Game controller support",
+        description:
+          "Physical game controllers are now detected and functional via the Gamepad API. The left stick maps to paddle values and buttons A/B map to Apple II buttons 0/1, with configurable deadzone.",
+      },
+    ],
+    fixes: [
+      {
+        title: "Save states light theme",
+        description:
+          "Fixed the Save States window rendering with hardcoded dark colours. All values now use CSS theme variables for correct light and dark theme appearance.",
+      },
+      {
+        title: "Window focus click-through",
+        description:
+          "Buttons and interactive controls in unfocused windows now respond on the first click instead of requiring a second click after focusing the window.",
+      },
+      {
+        title: "Screen window keyboard focus",
+        description:
+          "Clicking the emulator screen window now immediately gives the canvas keyboard focus, so keystrokes reach the emulator without needing a second click.",
+      },
+      {
+        title: "BASIC tokenizer empty lines",
+        description:
+          "Lines with only a line number and no code are now skipped when writing a BASIC program to memory, preventing unintended line deletions.",
+      },
+    ],
+  },
+  {
+    week: "February 13, 2026",
+    features: [
+      {
+        title: "BASIC line heat map",
+        description:
+          "New Heat toggle in the BASIC editor toolbar shows a colour-coded gutter (blue to red) indicating how frequently each line executes. Driven by cycle-accurate C++ tracking at every BASIC statement, with smooth decay so lines fade when no longer active.",
+      },
+      {
+        title: "BASIC trace toggle",
+        description:
+          "New Trace toggle lets you disable current-line highlighting while a BASIC program runs, reducing visual noise for long-running programs.",
+      },
+      {
+        title: "BASIC editor improvements",
+        description:
+          "Statement hover highlighting, live current-line tracking while running, tokenizer fixes, and 30fps refresh rate for smoother updates.",
+      },
+      {
+        title: "Window z-index persistence",
+        description:
+          "Window stacking order is now saved and restored between sessions, so your window layout is exactly as you left it.",
+      },
+      {
+        title: "Click-to-focus windows",
+        description:
+          "Clicking an unfocused window now only brings it to front — buttons and inputs don't activate until the window has focus.",
+      },
+      {
+        title: "Window switcher completeness",
+        description:
+          "The window switcher (Ctrl+`) now includes all windows: Hard Drives, File Explorer, and Trace Panel were missing.",
+      },
+    ],
+    fixes: [
+      {
+        title: "Disk drives window sizing",
+        description:
+          "Fixed disk drives window being too small for new users with no saved state.",
+      },
+      {
+        title: "Agent connection",
+        description:
+          "Fixed app connection to the MCP agent server.",
+      },
+    ],
+  },
+  {
     week: "February 12, 2026",
     features: [
       {

@@ -424,6 +424,7 @@ export class SoftSwitchWindow extends BaseWindow {
           : "▼ I/O Reference";
       });
     }
+
   }
 
   /**

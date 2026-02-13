@@ -65,6 +65,11 @@ export class BasicProgramWindow extends BaseWindow {
     this.expandedArrays = new Set(); // Track which arrays are expanded
     this._varAutoRefresh = false; // Auto-refresh variables while program is running
 
+    // Heat map state
+    this.lineHeatMap = new Map(); // BASIC line number -> heat value (0.0–1.0)
+    this.heatMapEnabled = false;
+    this.traceEnabled = true; // Highlight current line while running
+
     // Runtime error state
     this.errorLineNumber = null;
     this.errorStatementInfo = null;
@@ -91,9 +96,23 @@ export class BasicProgramWindow extends BaseWindow {
           <button class="basic-dbg-btn basic-dbg-pause" title="Pause at next BASIC line">
             <span class="basic-dbg-icon">❚❚</span> Pause
           </button>
+          <button class="basic-dbg-btn basic-dbg-stop" title="Stop program (Ctrl+C)">
+            <span class="basic-dbg-icon">■</span> Stop
+          </button>
           <button class="basic-dbg-btn basic-dbg-step-line" title="Step to next BASIC statement">
             <span class="basic-dbg-icon">↓</span> Step
           </button>
+          <div style="width:1px;height:16px;background:var(--separator-bg);margin:0 2px;flex-shrink:0;"></div>
+          <label class="toggle-label basic-heat-toggle" title="Highlight current line while running">
+            <input type="checkbox" class="basic-trace-checkbox" checked>
+            <span class="toggle-switch"></span>
+            <span style="font-size:10px">Trace</span>
+          </label>
+          <label class="toggle-label basic-heat-toggle" title="Show line execution heat map">
+            <input type="checkbox" class="basic-heat-checkbox">
+            <span class="toggle-switch"></span>
+            <span style="font-size:10px">Heat</span>
+          </label>
           <div style="width:1px;height:16px;background:var(--separator-bg);margin:0 2px;flex-shrink:0;"></div>
           <button class="basic-dbg-btn basic-load-btn" title="Read program from memory">Read</button>
           <button class="basic-dbg-btn basic-insert-btn" title="Write program into memory">Write</button>
@@ -172,9 +191,7 @@ export class BasicProgramWindow extends BaseWindow {
     this.linesSpan = this.contentElement.querySelector(".basic-lines");
     this.charsSpan = this.contentElement.querySelector(".basic-chars");
     this.loadBtn = this.contentElement.querySelector(".basic-load-btn");
-    this.loadBtn.disabled = true;
     this.insertBtn = this.contentElement.querySelector(".basic-insert-btn");
-    this.insertBtn.disabled = true;
     this.formatBtn = this.contentElement.querySelector(".basic-format-btn");
     this.renumberBtn = this.contentElement.querySelector(".basic-renumber-btn");
 
@@ -283,12 +300,22 @@ export class BasicProgramWindow extends BaseWindow {
     });
 
     this.insertBtn.addEventListener("click", () => {
+      if (!this._isInBasic()) {
+        showToast("Emulator must be at the BASIC prompt to write a program to memory", "warning");
+        return;
+      }
       this.loadIntoMemory();
     });
 
-
-
     this.loadBtn.addEventListener("click", () => {
+      if (!this._isInBasic()) {
+        showToast("Emulator must be at the BASIC prompt to read a program from memory", "warning");
+        return;
+      }
+      if (this.programParser.getLines().length === 0) {
+        showToast("No BASIC program found in memory", "warning");
+        return;
+      }
       this.loadFromMemory();
     });
 
@@ -354,11 +381,77 @@ export class BasicProgramWindow extends BaseWindow {
       e.preventDefault();
     });
 
+    // Highlight statement under cursor on hover (shows what Option+click would target)
+    this.textarea.addEventListener('mousemove', (e) => {
+      if (!this.highlight || !this.lineMap) return;
+
+      // Find which highlight line div the cursor Y falls into
+      const lineDivs = this.highlight.children;
+      let targetLineDiv = null;
+      let lineIndex = -1;
+      for (let i = 0; i < lineDivs.length; i++) {
+        const rect = lineDivs[i].getBoundingClientRect();
+        if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
+          targetLineDiv = lineDivs[i];
+          lineIndex = i;
+          break;
+        }
+      }
+
+      // Clear previous hover
+      const prev = this.highlight.querySelector('.basic-statement-hover');
+      if (prev) prev.classList.remove('basic-statement-hover');
+
+      if (!targetLineDiv || this.lineMap[lineIndex] === null) return;
+
+      // Find which statement span the cursor falls into
+      const stmtSpans = targetLineDiv.querySelectorAll('.basic-statement');
+      if (stmtSpans.length === 0) return;
+
+      for (const span of stmtSpans) {
+        const rect = span.getBoundingClientRect();
+        if (e.clientX >= rect.left && e.clientX <= rect.right) {
+          span.classList.add('basic-statement-hover');
+          break;
+        }
+      }
+    });
+
+    this.textarea.addEventListener('mouseleave', () => {
+      const prev = this.highlight?.querySelector('.basic-statement-hover');
+      if (prev) prev.classList.remove('basic-statement-hover');
+    });
+
     // Initialize autocomplete
     const editorContainer = this.contentElement.querySelector(
       ".basic-editor-container",
     );
     this.autocomplete = new BasicAutocomplete(this.textarea, editorContainer);
+
+    // Trace toggle
+    this.traceCheckbox = this.contentElement.querySelector(".basic-trace-checkbox");
+    this.traceCheckbox.addEventListener("change", () => {
+      this.traceEnabled = this.traceCheckbox.checked;
+      if (!this.traceEnabled && this.currentLineNumber !== null) {
+        this.currentLineNumber = null;
+        this.currentStatementInfo = null;
+        this._updateGutterStyles();
+        this.updateHighlighting();
+      }
+    });
+
+    // Heat map toggle
+    this.heatCheckbox = this.contentElement.querySelector(".basic-heat-checkbox");
+    this.heatCheckbox.addEventListener("change", () => {
+      this.heatMapEnabled = this.heatCheckbox.checked;
+      this.wasmModule._setBasicHeatMapEnabled(this.heatMapEnabled);
+      if (!this.heatMapEnabled) {
+        this.lineHeatMap.clear();
+        this.wasmModule._clearBasicHeatMap();
+        this.updateGutter();
+        this.updateHighlighting();
+      }
+    });
 
     // Debugger toolbar buttons
     this.contentElement
@@ -367,6 +460,9 @@ export class BasicProgramWindow extends BaseWindow {
     this.contentElement
       .querySelector(".basic-dbg-pause")
       .addEventListener("click", () => this.handlePause());
+    this.contentElement
+      .querySelector(".basic-dbg-stop")
+      .addEventListener("click", () => this.handleStop());
     this.contentElement
       .querySelector(".basic-dbg-step-line")
       .addEventListener("click", () => this.handleStepLine());
@@ -552,8 +648,18 @@ export class BasicProgramWindow extends BaseWindow {
 
       // Gutter shows breakpoint markers with subtle line number tooltip
       const marker = isError ? "!" : (hasBp ? "●" : "");
+
+      // Heat map background
+      let heatStyle = "";
+      if (this.heatMapEnabled && lineNumber !== null && !hasBp && !isCurrent && !isError) {
+        const heat = this.lineHeatMap.get(lineNumber) || 0;
+        if (heat > 0.005) {
+          heatStyle = ` style="background:${this._heatColor(heat)}"`;
+        }
+      }
+
       html += `
-        <div class="basic-gutter-line ${bpClass} ${currentClass} ${errorClass} ${clickable}" data-index="${i}">
+        <div class="basic-gutter-line ${bpClass} ${currentClass} ${errorClass} ${clickable}"${heatStyle} data-index="${i}">
           <span class="basic-gutter-bp" title="${lineNumber !== null ? `Line ${lineNumber} - Click to toggle breakpoint` : ""}">${marker}</span>
           <span class="basic-gutter-current">${isCurrent ? "►" : ""}</span>
         </div>
@@ -568,7 +674,10 @@ export class BasicProgramWindow extends BaseWindow {
 
     this.gutter.innerHTML = html;
 
-    // Scroll the current line into view within the editor
+    this._scrollToCurrentLine();
+  }
+
+  _scrollToCurrentLine() {
     if (this.currentLineNumber !== null && this.lineMap) {
       const lineIndex = this.lineMap.indexOf(this.currentLineNumber);
       if (lineIndex >= 0) {
@@ -587,6 +696,123 @@ export class BasicProgramWindow extends BaseWindow {
         }
       }
     }
+  }
+
+  /**
+   * Update gutter line styles in-place (current-line marker, heat map backgrounds)
+   * without rebuilding the DOM, which would cause scroll desync.
+   */
+  _updateGutterStyles() {
+    const gutterLines = this.gutter.querySelectorAll(".basic-gutter-line");
+    for (let i = 0; i < gutterLines.length; i++) {
+      const lineNumber = this.lineMap[i];
+      const el = gutterLines[i];
+      const isCurrent = lineNumber !== null && this.currentLineNumber === lineNumber;
+
+      // Update current-line class
+      el.classList.toggle("is-current", isCurrent);
+
+      // Update current-line indicator
+      const currentSpan = el.querySelector(".basic-gutter-current");
+      if (currentSpan) currentSpan.textContent = isCurrent ? "►" : "";
+
+      // Heat map background (skip bp/current/error lines)
+      if (el.classList.contains("has-bp") || isCurrent || el.classList.contains("has-error")) {
+        el.style.background = "";
+      } else if (this.heatMapEnabled && lineNumber !== null && lineNumber !== undefined) {
+        const heat = this.lineHeatMap.get(lineNumber) || 0;
+        el.style.background = heat > 0.005 ? this._heatColor(heat) : "";
+      } else {
+        el.style.background = "";
+      }
+    }
+  }
+
+  /**
+   * Read heat map data from the C++ emulator into this.lineHeatMap.
+   * Converts raw execution counts to normalized 0.0–1.0 heat values.
+   */
+  _readHeatMapFromWasm() {
+    const size = this.wasmModule._getBasicHeatMapSize();
+    if (size === 0) {
+      this.lineHeatMap.clear();
+      return;
+    }
+
+    const maxEntries = Math.min(size, 1024);
+    // Allocate buffers: uint16_t[] for lines, uint32_t[] for counts
+    const linesPtr = this.wasmModule._malloc(maxEntries * 2);
+    const countsPtr = this.wasmModule._malloc(maxEntries * 4);
+
+    const count = this.wasmModule._getBasicHeatMapData(linesPtr, countsPtr, maxEntries);
+
+    // Read data from WASM heap
+    const lines = new Uint16Array(this.wasmModule.HEAPU8.buffer, linesPtr, count);
+    const counts = new Uint32Array(this.wasmModule.HEAPU8.buffer, countsPtr, count);
+
+    // Find max count for normalization
+    let maxCount = 0;
+    for (let i = 0; i < count; i++) {
+      if (counts[i] > maxCount) maxCount = counts[i];
+    }
+
+    // Build new normalized values from C++ counts
+    const decay = 0.92; // Per-frame decay (~30fps: fades to ~8% in 1 second)
+    const activeLines = new Set();
+
+    if (maxCount > 0) {
+      for (let i = 0; i < count; i++) {
+        const lineNum = lines[i];
+        const normalized = Math.log(1 + counts[i]) / Math.log(1 + maxCount);
+        const prev = this.lineHeatMap.get(lineNum) || 0;
+        // Blend: take the max of decayed previous and new normalized value
+        this.lineHeatMap.set(lineNum, Math.max(prev * decay, normalized));
+        activeLines.add(lineNum);
+      }
+    }
+
+    // Decay lines no longer in C++ map and prune dead entries
+    for (const [line, heat] of this.lineHeatMap) {
+      if (!activeLines.has(line)) {
+        const decayed = heat * decay;
+        if (decayed < 0.005) {
+          this.lineHeatMap.delete(line);
+        } else {
+          this.lineHeatMap.set(line, decayed);
+        }
+      }
+    }
+
+    this.wasmModule._free(linesPtr);
+    this.wasmModule._free(countsPtr);
+  }
+
+  /**
+   * Convert heat value (0.0–1.0) to a colour string.
+   * Gradient: transparent → blue → green → yellow → red
+   */
+  _heatColor(heat) {
+    const h = Math.max(0, Math.min(1, heat));
+    let r, g, b;
+    if (h < 0.25) {
+      // blue (0,100,200) → cyan-ish (0,180,180)
+      const t = h / 0.25;
+      r = 0; g = Math.round(100 + 80 * t); b = Math.round(200 - 20 * t);
+    } else if (h < 0.5) {
+      // green (0,180,80)
+      const t = (h - 0.25) / 0.25;
+      r = 0; g = Math.round(180 - 0 * t); b = Math.round(180 - 100 * t);
+    } else if (h < 0.75) {
+      // yellow (200,200,0)
+      const t = (h - 0.5) / 0.25;
+      r = Math.round(200 * t); g = Math.round(180 + 20 * t); b = Math.round(80 - 80 * t);
+    } else {
+      // red (220,60,40)
+      const t = (h - 0.75) / 0.25;
+      r = Math.round(200 + 20 * t); g = Math.round(200 - 140 * t); b = Math.round(0 + 40 * t);
+    }
+    const alpha = 0.15 + 0.35 * h;
+    return `rgba(${r},${g},${b},${alpha})`;
   }
 
   // ========================================
@@ -794,6 +1020,11 @@ export class BasicProgramWindow extends BaseWindow {
       } else if (isMultiStatement && lineNumber !== null) {
         // Wrap all multi-statement lines so statements are clickable for breakpoints
         lineHtml = this._wrapStatementsForBreakpoints(html, stmtBPs);
+      } else if (lineNumber !== null && html) {
+        // Wrap single-statement lines so hover highlighting works
+        const hasBP = stmtBPs.some(bp => bp.statementIndex >= 0 && bp.statementIndex === 0);
+        const cls = hasBP ? " basic-statement-bp" : "";
+        lineHtml = `<span class="basic-statement${cls}">${html}</span>`;
       }
 
       if (isErrorLine && this.errorMessage) {
@@ -1194,6 +1425,11 @@ export class BasicProgramWindow extends BaseWindow {
     }
   }
 
+  _isInBasic() {
+    const emulatorOn = this.isRunningCallback ? this.isRunningCallback() : false;
+    return emulatorOn && this.wasmModule._peekMemory(0x33) === 0xDD;
+  }
+
   loadFromMemory() {
     const lines = this.programParser.getLines();
     if (lines.length === 0) {
@@ -1320,12 +1556,14 @@ export class BasicProgramWindow extends BaseWindow {
       // - Clearing the breakpoint hit flags
       this.wasmModule._setPaused(false);
     } else {
-      // Fresh run
+      // Fresh run — write editor contents to memory first, then type RUN
       this._lastBasicBreakpointHit = false;
       this._lastProgramRunning = false;
       this.currentLineNumber = null;
       this.currentStatementInfo = null;
       if (this.errorLineNumber !== null) this._clearError();
+      this.lineHeatMap.clear();
+      this.wasmModule._clearBasicHeatMap();
 
       this.wasmModule._setPaused(false);
 
@@ -1339,6 +1577,23 @@ export class BasicProgramWindow extends BaseWindow {
 
       this.inputHandler.queueTextInput("RUN\r");
     }
+  }
+
+  /**
+   * Stop - Send Ctrl+C to the emulator to break the running program.
+   */
+  handleStop() {
+    if (!this.isRunningCallback || !this.isRunningCallback()) {
+      return;
+    }
+
+    // Unpause if paused so the keystroke is processed
+    if (this.wasmModule._isPaused()) {
+      this.wasmModule._setPaused(false);
+    }
+
+    // Send Ctrl+C (ASCII 3) to the emulator
+    this.wasmModule._keyDown(3);
   }
 
   /**
@@ -1794,10 +2049,7 @@ export class BasicProgramWindow extends BaseWindow {
       ? this.wasmModule._isBasicProgramRunning()
       : false;
 
-    // Enable/disable Read and Write buttons based on emulator state
     const emulatorOn = this.isRunningCallback ? this.isRunningCallback() : false;
-    this.loadBtn.disabled = !emulatorOn;
-    this.insertBtn.disabled = !emulatorOn;
 
     // Update program status indicator
     if (isPaused && programRunning) {
@@ -1819,16 +2071,16 @@ export class BasicProgramWindow extends BaseWindow {
       this.renderVariables();
     }
 
-    // Refresh variables at 10fps while auto-refresh is active
+    // Refresh variables at 30fps while auto-refresh is active
     if (this._varAutoRefresh) {
-      if (!this._lastVarUpdateTime || now - this._lastVarUpdateTime >= 100) {
+      if (!this._lastVarUpdateTime || now - this._lastVarUpdateTime >= 33) {
         this._lastVarUpdateTime = now;
         this.renderVariables();
       }
     }
 
-    // Throttle other updates to 10fps (100ms) to reduce CPU load
-    if (this._lastUpdateTime && now - this._lastUpdateTime < 100) {
+    // Throttle other updates to 30fps (33ms) to reduce CPU load
+    if (this._lastUpdateTime && now - this._lastUpdateTime < 33) {
       return;
     }
     this._lastUpdateTime = now;
@@ -1915,8 +2167,34 @@ export class BasicProgramWindow extends BaseWindow {
         this.updateGutter();
         this.updateHighlighting();
       }
+    } else if (programRunning) {
+      // While running, track the current line via CURLIN ($75-$76)
+      const curlinLo = this.wasmModule._peekMemory(0x75);
+      const curlinHi = this.wasmModule._peekMemory(0x76);
+      // $FF in high byte means direct/immediate mode - not in a program line
+      if (curlinHi !== 0xFF) {
+        const runningLine = curlinLo | (curlinHi << 8);
+        const lineChanged = this.traceEnabled && runningLine !== this.currentLineNumber;
+
+        if (lineChanged) {
+          this.currentLineNumber = runningLine;
+          this.currentStatementInfo = null;
+          this.updateHighlighting();
+          this._scrollToCurrentLine();
+        }
+
+        // Heat map: read from C++ counters
+        if (this.heatMapEnabled) {
+          this._readHeatMapFromWasm();
+        }
+
+        // Update gutter styles in-place when line changed or heat map active
+        if (lineChanged || this.heatMapEnabled) {
+          this._updateGutterStyles();
+        }
+      }
     } else if (this.currentLineNumber !== null) {
-      // Clear line highlighting when not paused
+      // Clear line highlighting when not running
       this.currentLineNumber = null;
       this.currentStatementInfo = null;
       this.updateHighlighting();
@@ -2134,6 +2412,8 @@ export class BasicProgramWindow extends BaseWindow {
       content: this.textarea ? this.textarea.value : "",
       sidebarWidth: this.sidebar ? this.sidebar.offsetWidth : 200,
       breakpointsHeight: this.bpSection ? this.bpSection.offsetHeight : 150,
+      heatMapEnabled: this.heatMapEnabled,
+      traceEnabled: this.traceEnabled,
     };
   }
 
@@ -2150,6 +2430,15 @@ export class BasicProgramWindow extends BaseWindow {
     }
     if (state.breakpointsHeight && this.bpSection) {
       this.bpSection.style.height = `${state.breakpointsHeight}px`;
+    }
+    if (state.traceEnabled !== undefined) {
+      this.traceEnabled = state.traceEnabled;
+      if (this.traceCheckbox) this.traceCheckbox.checked = state.traceEnabled;
+    }
+    if (state.heatMapEnabled !== undefined) {
+      this.heatMapEnabled = state.heatMapEnabled;
+      if (this.heatCheckbox) this.heatCheckbox.checked = state.heatMapEnabled;
+      this.wasmModule._setBasicHeatMapEnabled(this.heatMapEnabled);
     }
   }
 

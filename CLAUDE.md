@@ -245,7 +245,7 @@ Built-in debug windows accessible via Debug menu:
 - Soft Switch Monitor: Apple II switch states ($C000-$C0FF)
 - Mockingboard: unified channel-centric view with AY-3-8910 and VIA registers, inline waveforms, level meters, and per-channel mute controls
 - Mouse Card: PIA registers, position, mode, interrupt state, protocol activity
-- BASIC Program Viewer: view, load, and tokenize BASIC programs from memory
+- BASIC Program Viewer: view, load, and tokenize BASIC programs from memory, line heat map, trace toggle, statement-level breakpoints, variable inspector, run/stop/pause/step controls
 - Rule Builder: complex conditional breakpoints with C-style expressions
 
 ## Keyboard Shortcuts

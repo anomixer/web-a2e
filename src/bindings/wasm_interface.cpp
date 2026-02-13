@@ -417,6 +417,31 @@ void getBasicDebugInfo(uint16_t* txttab, uint16_t* vartab, uint16_t* curlin, uin
   *txtptr = mmu.readRAM(0xB8, false) | (mmu.readRAM(0xB9, false) << 8);
 }
 
+// BASIC line heat map
+EMSCRIPTEN_KEEPALIVE
+void setBasicHeatMapEnabled(bool enabled) {
+  REQUIRE_EMULATOR();
+  g_emulator->setBasicHeatMapEnabled(enabled);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void clearBasicHeatMap() {
+  REQUIRE_EMULATOR();
+  g_emulator->clearBasicHeatMap();
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getBasicHeatMapSize() {
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->getBasicHeatMapSize();
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getBasicHeatMapData(uint16_t* lines, uint32_t* counts, int maxEntries) {
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->getBasicHeatMapData(lines, counts, maxEntries);
+}
+
 // Debug function to dump bytes around TXTPTR to see what's there
 EMSCRIPTEN_KEEPALIVE
 void getBasicLineBytes(uint8_t* buffer, int* lineStart, int* colonCount) {

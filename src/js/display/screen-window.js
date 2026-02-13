@@ -17,6 +17,7 @@ export class ScreenWindow extends BaseWindow {
       defaultWidth: 480,
       defaultHeight: 394,
       closable: false,
+      focusCanvas: true,
     });
 
     this.renderer = renderer;

@@ -7,48 +7,51 @@
 
 const WINDOW_CATEGORIES = [
   {
-    label: 'System',
+    label: "System",
     windows: [
-      { id: 'screen-window', title: 'Screen' },
-      { id: 'disk-drives', title: 'Disk Drives' },
-      { id: 'save-states', title: 'Save States' },
+      { id: "screen-window", title: "Screen" },
+      { id: "disk-drives", title: "Disk Drives" },
+      { id: "hard-drives", title: "SmartPort Drives" },
+      { id: "file-explorer-window", title: "File Explorer" },
+      { id: "save-states", title: "Save States" },
     ],
   },
   {
-    label: 'Hardware',
+    label: "Hardware",
     windows: [
-      { id: 'display-settings', title: 'Display Settings' },
-      { id: 'joystick', title: 'Joystick' },
-      { id: 'slot-configuration', title: 'Expansion Slots' },
-      { id: 'mockingboard-debug', title: 'Mockingboard' },
-      { id: 'mouse-card-debug', title: 'Mouse Card' },
+      { id: "display-settings", title: "Display Settings" },
+      { id: "joystick", title: "Joystick" },
+      { id: "slot-configuration", title: "Expansion Slots" },
+      { id: "mockingboard-debug", title: "Mockingboard" },
+      { id: "mouse-card-debug", title: "Mouse Card" },
     ],
   },
   {
-    label: 'Debug',
+    label: "Debug",
     windows: [
-      { id: 'cpu-debugger', title: 'CPU Debugger' },
-      { id: 'rule-builder', title: 'Rule Builder' },
-      { id: 'soft-switches', title: 'Soft Switches' },
-      { id: 'memory-browser', title: 'Memory Browser' },
-      { id: 'memory-heatmap', title: 'Memory Heat Map' },
-      { id: 'memory-map', title: 'Memory Map' },
-      { id: 'stack-viewer', title: 'Stack Viewer' },
-      { id: 'zeropage-watch', title: 'Zero Page Watch' },
+      { id: "cpu-debugger", title: "CPU Debugger" },
+      { id: "rule-builder", title: "Rule Builder" },
+      { id: "trace-panel", title: "Trace Panel" },
+      { id: "soft-switches", title: "Soft Switches" },
+      { id: "memory-browser", title: "Memory Browser" },
+      { id: "memory-heatmap", title: "Memory Heat Map" },
+      { id: "memory-map", title: "Memory Map" },
+      { id: "stack-viewer", title: "Stack Viewer" },
+      { id: "zeropage-watch", title: "Zero Page Watch" },
     ],
   },
   {
-    label: 'Dev',
+    label: "Dev",
     windows: [
-      { id: 'basic-program', title: 'Applesoft BASIC' },
-      { id: 'assembler-editor', title: 'Assembler' },
+      { id: "basic-program", title: "Applesoft BASIC" },
+      { id: "assembler-editor", title: "Assembler" },
     ],
   },
   {
-    label: 'Help',
+    label: "Help",
     windows: [
-      { id: 'documentation-window', title: 'Documentation' },
-      { id: 'release-notes', title: 'Release Notes' },
+      { id: "documentation-window", title: "Documentation" },
+      { id: "release-notes", title: "Release Notes" },
     ],
   },
 ];
@@ -70,14 +73,14 @@ export class WindowSwitcher {
    * Build the backdrop and panel DOM (hidden initially).
    */
   create() {
-    this.backdrop = document.createElement('div');
-    this.backdrop.className = 'window-switcher-backdrop hidden';
-    this.backdrop.addEventListener('click', (e) => {
+    this.backdrop = document.createElement("div");
+    this.backdrop.className = "window-switcher-backdrop hidden";
+    this.backdrop.addEventListener("click", (e) => {
       if (e.target === this.backdrop) this.close();
     });
 
-    this.panel = document.createElement('div');
-    this.panel.className = 'window-switcher-panel';
+    this.panel = document.createElement("div");
+    this.panel.className = "window-switcher-panel";
     this.backdrop.appendChild(this.panel);
 
     document.body.appendChild(this.backdrop);
@@ -91,8 +94,8 @@ export class WindowSwitcher {
     this.isOpen = true;
 
     this._buildList();
-    this.backdrop.classList.remove('hidden');
-    document.addEventListener('keydown', this._handleKeyDown);
+    this.backdrop.classList.remove("hidden");
+    document.addEventListener("keydown", this._handleKeyDown);
   }
 
   /**
@@ -102,11 +105,11 @@ export class WindowSwitcher {
     if (!this.isOpen) return;
     this.isOpen = false;
 
-    this.backdrop.classList.add('hidden');
-    document.removeEventListener('keydown', this._handleKeyDown);
+    this.backdrop.classList.add("hidden");
+    document.removeEventListener("keydown", this._handleKeyDown);
 
     // Refocus the emulator canvas
-    const canvas = document.getElementById('screen');
+    const canvas = document.getElementById("screen");
     if (canvas) setTimeout(() => canvas.focus(), 0);
   }
 
@@ -127,12 +130,12 @@ export class WindowSwitcher {
    * Build the full item list from categories and current visibility state.
    */
   _buildList() {
-    this.panel.innerHTML = '';
+    this.panel.innerHTML = "";
     this.items = [];
 
     // Header
-    const header = document.createElement('div');
-    header.className = 'window-switcher-header';
+    const header = document.createElement("div");
+    header.className = "window-switcher-header";
     header.innerHTML = `
       <span class="window-switcher-title">Windows</span>
       <span class="window-switcher-hints">
@@ -148,11 +151,11 @@ export class WindowSwitcher {
     let bestZ = -1;
 
     for (const category of WINDOW_CATEGORIES) {
-      const group = document.createElement('div');
-      group.className = 'window-switcher-group';
+      const group = document.createElement("div");
+      group.className = "window-switcher-group";
 
-      const label = document.createElement('div');
-      label.className = 'window-switcher-group-label';
+      const label = document.createElement("div");
+      label.className = "window-switcher-group-label";
       label.textContent = category.label;
       group.appendChild(label);
 
@@ -160,25 +163,25 @@ export class WindowSwitcher {
         const win = this.windowManager.getWindow(entry.id);
         const isVisible = win ? win.isVisible : false;
 
-        const btn = document.createElement('button');
-        btn.className = 'window-switcher-item';
+        const btn = document.createElement("button");
+        btn.className = "window-switcher-item";
         btn.dataset.windowId = entry.id;
 
-        const titleSpan = document.createElement('span');
-        titleSpan.className = 'window-switcher-item-title';
+        const titleSpan = document.createElement("span");
+        titleSpan.className = "window-switcher-item-title";
         titleSpan.textContent = entry.title;
         btn.appendChild(titleSpan);
 
-        const dot = document.createElement('span');
-        dot.className = 'window-switcher-dot' + (isVisible ? ' visible' : '');
+        const dot = document.createElement("span");
+        dot.className = "window-switcher-dot" + (isVisible ? " visible" : "");
         btn.appendChild(dot);
 
-        btn.addEventListener('click', () => {
+        btn.addEventListener("click", () => {
           this.selectedIndex = this.items.indexOf(btn);
           this._selectCurrent();
         });
 
-        btn.addEventListener('mouseenter', () => {
+        btn.addEventListener("mouseenter", () => {
           this.selectedIndex = this.items.indexOf(btn);
           this._updateHighlight();
         });
@@ -207,12 +210,12 @@ export class WindowSwitcher {
    */
   _updateHighlight() {
     for (let i = 0; i < this.items.length; i++) {
-      this.items[i].classList.toggle('selected', i === this.selectedIndex);
+      this.items[i].classList.toggle("selected", i === this.selectedIndex);
     }
     // Scroll into view if needed
     const current = this.items[this.selectedIndex];
     if (current) {
-      current.scrollIntoView({ block: 'nearest' });
+      current.scrollIntoView({ block: "nearest" });
     }
   }
 
@@ -233,12 +236,13 @@ export class WindowSwitcher {
    */
   _handleKeyDown(e) {
     switch (e.key) {
-      case 'ArrowDown':
-      case 'Tab':
-        if (e.key === 'Tab' && e.shiftKey) {
+      case "ArrowDown":
+      case "Tab":
+        if (e.key === "Tab" && e.shiftKey) {
           // Shift+Tab goes up
           e.preventDefault();
-          this.selectedIndex = (this.selectedIndex - 1 + this.items.length) % this.items.length;
+          this.selectedIndex =
+            (this.selectedIndex - 1 + this.items.length) % this.items.length;
           this._updateHighlight();
           return;
         }
@@ -247,18 +251,19 @@ export class WindowSwitcher {
         this._updateHighlight();
         break;
 
-      case 'ArrowUp':
+      case "ArrowUp":
         e.preventDefault();
-        this.selectedIndex = (this.selectedIndex - 1 + this.items.length) % this.items.length;
+        this.selectedIndex =
+          (this.selectedIndex - 1 + this.items.length) % this.items.length;
         this._updateHighlight();
         break;
 
-      case 'Enter':
+      case "Enter":
         e.preventDefault();
         this._selectCurrent();
         break;
 
-      case 'Escape':
+      case "Escape":
         e.preventDefault();
         this.close();
         break;

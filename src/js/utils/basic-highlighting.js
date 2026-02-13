@@ -107,15 +107,18 @@ function calculateIndentLevels(lines) {
     const nextCount = nextMatches ? nextMatches.length : 0;
 
     // Decrease level for each NEXT (before rendering the line)
-    if (nextCount > 0) {
-      currentLevel = Math.max(0, currentLevel - nextCount);
+    // Only decrease by NEXTs not paired with FORs on this same line
+    const unpaired = Math.max(0, nextCount - forCount);
+    if (unpaired > 0) {
+      currentLevel = Math.max(0, currentLevel - unpaired);
     }
 
     levels.push(Math.min(currentLevel, 8)); // Cap at 8 levels
 
-    // Increase level for each FOR (after rendering the line)
-    if (forCount > 0) {
-      currentLevel += forCount;
+    // Increase level for each FOR not closed by a NEXT on the same line
+    const netOpen = Math.max(0, forCount - nextCount);
+    if (netOpen > 0) {
+      currentLevel += netOpen;
     }
   }
 

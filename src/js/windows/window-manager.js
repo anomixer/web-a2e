@@ -205,12 +205,25 @@ export class WindowManager {
       const saved = localStorage.getItem(this.storageKey);
       if (saved) {
         const state = JSON.parse(saved);
+        // First pass: restore positions, sizes, and visibility
+        // (show() calls bringToFront() which assigns temporary z-indices)
         for (const [id, windowState] of Object.entries(state)) {
           const window = this.windows.get(id);
           if (window) {
             window.restoreState(windowState);
           }
         }
+        // Second pass: restore saved z-indices, overriding those assigned by show()
+        for (const [id, windowState] of Object.entries(state)) {
+          const window = this.windows.get(id);
+          if (window && windowState.zIndex !== undefined) {
+            window.setZIndex(windowState.zIndex);
+            if (windowState.zIndex > this.highestZIndex) {
+              this.highestZIndex = windowState.zIndex;
+            }
+          }
+        }
+        this.focusTopWindow();
       }
     } catch (e) {
       console.warn('Could not load debug window state:', e);
@@ -337,12 +350,14 @@ export class WindowManager {
           win.currentY = entry.y;
         }
         if (entry.width !== undefined) {
-          win.element.style.width = `${entry.width}px`;
-          win.currentWidth = entry.width;
+          const w = Math.min(win.maxWidth, Math.max(entry.width, win.minWidth));
+          win.element.style.width = `${w}px`;
+          win.currentWidth = w;
         }
         if (entry.height !== undefined) {
-          win.element.style.height = `${entry.height}px`;
-          win.currentHeight = entry.height;
+          const h = Math.min(win.maxHeight, Math.max(entry.height, win.minHeight));
+          win.element.style.height = `${h}px`;
+          win.currentHeight = h;
         }
       }
 
