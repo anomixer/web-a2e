@@ -337,12 +337,14 @@ export class WindowManager {
           win.currentY = entry.y;
         }
         if (entry.width !== undefined) {
-          win.element.style.width = `${entry.width}px`;
-          win.currentWidth = entry.width;
+          const w = Math.min(win.maxWidth, Math.max(entry.width, win.minWidth));
+          win.element.style.width = `${w}px`;
+          win.currentWidth = w;
         }
         if (entry.height !== undefined) {
-          win.element.style.height = `${entry.height}px`;
-          win.currentHeight = entry.height;
+          const h = Math.min(win.maxHeight, Math.max(entry.height, win.minHeight));
+          win.element.style.height = `${h}px`;
+          win.currentHeight = h;
         }
       }
 
