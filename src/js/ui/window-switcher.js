@@ -11,7 +11,7 @@ const WINDOW_CATEGORIES = [
     windows: [
       { id: "screen-window", title: "Screen" },
       { id: "disk-drives", title: "Disk Drives" },
-      { id: "hard-drives", title: "SmartPort Devices" },
+      { id: "hard-drives", title: "SmartPort Drives" },
       { id: "file-explorer-window", title: "File Explorer" },
       { id: "save-states", title: "Save States" },
     ],
