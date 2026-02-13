@@ -2,10 +2,9 @@
   "mcpServers": {
     "appleii-agent": {
       "type": "stdio",
-      "command": "bunx",
+      "command": "node",
       "args": [
-        "-y",
-        "@retrotech71/appleii-agent"
+        "/Users/Shawn/code/git/[mikedaley]/appleii-agent/src/index.js"
       ]
     }
   }

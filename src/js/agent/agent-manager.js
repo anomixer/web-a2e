@@ -6,6 +6,7 @@
  */
 
 import { executeAgentTool } from "./agent-tools.js";
+import { showConfirm } from "../ui/confirm.js";
 
 /**
  * Manages connection to MCP server via AG-UI protocol
@@ -120,7 +121,7 @@ export class AgentManager {
   /**
    * Connect to MCP server SSE stream
    */
-  connect() {
+  async connect() {
     // Check if already connected (EventSource is OPEN)
     if (this.eventSource && this.eventSource.readyState === EventSource.OPEN) {
       console.warn("[AgentManager] Already connected");
@@ -139,6 +140,42 @@ export class AgentManager {
 
     console.log(`[AgentManager] Connecting to ${this.serverUrl}/events`);
     console.log(`[AgentManager] Emulator domain: ${domain}`);
+
+    // Check if connection is allowed (detect 409 for single-client mode)
+    try {
+      const testResponse = await fetch(`${this.serverUrl}/events?domain=${encodeURIComponent(domain)}`, {
+        method: "HEAD",
+        signal: AbortSignal.timeout(2000),
+      });
+
+      // If 409, another client is connected
+      if (testResponse.status === 409) {
+        const message = await testResponse.text();
+        console.warn(`[AgentManager] ${message}`);
+
+        // Show confirm dialog with option to disconnect other client
+        const shouldDisconnect = await this._showConnectionConflictDialog(message);
+
+        if (shouldDisconnect) {
+          // User chose to disconnect other client
+          console.log("[AgentManager] Disconnecting other client and retrying...");
+          try {
+            await this.callMCPTool("disconnect_clients", {});
+            // Retry connection after brief delay
+            setTimeout(() => this.connect(), 500);
+          } catch (error) {
+            console.error("[AgentManager] Failed to disconnect other client:", error);
+          }
+        } else {
+          // User chose not to connect
+          console.log("[AgentManager] Connection cancelled by user");
+        }
+        return;
+      }
+    } catch (error) {
+      // HEAD request not supported or other error, proceed with EventSource anyway
+      console.log("[AgentManager] Connection check failed, proceeding with EventSource:", error.message);
+    }
 
     try {
       // Send domain as query parameter so MCP server can fetch llms.txt
@@ -191,6 +228,18 @@ export class AgentManager {
   }
 
   /**
+   * Show dialog when connection is rejected due to another client being connected
+   * @param {string} message - The rejection message from server
+   * @returns {Promise<boolean>} True if user wants to disconnect other client, false otherwise
+   */
+  async _showConnectionConflictDialog(message) {
+    return await showConfirm(
+      message + "\n\nWould you like to disconnect the other client and connect?",
+      "Disconnect and Connect"
+    );
+  }
+
+  /**
    * Disconnect from MCP server
    */
   disconnect() {
@@ -238,6 +287,9 @@ export class AgentManager {
         case "RUN_FINISHED":
         case "RUN_ERROR":
           this._handleRunEvent(event);
+          break;
+        case "DISCONNECT":
+          this._handleGracefulDisconnect(event);
           break;
         default:
           console.log("[AgentManager] Unhandled event type:", event.type);
@@ -333,6 +385,30 @@ export class AgentManager {
    */
   _handleRunEvent(event) {
     console.log(`[AgentManager] ${event.type}:`, event.run_id || event.error || "");
+  }
+
+  /**
+   * Handle graceful disconnect from server
+   */
+  _handleGracefulDisconnect(event) {
+    console.log(`[AgentManager] Graceful disconnect: ${event.reason}`);
+
+    // Close connection cleanly
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+
+    this.connected = false;
+
+    // Don't trigger reconnection - this was intentional
+    this.reconnectStartTime = null;
+    this.reconnectAttempts = 0;
+
+    // Update UI to show disconnected (not broken)
+    if (this.onConnectionChange) {
+      this.onConnectionChange(false);
+    }
   }
 
   /**
