@@ -177,6 +177,23 @@ export class AgentManager {
       console.log("[AgentManager] Connection check failed, proceeding with EventSource:", error.message);
     }
 
+    // Check agent version compatibility before connecting
+    try {
+      const versionCheck = await this._checkVersionCompatibility();
+      if (!versionCheck.compatible) {
+        console.warn(`[AgentManager] Agent version ${versionCheck.agent.version} is incompatible (requires >= ${versionCheck.required.minVersion})`);
+
+        // Show warning dialog and prevent connection
+        await this._showVersionIncompatibleDialog(versionCheck);
+        console.log("[AgentManager] Connection blocked due to version incompatibility");
+        return;
+      } else {
+        console.log(`[AgentManager] Agent version ${versionCheck.agent.version} is compatible`);
+      }
+    } catch (error) {
+      console.warn("[AgentManager] Version check failed, proceeding with connection:", error.message);
+    }
+
     try {
       // Send domain as query parameter so MCP server can fetch llms.txt
       this.eventSource = new EventSource(`${this.serverUrl}/events?domain=${encodeURIComponent(domain)}`);
@@ -237,6 +254,66 @@ export class AgentManager {
       message + "\n\nWould you like to disconnect the other client and connect?",
       "Disconnect and Connect"
     );
+  }
+
+  /**
+   * Check if agent version is compatible with app requirements
+   * @returns {Promise<Object>} Version compatibility check result
+   */
+  async _checkVersionCompatibility() {
+    const versionInfo = await this.callMCPTool("get_version", {});
+
+    if (!versionInfo.success) {
+      throw new Error("Failed to get agent version");
+    }
+
+    // Parse versions
+    const parseVersion = (version) => {
+      const parts = version.split('.').map(p => parseInt(p, 10));
+      if (parts.length !== 3 || parts.some(isNaN)) {
+        throw new Error(`Invalid version format: ${version}`);
+      }
+      return { major: parts[0], minor: parts[1], patch: parts[2] };
+    };
+
+    const minVersion = "1.0.5"; // Required minimum version
+    const agentVersion = parseVersion(versionInfo.version);
+    const requiredVersion = parseVersion(minVersion);
+
+    // Compare versions
+    const compareVersions = (v1, v2) => {
+      if (v1.major !== v2.major) return v1.major - v2.major;
+      if (v1.minor !== v2.minor) return v1.minor - v2.minor;
+      return v1.patch - v2.patch;
+    };
+
+    const comparison = compareVersions(agentVersion, requiredVersion);
+    const compatible = comparison >= 0;
+
+    return {
+      success: true,
+      agent: {
+        name: versionInfo.name,
+        version: versionInfo.version,
+        versionNumeric: agentVersion
+      },
+      required: {
+        minVersion: minVersion,
+        minVersionNumeric: requiredVersion
+      },
+      compatible: compatible,
+      comparison: comparison
+    };
+  }
+
+  /**
+   * Show dialog when agent version is incompatible
+   * @param {Object} versionCheck - Version check result
+   * @returns {Promise<boolean>} Always returns false (connection not allowed)
+   */
+  async _showVersionIncompatibleDialog(versionCheck) {
+    await showConfirm("Agent out of date. Please update the Agent to latest version to continue.", "OK");
+    return false; // Never allow connection with incompatible version
   }
 
   /**
