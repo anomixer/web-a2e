@@ -660,6 +660,15 @@
     border-radius: 3px;
 }
 
+.basic-dbg-bp-item.bp-triggered {
+    animation: bp-pulse-red 0.8s ease-in-out infinite;
+}
+
+@keyframes bp-pulse-red {
+    0%, 100% { background: rgba(224, 58, 62, 0.15); }
+    50% { background: rgba(224, 58, 62, 0.35); }
+}
+
 .basic-dbg-bp-item:hover {
     background: var(--overlay-faint);
 }
@@ -679,6 +688,41 @@
 .basic-dbg-bp-line {
     color: var(--accent-red);
     flex-shrink: 0;
+}
+
+.basic-dbg-bp-cond {
+    color: var(--accent-orange);
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 1px 4px;
+    background: var(--accent-orange-bg, rgba(245, 130, 31, 0.1));
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+
+.basic-dbg-bp-edit {
+    background: var(--accent-blue-bg);
+    border: 1px solid var(--accent-blue-bg-stronger);
+    color: var(--accent-blue);
+    font-size: 9px;
+    font-family: var(--font-mono);
+    cursor: pointer;
+    padding: 1px 5px;
+    border-radius: 3px;
+    opacity: 0;
+    transition: all 0.12s;
+    flex-shrink: 0;
+}
+
+.basic-dbg-bp-item:hover .basic-dbg-bp-edit {
+    opacity: 1;
+}
+
+.basic-dbg-bp-edit:hover {
+    background: var(--accent-blue-bg-strong);
+    border-color: rgba(88, 166, 255, 0.6);
 }
 
 .basic-dbg-bp-remove {
@@ -701,4 +745,47 @@
 .basic-dbg-bp-remove:hover {
     opacity: 1;
     color: var(--accent-red);
+}
+
+/* Condition-only rule items */
+.basic-dbg-bp-item.condition-rule {
+    background: var(--accent-orange-bg, rgba(245, 130, 31, 0.05));
+}
+
+.basic-dbg-bp-rule-badge {
+    color: var(--accent-orange);
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    padding: 1px 4px;
+    background: var(--accent-orange-bg, rgba(245, 130, 31, 0.1));
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+
+.basic-dbg-bp-rule-expr {
+    color: var(--accent-orange) !important;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: 1;
+    min-width: 0;
+}
+
+/* Add rule button in toolbar */
+.basic-dbg-bp-add-rule-btn {
+    background: var(--accent-orange-bg, rgba(245, 130, 31, 0.1));
+    border: 1px solid var(--accent-orange-border, rgba(245, 130, 31, 0.3));
+    color: var(--accent-orange);
+    font-size: 10px;
+    font-family: var(--font-mono);
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 3px;
+    transition: all 0.12s;
+}
+
+.basic-dbg-bp-add-rule-btn:hover {
+    background: rgba(245, 130, 31, 0.2);
+    border-color: rgba(245, 130, 31, 0.5);
 }

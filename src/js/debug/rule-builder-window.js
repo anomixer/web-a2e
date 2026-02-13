@@ -20,7 +20,9 @@ export class RuleBuilderWindow extends BaseWindow {
 
     this.rules = null; // Root group node
     this.targetAddress = null;
+    this.targetMode = "cpu"; // "cpu" or "basic"
     this.onApply = null; // Callback: (address, conditionString, conditionRules) => {}
+    this.onApplyBasic = null; // Callback: (key, conditionString, conditionRules) => {}
   }
 
   renderContent() {
@@ -57,11 +59,11 @@ export class RuleBuilderWindow extends BaseWindow {
   }
 
   /**
-   * Open the rule builder for a specific breakpoint.
-   * Called by the CPU debugger.
+   * Open the rule builder for a CPU breakpoint.
    */
   editBreakpoint(address, entry) {
     this.targetAddress = address;
+    this.targetMode = "cpu";
 
     const label = this.contentElement.querySelector("#rb-target-label");
     if (label) {
@@ -69,7 +71,32 @@ export class RuleBuilderWindow extends BaseWindow {
     }
 
     if (entry && entry.conditionRules) {
-      // Deep clone so edits don't mutate until Apply
+      this.rules = JSON.parse(JSON.stringify(entry.conditionRules));
+    } else {
+      this.rules = this._createEmptyGroup();
+    }
+
+    this.renderRuleTree();
+    this.updatePreview();
+    this.show();
+  }
+
+  /**
+   * Open the rule builder for a BASIC breakpoint.
+   * @param {string} key - "lineNumber:statementIndex" key
+   * @param {object} entry - breakpoint entry with condition/conditionRules
+   * @param {string} labelText - display label like "Line 100"
+   */
+  editBasicBreakpoint(key, entry, labelText) {
+    this.targetAddress = key;
+    this.targetMode = "basic";
+
+    const label = this.contentElement.querySelector("#rb-target-label");
+    if (label) {
+      label.textContent = `Condition for ${labelText}`;
+    }
+
+    if (entry && entry.conditionRules) {
       this.rules = JSON.parse(JSON.stringify(entry.conditionRules));
     } else {
       this.rules = this._createEmptyGroup();
@@ -87,6 +114,9 @@ export class RuleBuilderWindow extends BaseWindow {
   }
 
   _createDefaultRule() {
+    if (this.targetMode === "basic") {
+      return { type: "rule", subject: "bvar", detail: "", operator: "==", value: "" };
+    }
     return { type: "rule", subject: "reg", detail: "A", operator: "==", value: "" };
   }
 
@@ -214,17 +244,26 @@ export class RuleBuilderWindow extends BaseWindow {
     // Subject select
     const subjectSelect = document.createElement("select");
     subjectSelect.className = "rb-select rb-subject";
-    subjectSelect.innerHTML = `
-      <option value="reg" ${rule.subject === "reg" ? "selected" : ""}>Register</option>
-      <option value="flag" ${rule.subject === "flag" ? "selected" : ""}>Flag</option>
-      <option value="byte" ${rule.subject === "byte" ? "selected" : ""}>Byte</option>
-      <option value="word" ${rule.subject === "word" ? "selected" : ""}>Word</option>
-    `;
+    if (this.targetMode === "basic") {
+      subjectSelect.innerHTML = `
+        <option value="bvar" ${rule.subject === "bvar" ? "selected" : ""}>BASIC Var</option>
+        <option value="barr" ${rule.subject === "barr" ? "selected" : ""}>BASIC Array</option>
+      `;
+    } else {
+      subjectSelect.innerHTML = `
+        <option value="reg" ${rule.subject === "reg" ? "selected" : ""}>Register</option>
+        <option value="flag" ${rule.subject === "flag" ? "selected" : ""}>Flag</option>
+        <option value="byte" ${rule.subject === "byte" ? "selected" : ""}>Byte</option>
+        <option value="word" ${rule.subject === "word" ? "selected" : ""}>Word</option>
+      `;
+    }
     subjectSelect.addEventListener("change", () => {
       rule.subject = subjectSelect.value;
       // Reset detail to sensible default
       if (rule.subject === "reg") rule.detail = "A";
       else if (rule.subject === "flag") rule.detail = "C";
+      else if (rule.subject === "bvar") { rule.detail = ""; rule.varIndex = undefined; }
+      else if (rule.subject === "barr") { rule.detail = ""; rule.varIndex = "0"; rule.varIndex2 = ""; }
       else rule.detail = "";
       this.renderRuleTree();
       this.updatePreview();
@@ -322,6 +361,69 @@ export class RuleBuilderWindow extends BaseWindow {
       return sel;
     }
 
+    // BASIC variable name input
+    if (rule.subject === "bvar") {
+      const input = document.createElement("input");
+      input.type = "text";
+      input.className = "rb-input rb-detail";
+      input.value = rule.detail;
+      input.placeholder = "e.g. I, SC%, A$";
+      input.spellcheck = false;
+      input.addEventListener("input", () => {
+        rule.detail = input.value.trim().toUpperCase();
+        this.updatePreview();
+      });
+      input.addEventListener("keydown", (e) => e.stopPropagation());
+      return input;
+    }
+
+    // BASIC array - name + index1 + optional index2
+    if (rule.subject === "barr") {
+      const container = document.createElement("span");
+      container.className = "rb-detail-group";
+
+      const nameInput = document.createElement("input");
+      nameInput.type = "text";
+      nameInput.className = "rb-input rb-detail rb-detail-third";
+      nameInput.value = rule.detail;
+      nameInput.placeholder = "Name";
+      nameInput.spellcheck = false;
+      nameInput.addEventListener("input", () => {
+        rule.detail = nameInput.value.trim().toUpperCase();
+        this.updatePreview();
+      });
+      nameInput.addEventListener("keydown", (e) => e.stopPropagation());
+
+      const idx1Input = document.createElement("input");
+      idx1Input.type = "text";
+      idx1Input.className = "rb-input rb-detail rb-detail-third";
+      idx1Input.value = rule.varIndex || "0";
+      idx1Input.placeholder = "i1";
+      idx1Input.spellcheck = false;
+      idx1Input.addEventListener("input", () => {
+        rule.varIndex = idx1Input.value.trim();
+        this.updatePreview();
+      });
+      idx1Input.addEventListener("keydown", (e) => e.stopPropagation());
+
+      const idx2Input = document.createElement("input");
+      idx2Input.type = "text";
+      idx2Input.className = "rb-input rb-detail rb-detail-third";
+      idx2Input.value = rule.varIndex2 || "";
+      idx2Input.placeholder = "i2";
+      idx2Input.spellcheck = false;
+      idx2Input.addEventListener("input", () => {
+        rule.varIndex2 = idx2Input.value.trim();
+        this.updatePreview();
+      });
+      idx2Input.addEventListener("keydown", (e) => e.stopPropagation());
+
+      container.appendChild(nameInput);
+      container.appendChild(idx1Input);
+      container.appendChild(idx2Input);
+      return container;
+    }
+
     // byte or word - address input
     const input = document.createElement("input");
     input.type = "text";
@@ -377,6 +479,22 @@ export class RuleBuilderWindow extends BaseWindow {
         lhs = `DEEK(${addr})`;
         break;
       }
+      case "bvar": {
+        const { b1, b2 } = this._encodeBasicVarName(rule.detail || "A");
+        lhs = `BV(${b1},${b2})`;
+        break;
+      }
+      case "barr": {
+        const { b1, b2 } = this._encodeBasicVarName(rule.detail || "A");
+        const idx1 = parseInt(rule.varIndex) || 0;
+        if (rule.varIndex2 !== undefined && rule.varIndex2 !== "") {
+          const idx2 = parseInt(rule.varIndex2) || 0;
+          lhs = `BA2(${b1},${b2},${idx1},${idx2})`;
+        } else {
+          lhs = `BA(${b1},${b2},${idx1})`;
+        }
+        break;
+      }
       default:
         lhs = rule.detail || "A";
     }
@@ -385,6 +503,28 @@ export class RuleBuilderWindow extends BaseWindow {
     const rhs = this._normalizeValue(rule.value);
 
     return `${lhs}${op}${rhs}`;
+  }
+
+  /**
+   * Encode a BASIC variable name (e.g. "I", "SC%", "A$") into the 2-byte
+   * Applesoft memory representation.
+   */
+  _encodeBasicVarName(name) {
+    if (!name) return { b1: 0, b2: 0 };
+    name = name.toUpperCase().trim();
+
+    let isInteger = false;
+    let isString = false;
+    if (name.endsWith("%")) { isInteger = true; name = name.slice(0, -1); }
+    else if (name.endsWith("$")) { isString = true; name = name.slice(0, -1); }
+
+    let b1 = name.charCodeAt(0) || 0;
+    let b2 = name.length > 1 ? name.charCodeAt(1) : 0;
+
+    if (isInteger) { b1 |= 0x80; b2 |= 0x80; }
+    else if (isString) { b2 |= 0x80; }
+
+    return { b1, b2 };
   }
 
   _normalizeAddress(str) {
@@ -410,6 +550,68 @@ export class RuleBuilderWindow extends BaseWindow {
     return str;
   }
 
+  // ---- Display label (human-readable) ----
+
+  /**
+   * Generate a human-readable label from a conditionRules tree.
+   * e.g. "B == 1" instead of "BV(66,0)==1"
+   */
+  static toDisplayLabel(node) {
+    if (!node) return "";
+
+    if (node.type === "rule") {
+      return RuleBuilderWindow._displayRule(node);
+    }
+
+    // Group
+    const parts = node.children
+      .map((child) => RuleBuilderWindow.toDisplayLabel(child))
+      .filter((s) => s.length > 0);
+
+    if (parts.length === 0) return "";
+    if (parts.length === 1) return parts[0];
+
+    const joiner = node.logic === "AND" ? " AND " : " OR ";
+    return parts.join(joiner);
+  }
+
+  static _displayRule(rule) {
+    let lhs;
+    switch (rule.subject) {
+      case "reg":
+        lhs = rule.detail || "A";
+        break;
+      case "flag":
+        lhs = `Flag ${rule.detail || "C"}`;
+        break;
+      case "byte":
+        lhs = `PEEK(${rule.detail || "$0000"})`;
+        break;
+      case "word":
+        lhs = `DEEK(${rule.detail || "$0000"})`;
+        break;
+      case "bvar":
+        lhs = rule.detail || "?";
+        break;
+      case "barr": {
+        const name = rule.detail || "?";
+        const idx1 = rule.varIndex || "0";
+        if (rule.varIndex2 !== undefined && rule.varIndex2 !== "") {
+          lhs = `${name}(${idx1},${rule.varIndex2})`;
+        } else {
+          lhs = `${name}(${idx1})`;
+        }
+        break;
+      }
+      default:
+        lhs = rule.detail || "?";
+    }
+
+    const op = rule.operator || "==";
+    const rhs = rule.value || "0";
+    return `${lhs} ${op} ${rhs}`;
+  }
+
   // ---- Preview ----
 
   updatePreview() {
@@ -424,9 +626,11 @@ export class RuleBuilderWindow extends BaseWindow {
 
   handleApply() {
     const expr = this.serializeToExpression(this.rules);
-    if (this.onApply && this.targetAddress !== null) {
-      // Deep clone rules for storage
-      const rulesCopy = JSON.parse(JSON.stringify(this.rules));
+    const rulesCopy = JSON.parse(JSON.stringify(this.rules));
+
+    if (this.targetMode === "basic" && this.onApplyBasic && this.targetAddress !== null) {
+      this.onApplyBasic(this.targetAddress, expr, rulesCopy);
+    } else if (this.onApply && this.targetAddress !== null) {
       this.onApply(this.targetAddress, expr, rulesCopy);
     }
     this.hide();

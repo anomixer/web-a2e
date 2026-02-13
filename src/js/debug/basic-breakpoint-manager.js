@@ -46,7 +46,7 @@ export class BasicBreakpointManager {
 
   /**
    * Add a breakpoint on a BASIC line/statement
-   * @param {number} lineNumber
+   * @param {number} lineNumber - use -1 for condition-only rules (no line)
    * @param {number} statementIndex - -1 for whole line, 0+ for specific statement
    */
   add(lineNumber, statementIndex = -1) {
@@ -58,9 +58,41 @@ export class BasicBreakpointManager {
       statementIndex,
       enabled: true,
       hitCount: 0,
+      condition: null,
+      conditionRules: null,
     });
 
-    this._syncWasmAdd(lineNumber, statementIndex);
+    // Only sync line breakpoints to WASM; condition-only rules use the conditional break flag
+    if (lineNumber >= 0) {
+      this._syncWasmAdd(lineNumber, statementIndex);
+    }
+    this._syncConditionRulesToWasm();
+    this.save();
+    this._notify();
+  }
+
+  /**
+   * Add a condition-only rule (not tied to a line).
+   * Uses a unique auto-incrementing ID as the statementIndex for keying.
+   */
+  addConditionRule(condition, conditionRules) {
+    // Find a unique statementIndex for condition-only rules
+    let id = 0;
+    for (const entry of this.breakpoints.values()) {
+      if (entry.lineNumber === -1 && entry.statementIndex >= id) {
+        id = entry.statementIndex + 1;
+      }
+    }
+    const key = BasicBreakpointManager._key(-1, id);
+    this.breakpoints.set(key, {
+      lineNumber: -1,
+      statementIndex: id,
+      enabled: true,
+      hitCount: 0,
+      condition: condition || null,
+      conditionRules: conditionRules || null,
+    });
+    this._syncConditionRulesToWasm();
     this.save();
     this._notify();
   }
@@ -73,7 +105,10 @@ export class BasicBreakpointManager {
     if (!this.breakpoints.has(key)) return;
 
     this.breakpoints.delete(key);
-    this._syncWasmRemove(lineNumber, statementIndex);
+    if (lineNumber >= 0) {
+      this._syncWasmRemove(lineNumber, statementIndex);
+    }
+    this._syncConditionRulesToWasm();
     this.save();
     this._notify();
   }
@@ -120,11 +155,14 @@ export class BasicBreakpointManager {
     if (!entry) return;
 
     entry.enabled = enabled;
-    if (enabled) {
-      this._syncWasmAdd(lineNumber, statementIndex);
-    } else {
-      this._syncWasmRemove(lineNumber, statementIndex);
+    if (lineNumber >= 0) {
+      if (enabled) {
+        this._syncWasmAdd(lineNumber, statementIndex);
+      } else {
+        this._syncWasmRemove(lineNumber, statementIndex);
+      }
     }
+    this._syncConditionRulesToWasm();
     this.save();
     this._notify();
   }
@@ -186,6 +224,94 @@ export class BasicBreakpointManager {
   }
 
   /**
+   * Set condition on a breakpoint
+   */
+  setCondition(lineNumber, statementIndex, condition) {
+    const key = BasicBreakpointManager._key(lineNumber, statementIndex);
+    const entry = this.breakpoints.get(key);
+    if (!entry) return;
+    entry.condition = condition || null;
+    // Re-sync condition-only rules to C++ when their expression changes
+    if (lineNumber === -1) {
+      this._syncConditionRulesToWasm();
+    }
+    this.save();
+    this._notify();
+  }
+
+  /**
+   * Set the structured rule tree on a breakpoint (for Rule Builder persistence)
+   */
+  setConditionRules(lineNumber, statementIndex, rules) {
+    const key = BasicBreakpointManager._key(lineNumber, statementIndex);
+    const entry = this.breakpoints.get(key);
+    if (!entry) return;
+    entry.conditionRules = rules || null;
+    this.save();
+    this._notify();
+  }
+
+  /**
+   * Evaluate whether a breakpoint should actually fire.
+   * Returns true if we should stay paused, false if we should resume.
+   */
+  shouldBreak(lineNumber, statementIndex) {
+    const key = BasicBreakpointManager._key(lineNumber, statementIndex);
+    const entry = this.breakpoints.get(key);
+    if (!entry || !entry.enabled) return false;
+
+    entry.hitCount++;
+
+    if (entry.condition) {
+      try {
+        const result = this.evaluateCondition(entry.condition);
+        if (!result) return false;
+      } catch (e) {
+        console.warn("BASIC breakpoint condition error:", e.message);
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Check if any enabled condition-only rules exist
+   */
+  hasConditionOnlyRules() {
+    for (const entry of this.breakpoints.values()) {
+      if (entry.lineNumber === -1 && entry.enabled && entry.condition) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Sync all condition-only rules to C++ for native evaluation at $D820
+   */
+  _syncConditionRulesToWasm() {
+    try {
+      this.wasmModule._clearBasicConditionRules();
+      for (const entry of this.breakpoints.values()) {
+        if (entry.lineNumber !== -1 || !entry.enabled || !entry.condition) continue;
+        const exprPtr = this.wasmModule._malloc(entry.condition.length + 1);
+        this.wasmModule.stringToUTF8(entry.condition, exprPtr, entry.condition.length + 1);
+        this.wasmModule._addBasicConditionRule(entry.statementIndex, exprPtr);
+        this.wasmModule._free(exprPtr);
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  /**
+   * Evaluate a condition expression via C++ evaluator.
+   */
+  evaluateCondition(expr) {
+    const exprPtr = this.wasmModule._malloc(expr.length + 1);
+    this.wasmModule.stringToUTF8(expr, exprPtr, expr.length + 1);
+    const result = this.wasmModule._evaluateCondition(exprPtr);
+    this.wasmModule._free(exprPtr);
+    return result;
+  }
+
+  /**
    * Get all breakpoint entries sorted by line then statement
    */
   getAllEntries() {
@@ -207,6 +333,7 @@ export class BasicBreakpointManager {
     } catch (e) {
       /* ignore */
     }
+    this._syncConditionRulesToWasm();
     this.save();
     this._notify();
   }
@@ -329,6 +456,7 @@ export class BasicBreakpointManager {
   resyncToWasm() {
     this.clearFromWasm();
     this.syncToWasm();
+    this._syncConditionRulesToWasm();
   }
 
   clearFromWasm() {
@@ -357,6 +485,8 @@ export class BasicBreakpointManager {
           lineNumber: entry.lineNumber,
           statementIndex: entry.statementIndex,
           enabled: entry.enabled,
+          condition: entry.condition,
+          conditionRules: entry.conditionRules,
         });
       }
       localStorage.setItem(
@@ -382,11 +512,15 @@ export class BasicBreakpointManager {
             statementIndex: stmtIdx,
             enabled: entry.enabled,
             hitCount: 0,
+            condition: entry.condition || null,
+            conditionRules: entry.conditionRules || null,
           });
-          if (entry.enabled) {
+          if (entry.enabled && entry.lineNumber >= 0) {
             this._syncWasmAdd(entry.lineNumber, stmtIdx);
           }
         }
+        // Sync condition-only rules to C++ after loading all entries
+        this._syncConditionRulesToWasm();
       }
     } catch (e) {
       console.warn("Failed to load BASIC breakpoints:", e);

@@ -180,6 +180,24 @@ input.rb-detail {
     width: 64px;
 }
 
+/* BASIC variable detail group (name + index side by side) */
+.rb-detail-group {
+    display: flex;
+    gap: 3px;
+}
+
+.rb-detail-half {
+    width: 48px !important;
+    min-width: 40px !important;
+    max-width: 56px !important;
+}
+
+.rb-detail-third {
+    width: 40px !important;
+    min-width: 32px !important;
+    max-width: 48px !important;
+}
+
 /* Operator select width */
 .rb-operator {
     min-width: 44px;
