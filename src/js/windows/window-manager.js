@@ -205,12 +205,25 @@ export class WindowManager {
       const saved = localStorage.getItem(this.storageKey);
       if (saved) {
         const state = JSON.parse(saved);
+        // First pass: restore positions, sizes, and visibility
+        // (show() calls bringToFront() which assigns temporary z-indices)
         for (const [id, windowState] of Object.entries(state)) {
           const window = this.windows.get(id);
           if (window) {
             window.restoreState(windowState);
           }
         }
+        // Second pass: restore saved z-indices, overriding those assigned by show()
+        for (const [id, windowState] of Object.entries(state)) {
+          const window = this.windows.get(id);
+          if (window && windowState.zIndex !== undefined) {
+            window.setZIndex(windowState.zIndex);
+            if (windowState.zIndex > this.highestZIndex) {
+              this.highestZIndex = windowState.zIndex;
+            }
+          }
+        }
+        this.focusTopWindow();
       }
     } catch (e) {
       console.warn('Could not load debug window state:', e);

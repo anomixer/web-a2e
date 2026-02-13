@@ -54,6 +54,7 @@
     border-right: 1px solid var(--glass-border);
     user-select: none;
     padding-top: 8px;
+    padding-bottom: 8px;
     scrollbar-width: none;
     -ms-overflow-style: none;
 }

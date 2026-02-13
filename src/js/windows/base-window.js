@@ -434,6 +434,7 @@ export class BaseWindow {
       x: this.currentX,
       y: this.currentY,
       visible: this.isVisible,
+      zIndex: this.zIndex,
     };
     // Only persist size for resizable windows; fixed-size windows always use their defaults
     if (this.isResizable) {
