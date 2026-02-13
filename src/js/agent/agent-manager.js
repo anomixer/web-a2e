@@ -240,7 +240,7 @@ export class AgentManager {
   }
 
   /**
-   * Disconnect from MCP server
+   * Disconnect from MCP server and abort any reconnection attempts
    */
   disconnect() {
     if (this.eventSource) {
@@ -258,6 +258,10 @@ export class AgentManager {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
     }
+
+    // Reset reconnection state completely
+    this.reconnectAttempts = 0;
+    this.reconnectStartTime = null;
   }
 
   /**

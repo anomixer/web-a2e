@@ -211,7 +211,7 @@ export class UIController {
       } else if (state.reconnecting) {
         // Connection severed but reconnecting - light red
         agentBtn.classList.add("severed");
-        agentBtn.title = "Connection lost - Attempting to Reconnect";
+        agentBtn.title = "Connection lost - Click to abort reconnection";
       } else {
         // Server available but not connected - default appearance
         agentBtn.classList.add("disconnected");
@@ -238,12 +238,21 @@ export class UIController {
     // Handle button click
     agentBtn.addEventListener("click", () => {
       console.log("[UIController] Agent button clicked");
+      const state = agentManager.getState();
+
       if (agentManager.isConnected()) {
+        // Connected - disconnect
         console.log("[UIController] Disconnecting...");
         agentManager.disconnect();
         // Resume heartbeat polling after manual disconnect
         agentManager.startHeartbeatPolling();
+      } else if (state.reconnecting) {
+        // Reconnecting - abort reconnection and reset to disconnected
+        console.log("[UIController] Aborting reconnection attempts...");
+        agentManager.disconnect();
+        // Don't auto-connect, let user click again if they want
       } else {
+        // Disconnected - connect
         console.log("[UIController] Connecting...");
         agentManager.connect();
         setTimeout(() => updateButtonState(), 100);
