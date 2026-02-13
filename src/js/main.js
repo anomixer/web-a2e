@@ -303,8 +303,10 @@ class AppleIIeEmulator {
       // Apply display settings
       this.displaySettings.applyAllSettings();
 
-      // Always show ScreenWindow and attach canvas
-      this.screenWindow.show();
+      // Ensure ScreenWindow is visible (loadState may have already shown it)
+      if (!this.screenWindow.isVisible) {
+        this.screenWindow.show();
+      }
       this.screenWindow.attachCanvas();
 
       // Position/size windows for first-time users (no saved state)

@@ -162,10 +162,26 @@ export class BaseWindow {
         });
       });
 
-    // Bring to front on click
-    this.element.addEventListener("mousedown", () => {
+    // Bring to front on click — if the window isn't focused, consume the
+    // first click so it only brings the window to front without interacting
+    // with content (buttons, inputs, etc.).
+    this._consumeNextClick = false;
+    this.element.addEventListener("mousedown", (e) => {
+      const wasFocused = this.element.classList.contains("focused");
       if (this.onFocus) this.onFocus(this.id);
-    });
+      if (!wasFocused && !this.headerElement.contains(e.target)) {
+        this._consumeNextClick = true;
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }, true);
+    this.element.addEventListener("click", (e) => {
+      if (this._consumeNextClick) {
+        this._consumeNextClick = false;
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }, true);
 
     // Global mouse events for drag/resize
     document.addEventListener("mousemove", this.handleMouseMove);
