@@ -11,6 +11,8 @@ const WINDOW_CATEGORIES = [
     windows: [
       { id: 'screen-window', title: 'Screen' },
       { id: 'disk-drives', title: 'Disk Drives' },
+      { id: 'hard-drives', title: 'Hard Drives' },
+      { id: 'file-explorer-window', title: 'File Explorer' },
       { id: 'save-states', title: 'Save States' },
     ],
   },
@@ -29,6 +31,7 @@ const WINDOW_CATEGORIES = [
     windows: [
       { id: 'cpu-debugger', title: 'CPU Debugger' },
       { id: 'rule-builder', title: 'Rule Builder' },
+      { id: 'trace-panel', title: 'Trace Panel' },
       { id: 'soft-switches', title: 'Soft Switches' },
       { id: 'memory-browser', title: 'Memory Browser' },
       { id: 'memory-heatmap', title: 'Memory Heat Map' },
