@@ -11,6 +11,38 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "February 15, 2026",
+    features: [
+      {
+        title: "BASIC conditional breakpoints",
+        description:
+          "Set conditional breakpoints on BASIC variables and arrays using the Rule Builder. Supports simple variables (e.g. break when SCORE >= 1000), 1D arrays (e.g. A(5) == 42), and 2D arrays (e.g. G(2,3) == 23). Conditions are evaluated natively in C++ at every BASIC statement boundary for accuracy.",
+      },
+      {
+        title: "Condition-only rules",
+        description:
+          "Add breakpoint rules that aren't tied to a specific line — they evaluate on every BASIC statement and break wherever the condition becomes true. Access via the 'if...' button in the breakpoint toolbar.",
+      },
+      {
+        title: "Breakpoint trigger indicators",
+        description:
+          "When a breakpoint fires, the triggered item in the breakpoint list pulses red and the source line highlights in red (instead of the usual blue stepping highlight), making it clear which breakpoint stopped execution.",
+      },
+    ],
+    fixes: [
+      {
+        title: "BASIC editor gutter scroll",
+        description:
+          "The breakpoint gutter no longer scrolls independently of the editor — it stays locked to the editor content.",
+      },
+      {
+        title: "2D array breakpoint formula",
+        description:
+          "Fixed the flat index calculation for 2D array variable watches to match Applesoft's column-major storage order.",
+      },
+    ],
+  },
+  {
     week: "February 14, 2026",
     features: [
       {
