@@ -68,6 +68,7 @@ export class BasicProgramWindow extends BaseWindow {
     // Heat map state
     this.lineHeatMap = new Map(); // BASIC line number -> heat value (0.0–1.0)
     this.heatMapEnabled = false;
+    this.traceEnabled = true; // Highlight current line while running
 
     // Runtime error state
     this.errorLineNumber = null;
@@ -99,6 +100,11 @@ export class BasicProgramWindow extends BaseWindow {
             <span class="basic-dbg-icon">↓</span> Step
           </button>
           <div style="width:1px;height:16px;background:var(--separator-bg);margin:0 2px;flex-shrink:0;"></div>
+          <label class="toggle-label basic-heat-toggle" title="Highlight current line while running">
+            <input type="checkbox" class="basic-trace-checkbox" checked>
+            <span class="toggle-switch"></span>
+            <span style="font-size:10px">Trace</span>
+          </label>
           <label class="toggle-label basic-heat-toggle" title="Show line execution heat map">
             <input type="checkbox" class="basic-heat-checkbox">
             <span class="toggle-switch"></span>
@@ -419,6 +425,18 @@ export class BasicProgramWindow extends BaseWindow {
     );
     this.autocomplete = new BasicAutocomplete(this.textarea, editorContainer);
 
+    // Trace toggle
+    this.traceCheckbox = this.contentElement.querySelector(".basic-trace-checkbox");
+    this.traceCheckbox.addEventListener("change", () => {
+      this.traceEnabled = this.traceCheckbox.checked;
+      if (!this.traceEnabled && this.currentLineNumber !== null) {
+        this.currentLineNumber = null;
+        this.currentStatementInfo = null;
+        this._updateGutterStyles();
+        this.updateHighlighting();
+      }
+    });
+
     // Heat map toggle
     this.heatCheckbox = this.contentElement.querySelector(".basic-heat-checkbox");
     this.heatCheckbox.addEventListener("change", () => {
@@ -732,12 +750,30 @@ export class BasicProgramWindow extends BaseWindow {
       if (counts[i] > maxCount) maxCount = counts[i];
     }
 
-    this.lineHeatMap.clear();
+    // Build new normalized values from C++ counts
+    const decay = 0.92; // Per-frame decay (~30fps: fades to ~8% in 1 second)
+    const activeLines = new Set();
+
     if (maxCount > 0) {
       for (let i = 0; i < count; i++) {
-        // Logarithmic normalization for better visual spread
+        const lineNum = lines[i];
         const normalized = Math.log(1 + counts[i]) / Math.log(1 + maxCount);
-        this.lineHeatMap.set(lines[i], normalized);
+        const prev = this.lineHeatMap.get(lineNum) || 0;
+        // Blend: take the max of decayed previous and new normalized value
+        this.lineHeatMap.set(lineNum, Math.max(prev * decay, normalized));
+        activeLines.add(lineNum);
+      }
+    }
+
+    // Decay lines no longer in C++ map and prune dead entries
+    for (const [line, heat] of this.lineHeatMap) {
+      if (!activeLines.has(line)) {
+        const decayed = heat * decay;
+        if (decayed < 0.005) {
+          this.lineHeatMap.delete(line);
+        } else {
+          this.lineHeatMap.set(line, decayed);
+        }
       }
     }
 
@@ -2115,7 +2151,7 @@ export class BasicProgramWindow extends BaseWindow {
       // $FF in high byte means direct/immediate mode - not in a program line
       if (curlinHi !== 0xFF) {
         const runningLine = curlinLo | (curlinHi << 8);
-        const lineChanged = runningLine !== this.currentLineNumber;
+        const lineChanged = this.traceEnabled && runningLine !== this.currentLineNumber;
 
         if (lineChanged) {
           this.currentLineNumber = runningLine;
@@ -2354,6 +2390,7 @@ export class BasicProgramWindow extends BaseWindow {
       sidebarWidth: this.sidebar ? this.sidebar.offsetWidth : 200,
       breakpointsHeight: this.bpSection ? this.bpSection.offsetHeight : 150,
       heatMapEnabled: this.heatMapEnabled,
+      traceEnabled: this.traceEnabled,
     };
   }
 
@@ -2370,6 +2407,10 @@ export class BasicProgramWindow extends BaseWindow {
     }
     if (state.breakpointsHeight && this.bpSection) {
       this.bpSection.style.height = `${state.breakpointsHeight}px`;
+    }
+    if (state.traceEnabled !== undefined) {
+      this.traceEnabled = state.traceEnabled;
+      if (this.traceCheckbox) this.traceCheckbox.checked = state.traceEnabled;
     }
     if (state.heatMapEnabled !== undefined) {
       this.heatMapEnabled = state.heatMapEnabled;
