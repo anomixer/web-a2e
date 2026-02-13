@@ -509,7 +509,7 @@ export class BaseWindow {
     // Calculate edge distances based on restored position
     this.updateEdgeDistances();
 
-    if (state.visible) {
+    if (state.visible && !this.skipVisibilityRestore) {
       this.show();
     }
   }

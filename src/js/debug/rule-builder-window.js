@@ -18,6 +18,9 @@ export class RuleBuilderWindow extends BaseWindow {
       defaultHeight: 440,
     });
 
+    // Never restore as visible — the window has no content unless actively editing a breakpoint
+    this.skipVisibilityRestore = true;
+
     this.rules = null; // Root group node
     this.targetAddress = null;
     this.targetMode = "cpu"; // "cpu" or "basic"
