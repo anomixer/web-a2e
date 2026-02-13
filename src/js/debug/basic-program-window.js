@@ -675,6 +675,36 @@ export class BasicProgramWindow extends BaseWindow {
   }
 
   /**
+   * Update gutter line styles in-place (current-line marker, heat map backgrounds)
+   * without rebuilding the DOM, which would cause scroll desync.
+   */
+  _updateGutterStyles() {
+    const gutterLines = this.gutter.querySelectorAll(".basic-gutter-line");
+    for (let i = 0; i < gutterLines.length; i++) {
+      const lineNumber = this.lineMap[i];
+      const el = gutterLines[i];
+      const isCurrent = lineNumber !== null && this.currentLineNumber === lineNumber;
+
+      // Update current-line class
+      el.classList.toggle("is-current", isCurrent);
+
+      // Update current-line indicator
+      const currentSpan = el.querySelector(".basic-gutter-current");
+      if (currentSpan) currentSpan.textContent = isCurrent ? "►" : "";
+
+      // Heat map background (skip bp/current/error lines)
+      if (el.classList.contains("has-bp") || isCurrent || el.classList.contains("has-error")) {
+        el.style.background = "";
+      } else if (this.heatMapEnabled && lineNumber !== null && lineNumber !== undefined) {
+        const heat = this.lineHeatMap.get(lineNumber) || 0;
+        el.style.background = heat > 0.005 ? this._heatColor(heat) : "";
+      } else {
+        el.style.background = "";
+      }
+    }
+  }
+
+  /**
    * Read heat map data from the C++ emulator into this.lineHeatMap.
    * Converts raw execution counts to normalized 0.0–1.0 heat values.
    */
@@ -959,17 +989,8 @@ export class BasicProgramWindow extends BaseWindow {
         lineHtml += `<span class="basic-error-msg">${this.errorMessage}</span>`;
       }
 
-      // Heat map background on editor lines
-      let heatAttr = "";
-      if (this.heatMapEnabled && lineNumber !== null && !isCurrentLine && !isErrorLine) {
-        const heat = this.lineHeatMap.get(lineNumber) || 0;
-        if (heat > 0.005) {
-          heatAttr = ` style="background:${this._heatColor(heat)}"`;
-        }
-      }
-
       // Wrap each line in a div with appropriate classes
-      const highlighted = `<div class="${lineClass}"${heatAttr}>${lineHtml}</div>`;
+      const highlighted = `<div class="${lineClass}">${lineHtml}</div>`;
       highlightedLines.push(highlighted);
     }
 
@@ -2094,19 +2115,23 @@ export class BasicProgramWindow extends BaseWindow {
       // $FF in high byte means direct/immediate mode - not in a program line
       if (curlinHi !== 0xFF) {
         const runningLine = curlinLo | (curlinHi << 8);
+        const lineChanged = runningLine !== this.currentLineNumber;
 
-        // Heat map: read from C++ counters
-        if (this.heatMapEnabled) {
-          this._readHeatMapFromWasm();
-          this.updateGutter();
-          this.updateHighlighting();
-        }
-
-        if (runningLine !== this.currentLineNumber) {
+        if (lineChanged) {
           this.currentLineNumber = runningLine;
           this.currentStatementInfo = null;
           this.updateHighlighting();
           this._scrollToCurrentLine();
+        }
+
+        // Heat map: read from C++ counters
+        if (this.heatMapEnabled) {
+          this._readHeatMapFromWasm();
+        }
+
+        // Update gutter styles in-place when line changed or heat map active
+        if (lineChanged || this.heatMapEnabled) {
+          this._updateGutterStyles();
         }
       }
     } else if (this.currentLineNumber !== null) {
