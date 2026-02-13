@@ -173,6 +173,24 @@ class AppleIIeEmulator {
       };
       cpuWindow.setRuleBuilder(ruleBuilderWindow);
 
+      // BASIC breakpoint condition callback - will be wired after basicProgramWindow is created
+      ruleBuilderWindow.onApplyBasic = (key, condStr, rules) => {
+        if (this.basicProgramWindow) {
+          const bpMgr = this.basicProgramWindow.breakpointManager;
+          if (key === "__new_rule__") {
+            // New condition-only rule
+            bpMgr.addConditionRule(condStr, rules);
+          } else {
+            const [lineStr, stmtStr] = key.split(":");
+            const lineNum = parseInt(lineStr, 10);
+            const stmtIdx = parseInt(stmtStr, 10);
+            bpMgr.setCondition(lineNum, stmtIdx, condStr);
+            bpMgr.setConditionRules(lineNum, stmtIdx, rules);
+          }
+          this.basicProgramWindow.renderBreakpointList();
+        }
+      };
+
       const switchWindow = new SoftSwitchWindow(this.wasmModule);
       switchWindow.create();
       this.windowManager.register(switchWindow);
@@ -244,6 +262,7 @@ class AppleIIeEmulator {
       basicProgramWindow.create();
       this.windowManager.register(basicProgramWindow);
       this.basicProgramWindow = basicProgramWindow;
+      basicProgramWindow.setRuleBuilder(ruleBuilderWindow);
 
       const assemblerWindow = new AssemblerEditorWindow(this.wasmModule, cpuWindow.bpManager, () => this.isRunning(), cpuWindow);
       assemblerWindow.create();

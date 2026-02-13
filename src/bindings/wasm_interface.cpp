@@ -328,6 +328,30 @@ void clearBasicBreakpointHit() {
 }
 
 EMSCRIPTEN_KEEPALIVE
+void addBasicConditionRule(int id, const char* expression) {
+  REQUIRE_EMULATOR();
+  g_emulator->addBasicConditionRule(id, expression);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void removeBasicConditionRule(int id) {
+  REQUIRE_EMULATOR();
+  g_emulator->removeBasicConditionRule(id);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void clearBasicConditionRules() {
+  REQUIRE_EMULATOR();
+  g_emulator->clearBasicConditionRules();
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getBasicConditionRuleHitId() {
+  REQUIRE_EMULATOR_OR(-1);
+  return g_emulator->getBasicConditionRuleHitId();
+}
+
+EMSCRIPTEN_KEEPALIVE
 bool hasBasicBreakpoints() {
   REQUIRE_EMULATOR_OR(false);
   return g_emulator->hasBasicBreakpoints();

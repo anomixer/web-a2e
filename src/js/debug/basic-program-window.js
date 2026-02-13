@@ -13,6 +13,7 @@ import {
 import { escapeHtml } from "../utils/string-utils.js";
 import { BasicAutocomplete } from "../utils/basic-autocomplete.js";
 import { BasicBreakpointManager } from "./basic-breakpoint-manager.js";
+import { RuleBuilderWindow } from "./rule-builder-window.js";
 import { BasicVariableInspector } from "./basic-variable-inspector.js";
 import { BasicProgramParser } from "./basic-program-parser.js";
 import { showToast } from "../ui/toast.js";
@@ -169,7 +170,8 @@ export class BasicProgramWindow extends BaseWindow {
               </div>
               <div class="basic-dbg-bp-toolbar">
                 <input type="text" class="basic-dbg-bp-input" placeholder="Line #" maxlength="5">
-                <button class="basic-dbg-bp-add-btn" title="Add breakpoint">+</button>
+                <button class="basic-dbg-bp-add-btn" title="Add line breakpoint">+</button>
+                <button class="basic-dbg-bp-add-rule-btn" title="Add condition rule">if\u2026</button>
                 <button class="basic-dbg-bp-info-btn" title="Breakpoint help">i</button>
               </div>
               <div class="basic-dbg-bp-list"></div>
@@ -474,6 +476,11 @@ export class BasicProgramWindow extends BaseWindow {
     this.bpInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") this.addBreakpointFromInput();
     });
+
+    // Add condition-only rule button
+    this.contentElement
+      .querySelector(".basic-dbg-bp-add-rule-btn")
+      .addEventListener("click", () => this.addConditionRule());
 
     // Splitter for resizable panels (editor <-> sidebar)
     this.splitter = this.contentElement.querySelector(".basic-splitter");
@@ -997,7 +1004,10 @@ export class BasicProgramWindow extends BaseWindow {
         this.lineMap[i] === this.currentLineNumber;
 
       let lineClass = "basic-line";
-      if (isCurrentLine) lineClass += " basic-current-line";
+      if (isCurrentLine) {
+        lineClass += " basic-current-line";
+        if (this._breakpointHitLine) lineClass += " basic-breakpoint-hit";
+      }
       if (indent > 0) lineClass += ` indent-${Math.min(indent, 4)}`;
 
       // For multi-statement lines, wrap each statement in a span
@@ -1544,6 +1554,7 @@ export class BasicProgramWindow extends BaseWindow {
 
     if (isPaused) {
       // Continue from pause
+      this._clearBreakpointPulse();
       this._varAutoRefresh = true;
       this._lastBasicBreakpointHit = false;
       this.currentLineNumber = null;
@@ -1557,6 +1568,7 @@ export class BasicProgramWindow extends BaseWindow {
       this.wasmModule._setPaused(false);
     } else {
       // Fresh run — write editor contents to memory first, then type RUN
+      this._clearBreakpointPulse();
       this._lastBasicBreakpointHit = false;
       this._lastProgramRunning = false;
       this.currentLineNumber = null;
@@ -1582,11 +1594,18 @@ export class BasicProgramWindow extends BaseWindow {
   /**
    * Stop - Send Ctrl+C to the emulator to break the running program.
    */
+  _clearBreakpointPulse() {
+    const items = this.bpList?.querySelectorAll(".basic-dbg-bp-item.bp-triggered");
+    if (items) items.forEach((el) => el.classList.remove("bp-triggered"));
+    this._breakpointHitLine = false;
+  }
+
   handleStop() {
     if (!this.isRunningCallback || !this.isRunningCallback()) {
       return;
     }
 
+    this._clearBreakpointPulse();
     // Unpause if paused so the keystroke is processed
     if (this.wasmModule._isPaused()) {
       this.wasmModule._setPaused(false);
@@ -1606,6 +1625,7 @@ export class BasicProgramWindow extends BaseWindow {
     }
 
     // Stop auto-refreshing variables (breakpoint hit will do a final render)
+    this._clearBreakpointPulse();
     this._varAutoRefresh = false;
 
     // Pause first so the step machinery can read consistent state
@@ -1640,6 +1660,7 @@ export class BasicProgramWindow extends BaseWindow {
     }
 
     // Reset tracking flag so we detect the next breakpoint hit
+    this._clearBreakpointPulse();
     this._lastBasicBreakpointHit = false;
 
     // Use C++ statement stepping - breaks at ROM's EXECUTE_STATEMENT entry
@@ -1982,6 +2003,62 @@ export class BasicProgramWindow extends BaseWindow {
     return html;
   }
 
+  /**
+   * Add a condition-only rule via the Rule Builder
+   */
+  addConditionRule() {
+    if (this.ruleBuilder) {
+      // Create a temporary entry, open rule builder, on apply create the real breakpoint
+      const tempEntry = { condition: null, conditionRules: null };
+      this.ruleBuilder.editBasicBreakpoint("__new_rule__", tempEntry, "Condition Rule");
+    }
+  }
+
+  /**
+   * Get the statement index for the current break position
+   */
+  _getBreakStatementIndex(breakLine) {
+    if (this.wasmModule._getBasicTxtptr) {
+      const txtptr = this.wasmModule._getBasicTxtptr();
+      const info = this.programParser.getCurrentStatementInfo(breakLine, txtptr);
+      if (info) return info.statementIndex;
+    }
+    return -1;
+  }
+
+  /**
+   * Set the Rule Builder window reference
+   */
+  setRuleBuilder(ruleBuilderWindow) {
+    this.ruleBuilder = ruleBuilderWindow;
+  }
+
+  /**
+   * Edit condition on a BASIC breakpoint via Rule Builder
+   */
+  editBreakpointCondition(lineNumber, statementIndex) {
+    const entry = this.breakpointManager.get(lineNumber, statementIndex);
+    if (!entry) return;
+
+    if (this.ruleBuilder) {
+      const key = `${lineNumber}:${statementIndex}`;
+      const label = statementIndex >= 0
+        ? `Line ${lineNumber} : ${statementIndex}`
+        : `Line ${lineNumber}`;
+      this.ruleBuilder.editBasicBreakpoint(key, entry, label);
+    } else {
+      const condition = prompt(
+        `Condition for breakpoint at Line ${lineNumber}:\n` +
+          `Examples: BV(73,0)==50, PEEK($00)==#$42`,
+        entry.condition || "",
+      );
+      if (condition !== null) {
+        this.breakpointManager.setCondition(lineNumber, statementIndex, condition);
+        this.renderBreakpointList();
+      }
+    }
+  }
+
   renderBreakpointList() {
     const entries = this.breakpointManager.getAllEntries();
 
@@ -1994,15 +2071,36 @@ export class BasicProgramWindow extends BaseWindow {
     let html = "";
     for (const entry of entries) {
       const enabledClass = entry.enabled ? "" : "disabled";
-      const label = entry.statementIndex >= 0
-        ? `Line ${entry.lineNumber} : ${entry.statementIndex}`
-        : `Line ${entry.lineNumber}`;
+      let label;
+      if (entry.lineNumber === -1) {
+        // Condition-only rule - show human-readable label from rule tree
+        label = entry.conditionRules
+          ? RuleBuilderWindow.toDisplayLabel(entry.conditionRules)
+          : (entry.condition || "Rule");
+      } else if (entry.statementIndex >= 0) {
+        label = `Line ${entry.lineNumber} : ${entry.statementIndex}`;
+      } else {
+        label = `Line ${entry.lineNumber}`;
+      }
+
+      let condBadge = "";
+      if (entry.condition && entry.lineNumber >= 0) {
+        const condLabel = entry.conditionRules
+          ? RuleBuilderWindow.toDisplayLabel(entry.conditionRules)
+          : entry.condition;
+        condBadge = `<span class="basic-dbg-bp-cond" title="${condLabel}">if</span>`;
+      }
+
+      const isRule = entry.lineNumber === -1;
 
       html += `
-        <div class="basic-dbg-bp-item ${enabledClass}" data-line="${entry.lineNumber}" data-stmt="${entry.statementIndex}">
+        <div class="basic-dbg-bp-item ${enabledClass} ${isRule ? "condition-rule" : ""}" data-line="${entry.lineNumber}" data-stmt="${entry.statementIndex}">
           <input type="checkbox" class="basic-dbg-bp-enabled"
                  ${entry.enabled ? "checked" : ""} data-line="${entry.lineNumber}" data-stmt="${entry.statementIndex}">
-          <span class="basic-dbg-bp-line">${label}</span>
+          ${isRule ? '<span class="basic-dbg-bp-rule-badge">if</span>' : ""}
+          <span class="basic-dbg-bp-line ${isRule ? "basic-dbg-bp-rule-expr" : ""}" title="${isRule && entry.condition ? entry.condition : ""}">${label}</span>
+          ${condBadge}
+          <button class="basic-dbg-bp-edit" data-line="${entry.lineNumber}" data-stmt="${entry.statementIndex}" title="Edit condition">if\u2026</button>
           <button class="basic-dbg-bp-remove" data-line="${entry.lineNumber}" data-stmt="${entry.statementIndex}" title="Remove">×</button>
         </div>
       `;
@@ -2028,6 +2126,14 @@ export class BasicProgramWindow extends BaseWindow {
         this.updateGutter();
         this.updateHighlighting();
         this.renderBreakpointList();
+      });
+    });
+
+    this.bpList.querySelectorAll(".basic-dbg-bp-edit").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const lineNum = parseInt(btn.dataset.line, 10);
+        const stmtIdx = parseInt(btn.dataset.stmt, 10);
+        this.editBreakpointCondition(lineNum, stmtIdx);
       });
     });
   }
@@ -2090,7 +2196,27 @@ export class BasicProgramWindow extends BaseWindow {
     const basicBreakpointHit = isPaused && wasmModule._isBasicBreakpointHit();
     if (basicBreakpointHit && !this._lastBasicBreakpointHit) {
       const breakLine = wasmModule._getBasicBreakLine();
+
+      // Check if this was a line/statement breakpoint match
+      const stmtIdx = this._getBreakStatementIndex(breakLine);
+      const bpEntry = this.breakpointManager.get(breakLine, stmtIdx)
+        || this.breakpointManager.get(breakLine, -1);
+
+      if (bpEntry) {
+        // Line breakpoint matched - evaluate its condition if it has one
+        if (bpEntry.condition) {
+          if (!this.breakpointManager.shouldBreak(bpEntry.lineNumber, bpEntry.statementIndex)) {
+            wasmModule._setPaused(false);
+            if (wasmModule._clearBasicBreakpointHit) wasmModule._clearBasicBreakpointHit();
+            this._lastBasicBreakpointHit = false;
+            return;
+          }
+        }
+      }
+      // Condition-only rules are evaluated in C++ - no JS evaluation needed
+
       this.currentLineNumber = breakLine;
+      this._breakpointHitLine = true;
       // Get statement info using TXTPTR from execution state
       if (wasmModule._getBasicTxtptr) {
         const txtptr = wasmModule._getBasicTxtptr();
@@ -2098,9 +2224,27 @@ export class BasicProgramWindow extends BaseWindow {
       } else {
         this.currentStatementInfo = null;
       }
+
       this.updateGutter();
       this.updateHighlighting();
       this.renderVariables();
+
+      // Pulse the triggered breakpoint item
+      this._clearBreakpointPulse();
+      const condRuleId = wasmModule._getBasicConditionRuleHitId
+        ? wasmModule._getBasicConditionRuleHitId() : -1;
+      if (condRuleId >= 0) {
+        // Condition-only rule hit
+        const el = this.bpList?.querySelector(
+          `.basic-dbg-bp-item[data-line="-1"][data-stmt="${condRuleId}"]`);
+        if (el) el.classList.add("bp-triggered");
+      } else {
+        // Line/statement breakpoint hit
+        const stmtAttr = bpEntry ? bpEntry.statementIndex : -1;
+        const el = this.bpList?.querySelector(
+          `.basic-dbg-bp-item[data-line="${breakLine}"][data-stmt="${stmtAttr}"]`);
+        if (el) el.classList.add("bp-triggered");
+      }
     }
     this._lastBasicBreakpointHit = basicBreakpointHit;
 
