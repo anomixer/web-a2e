@@ -10,7 +10,7 @@ A cycle-accurate Apple //e Enhanced emulator running in the browser using WebAss
 - **WebGL rendering** — Hardware-accelerated display with configurable CRT shader effects
 - **Audio-driven timing** — Web Audio API AudioWorklet drives frame timing at 48kHz
 - **Disk II controller** — DSK, DO, PO, and WOZ format support with write capability
-- **Expansion cards** — Mockingboard sound card, Thunderclock Plus, Apple Mouse Interface Card
+- **Expansion cards** — Mockingboard sound card, Thunderclock Plus, Apple Mouse Interface Card, SmartPort hard drive
 - **File explorer** — Browse DOS 3.3 and ProDOS disk contents with BASIC detokenizer and disassembler
 - **Save states** — Autosave slot plus 5 manual save slots, stored in IndexedDB
 - **Built-in debugger** — CPU debugger, memory browser, heat map, soft switch monitor, and more
@@ -161,9 +161,9 @@ Cards are configured via **View > Expansion Slots**.
 
 **Apple Mouse Interface Card** — Mouse input via MC6821 PIA command protocol.
 
-### Joystick
+### Joystick & Game Controllers
 
-A floating joystick window provides visual paddle/joystick controls that map to the Apple II game ports ($C064-$C067).
+A floating joystick window provides visual paddle/joystick controls that map to the Apple II game ports ($C064-$C067). Physical game controllers are supported via the Gamepad API — the left stick maps to paddle values and buttons A/B map to Apple II buttons 0/1, with a configurable deadzone.
 
 ## Architecture
 
@@ -231,7 +231,7 @@ Development tools are accessible from the **Dev** menu.
 
 | Tool | Description |
 |------|-------------|
-| **BASIC Program** | Write, edit, and paste Applesoft BASIC programs with syntax highlighting, autocomplete, line heat map, trace toggle, statement-level breakpoints, and variable inspector |
+| **BASIC Program** | Write, edit, and paste Applesoft BASIC programs with syntax highlighting, autocomplete, line heat map, trace toggle, statement-level breakpoints, variable inspector, and run/stop/pause/step controls |
 | **Assembler** | Full 65C02 assembler with Merlin-style syntax, live validation, ROM routines reference, breakpoint support, and file save/load |
 
 ### Assembler Features
