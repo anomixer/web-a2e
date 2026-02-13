@@ -172,9 +172,7 @@ export class BasicProgramWindow extends BaseWindow {
     this.linesSpan = this.contentElement.querySelector(".basic-lines");
     this.charsSpan = this.contentElement.querySelector(".basic-chars");
     this.loadBtn = this.contentElement.querySelector(".basic-load-btn");
-    this.loadBtn.disabled = true;
     this.insertBtn = this.contentElement.querySelector(".basic-insert-btn");
-    this.insertBtn.disabled = true;
     this.formatBtn = this.contentElement.querySelector(".basic-format-btn");
     this.renumberBtn = this.contentElement.querySelector(".basic-renumber-btn");
 
@@ -283,12 +281,22 @@ export class BasicProgramWindow extends BaseWindow {
     });
 
     this.insertBtn.addEventListener("click", () => {
+      if (!this._isInBasic()) {
+        showToast("Emulator must be at the BASIC prompt to write a program to memory", "warning");
+        return;
+      }
       this.loadIntoMemory();
     });
 
-
-
     this.loadBtn.addEventListener("click", () => {
+      if (!this._isInBasic()) {
+        showToast("Emulator must be at the BASIC prompt to read a program from memory", "warning");
+        return;
+      }
+      if (this.programParser.getLines().length === 0) {
+        showToast("No BASIC program found in memory", "warning");
+        return;
+      }
       this.loadFromMemory();
     });
 
@@ -352,6 +360,47 @@ export class BasicProgramWindow extends BaseWindow {
       this.updateHighlighting();
       this.renderBreakpointList();
       e.preventDefault();
+    });
+
+    // Highlight statement under cursor on hover (shows what Option+click would target)
+    this.textarea.addEventListener('mousemove', (e) => {
+      if (!this.highlight || !this.lineMap) return;
+
+      // Find which highlight line div the cursor Y falls into
+      const lineDivs = this.highlight.children;
+      let targetLineDiv = null;
+      let lineIndex = -1;
+      for (let i = 0; i < lineDivs.length; i++) {
+        const rect = lineDivs[i].getBoundingClientRect();
+        if (e.clientY >= rect.top && e.clientY <= rect.bottom) {
+          targetLineDiv = lineDivs[i];
+          lineIndex = i;
+          break;
+        }
+      }
+
+      // Clear previous hover
+      const prev = this.highlight.querySelector('.basic-statement-hover');
+      if (prev) prev.classList.remove('basic-statement-hover');
+
+      if (!targetLineDiv || this.lineMap[lineIndex] === null) return;
+
+      // Find which statement span the cursor falls into
+      const stmtSpans = targetLineDiv.querySelectorAll('.basic-statement');
+      if (stmtSpans.length === 0) return;
+
+      for (const span of stmtSpans) {
+        const rect = span.getBoundingClientRect();
+        if (e.clientX >= rect.left && e.clientX <= rect.right) {
+          span.classList.add('basic-statement-hover');
+          break;
+        }
+      }
+    });
+
+    this.textarea.addEventListener('mouseleave', () => {
+      const prev = this.highlight?.querySelector('.basic-statement-hover');
+      if (prev) prev.classList.remove('basic-statement-hover');
     });
 
     // Initialize autocomplete
@@ -568,7 +617,10 @@ export class BasicProgramWindow extends BaseWindow {
 
     this.gutter.innerHTML = html;
 
-    // Scroll the current line into view within the editor
+    this._scrollToCurrentLine();
+  }
+
+  _scrollToCurrentLine() {
     if (this.currentLineNumber !== null && this.lineMap) {
       const lineIndex = this.lineMap.indexOf(this.currentLineNumber);
       if (lineIndex >= 0) {
@@ -794,6 +846,11 @@ export class BasicProgramWindow extends BaseWindow {
       } else if (isMultiStatement && lineNumber !== null) {
         // Wrap all multi-statement lines so statements are clickable for breakpoints
         lineHtml = this._wrapStatementsForBreakpoints(html, stmtBPs);
+      } else if (lineNumber !== null && html) {
+        // Wrap single-statement lines so hover highlighting works
+        const hasBP = stmtBPs.some(bp => bp.statementIndex >= 0 && bp.statementIndex === 0);
+        const cls = hasBP ? " basic-statement-bp" : "";
+        lineHtml = `<span class="basic-statement${cls}">${html}</span>`;
       }
 
       if (isErrorLine && this.errorMessage) {
@@ -1192,6 +1249,11 @@ export class BasicProgramWindow extends BaseWindow {
     } catch (err) {
       if (err.name !== "AbortError") console.error("Failed to save file:", err);
     }
+  }
+
+  _isInBasic() {
+    const emulatorOn = this.isRunningCallback ? this.isRunningCallback() : false;
+    return emulatorOn && this.wasmModule._peekMemory(0x33) === 0xDD;
   }
 
   loadFromMemory() {
@@ -1794,10 +1856,7 @@ export class BasicProgramWindow extends BaseWindow {
       ? this.wasmModule._isBasicProgramRunning()
       : false;
 
-    // Enable/disable Read and Write buttons based on emulator state
     const emulatorOn = this.isRunningCallback ? this.isRunningCallback() : false;
-    this.loadBtn.disabled = !emulatorOn;
-    this.insertBtn.disabled = !emulatorOn;
 
     // Update program status indicator
     if (isPaused && programRunning) {
@@ -1915,8 +1974,22 @@ export class BasicProgramWindow extends BaseWindow {
         this.updateGutter();
         this.updateHighlighting();
       }
+    } else if (programRunning) {
+      // While running, track the current line via CURLIN ($75-$76)
+      const curlinLo = this.wasmModule._peekMemory(0x75);
+      const curlinHi = this.wasmModule._peekMemory(0x76);
+      // $FF in high byte means direct/immediate mode - not in a program line
+      if (curlinHi !== 0xFF) {
+        const runningLine = curlinLo | (curlinHi << 8);
+        if (runningLine !== this.currentLineNumber) {
+          this.currentLineNumber = runningLine;
+          this.currentStatementInfo = null;
+          this.updateHighlighting();
+          this._scrollToCurrentLine();
+        }
+      }
     } else if (this.currentLineNumber !== null) {
-      // Clear line highlighting when not paused
+      // Clear line highlighting when not running
       this.currentLineNumber = null;
       this.currentStatementInfo = null;
       this.updateHighlighting();

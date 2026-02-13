@@ -356,9 +356,9 @@ export class BasicProgramParser {
       if (byte >= 0x80 && byte <= 0xea) {
         const token = APPLESOFT_TOKENS[byte - 0x80];
         if (token) {
-          // Add space before token if both last char and first token char are alphanumeric
+          // Add space before token if last char is alphanumeric
           const lastChar = result.length > 0 ? result[result.length - 1] : "";
-          if (isAlphaNum(lastChar) && isAlphaNum(token[0])) {
+          if (isAlphaNum(lastChar)) {
             result += " ";
           }
 
@@ -367,6 +367,12 @@ export class BasicProgramParser {
           // Check for REM or DATA
           if (byte === 0xb2) inRem = true; // REM
           if (byte === 0x83) inData = true; // DATA
+
+          // Add space after token if next byte isn't a space and token ends with a letter
+          const nextByte = i + 1 < bytes.length ? bytes[i + 1] : 0;
+          if (nextByte !== 0x20 && nextByte !== 0 && isAlphaNum(token[token.length - 1])) {
+            result += " ";
+          }
           continue;
         }
       }
