@@ -11,6 +11,33 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "February 16, 2026",
+    features: [
+      {
+        title: "AI Agent integration",
+        description:
+          "Full AI agent control via Model Context Protocol (MCP) and AG-UI event protocol. Agents can manage the emulator, load disks and hard drive images, read/write BASIC programs, assemble code, browse disk files, and configure expansion slots — all programmatically.",
+      },
+      {
+        title: "Agent version checking",
+        description:
+          "The emulator validates the connected agent server version to prevent incompatible connections. Version mismatches are reported clearly in the status bar.",
+      },
+      {
+        title: "Agent connection management",
+        description:
+          "Single-client enforcement with the ability to reclaim the port from a stale connection. Port conflict detection and graceful disconnect/reconnect handling.",
+      },
+    ],
+    fixes: [
+      {
+        title: "Rule Builder empty on refresh",
+        description:
+          "The Condition Rule Builder no longer appears empty after a page refresh. The window stays hidden until explicitly opened via a breakpoint edit action.",
+      },
+    ],
+  },
+  {
     week: "February 15, 2026",
     features: [
       {
