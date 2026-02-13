@@ -222,9 +222,15 @@ class ExpansionCard {
 
 Binary format with versioned header. Includes CPU state, 128KB RAM, Language Card (16KB), soft switches, disk images with modifications, filenames, and debugger state. Autosave slot plus 5 manual save slots. Stored in browser IndexedDB. Window option state (toggles, view modes, mute states) is persisted separately via localStorage.
 
-## Git Commits
+## Release Process
 
-Do not add `Co-Authored-By` or any other attribution lines for Claude in commit messages.
+When the user says "release", perform all of the following steps:
+
+1. **Review git log** since the last release notes entry to identify all changes
+2. **Bump version** in `src/js/config/version.js`
+3. **Update release notes** in both `src/js/help/release-notes.js` and `src/js/config/release-notes.json`
+4. **Update README.md** to reflect any new features, changed commands, or updated project information
+5. **Update CLAUDE.md** to reflect any architectural changes, new files/directories, new build steps, new expansion cards, new debug windows, or other structural changes to the codebase
 
 ## Debugging
 

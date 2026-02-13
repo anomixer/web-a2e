@@ -1030,7 +1030,8 @@
     display: flex;
     align-items: center;
     height: 44px;
-    background: var(--input-bg-dark);
+    background: var(--slot-connector-bg, var(--input-bg-dark));
+    border: 1px solid var(--slot-connector-border, transparent);
     border-radius: var(--radius-sm);
     overflow: hidden;
 }
@@ -1038,10 +1039,10 @@
 /* Edge-connector teeth pattern */
 .mb-connector-teeth {
     position: absolute;
-    bottom: 0;
+    top: 0;
     left: 0;
     right: 0;
-    height: 6px;
+    height: 100%;
     background: repeating-linear-gradient(
         90deg,
         var(--text-muted) 0px,
@@ -1050,7 +1051,9 @@
         transparent 8px
     );
     opacity: 0.12;
-    border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+    border-radius: var(--radius-sm);
+    mask-image: linear-gradient(to bottom, black 0px, black 6px, transparent 6px, transparent calc(100% - 6px), black calc(100% - 6px), black 100%);
+    -webkit-mask-image: linear-gradient(to bottom, black 0px, black 6px, transparent 6px, transparent calc(100% - 6px), black calc(100% - 6px), black 100%);
 }
 
 /* Card sitting in a slot */
@@ -1170,6 +1173,20 @@
 @keyframes slot-reject-flash {
     0%, 100% { border-color: transparent; background: transparent; }
     25%, 75% { border-color: var(--accent-red-border); background: var(--accent-red-bg-stronger); }
+}
+
+/* Light theme: stronger slot contrast */
+[data-theme="light"] .mb-slot-connector {
+    --slot-connector-bg: rgba(208, 215, 222, 0.5);
+    --slot-connector-border: rgba(208, 215, 222, 0.6);
+}
+
+[data-theme="light"] .mb-connector-teeth {
+    opacity: 0.25;
+}
+
+[data-theme="light"] .mb-slot-dropzone {
+    border-color: rgba(175, 184, 193, 0.5);
 }
 
 /* ---- Footer ---- */
