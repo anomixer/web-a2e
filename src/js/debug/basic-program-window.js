@@ -1004,7 +1004,10 @@ export class BasicProgramWindow extends BaseWindow {
         this.lineMap[i] === this.currentLineNumber;
 
       let lineClass = "basic-line";
-      if (isCurrentLine) lineClass += " basic-current-line";
+      if (isCurrentLine) {
+        lineClass += " basic-current-line";
+        if (this._breakpointHitLine) lineClass += " basic-breakpoint-hit";
+      }
       if (indent > 0) lineClass += ` indent-${Math.min(indent, 4)}`;
 
       // For multi-statement lines, wrap each statement in a span
@@ -1594,6 +1597,7 @@ export class BasicProgramWindow extends BaseWindow {
   _clearBreakpointPulse() {
     const items = this.bpList?.querySelectorAll(".basic-dbg-bp-item.bp-triggered");
     if (items) items.forEach((el) => el.classList.remove("bp-triggered"));
+    this._breakpointHitLine = false;
   }
 
   handleStop() {
@@ -2212,6 +2216,7 @@ export class BasicProgramWindow extends BaseWindow {
       // Condition-only rules are evaluated in C++ - no JS evaluation needed
 
       this.currentLineNumber = breakLine;
+      this._breakpointHitLine = true;
       // Get statement info using TXTPTR from execution state
       if (wasmModule._getBasicTxtptr) {
         const txtptr = wasmModule._getBasicTxtptr();

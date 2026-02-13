@@ -48,8 +48,7 @@
 .basic-gutter {
     flex-shrink: 0;
     width: 28px;
-    overflow-y: auto;
-    overflow-x: hidden;
+    overflow: hidden;
     background: var(--control-bg);
     border-right: 1px solid var(--glass-border);
     user-select: none;
@@ -390,6 +389,11 @@
 .basic-highlight .basic-current-line .bas-variable {
     color: var(--text-primary);
     font-weight: 500;
+}
+
+/* Breakpoint-triggered line highlight - red instead of blue */
+.basic-highlight .basic-current-line.basic-breakpoint-hit {
+    background: rgba(224, 58, 62, 0.15) !important;
 }
 
 /* Statement-level highlight within a multi-statement line */

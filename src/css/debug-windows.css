@@ -3175,6 +3175,11 @@
     font-weight: 500;
 }
 
+/* Breakpoint-triggered line highlight - red instead of blue */
+.basic-highlight .basic-current-line.basic-breakpoint-hit {
+    background: rgba(224, 58, 62, 0.15) !important;
+}
+
 /* Statement-level highlight within a multi-statement line */
 .basic-highlight .basic-current-line .basic-current-statement {
     background: var(--accent-red-bg);
