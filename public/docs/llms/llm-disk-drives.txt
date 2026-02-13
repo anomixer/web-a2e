@@ -49,6 +49,12 @@ emma_command({ command: "driveLoadRecent", params: { driveNum: 1, file: "ProDOS_
 ```
 Load a disk from the recent disks list into drive 1 or 2. The file parameter must match a filename from the recent list. The driveNum parameter defaults to 1 if not specified.
 
+**Eject a disk:**
+```
+emma_command({ command: "diskDriveEject", params: { driveNum: 1 } })
+```
+Eject the disk from drive 1 or 2. Removes the disk image from the drive and updates the UI to show the drive as empty. The driveNum parameter defaults to 1 if not specified. If no disk is inserted, returns success with a message indicating the drive is already empty.
+
 ## Overview
 
 The disk-drives window manages 5.25" floppy disk images for Drive 1 and Drive 2.

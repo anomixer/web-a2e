@@ -355,4 +355,63 @@ export const diskTools = {
       throw new Error(`Error clearing recent disks: ${error.message}`);
     }
   },
+
+  /**
+   * Eject a disk from a drive
+   */
+  diskDriveEject: async (args) => {
+    const { driveNum = 1 } = args;
+
+    // Validate driveNum (1 or 2)
+    if (driveNum !== 1 && driveNum !== 2) {
+      throw new Error("driveNum must be 1 or 2");
+    }
+
+    // Convert to 0-based index
+    const driveIndex = driveNum - 1;
+
+    // Get disk manager and WASM module
+    const diskManager = window.emulator?.diskManager;
+    const wasmModule = window.emulator?.wasmModule;
+
+    if (!diskManager) {
+      throw new Error("Disk manager not available");
+    }
+
+    if (!wasmModule) {
+      throw new Error("WASM module not available");
+    }
+
+    // Check if a disk is inserted
+    const isDiskInserted = wasmModule._isDiskInserted(driveIndex);
+    if (!isDiskInserted) {
+      return {
+        success: true,
+        drive: driveNum,
+        message: `No disk in drive ${driveNum}`,
+      };
+    }
+
+    try {
+      // Eject disk via WASM
+      wasmModule._ejectDisk(driveIndex);
+
+      // Update UI
+      diskManager.setDiskName(driveIndex, null);
+
+      // Notify if callback exists
+      if (diskManager.onDiskEjected) {
+        diskManager.onDiskEjected(driveIndex);
+      }
+
+      return {
+        success: true,
+        drive: driveNum,
+        message: `Disk ejected from drive ${driveNum}`,
+      };
+
+    } catch (error) {
+      throw new Error(`Error ejecting disk: ${error.message}`);
+    }
+  },
 };

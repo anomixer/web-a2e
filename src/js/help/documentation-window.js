@@ -905,6 +905,20 @@ export class DocumentationWindow extends BaseWindow {
 }</code></pre>
         <p>The server listens on <code>http://localhost:3033</code> by default.</p>
 
+        <h4>Port Conflict Management</h4>
+        <p>The MCP server includes graceful port conflict handling when multiple instances attempt to use port 3033:</p>
+        <ul>
+          <li><strong>Automatic Detection:</strong> When port 3033 is already in use, the MCP server stays alive without failing</li>
+          <li><strong>Status Reporting:</strong> The status tool reports port conflicts and provides clear guidance</li>
+          <li><strong>Port Reclamation:</strong> Any instance can take over the port using a two-step process:
+            <ol class="quick-start-list">
+              <li>Ask the agent to "shutdown the remote server on port 3033"</li>
+              <li>Ask the agent to "start this server"</li>
+            </ol>
+          </li>
+        </ul>
+        <p>This allows multiple Claude Code sessions or MCP instances to coordinate gracefully without manual process management.</p>
+
         <h4>Example Prompts</h4>
 
         <h5>Window Management</h5>

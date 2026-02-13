@@ -13,6 +13,7 @@ import { mainTools } from "./main-tools.js";
 import { diskTools } from "./disk-tools.js";
 import { smartportTools } from "./smartport-tools.js";
 import { slotTools } from "./slot-tools.js";
+import { agentVersionTools } from "./agent-version-tools.js";
 
 /**
  * Registry of available frontend tools
@@ -28,6 +29,7 @@ const AGENT_TOOLS = {
   ...diskTools,
   ...smartportTools,
   ...slotTools,
+  ...agentVersionTools,
   /**
    * Generic command wrapper (from MCP server)
    */

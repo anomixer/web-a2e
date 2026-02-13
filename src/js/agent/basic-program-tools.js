@@ -550,4 +550,345 @@ export const basicProgramTools = {
       message: "BASIC program set",
     };
   },
+
+  /**
+   * List all BASIC breakpoints
+   */
+  basicProgramListBreakpoints: async (args) => {
+    const windowManager = window.emulator?.windowManager;
+    if (!windowManager) {
+      throw new Error("Window manager not available");
+    }
+
+    const basicWindow = windowManager.getWindow("basic-program");
+    if (!basicWindow) {
+      throw new Error("BASIC program window not found");
+    }
+
+    const breakpointManager = basicWindow.getBreakpointManager();
+    if (!breakpointManager) {
+      throw new Error("Breakpoint manager not available");
+    }
+
+    const entries = breakpointManager.getAllEntries();
+    const breakpoints = entries.map((entry) => ({
+      lineNumber: entry.lineNumber,
+      statementIndex: entry.statementIndex,
+      enabled: entry.enabled,
+      type: entry.statementIndex === -1 ? "line" : "statement",
+    }));
+
+    return {
+      success: true,
+      breakpoints: breakpoints,
+      count: breakpoints.length,
+      message: `${breakpoints.length} breakpoint(s) set`,
+    };
+  },
+
+  /**
+   * Set a BASIC breakpoint on a line or statement
+   * @param {number} lineNumber - BASIC line number
+   * @param {number} statementIndex - Optional: -1 for whole line (default), 0+ for specific statement
+   */
+  basicProgramSetBreakpoint: async (args) => {
+    const { lineNumber, statementIndex = -1 } = args;
+
+    if (lineNumber === undefined) {
+      throw new Error("lineNumber parameter is required");
+    }
+
+    const windowManager = window.emulator?.windowManager;
+    if (!windowManager) {
+      throw new Error("Window manager not available");
+    }
+
+    const basicWindow = windowManager.getWindow("basic-program");
+    if (!basicWindow) {
+      throw new Error("BASIC program window not found");
+    }
+
+    const breakpointManager = basicWindow.getBreakpointManager();
+    if (!breakpointManager) {
+      throw new Error("Breakpoint manager not available");
+    }
+
+    breakpointManager.add(lineNumber, statementIndex);
+
+    const type = statementIndex === -1 ? "line" : `statement ${statementIndex}`;
+    return {
+      success: true,
+      lineNumber: lineNumber,
+      statementIndex: statementIndex,
+      message: `Breakpoint set on line ${lineNumber} (${type})`,
+    };
+  },
+
+  /**
+   * Remove a BASIC breakpoint from a line or statement
+   * @param {number} lineNumber - BASIC line number
+   * @param {number} statementIndex - Optional: -1 for whole line (default), 0+ for specific statement
+   */
+  basicProgramUnsetBreakpoint: async (args) => {
+    const { lineNumber, statementIndex = -1 } = args;
+
+    if (lineNumber === undefined) {
+      throw new Error("lineNumber parameter is required");
+    }
+
+    const windowManager = window.emulator?.windowManager;
+    if (!windowManager) {
+      throw new Error("Window manager not available");
+    }
+
+    const basicWindow = windowManager.getWindow("basic-program");
+    if (!basicWindow) {
+      throw new Error("BASIC program window not found");
+    }
+
+    const breakpointManager = basicWindow.getBreakpointManager();
+    if (!breakpointManager) {
+      throw new Error("Breakpoint manager not available");
+    }
+
+    breakpointManager.remove(lineNumber, statementIndex);
+
+    const type = statementIndex === -1 ? "line" : `statement ${statementIndex}`;
+    return {
+      success: true,
+      lineNumber: lineNumber,
+      statementIndex: statementIndex,
+      message: `Breakpoint removed from line ${lineNumber} (${type})`,
+    };
+  },
+
+  /**
+   * Get current BASIC line number
+   * Returns undefined if not stopped at a breakpoint
+   */
+  basicProgramGetCurrentLine: async (args) => {
+    const wasmModule = window.emulator?.wasmModule;
+    if (!wasmModule) {
+      throw new Error("WASM module not available");
+    }
+
+    const emulator = window.emulator;
+    if (!emulator || !emulator.running) {
+      return {
+        success: true,
+        lineNumber: undefined,
+        message: "Emulator not running",
+      };
+    }
+
+    // Check if paused at a BASIC breakpoint
+    const isPaused = wasmModule._isPaused();
+    const isBasicBreakpointHit = wasmModule._isBasicBreakpointHit
+      ? wasmModule._isBasicBreakpointHit()
+      : false;
+
+    if (!isPaused || !isBasicBreakpointHit) {
+      return {
+        success: true,
+        lineNumber: undefined,
+        message: "Not stopped at a breakpoint",
+      };
+    }
+
+    // Read CURLIN from zero page $75-$76
+    const lo = wasmModule._readMemory(0x75);
+    const hi = wasmModule._readMemory(0x76);
+    const lineNumber = lo | (hi << 8);
+
+    return {
+      success: true,
+      lineNumber: lineNumber,
+      message: `Stopped at line ${lineNumber}`,
+    };
+  },
+
+  /**
+   * Get all BASIC variables (simple and arrays)
+   */
+  basicProgramGetVariables: async (args) => {
+    const windowManager = window.emulator?.windowManager;
+    if (!windowManager) {
+      throw new Error("Window manager not available");
+    }
+
+    const basicWindow = windowManager.getWindow("basic-program");
+    if (!basicWindow) {
+      throw new Error("BASIC program window not found");
+    }
+
+    const inspector = basicWindow.variableInspector;
+    if (!inspector) {
+      throw new Error("Variable inspector not available");
+    }
+
+    const simpleVars = inspector.getSimpleVariables();
+    const arrayVars = inspector.getArrayVariables();
+
+    // Format simple variables
+    const variables = simpleVars.map((v) => ({
+      name: v.name,
+      type: v.type,
+      value: v.value,
+      formattedValue: inspector.formatValue(v),
+    }));
+
+    // Format array variables
+    const arrays = arrayVars.map((arr) => ({
+      name: arr.name,
+      type: arr.type,
+      dimensions: arr.dimensions,
+      totalElements: arr.totalElements,
+      values: arr.values,
+    }));
+
+    return {
+      success: true,
+      variables: variables,
+      arrays: arrays,
+      totalVariables: variables.length,
+      totalArrays: arrays.length,
+      message: `${variables.length} variable(s), ${arrays.length} array(s)`,
+    };
+  },
+
+  /**
+   * Set a BASIC variable value
+   * @param {string} name - Variable name (e.g., "X", "A$", "COUNT%")
+   * @param {string|number} value - New value (converted to string for parsing)
+   */
+  basicProgramSetVariable: async (args) => {
+    const { name, value } = args;
+
+    if (name === undefined) {
+      throw new Error("name parameter is required");
+    }
+
+    if (value === undefined) {
+      throw new Error("value parameter is required");
+    }
+
+    const windowManager = window.emulator?.windowManager;
+    if (!windowManager) {
+      throw new Error("Window manager not available");
+    }
+
+    const basicWindow = windowManager.getWindow("basic-program");
+    if (!basicWindow) {
+      throw new Error("BASIC program window not found");
+    }
+
+    const inspector = basicWindow.variableInspector;
+    if (!inspector) {
+      throw new Error("Variable inspector not available");
+    }
+
+    // Get all variables to find the one we want
+    const simpleVars = inspector.getSimpleVariables();
+    const varInfo = simpleVars.find((v) => v.name === name);
+
+    if (!varInfo) {
+      throw new Error(`Variable "${name}" not found`);
+    }
+
+    // Convert value to string for the inspector's setVariableValue method
+    const valueStr = typeof value === "string" ? value : String(value);
+
+    // Set the variable value
+    const success = inspector.setVariableValue(varInfo, valueStr);
+
+    if (!success) {
+      throw new Error(`Failed to set variable "${name}" to "${valueStr}"`);
+    }
+
+    // Refresh the UI to show the change immediately
+    if (basicWindow.renderVariables) {
+      basicWindow.renderVariables();
+    }
+
+    // Get the new value to confirm
+    const updatedVars = inspector.getSimpleVariables();
+    const updatedVar = updatedVars.find((v) => v.name === name);
+
+    return {
+      success: true,
+      name: name,
+      oldValue: varInfo.value,
+      newValue: updatedVar ? updatedVar.value : value,
+      type: varInfo.type,
+      message: `Variable ${name} set to ${inspector.formatValue(updatedVar || varInfo)}`,
+    };
+  },
+
+  /**
+   * Step to next BASIC line when paused at a breakpoint
+   */
+  basicProgramStepNext: async (args) => {
+    const wasmModule = window.emulator?.wasmModule;
+    if (!wasmModule) {
+      throw new Error("WASM module not available");
+    }
+
+    const emulator = window.emulator;
+    if (!emulator || !emulator.running) {
+      throw new Error("Emulator must be powered on");
+    }
+
+    // Check if emulator is paused
+    const isPaused = wasmModule._isPaused();
+    if (!isPaused) {
+      throw new Error("Emulator must be paused at a breakpoint to step");
+    }
+
+    // Check if we're at a BASIC breakpoint or in BASIC program
+    const isBasicBreakpointHit = wasmModule._isBasicBreakpointHit
+      ? wasmModule._isBasicBreakpointHit()
+      : false;
+    const isBasicRunning = wasmModule._isBasicProgramRunning
+      ? wasmModule._isBasicProgramRunning()
+      : false;
+
+    if (!isBasicBreakpointHit && !isBasicRunning) {
+      throw new Error("Not currently at a BASIC breakpoint");
+    }
+
+    // Helper to read CURLIN (current line number) from zero page $75-$76
+    const readCurlin = () => {
+      const lo = wasmModule._readMemory(0x75);
+      const hi = wasmModule._readMemory(0x76);
+      return lo | (hi << 8);
+    };
+
+    // Get current line before stepping (read CURLIN from zero page)
+    const previousLine = readCurlin();
+
+    // Clear breakpoint hit flag
+    if (wasmModule._clearBasicBreakpointHit) {
+      wasmModule._clearBasicBreakpointHit();
+    }
+
+    // Step to next BASIC line
+    if (wasmModule._stepBasicLine) {
+      wasmModule._stepBasicLine();
+    } else {
+      throw new Error("BASIC line stepping not supported");
+    }
+
+    // Wait a brief moment for step to complete, then read new line
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Get new line after stepping (read CURLIN again)
+    const currentLine = readCurlin();
+
+    return {
+      success: true,
+      previousLine: previousLine,
+      currentLine: currentLine,
+      message: `Stepped from line ${previousLine} to line ${currentLine}`,
+    };
+  },
 };

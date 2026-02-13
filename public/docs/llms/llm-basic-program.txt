@@ -133,6 +133,78 @@ emma_command({ command: "basicProgramSet", params: { program: "full program text
 ```
 Replace the entire program with new content.
 
+### Breakpoint and Debugging Operations
+
+**List all breakpoints:**
+```
+emma_command({ command: "basicProgramListBreakpoints", params: {} })
+```
+Returns an array of all breakpoints currently set, including line number, statement index, enabled state, and type (line or statement). Each breakpoint entry includes:
+- lineNumber: The BASIC line number
+- statementIndex: -1 for whole line, 0+ for specific statement
+- enabled: true if breakpoint is active
+- type: "line" for whole-line breakpoints, "statement" for statement-level breakpoints
+
+**Set a breakpoint on a BASIC line:**
+```
+emma_command({ command: "basicProgramSetBreakpoint", params: { lineNumber: 20 } })
+```
+Sets a whole-line breakpoint that will pause execution when that line is reached. Use lineNumber parameter to specify which line. Optional statementIndex parameter (default: -1 for whole line, 0+ for specific statement within a multi-statement line).
+
+**Remove a breakpoint:**
+```
+emma_command({ command: "basicProgramUnsetBreakpoint", params: { lineNumber: 20 } })
+```
+Removes a breakpoint from the specified line. Use lineNumber parameter to specify which line. Optional statementIndex parameter (default: -1 for whole line, 0+ for specific statement).
+
+**Step to next BASIC line:**
+```
+emma_command({ command: "basicProgramStepNext", params: {} })
+```
+When paused at a breakpoint, steps execution to the next BASIC line. Returns the previous and current line numbers. The emulator must be paused at a BASIC breakpoint for this to work. Clears the breakpoint hit flag and advances execution by one line.
+
+**Get current line number:**
+```
+emma_command({ command: "basicProgramGetCurrentLine", params: {} })
+```
+Returns the current BASIC line number if stopped at a breakpoint, or undefined if not stopped. Useful for checking execution state. Returns:
+- lineNumber: Current line number (or undefined if not at breakpoint)
+- message: Description of current state
+
+### Variable Inspection and Modification
+
+**Get all BASIC variables:**
+```
+emma_command({ command: "basicProgramGetVariables", params: {} })
+```
+Returns all BASIC variables currently in memory, including both simple variables and arrays. Each simple variable includes:
+- name: Variable name (e.g., "X", "A$", "COUNT%")
+- type: "real", "integer", or "string"
+- value: Raw value
+- formattedValue: Formatted for display
+
+Arrays include:
+- name: Array name
+- type: Variable type
+- dimensions: Array dimensions (e.g., [10] for single dimension, [5, 10] for two dimensions)
+- totalElements: Total number of elements
+- values: Flat array of all element values
+
+**Set a BASIC variable value:**
+```
+emma_command({ command: "basicProgramSetVariable", params: { name: "X", value: 42 } })
+```
+Sets a BASIC variable to a new value. The variable must already exist in memory (created by the running program). Parameters:
+- name: Variable name (e.g., "X", "A$", "COUNT%")
+- value: New value (number or string)
+
+Returns the old and new values. Works with:
+- Real numbers: `{ name: "X", value: 3.14 }`
+- Integers: `{ name: "COUNT%", value: 100 }`
+- Strings: `{ name: "A$", value: "HELLO" }` (quotes optional)
+
+Note: This modifies variables in place in memory. The program must have already declared the variable (e.g., via assignment).
+
 ## Overview
 
 The basic-program window displays BASIC programs currently loaded in memory. It automatically detects whether the program is Applesoft BASIC or Integer BASIC and detokenizes it for viewing.

@@ -6,6 +6,7 @@
  */
 
 import { executeAgentTool } from "./agent-tools.js";
+import { showConfirm } from "../ui/confirm.js";
 
 /**
  * Manages connection to MCP server via AG-UI protocol
@@ -120,7 +121,7 @@ export class AgentManager {
   /**
    * Connect to MCP server SSE stream
    */
-  connect() {
+  async connect() {
     // Check if already connected (EventSource is OPEN)
     if (this.eventSource && this.eventSource.readyState === EventSource.OPEN) {
       console.warn("[AgentManager] Already connected");
@@ -139,6 +140,59 @@ export class AgentManager {
 
     console.log(`[AgentManager] Connecting to ${this.serverUrl}/events`);
     console.log(`[AgentManager] Emulator domain: ${domain}`);
+
+    // Check if connection is allowed (detect 409 for single-client mode)
+    try {
+      const testResponse = await fetch(`${this.serverUrl}/events?domain=${encodeURIComponent(domain)}`, {
+        method: "HEAD",
+        signal: AbortSignal.timeout(2000),
+      });
+
+      // If 409, another client is connected
+      if (testResponse.status === 409) {
+        const message = await testResponse.text();
+        console.warn(`[AgentManager] ${message}`);
+
+        // Show confirm dialog with option to disconnect other client
+        const shouldDisconnect = await this._showConnectionConflictDialog(message);
+
+        if (shouldDisconnect) {
+          // User chose to disconnect other client
+          console.log("[AgentManager] Disconnecting other client and retrying...");
+          try {
+            await this.callMCPTool("disconnect_clients", {});
+            // Retry connection after brief delay
+            setTimeout(() => this.connect(), 500);
+          } catch (error) {
+            console.error("[AgentManager] Failed to disconnect other client:", error);
+          }
+        } else {
+          // User chose not to connect
+          console.log("[AgentManager] Connection cancelled by user");
+        }
+        return;
+      }
+    } catch (error) {
+      // HEAD request not supported or other error, proceed with EventSource anyway
+      console.log("[AgentManager] Connection check failed, proceeding with EventSource:", error.message);
+    }
+
+    // Check agent version compatibility before connecting
+    try {
+      const versionCheck = await this._checkVersionCompatibility();
+      if (!versionCheck.compatible) {
+        console.warn(`[AgentManager] Agent version ${versionCheck.agent.version} is incompatible (requires >= ${versionCheck.required.minVersion})`);
+
+        // Show warning dialog and prevent connection
+        await this._showVersionIncompatibleDialog(versionCheck);
+        console.log("[AgentManager] Connection blocked due to version incompatibility");
+        return;
+      } else {
+        console.log(`[AgentManager] Agent version ${versionCheck.agent.version} is compatible`);
+      }
+    } catch (error) {
+      console.warn("[AgentManager] Version check failed, proceeding with connection:", error.message);
+    }
 
     try {
       // Send domain as query parameter so MCP server can fetch llms.txt
@@ -191,7 +245,79 @@ export class AgentManager {
   }
 
   /**
-   * Disconnect from MCP server
+   * Show dialog when connection is rejected due to another client being connected
+   * @param {string} message - The rejection message from server
+   * @returns {Promise<boolean>} True if user wants to disconnect other client, false otherwise
+   */
+  async _showConnectionConflictDialog(message) {
+    return await showConfirm(
+      message + "\n\nWould you like to disconnect the other client and connect?",
+      "Disconnect and Connect"
+    );
+  }
+
+  /**
+   * Check if agent version is compatible with app requirements
+   * @returns {Promise<Object>} Version compatibility check result
+   */
+  async _checkVersionCompatibility() {
+    const versionInfo = await this.callMCPTool("get_version", {});
+
+    if (!versionInfo.success) {
+      throw new Error("Failed to get agent version");
+    }
+
+    // Parse versions
+    const parseVersion = (version) => {
+      const parts = version.split('.').map(p => parseInt(p, 10));
+      if (parts.length !== 3 || parts.some(isNaN)) {
+        throw new Error(`Invalid version format: ${version}`);
+      }
+      return { major: parts[0], minor: parts[1], patch: parts[2] };
+    };
+
+    const minVersion = "1.0.5"; // Required minimum version
+    const agentVersion = parseVersion(versionInfo.version);
+    const requiredVersion = parseVersion(minVersion);
+
+    // Compare versions
+    const compareVersions = (v1, v2) => {
+      if (v1.major !== v2.major) return v1.major - v2.major;
+      if (v1.minor !== v2.minor) return v1.minor - v2.minor;
+      return v1.patch - v2.patch;
+    };
+
+    const comparison = compareVersions(agentVersion, requiredVersion);
+    const compatible = comparison >= 0;
+
+    return {
+      success: true,
+      agent: {
+        name: versionInfo.name,
+        version: versionInfo.version,
+        versionNumeric: agentVersion
+      },
+      required: {
+        minVersion: minVersion,
+        minVersionNumeric: requiredVersion
+      },
+      compatible: compatible,
+      comparison: comparison
+    };
+  }
+
+  /**
+   * Show dialog when agent version is incompatible
+   * @param {Object} versionCheck - Version check result
+   * @returns {Promise<boolean>} Always returns false (connection not allowed)
+   */
+  async _showVersionIncompatibleDialog(versionCheck) {
+    await showConfirm("Agent out of date. Please update the Agent to latest version to continue.", "OK");
+    return false; // Never allow connection with incompatible version
+  }
+
+  /**
+   * Disconnect from MCP server and abort any reconnection attempts
    */
   disconnect() {
     if (this.eventSource) {
@@ -209,6 +335,10 @@ export class AgentManager {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
     }
+
+    // Reset reconnection state completely
+    this.reconnectAttempts = 0;
+    this.reconnectStartTime = null;
   }
 
   /**
@@ -238,6 +368,9 @@ export class AgentManager {
         case "RUN_FINISHED":
         case "RUN_ERROR":
           this._handleRunEvent(event);
+          break;
+        case "DISCONNECT":
+          this._handleGracefulDisconnect(event);
           break;
         default:
           console.log("[AgentManager] Unhandled event type:", event.type);
@@ -333,6 +466,30 @@ export class AgentManager {
    */
   _handleRunEvent(event) {
     console.log(`[AgentManager] ${event.type}:`, event.run_id || event.error || "");
+  }
+
+  /**
+   * Handle graceful disconnect from server
+   */
+  _handleGracefulDisconnect(event) {
+    console.log(`[AgentManager] Graceful disconnect: ${event.reason}`);
+
+    // Close connection cleanly
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+
+    this.connected = false;
+
+    // Don't trigger reconnection - this was intentional
+    this.reconnectStartTime = null;
+    this.reconnectAttempts = 0;
+
+    // Update UI to show disconnected (not broken)
+    if (this.onConnectionChange) {
+      this.onConnectionChange(false);
+    }
   }
 
   /**

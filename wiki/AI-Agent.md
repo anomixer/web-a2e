@@ -81,6 +81,27 @@ No installation required — the agent is downloaded and run automatically on fi
 
 The MCP server starts automatically when your MCP client (e.g., Claude Code) connects. It listens on `http://localhost:3033` and uses the AG-UI protocol to communicate with the emulator frontend running in your browser.
 
+### Port Conflict Management
+
+The MCP server includes graceful port conflict handling when multiple instances attempt to use port 3033:
+
+- **Automatic Detection:** When port 3033 is already in use, the MCP server stays alive without failing
+- **Status Reporting:** The `server_control` tool reports port conflicts and provides guidance
+- **Port Reclamation:** Any instance can take over the port by shutting down the other instance and starting itself
+- **Two-Step Process:**
+  1. Call `shutdown_remote_server` to stop the other instance
+  2. Call `server_control` with action `start` to start this instance
+
+**Example workflow to reclaim port 3033:**
+
+```
+Check the status → port shows as in use
+Shutdown the remote server on port 3033
+Start this server on port 3033
+```
+
+This allows multiple Claude Code sessions or MCP instances to coordinate gracefully without manual process management.
+
 ---
 
 ## Example Prompts
@@ -124,6 +145,11 @@ Insert the disk named "Zork_1.dsk" from recent disks into drive 2
 Eject the disk from drive 1
 ```
 
+**Clear recent disks:**
+```
+Clear all recent disks for drive 1
+```
+
 ### SmartPort Hard Drives
 
 **Insert an image from the filesystem:**
@@ -144,6 +170,11 @@ Insert Apple Pascal from recent SmartPort images
 **Clear recent images:**
 ```
 Clear the recent images list for SmartPort device 1
+```
+
+**Eject an image:**
+```
+Eject the SmartPort image from device 1
 ```
 
 ### Slot Configuration
@@ -195,6 +226,69 @@ Save the BASIC program from the editor to ~/Documents/myprogram.bas
 **Save program from memory to file:**
 ```
 Save the BASIC program from memory to ~/Documents/myprogram.bas
+```
+
+**Set a breakpoint:**
+```
+Set a breakpoint on BASIC line 20
+```
+
+**Set a statement-level breakpoint:**
+```
+Set a breakpoint on line 10, second statement
+```
+
+**List all breakpoints:**
+```
+Show me all BASIC breakpoints
+```
+
+**Remove a breakpoint:**
+```
+Remove the breakpoint from line 20
+```
+
+**Step to next line:**
+```
+Step to the next BASIC line
+```
+
+**Get current line number:**
+```
+What line is the BASIC program stopped at?
+```
+
+**Inspect variables:**
+```
+Show me all BASIC variables
+```
+
+**Get specific variable value:**
+```
+What's the value of variable X?
+```
+
+**Set a variable:**
+```
+Set variable X to 42
+```
+
+**Set a string variable:**
+```
+Set A$ to "HELLO WORLD"
+```
+
+**Debug workflow example:**
+```
+Write this program to memory:
+10 X=1:Y=2:PRINT X+Y
+20 PRINT "LINE 20"
+30 END
+
+Set a breakpoint on line 10, second statement
+Run the program
+Step to the next line
+Show me all variables
 ```
 
 ### Assembly Programs

@@ -276,7 +276,9 @@ Two coordinated components:
 
 ### Configuration
 
-- `.mcp.json` (repo root) — MCP client config pointing to `@retrotech71/appleii-agent`
+- `.mcp.json` (repo root) — MCP client config for running the agent
+  - Recommended: `bunx -y @retrotech71/appleii-agent` (auto-installs with Bun)
+  - Development: `node /path/to/appleii-agent/src/index.js` (local source)
 - Environment variables: `PORT` (default 3033), `HTTPS=true` for TLS mode
 
 ### MCP Server Tools (`mcp/appleii-agent/src/tools/`)
