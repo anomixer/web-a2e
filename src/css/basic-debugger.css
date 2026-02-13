@@ -55,6 +55,18 @@
     color: var(--accent-green);
 }
 
+.basic-dbg-stop {
+    background: var(--accent-orange-bg);
+    border-color: var(--accent-orange-border);
+    color: var(--accent-orange);
+}
+
+.basic-dbg-stop:hover {
+    background: var(--accent-orange-bg-strong);
+    border-color: var(--accent-orange-border);
+    color: var(--accent-orange);
+}
+
 .basic-dbg-pause {
     background: var(--accent-red-bg);
     border-color: var(--accent-red-border);

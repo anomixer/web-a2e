@@ -96,6 +96,9 @@ export class BasicProgramWindow extends BaseWindow {
           <button class="basic-dbg-btn basic-dbg-pause" title="Pause at next BASIC line">
             <span class="basic-dbg-icon">❚❚</span> Pause
           </button>
+          <button class="basic-dbg-btn basic-dbg-stop" title="Stop program (Ctrl+C)">
+            <span class="basic-dbg-icon">■</span> Stop
+          </button>
           <button class="basic-dbg-btn basic-dbg-step-line" title="Step to next BASIC statement">
             <span class="basic-dbg-icon">↓</span> Step
           </button>
@@ -457,6 +460,9 @@ export class BasicProgramWindow extends BaseWindow {
     this.contentElement
       .querySelector(".basic-dbg-pause")
       .addEventListener("click", () => this.handlePause());
+    this.contentElement
+      .querySelector(".basic-dbg-stop")
+      .addEventListener("click", () => this.handleStop());
     this.contentElement
       .querySelector(".basic-dbg-step-line")
       .addEventListener("click", () => this.handleStepLine());
@@ -1550,7 +1556,7 @@ export class BasicProgramWindow extends BaseWindow {
       // - Clearing the breakpoint hit flags
       this.wasmModule._setPaused(false);
     } else {
-      // Fresh run
+      // Fresh run — write editor contents to memory first, then type RUN
       this._lastBasicBreakpointHit = false;
       this._lastProgramRunning = false;
       this.currentLineNumber = null;
@@ -1571,6 +1577,23 @@ export class BasicProgramWindow extends BaseWindow {
 
       this.inputHandler.queueTextInput("RUN\r");
     }
+  }
+
+  /**
+   * Stop - Send Ctrl+C to the emulator to break the running program.
+   */
+  handleStop() {
+    if (!this.isRunningCallback || !this.isRunningCallback()) {
+      return;
+    }
+
+    // Unpause if paused so the keystroke is processed
+    if (this.wasmModule._isPaused()) {
+      this.wasmModule._setPaused(false);
+    }
+
+    // Send Ctrl+C (ASCII 3) to the emulator
+    this.wasmModule._keyDown(3);
   }
 
   /**

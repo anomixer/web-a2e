@@ -164,15 +164,19 @@ export class BaseWindow {
 
     // Bring to front on click — if the window isn't focused, consume the
     // first click so it only brings the window to front without interacting
-    // with content (buttons, inputs, etc.).
+    // with content like text areas. Buttons and interactive controls are
+    // allowed through so they respond on the first click.
     this._consumeNextClick = false;
     this.element.addEventListener("mousedown", (e) => {
       const wasFocused = this.element.classList.contains("focused");
       if (this.onFocus) this.onFocus(this.id);
       if (!wasFocused && !this.headerElement.contains(e.target)) {
-        this._consumeNextClick = true;
-        e.preventDefault();
-        e.stopPropagation();
+        const clickable = e.target.closest("button, input, select, label, a, .toggle-switch");
+        if (!clickable) {
+          this._consumeNextClick = true;
+          e.preventDefault();
+          e.stopPropagation();
+        }
       }
     }, true);
     this.element.addEventListener("click", (e) => {
