@@ -55,6 +55,12 @@ emma_command({ command: "smartportClearRecent", params: { deviceNum: 1 } })
 ```
 Clear all recent images for device 1 or 2. The deviceNum parameter defaults to 1 if not specified.
 
+**Eject a SmartPort image:**
+```
+emma_command({ command: "smartportEject", params: { deviceNum: 1 } })
+```
+Eject the hard drive image from device 1 or 2. Removes the image from the device and updates the UI to show the device as empty. The deviceNum parameter defaults to 1 if not specified. Requires the SmartPort card to be installed.
+
 **Load SmartPort image from filesystem (MCP tool):**
 ```
 load_smartport_image({ path: "~/images/prodos.hdv" })

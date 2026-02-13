@@ -213,4 +213,45 @@ export const smartportTools = {
       throw new Error(`Error clearing recent images: ${error.message}`);
     }
   },
+
+  /**
+   * Eject a SmartPort image from a device
+   */
+  smartportEject: async (args) => {
+    const { deviceNum = 1 } = args;
+
+    if (deviceNum !== 1 && deviceNum !== 2) {
+      throw new Error("deviceNum must be 1 or 2");
+    }
+
+    const deviceIndex = deviceNum - 1;
+
+    const wasmModule = requireSmartPort();
+
+    const hardDriveManager = window.emulator?.hardDriveManager;
+    if (!hardDriveManager) {
+      throw new Error("Hard drive manager not available");
+    }
+
+    try {
+      // Eject image via WASM
+      wasmModule._ejectSmartPortImage(deviceIndex);
+
+      // Update UI
+      hardDriveManager.setImageName(deviceIndex, null);
+
+      // Notify if callback exists
+      if (hardDriveManager.onImageEjected) {
+        hardDriveManager.onImageEjected(deviceIndex);
+      }
+
+      return {
+        success: true,
+        device: deviceNum,
+        message: `SmartPort image ejected from device ${deviceNum}`,
+      };
+    } catch (error) {
+      throw new Error(`Error ejecting SmartPort image: ${error.message}`);
+    }
+  },
 };
