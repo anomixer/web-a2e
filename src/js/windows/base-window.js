@@ -17,6 +17,7 @@ export class BaseWindow {
     this.defaultHeight = config.defaultHeight || 300;
     this.defaultPosition = config.defaultPosition || null;
     this.closable = config.closable !== false;
+    this.focusCanvas = config.focusCanvas || false;
 
     // Customizable CSS class names (defaults to debug-window style)
     this.cssClasses = {
@@ -170,6 +171,18 @@ export class BaseWindow {
     this.element.addEventListener("mousedown", (e) => {
       const wasFocused = this.element.classList.contains("focused");
       if (this.onFocus) this.onFocus(this.id);
+      if (this.focusCanvas && !this.headerElement.contains(e.target)) {
+        // Focus the emulator canvas so keystrokes go to the emulator.
+        // Blur first to release any focused element (e.g. BASIC textarea),
+        // then focus the canvas on next frame after browser focus handling.
+        if (document.activeElement && document.activeElement !== document.body) {
+          document.activeElement.blur();
+        }
+        e.preventDefault();
+        const canvas = document.getElementById("screen");
+        if (canvas) setTimeout(() => canvas.focus(), 0);
+        return;
+      }
       if (!wasFocused && !this.headerElement.contains(e.target)) {
         const clickable = e.target.closest("button, input, select, label, a, .toggle-switch");
         if (!clickable) {
