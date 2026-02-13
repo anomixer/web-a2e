@@ -12,10 +12,11 @@ export class JoystickWindow extends BaseWindow {
     super({
       id: "joystick",
       title: "Joystick",
-      defaultWidth: 260,
-      defaultHeight: 380,
-      minWidth: 240,
-      minHeight: 380,
+      defaultWidth: 250,
+      defaultHeight: 470,
+      minWidth: 250,
+      minHeight: 480,
+      resizeDirections: [],
     });
     this.wasmModule = wasmModule;
     this.isDraggingKnob = false;
@@ -98,18 +99,30 @@ export class JoystickWindow extends BaseWindow {
     this.knobElement = this.contentElement.querySelector(".joystick-knob");
     this.xValueSpan = this.contentElement.querySelector(".joystick-x-value");
     this.yValueSpan = this.contentElement.querySelector(".joystick-y-value");
-    this.xGaugeFill = this.contentElement.querySelector(".joystick-gauge-x-fill");
-    this.yGaugeFill = this.contentElement.querySelector(".joystick-gauge-y-fill");
+    this.xGaugeFill = this.contentElement.querySelector(
+      ".joystick-gauge-x-fill",
+    );
+    this.yGaugeFill = this.contentElement.querySelector(
+      ".joystick-gauge-y-fill",
+    );
     this.button0Element = this.contentElement.querySelector(".joystick-btn-0");
     this.button1Element = this.contentElement.querySelector(".joystick-btn-1");
     this.centerBtn = this.contentElement.querySelector(".joystick-center-btn");
 
     // Gamepad UI elements
     this.gamepadToggle = this.contentElement.querySelector(".gamepad-toggle");
-    this.gamepadStatusText = this.contentElement.querySelector(".gamepad-status-text");
-    this.gamepadStatusDot = this.contentElement.querySelector(".gamepad-status-dot");
-    this.gamepadDeadzoneSlider = this.contentElement.querySelector(".gamepad-deadzone-slider");
-    this.gamepadDeadzoneValue = this.contentElement.querySelector(".gamepad-deadzone-value");
+    this.gamepadStatusText = this.contentElement.querySelector(
+      ".gamepad-status-text",
+    );
+    this.gamepadStatusDot = this.contentElement.querySelector(
+      ".gamepad-status-dot",
+    );
+    this.gamepadDeadzoneSlider = this.contentElement.querySelector(
+      ".gamepad-deadzone-slider",
+    );
+    this.gamepadDeadzoneValue = this.contentElement.querySelector(
+      ".gamepad-deadzone-value",
+    );
 
     this.setupJoystickEventListeners();
     this.setupGamepadEventListeners();

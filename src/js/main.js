@@ -32,7 +32,7 @@ import { VERSION } from "./config/version.js";
 import { DEFAULT_LAYOUT } from "./config/default-layout.js";
 import { WebGLRenderer } from "./display/webgl-renderer.js";
 import { AudioDriver } from "./audio/audio-driver.js";
-import { InputHandler, TextSelection, JoystickWindow, MouseHandler } from "./input/index.js";
+import { InputHandler, TextSelection, JoystickWindow, MouseHandler, GamepadHandler } from "./input/index.js";
 import { DiskManager } from "./disk-manager/index.js";
 import { DiskDrivesWindow } from "./disk-manager/disk-drives-window.js";
 import { HardDriveManager } from "./disk-manager/hard-drive-manager.js";
@@ -220,6 +220,9 @@ class AppleIIeEmulator {
       const joystickWindow = new JoystickWindow(this.wasmModule);
       joystickWindow.create();
       this.windowManager.register(joystickWindow);
+
+      this.gamepadHandler = new GamepadHandler(this.wasmModule, joystickWindow);
+      joystickWindow.gamepadHandler = this.gamepadHandler;
 
       const mockingboardWindow = new MockingboardWindow(this.wasmModule);
       mockingboardWindow.create();
