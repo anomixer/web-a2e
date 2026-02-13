@@ -231,7 +231,7 @@ Development tools are accessible from the **Dev** menu.
 
 | Tool | Description |
 |------|-------------|
-| **BASIC Program** | Write, edit, and paste Applesoft BASIC programs into the emulator with syntax highlighting and autocomplete |
+| **BASIC Program** | Write, edit, and paste Applesoft BASIC programs with syntax highlighting, autocomplete, line heat map, trace toggle, statement-level breakpoints, and variable inspector |
 | **Assembler** | Full 65C02 assembler with Merlin-style syntax, live validation, ROM routines reference, breakpoint support, and file save/load |
 
 ### Assembler Features
@@ -353,14 +353,11 @@ Requires WebAssembly, WebGL 2.0, Web Audio API (AudioWorklet), IndexedDB, and Se
 - **Parallel Printer Card** — Centronics parallel port for printing to file/PDF
 
 ### Input
-- **Host game controller support** — Map physical USB/Bluetooth gamepads to Apple II joystick via the Gamepad API
 - **Configurable key bindings** — Allow remapping of Apple II keys and shortcuts
 
 ### Disk & Storage
 - **Improved WOZ copy protection compatibility** — Better support for timing-sensitive copy protection schemes (quarter-track stepping, weak/flux bits, cross-track sync)
 - **2IMG format support** — Universal disk image format with metadata
-- **SmartPort / 3.5" drive emulation** — ProDOS block devices and 800KB disk support
-- **Hard disk emulation** — Virtual hard disk image for large ProDOS volumes
 
 ### Development Tools
 - **Source-level debugging** — Step through assembly source with symbol mapping from assembler

@@ -11,6 +11,53 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "February 13, 2026",
+    features: [
+      {
+        title: "BASIC line heat map",
+        description:
+          "New Heat toggle in the BASIC editor toolbar shows a colour-coded gutter (blue to red) indicating how frequently each line executes. Driven by cycle-accurate C++ tracking at every BASIC statement, with smooth decay so lines fade when no longer active.",
+      },
+      {
+        title: "BASIC trace toggle",
+        description:
+          "New Trace toggle lets you disable current-line highlighting while a BASIC program runs, reducing visual noise for long-running programs.",
+      },
+      {
+        title: "BASIC editor improvements",
+        description:
+          "Statement hover highlighting, live current-line tracking while running, tokenizer fixes, and 30fps refresh rate for smoother updates.",
+      },
+      {
+        title: "Window z-index persistence",
+        description:
+          "Window stacking order is now saved and restored between sessions, so your window layout is exactly as you left it.",
+      },
+      {
+        title: "Click-to-focus windows",
+        description:
+          "Clicking an unfocused window now only brings it to front — buttons and inputs don't activate until the window has focus.",
+      },
+      {
+        title: "Window switcher completeness",
+        description:
+          "The window switcher (Ctrl+`) now includes all windows: Hard Drives, File Explorer, and Trace Panel were missing.",
+      },
+    ],
+    fixes: [
+      {
+        title: "Disk drives window sizing",
+        description:
+          "Fixed disk drives window being too small for new users with no saved state.",
+      },
+      {
+        title: "Agent connection",
+        description:
+          "Fixed app connection to the MCP agent server.",
+      },
+    ],
+  },
+  {
     week: "February 12, 2026",
     features: [
       {
