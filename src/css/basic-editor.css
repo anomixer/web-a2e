@@ -119,6 +119,29 @@
     display: none;
 }
 
+/* Heat map toggle - compact version for toolbar */
+.basic-heat-toggle {
+    gap: 4px !important;
+    font-size: 10px !important;
+}
+
+.basic-heat-toggle .toggle-switch {
+    width: 28px;
+    height: 16px;
+    border-radius: 8px;
+}
+
+.basic-heat-toggle .toggle-switch::after {
+    width: 10px;
+    height: 10px;
+    top: 2px;
+    left: 2px;
+}
+
+.basic-heat-toggle input:checked + .toggle-switch::after {
+    left: 14px;
+}
+
 /* Editor footer with stats and actions */
 .basic-editor-footer {
     display: flex;

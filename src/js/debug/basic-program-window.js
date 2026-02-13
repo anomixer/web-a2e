@@ -65,6 +65,10 @@ export class BasicProgramWindow extends BaseWindow {
     this.expandedArrays = new Set(); // Track which arrays are expanded
     this._varAutoRefresh = false; // Auto-refresh variables while program is running
 
+    // Heat map state
+    this.lineHeatMap = new Map(); // BASIC line number -> heat value (0.0–1.0)
+    this.heatMapEnabled = false;
+
     // Runtime error state
     this.errorLineNumber = null;
     this.errorStatementInfo = null;
@@ -94,6 +98,12 @@ export class BasicProgramWindow extends BaseWindow {
           <button class="basic-dbg-btn basic-dbg-step-line" title="Step to next BASIC statement">
             <span class="basic-dbg-icon">↓</span> Step
           </button>
+          <div style="width:1px;height:16px;background:var(--separator-bg);margin:0 2px;flex-shrink:0;"></div>
+          <label class="toggle-label basic-heat-toggle" title="Show line execution heat map">
+            <input type="checkbox" class="basic-heat-checkbox">
+            <span class="toggle-switch"></span>
+            <span style="font-size:10px">Heat</span>
+          </label>
           <div style="width:1px;height:16px;background:var(--separator-bg);margin:0 2px;flex-shrink:0;"></div>
           <button class="basic-dbg-btn basic-load-btn" title="Read program from memory">Read</button>
           <button class="basic-dbg-btn basic-insert-btn" title="Write program into memory">Write</button>
@@ -409,6 +419,19 @@ export class BasicProgramWindow extends BaseWindow {
     );
     this.autocomplete = new BasicAutocomplete(this.textarea, editorContainer);
 
+    // Heat map toggle
+    this.heatCheckbox = this.contentElement.querySelector(".basic-heat-checkbox");
+    this.heatCheckbox.addEventListener("change", () => {
+      this.heatMapEnabled = this.heatCheckbox.checked;
+      this.wasmModule._setBasicHeatMapEnabled(this.heatMapEnabled);
+      if (!this.heatMapEnabled) {
+        this.lineHeatMap.clear();
+        this.wasmModule._clearBasicHeatMap();
+        this.updateGutter();
+        this.updateHighlighting();
+      }
+    });
+
     // Debugger toolbar buttons
     this.contentElement
       .querySelector(".basic-dbg-run")
@@ -601,8 +624,18 @@ export class BasicProgramWindow extends BaseWindow {
 
       // Gutter shows breakpoint markers with subtle line number tooltip
       const marker = isError ? "!" : (hasBp ? "●" : "");
+
+      // Heat map background
+      let heatStyle = "";
+      if (this.heatMapEnabled && lineNumber !== null && !hasBp && !isCurrent && !isError) {
+        const heat = this.lineHeatMap.get(lineNumber) || 0;
+        if (heat > 0.005) {
+          heatStyle = ` style="background:${this._heatColor(heat)}"`;
+        }
+      }
+
       html += `
-        <div class="basic-gutter-line ${bpClass} ${currentClass} ${errorClass} ${clickable}" data-index="${i}">
+        <div class="basic-gutter-line ${bpClass} ${currentClass} ${errorClass} ${clickable}"${heatStyle} data-index="${i}">
           <span class="basic-gutter-bp" title="${lineNumber !== null ? `Line ${lineNumber} - Click to toggle breakpoint` : ""}">${marker}</span>
           <span class="basic-gutter-current">${isCurrent ? "►" : ""}</span>
         </div>
@@ -639,6 +672,75 @@ export class BasicProgramWindow extends BaseWindow {
         }
       }
     }
+  }
+
+  /**
+   * Read heat map data from the C++ emulator into this.lineHeatMap.
+   * Converts raw execution counts to normalized 0.0–1.0 heat values.
+   */
+  _readHeatMapFromWasm() {
+    const size = this.wasmModule._getBasicHeatMapSize();
+    if (size === 0) {
+      this.lineHeatMap.clear();
+      return;
+    }
+
+    const maxEntries = Math.min(size, 1024);
+    // Allocate buffers: uint16_t[] for lines, uint32_t[] for counts
+    const linesPtr = this.wasmModule._malloc(maxEntries * 2);
+    const countsPtr = this.wasmModule._malloc(maxEntries * 4);
+
+    const count = this.wasmModule._getBasicHeatMapData(linesPtr, countsPtr, maxEntries);
+
+    // Read data from WASM heap
+    const lines = new Uint16Array(this.wasmModule.HEAPU8.buffer, linesPtr, count);
+    const counts = new Uint32Array(this.wasmModule.HEAPU8.buffer, countsPtr, count);
+
+    // Find max count for normalization
+    let maxCount = 0;
+    for (let i = 0; i < count; i++) {
+      if (counts[i] > maxCount) maxCount = counts[i];
+    }
+
+    this.lineHeatMap.clear();
+    if (maxCount > 0) {
+      for (let i = 0; i < count; i++) {
+        // Logarithmic normalization for better visual spread
+        const normalized = Math.log(1 + counts[i]) / Math.log(1 + maxCount);
+        this.lineHeatMap.set(lines[i], normalized);
+      }
+    }
+
+    this.wasmModule._free(linesPtr);
+    this.wasmModule._free(countsPtr);
+  }
+
+  /**
+   * Convert heat value (0.0–1.0) to a colour string.
+   * Gradient: transparent → blue → green → yellow → red
+   */
+  _heatColor(heat) {
+    const h = Math.max(0, Math.min(1, heat));
+    let r, g, b;
+    if (h < 0.25) {
+      // blue (0,100,200) → cyan-ish (0,180,180)
+      const t = h / 0.25;
+      r = 0; g = Math.round(100 + 80 * t); b = Math.round(200 - 20 * t);
+    } else if (h < 0.5) {
+      // green (0,180,80)
+      const t = (h - 0.25) / 0.25;
+      r = 0; g = Math.round(180 - 0 * t); b = Math.round(180 - 100 * t);
+    } else if (h < 0.75) {
+      // yellow (200,200,0)
+      const t = (h - 0.5) / 0.25;
+      r = Math.round(200 * t); g = Math.round(180 + 20 * t); b = Math.round(80 - 80 * t);
+    } else {
+      // red (220,60,40)
+      const t = (h - 0.75) / 0.25;
+      r = Math.round(200 + 20 * t); g = Math.round(200 - 140 * t); b = Math.round(0 + 40 * t);
+    }
+    const alpha = 0.15 + 0.35 * h;
+    return `rgba(${r},${g},${b},${alpha})`;
   }
 
   // ========================================
@@ -857,8 +959,17 @@ export class BasicProgramWindow extends BaseWindow {
         lineHtml += `<span class="basic-error-msg">${this.errorMessage}</span>`;
       }
 
+      // Heat map background on editor lines
+      let heatAttr = "";
+      if (this.heatMapEnabled && lineNumber !== null && !isCurrentLine && !isErrorLine) {
+        const heat = this.lineHeatMap.get(lineNumber) || 0;
+        if (heat > 0.005) {
+          heatAttr = ` style="background:${this._heatColor(heat)}"`;
+        }
+      }
+
       // Wrap each line in a div with appropriate classes
-      const highlighted = `<div class="${lineClass}">${lineHtml}</div>`;
+      const highlighted = `<div class="${lineClass}"${heatAttr}>${lineHtml}</div>`;
       highlightedLines.push(highlighted);
     }
 
@@ -1388,6 +1499,8 @@ export class BasicProgramWindow extends BaseWindow {
       this.currentLineNumber = null;
       this.currentStatementInfo = null;
       if (this.errorLineNumber !== null) this._clearError();
+      this.lineHeatMap.clear();
+      this.wasmModule._clearBasicHeatMap();
 
       this.wasmModule._setPaused(false);
 
@@ -1981,6 +2094,14 @@ export class BasicProgramWindow extends BaseWindow {
       // $FF in high byte means direct/immediate mode - not in a program line
       if (curlinHi !== 0xFF) {
         const runningLine = curlinLo | (curlinHi << 8);
+
+        // Heat map: read from C++ counters
+        if (this.heatMapEnabled) {
+          this._readHeatMapFromWasm();
+          this.updateGutter();
+          this.updateHighlighting();
+        }
+
         if (runningLine !== this.currentLineNumber) {
           this.currentLineNumber = runningLine;
           this.currentStatementInfo = null;
@@ -2207,6 +2328,7 @@ export class BasicProgramWindow extends BaseWindow {
       content: this.textarea ? this.textarea.value : "",
       sidebarWidth: this.sidebar ? this.sidebar.offsetWidth : 200,
       breakpointsHeight: this.bpSection ? this.bpSection.offsetHeight : 150,
+      heatMapEnabled: this.heatMapEnabled,
     };
   }
 
@@ -2223,6 +2345,11 @@ export class BasicProgramWindow extends BaseWindow {
     }
     if (state.breakpointsHeight && this.bpSection) {
       this.bpSection.style.height = `${state.breakpointsHeight}px`;
+    }
+    if (state.heatMapEnabled !== undefined) {
+      this.heatMapEnabled = state.heatMapEnabled;
+      if (this.heatCheckbox) this.heatCheckbox.checked = state.heatMapEnabled;
+      this.wasmModule._setBasicHeatMapEnabled(this.heatMapEnabled);
     }
   }
 
