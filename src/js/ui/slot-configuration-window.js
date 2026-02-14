@@ -35,6 +35,7 @@ export class SlotConfigurationWindow extends BaseWindow {
       { id: "thunderclock", name: "Thunderclock", color: "orange" },
       { id: "mouse", name: "Mouse Card", color: "blue" },
       { id: "smartport", name: "SmartPort", color: "red" },
+      { id: "softcard", name: "Z-80 SoftCard", color: "cyan" },
     ];
 
     // Card icon SVGs (simple representations)
@@ -44,15 +45,16 @@ export class SlotConfigurationWindow extends BaseWindow {
       thunderclock: `<svg viewBox="0 0 24 24" width="20" height="20"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="12" y1="12" x2="12" y2="7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><line x1="12" y1="12" x2="16" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>`,
       mouse: `<svg viewBox="0 0 24 24" width="20" height="20"><rect x="6" y="3" width="12" height="18" rx="6" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="12" y1="3" x2="12" y2="10" stroke="currentColor" stroke-width="1"/></svg>`,
       smartport: `<svg viewBox="0 0 24 24" width="20" height="20"><rect x="4" y="3" width="16" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="7" y="6" width="10" height="3" rx="0.5" fill="none" stroke="currentColor" stroke-width="0.8"/><rect x="7" y="11" width="10" height="3" rx="0.5" fill="none" stroke="currentColor" stroke-width="0.8"/><circle cx="12" cy="18" r="1" fill="currentColor"/></svg>`,
+      softcard: `<svg viewBox="0 0 24 24" width="20" height="20"><rect x="3" y="5" width="18" height="14" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><text x="12" y="14" text-anchor="middle" font-size="7" font-weight="bold" fill="currentColor">Z80</text><line x1="6" y1="5" x2="6" y2="3" stroke="currentColor" stroke-width="1"/><line x1="9" y1="5" x2="9" y2="3" stroke="currentColor" stroke-width="1"/><line x1="12" y1="5" x2="12" y2="3" stroke="currentColor" stroke-width="1"/><line x1="15" y1="5" x2="15" y2="3" stroke="currentColor" stroke-width="1"/><line x1="18" y1="5" x2="18" y2="3" stroke="currentColor" stroke-width="1"/><line x1="6" y1="19" x2="6" y2="21" stroke="currentColor" stroke-width="1"/><line x1="9" y1="19" x2="9" y2="21" stroke="currentColor" stroke-width="1"/><line x1="12" y1="19" x2="12" y2="21" stroke="currentColor" stroke-width="1"/><line x1="15" y1="19" x2="15" y2="21" stroke="currentColor" stroke-width="1"/><line x1="18" y1="19" x2="18" y2="21" stroke="currentColor" stroke-width="1"/></svg>`,
     };
 
     // Slot metadata
     this.slots = [
-      { slot: 1, label: "Slot 1", available: [], note: "Printer / Serial" },
+      { slot: 1, label: "Slot 1", available: ["softcard"], note: "Printer / Serial" },
       {
         slot: 2,
         label: "Slot 2",
-        available: ["smartport"],
+        available: ["smartport", "softcard"],
         note: "Serial / Modem",
       },
       {
@@ -65,20 +67,20 @@ export class SlotConfigurationWindow extends BaseWindow {
       {
         slot: 4,
         label: "Slot 4",
-        available: ["mockingboard", "mouse", "smartport"],
+        available: ["mockingboard", "mouse", "smartport", "softcard"],
         note: "Sound / Mouse",
       },
       {
         slot: 5,
         label: "Slot 5",
-        available: ["thunderclock", "smartport"],
+        available: ["thunderclock", "smartport", "softcard"],
         note: "Clock / Drive",
       },
       { slot: 6, label: "Slot 6", available: ["disk2"], note: "Disk drives" },
       {
         slot: 7,
         label: "Slot 7",
-        available: ["thunderclock", "smartport"],
+        available: ["thunderclock", "smartport", "softcard"],
         note: "RAM / Clock",
       },
     ];

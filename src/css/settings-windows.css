@@ -976,6 +976,16 @@
     border-color: var(--accent-red-border);
 }
 
+.card-color-cyan {
+    background: var(--accent-cyan-bg);
+    border-color: var(--accent-cyan-border);
+    color: var(--accent-cyan);
+}
+
+.card-color-cyan:hover {
+    border-color: var(--accent-cyan-border);
+}
+
 /* Dragging state — dim origin card */
 .card-tile.card-dragging {
     opacity: 0.3;

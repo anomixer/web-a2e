@@ -7,16 +7,16 @@
 
 // Slot metadata (matches slot-configuration-window.js)
 const SLOT_CONFIG = [
-  { slot: 1, compatible: [], fixed: false },
-  { slot: 2, compatible: ["smartport"], fixed: false },
+  { slot: 1, compatible: ["softcard"], fixed: false },
+  { slot: 2, compatible: ["smartport", "softcard"], fixed: false },
   { slot: 3, compatible: [], fixed: true },
-  { slot: 4, compatible: ["mockingboard", "mouse", "smartport"], fixed: false },
-  { slot: 5, compatible: ["thunderclock", "smartport"], fixed: false },
+  { slot: 4, compatible: ["mockingboard", "mouse", "smartport", "softcard"], fixed: false },
+  { slot: 5, compatible: ["thunderclock", "smartport", "softcard"], fixed: false },
   { slot: 6, compatible: ["disk2"], fixed: false },
-  { slot: 7, compatible: ["thunderclock", "smartport"], fixed: false },
+  { slot: 7, compatible: ["thunderclock", "smartport", "softcard"], fixed: false },
 ];
 
-const ALL_CARDS = ["disk2", "mockingboard", "thunderclock", "mouse", "smartport"];
+const ALL_CARDS = ["disk2", "mockingboard", "thunderclock", "mouse", "smartport", "softcard"];
 
 function getWasm() {
   const wasmModule = window.emulator?.wasmModule;
