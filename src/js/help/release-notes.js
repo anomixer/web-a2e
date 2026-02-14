@@ -11,6 +11,30 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "February 17, 2026",
+    features: [
+      {
+        title: "No-Slot Clock (DS1215)",
+        description:
+          "Added emulation of the DS1215 No-Slot Clock, a ProDOS-compatible real-time clock that piggybacks on the 80-column firmware ROM at $C300. Provides automatic date/time stamping in ProDOS without occupying an expansion slot. Enable it via the toggle in the Expansion Slots window.",
+      },
+    ],
+    fixes: [
+      {
+        title: "WASM crash on card removal",
+        description:
+          "Fixed a crash when removing Mockingboard or Disk II cards from their slots.",
+      },
+    ],
+    improvements: [
+      {
+        title: "Code organization",
+        description:
+          "Extracted debug facilities and state serialization from emulator.cpp into separate files for better maintainability.",
+      },
+    ],
+  },
+  {
     week: "February 16, 2026",
     features: [
       {

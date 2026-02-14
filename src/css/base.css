@@ -29,6 +29,7 @@
     --accent-orange: #F68D35;
     --accent-red: #E5504F;
     --accent-purple: #B55DB6;
+    --accent-cyan: #26C6DA;
 
     /* Apple beige/cream for monitor */
     --monitor-beige: #c9c2b0;
@@ -128,6 +129,8 @@
     --accent-red-border: rgba(229, 80, 79, 0.4);
     --accent-purple-bg: rgba(181, 93, 182, 0.15);
     --accent-purple-bg-strong: rgba(181, 93, 182, 0.2);
+    --accent-cyan-bg: rgba(38, 198, 218, 0.15);
+    --accent-cyan-border: rgba(38, 198, 218, 0.4);
 
     /* Register flash (CPU debugger change highlight) */
     --reg-flash-color: #FDBE34;
@@ -248,6 +251,7 @@ html[data-theme="light"] {
     --accent-orange: #A35A0E;
     --accent-red: #B42D31;
     --accent-purple: #723075;
+    --accent-cyan: #0097A7;
 
     --border-default: #d0d7de;
     --border-muted: #e8ecf0;
@@ -319,6 +323,8 @@ html[data-theme="light"] {
     --accent-red-border: rgba(180, 45, 49, 0.3);
     --accent-purple-bg: rgba(114, 48, 117, 0.08);
     --accent-purple-bg-strong: rgba(114, 48, 117, 0.12);
+    --accent-cyan-bg: rgba(0, 151, 167, 0.08);
+    --accent-cyan-border: rgba(0, 151, 167, 0.3);
 
     /* Register flash (CPU debugger change highlight) */
     --reg-flash-color: #8A6200;

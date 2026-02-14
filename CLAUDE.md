@@ -67,6 +67,7 @@ node tests/integration/disk-boot-test.js
 - `filesystem/` - DOS 3.3 and ProDOS filesystem parsers
 - `basic/` - Applesoft and Integer BASIC detokenizer and tokenizer
 - `debug/` - Condition evaluator for breakpoint expressions (supports BV/BA/BA2 for BASIC variable/array reads)
+- `noslot_clock.cpp` - DS1215 No-Slot Clock (ProDOS RTC at $C300)
 - `emulator.cpp` - Core coordinator, state serialization
 
 **JavaScript Layer (src/js/)** - Browser integration:
@@ -147,6 +148,7 @@ src/
 │   ├── filesystem/     # DOS 3.3 and ProDOS parsers
 │   ├── basic/          # BASIC tokenizer and detokenizer
 │   ├── debug/          # Condition evaluator
+│   ├── noslot_clock.cpp # DS1215 No-Slot Clock (ProDOS RTC at $C300)
 │   ├── emulator.cpp    # Core coordinator, state serialization
 │   └── types.hpp       # Shared constants and types
 ├── bindings/           # wasm_interface.cpp - WASM export glue
@@ -218,6 +220,7 @@ class ExpansionCard {
 - `MouseCard` - Apple Mouse Interface Card via MC6821 PIA command protocol (slot 4)
 - `SmartPortCard` - SmartPort hard drive controller, 2 block devices, self-built ROM (user-configurable slot)
 - `ThunderclockCard` - ProDOS-compatible real-time clock (slots 5, 7)
+- `NoSlotClock` - DS1215 real-time clock piggybacking on $C300 ROM (not a slot card; toggle in Expansion Slots UI)
 
 ## State Serialization
 

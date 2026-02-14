@@ -25,6 +25,10 @@ static a2e::Emulator *g_emulator = nullptr;
 // Helper macros to reduce repetitive null checks
 #define REQUIRE_EMULATOR() do { if (!g_emulator) return; } while(0)
 #define REQUIRE_EMULATOR_OR(default_val) do { if (!g_emulator) return (default_val); } while(0)
+#define REQUIRE_MOCKINGBOARD() do { if (!g_emulator || !g_emulator->getMockingboardPtr()) return; } while(0)
+#define REQUIRE_MOCKINGBOARD_OR(default_val) do { if (!g_emulator || !g_emulator->getMockingboardPtr()) return (default_val); } while(0)
+#define REQUIRE_DISK() do { if (!g_emulator || !g_emulator->getDiskPtr()) return; } while(0)
+#define REQUIRE_DISK_OR(default_val) do { if (!g_emulator || !g_emulator->getDiskPtr()) return (default_val); } while(0)
 
 extern "C" {
 
@@ -686,7 +690,7 @@ const char* readScreenText(int startRow, int startCol, int endRow, int endCol) {
 // Disk controller state for debugging
 EMSCRIPTEN_KEEPALIVE
 int getDiskTrack(int drive) {
-  REQUIRE_EMULATOR_OR(0);
+  REQUIRE_DISK_OR(0);
   auto &disk = g_emulator->getDisk();
   if (disk.hasDisk(drive)) {
     const auto *image = disk.getDiskImage(drive);
@@ -699,34 +703,34 @@ int getDiskTrack(int drive) {
 
 EMSCRIPTEN_KEEPALIVE
 int getDiskPhase(int drive) {
-  REQUIRE_EMULATOR_OR(0);
+  REQUIRE_DISK_OR(0);
   (void)drive; // Phase states are controller-wide
   return g_emulator->getDisk().getPhaseStates();
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool getDiskMotorOn(int drive) {
-  REQUIRE_EMULATOR_OR(false);
+  REQUIRE_DISK_OR(false);
   (void)drive; // Motor state is controller-wide
   return g_emulator->getDisk().isMotorOn();
 }
 
 EMSCRIPTEN_KEEPALIVE
 void stopDiskMotor() {
-  REQUIRE_EMULATOR();
+  REQUIRE_DISK();
   g_emulator->getDisk().stopMotor();
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool getDiskWriteMode(int drive) {
-  REQUIRE_EMULATOR_OR(false);
+  REQUIRE_DISK_OR(false);
   (void)drive; // Write mode (Q7) is controller-wide
   return g_emulator->getDisk().getQ7();
 }
 
 EMSCRIPTEN_KEEPALIVE
 int getDiskHeadPosition(int drive) {
-  REQUIRE_EMULATOR_OR(0);
+  REQUIRE_DISK_OR(0);
   auto &disk = g_emulator->getDisk();
   if (disk.hasDisk(drive)) {
     const auto *image = disk.getDiskImage(drive);
@@ -739,25 +743,25 @@ int getDiskHeadPosition(int drive) {
 
 EMSCRIPTEN_KEEPALIVE
 int getSelectedDrive() {
-  REQUIRE_EMULATOR_OR(0);
+  REQUIRE_DISK_OR(0);
   return g_emulator->getDisk().getSelectedDrive();
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool isDiskInserted(int drive) {
-  REQUIRE_EMULATOR_OR(false);
+  REQUIRE_DISK_OR(false);
   return g_emulator->getDisk().hasDisk(drive);
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint8_t getLastDiskByte() {
-  REQUIRE_EMULATOR_OR(0);
+  REQUIRE_DISK_OR(0);
   return g_emulator->getDisk().getDataLatch();
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint8_t getTrackNibble(int drive, int track, int position) {
-  REQUIRE_EMULATOR_OR(0);
+  REQUIRE_DISK_OR(0);
   if (g_emulator->getDisk().hasDisk(drive)) {
     const auto *image = g_emulator->getDisk().getDiskImage(drive);
     if (image) {
@@ -769,7 +773,7 @@ uint8_t getTrackNibble(int drive, int track, int position) {
 
 EMSCRIPTEN_KEEPALIVE
 int getTrackNibbleCount(int drive, int track) {
-  REQUIRE_EMULATOR_OR(0);
+  REQUIRE_DISK_OR(0);
   if (g_emulator->getDisk().hasDisk(drive)) {
     const auto *image = g_emulator->getDisk().getDiskImage(drive);
     if (image) {
@@ -781,7 +785,7 @@ int getTrackNibbleCount(int drive, int track) {
 
 EMSCRIPTEN_KEEPALIVE
 size_t getCurrentNibblePosition(int drive) {
-  REQUIRE_EMULATOR_OR(0);
+  REQUIRE_DISK_OR(0);
   if (g_emulator->getDisk().hasDisk(drive)) {
     const auto *image = g_emulator->getDisk().getDiskImage(drive);
     if (image) {
@@ -793,7 +797,7 @@ size_t getCurrentNibblePosition(int drive) {
 
 EMSCRIPTEN_KEEPALIVE
 bool isDiskModified(int drive) {
-  REQUIRE_EMULATOR_OR(false);
+  REQUIRE_DISK_OR(false);
   if (g_emulator->getDisk().hasDisk(drive)) {
     const auto *image = g_emulator->getDisk().getDiskImage(drive);
     if (image) {
@@ -958,13 +962,13 @@ uint32_t disassembleWithFlowAnalysisMultiEntry(const uint8_t *data, size_t size,
 
 EMSCRIPTEN_KEEPALIVE
 bool isMockingboardEnabled() {
-  REQUIRE_EMULATOR_OR(false);
+  REQUIRE_MOCKINGBOARD_OR(false);
   return g_emulator->getMockingboard().isEnabled();
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint8_t getMockingboardPSGRegister(int psg, int reg) {
-  REQUIRE_EMULATOR_OR(0);
+  REQUIRE_MOCKINGBOARD_OR(0);
   if (reg < 0 || reg >= 16) return 0;
   if (psg == 0) {
     return g_emulator->getMockingboard().getPSG1().getRegister(reg);
@@ -980,7 +984,7 @@ static uint8_t g_psgRegisters[16];
 
 EMSCRIPTEN_KEEPALIVE
 const uint8_t* getMockingboardPSGRegisters(int psg) {
-  REQUIRE_EMULATOR_OR(nullptr);
+  REQUIRE_MOCKINGBOARD_OR(nullptr);
   const auto& psgChip = (psg == 0)
     ? g_emulator->getMockingboard().getPSG1()
     : g_emulator->getMockingboard().getPSG2();
@@ -992,7 +996,7 @@ const uint8_t* getMockingboardPSGRegisters(int psg) {
 
 EMSCRIPTEN_KEEPALIVE
 bool getMockingboardVIAIRQ(int via) {
-  REQUIRE_EMULATOR_OR(false);
+  REQUIRE_MOCKINGBOARD_OR(false);
   if (via == 0) {
     return g_emulator->getMockingboard().getVIA1().isIRQActive();
   } else if (via == 1) {
@@ -1005,7 +1009,7 @@ bool getMockingboardVIAIRQ(int via) {
 // reg: 0=ORA, 1=ORB, 2=DDRA, 3=DDRB
 EMSCRIPTEN_KEEPALIVE
 uint8_t getMockingboardVIAPort(int via, int reg) {
-  REQUIRE_EMULATOR_OR(0);
+  REQUIRE_MOCKINGBOARD_OR(0);
   const auto& viaChip = (via == 0)
       ? g_emulator->getMockingboard().getVIA1()
       : g_emulator->getMockingboard().getVIA2();
@@ -1022,7 +1026,7 @@ uint8_t getMockingboardVIAPort(int via, int reg) {
 // info: 0=writeCount, 1=lastWriteReg, 2=lastWriteVal, 3=currentRegister
 EMSCRIPTEN_KEEPALIVE
 uint32_t getMockingboardPSGWriteInfo(int psg, int info) {
-  REQUIRE_EMULATOR_OR(0);
+  REQUIRE_MOCKINGBOARD_OR(0);
   const auto& psgChip = (psg == 0)
       ? g_emulator->getMockingboard().getPSG1()
       : g_emulator->getMockingboard().getPSG2();
@@ -1039,7 +1043,7 @@ uint32_t getMockingboardPSGWriteInfo(int psg, int info) {
 // info: 0=T1Counter, 1=T1Latch, 2=T1Running, 3=T1Fired, 4=ACR, 5=IFR, 6=IER
 EMSCRIPTEN_KEEPALIVE
 uint32_t getMockingboardVIATimerInfo(int via, int info) {
-  REQUIRE_EMULATOR_OR(0);
+  REQUIRE_MOCKINGBOARD_OR(0);
   const auto& viaChip = (via == 0)
       ? g_emulator->getMockingboard().getVIA1()
       : g_emulator->getMockingboard().getVIA2();
@@ -1058,7 +1062,7 @@ uint32_t getMockingboardVIATimerInfo(int via, int info) {
 // Enable/disable console debug logging for Mockingboard PSG writes
 EMSCRIPTEN_KEEPALIVE
 void setMockingboardDebugLogging(bool enabled) {
-  REQUIRE_EMULATOR();
+  REQUIRE_MOCKINGBOARD();
   g_emulator->getMockingboard().setDebugLogging(enabled);
 }
 
@@ -1068,7 +1072,7 @@ void setMockingboardDebugLogging(bool enabled) {
 // muted: true to mute, false to unmute
 EMSCRIPTEN_KEEPALIVE
 void setMockingboardChannelMute(int psg, int channel, bool muted) {
-  REQUIRE_EMULATOR();
+  REQUIRE_MOCKINGBOARD();
   auto& psgChip = (psg == 0)
       ? g_emulator->getMockingboard().getPSG1()
       : g_emulator->getMockingboard().getPSG2();
@@ -1078,7 +1082,7 @@ void setMockingboardChannelMute(int psg, int channel, bool muted) {
 // Check if a channel is muted
 EMSCRIPTEN_KEEPALIVE
 bool getMockingboardChannelMute(int psg, int channel) {
-  REQUIRE_EMULATOR_OR(false);
+  REQUIRE_MOCKINGBOARD_OR(false);
   const auto& psgChip = (psg == 0)
       ? g_emulator->getMockingboard().getPSG1()
       : g_emulator->getMockingboard().getPSG2();
@@ -1093,7 +1097,7 @@ bool getMockingboardChannelMute(int psg, int channel) {
 // Returns actual number of samples generated
 EMSCRIPTEN_KEEPALIVE
 int getMockingboardWaveform(int psg, int channel, float* buffer, int count) {
-  REQUIRE_EMULATOR_OR(0);
+  REQUIRE_MOCKINGBOARD_OR(0);
   if (!buffer || count <= 0 || count > 1024) return 0;
 
   const int SAMPLE_RATE = 48000;
@@ -1935,6 +1939,22 @@ int loadBasicProgram(const char* source) {
   auto read = [](uint16_t addr) -> uint8_t { return g_emulator->readMemory(addr); };
   auto write = [](uint16_t addr, uint8_t val) { g_emulator->writeMemory(addr, val); };
   return a2e::loadBasicProgram(source, read, write);
+}
+
+// ============================================================================
+// No-Slot Clock (DS1215)
+// ============================================================================
+
+EMSCRIPTEN_KEEPALIVE
+void enableNoSlotClock(bool enable) {
+  REQUIRE_EMULATOR();
+  g_emulator->enableNoSlotClock(enable);
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool isNoSlotClockEnabled() {
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->isNoSlotClockEnabled();
 }
 
 } // extern "C"

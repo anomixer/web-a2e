@@ -9,7 +9,20 @@
 import { BaseWindow } from "../windows/base-window.js";
 
 // Note names for frequency-to-note conversion
-const NOTE_NAMES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+const NOTE_NAMES = [
+  "C",
+  "C#",
+  "D",
+  "D#",
+  "E",
+  "F",
+  "F#",
+  "G",
+  "G#",
+  "A",
+  "A#",
+  "B",
+];
 
 // Channel badge background colors
 const CHANNEL_BADGE_COLORS = { a: "#006FA3", b: "#3D8F2B", c: "#B42D31" };
@@ -19,16 +32,16 @@ const CHANNEL_COLORS = { a: "#18ABEA", b: "#6EC94F", c: "#E5504F" };
 
 // Envelope shape SVG paths (48x16 viewBox)
 const ENVELOPE_SVGS = {
-  0x00: "M2,2 L24,14 L46,14",           // \___
-  0x04: "M2,14 L24,2 L46,14",            // /|__  (attack then drop)
-  0x08: "M2,2 L12,14 L22,2 L32,14 L42,2 L46,6",  // \\\\
-  0x09: "M2,2 L24,14 L46,14",            // \___
-  0x0a: "M2,2 L12,14 L24,2 L36,14 L46,2",         // \/\/
-  0x0b: "M2,2 L14,14 L14,2 L46,2",       // \--- (decay then hold high)
+  0x00: "M2,2 L24,14 L46,14", // \___
+  0x04: "M2,14 L24,2 L46,14", // /|__  (attack then drop)
+  0x08: "M2,2 L12,14 L22,2 L32,14 L42,2 L46,6", // \\\\
+  0x09: "M2,2 L24,14 L46,14", // \___
+  0x0a: "M2,2 L12,14 L24,2 L36,14 L46,2", // \/\/
+  0x0b: "M2,2 L14,14 L14,2 L46,2", // \--- (decay then hold high)
   0x0c: "M2,14 L12,2 L22,14 L32,2 L42,14 L46,10", // ////
-  0x0d: "M2,14 L14,2 L14,14 L46,14",     // /--- (attack then hold high... inverted)
-  0x0e: "M2,14 L12,2 L24,14 L36,2 L46,14",        // /\/\
-  0x0f: "M2,14 L24,2 L46,14",            // /___  (same as 0x04 for shape 15)
+  0x0d: "M2,14 L14,2 L14,14 L46,14", // /--- (attack then hold high... inverted)
+  0x0e: "M2,14 L12,2 L24,14 L36,2 L46,14", // /\/\
+  0x0f: "M2,14 L24,2 L46,14", // /___  (same as 0x04 for shape 15)
 };
 
 /**
@@ -50,10 +63,12 @@ function frequencyToNote(freq) {
 function getEnvelopeShapeSVG(value) {
   const path = ENVELOPE_SVGS[value & 0x0f];
   if (!path) return '<span class="mb-env-unknown">?</span>';
-  return `<svg class="mb-env-svg" viewBox="0 0 48 16" width="48" height="16" preserveAspectRatio="none">` +
-    `<polyline points="${path.replace(/M|L/g, '').replace(/\s+/g, ' ').trim()}" ` +
+  return (
+    `<svg class="mb-env-svg" viewBox="0 0 48 16" width="48" height="16" preserveAspectRatio="none">` +
+    `<polyline points="${path.replace(/M|L/g, "").replace(/\s+/g, " ").trim()}" ` +
     `fill="none" stroke="var(--accent-green)" stroke-width="1.5" stroke-linejoin="round"/>` +
-    `</svg>`;
+    `</svg>`
+  );
 }
 
 export class MockingboardWindow extends BaseWindow {
@@ -61,10 +76,11 @@ export class MockingboardWindow extends BaseWindow {
     super({
       id: "mockingboard-debug",
       title: "Mockingboard",
-      minWidth: 660,
-      minHeight: 500,
-      defaultWidth: 760,
-      defaultHeight: 700,
+      minWidth: 700,
+      minHeight: 630,
+      defaultWidth: 700,
+      defaultHeight: 630,
+      resizeDirections: [],
     });
 
     this.wasmModule = wasmModule;
@@ -104,7 +120,9 @@ export class MockingboardWindow extends BaseWindow {
     const channels = ["a", "b", "c"];
     const channelLabels = ["A", "B", "C"];
 
-    const channelRows = channels.map((ch, i) => `
+    const channelRows = channels
+      .map(
+        (ch, i) => `
       <div class="mb-channel-row" data-channel="${ch}" data-psg="${psgNum}">
         <button class="mb-mute-btn" data-psg="${psgNum}" data-ch="${i}" title="Mute/Unmute Channel ${channelLabels[i]}">
           <svg class="mb-icon-on" viewBox="0 0 12 12" width="12" height="12"><path d="M1 4.2h2l2.5-2.5v8.6L3 7.8H1z" fill="currentColor"/><path d="M8 3.5q2 2.5 0 5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
@@ -122,7 +140,9 @@ export class MockingboardWindow extends BaseWindow {
         <span class="mb-vol-text" id="mb-psg${psgNum}-ch${ch}-vol">0/15</span>
         <canvas class="mb-waveform" id="mb-psg${psgNum}-ch${ch}-waveform"></canvas>
       </div>
-    `).join("");
+    `,
+      )
+      .join("");
 
     return `
       <div class="mb-section mb-psg-section">
@@ -384,16 +404,30 @@ export class MockingboardWindow extends BaseWindow {
 
       for (let ch = 0; ch < 3; ch++) {
         const chName = channelNames[ch];
-        psgEl.channels[ch] = el.querySelector(`.mb-channel-row[data-psg="${psgNum}"][data-channel="${chName}"]`);
-        psgEl.mute[ch] = el.querySelector(`.mb-mute-btn[data-psg="${psgNum}"][data-ch="${ch}"]`);
+        psgEl.channels[ch] = el.querySelector(
+          `.mb-channel-row[data-psg="${psgNum}"][data-channel="${chName}"]`,
+        );
+        psgEl.mute[ch] = el.querySelector(
+          `.mb-mute-btn[data-psg="${psgNum}"][data-ch="${ch}"]`,
+        );
         psgEl.freq[ch] = el.querySelector(`#mb-psg${psgNum}-ch${chName}-freq`);
         psgEl.tone[ch] = el.querySelector(`#mb-psg${psgNum}-ch${chName}-tone`);
-        psgEl.noise[ch] = el.querySelector(`#mb-psg${psgNum}-ch${chName}-noise`);
-        psgEl.volFill[ch] = el.querySelector(`#mb-psg${psgNum}-ch${chName}-fill`);
-        psgEl.volText[ch] = el.querySelector(`#mb-psg${psgNum}-ch${chName}-vol`);
-        const canvas = el.querySelector(`#mb-psg${psgNum}-ch${chName}-waveform`);
+        psgEl.noise[ch] = el.querySelector(
+          `#mb-psg${psgNum}-ch${chName}-noise`,
+        );
+        psgEl.volFill[ch] = el.querySelector(
+          `#mb-psg${psgNum}-ch${chName}-fill`,
+        );
+        psgEl.volText[ch] = el.querySelector(
+          `#mb-psg${psgNum}-ch${chName}-vol`,
+        );
+        const canvas = el.querySelector(
+          `#mb-psg${psgNum}-ch${chName}-waveform`,
+        );
         psgEl.canvases[ch] = canvas;
-        psgEl.canvasCtx[ch] = canvas ? canvas.getContext("2d", { alpha: false }) : null;
+        psgEl.canvasCtx[ch] = canvas
+          ? canvas.getContext("2d", { alpha: false })
+          : null;
       }
 
       // Envelope / noise
@@ -430,7 +464,9 @@ export class MockingboardWindow extends BaseWindow {
    */
   allocateWaveformBuffer() {
     if (!this.waveformBufferPtr && this.wasmModule?._malloc) {
-      this.waveformBufferPtr = this.wasmModule._malloc(this.waveformSampleCount * 4);
+      this.waveformBufferPtr = this.wasmModule._malloc(
+        this.waveformSampleCount * 4,
+      );
     }
   }
 
@@ -459,7 +495,8 @@ export class MockingboardWindow extends BaseWindow {
   updateCanvasColors() {
     const style = getComputedStyle(document.documentElement);
     this.canvasBg = style.getPropertyValue("--canvas-bg").trim() || "#05050a";
-    this.canvasLine = style.getPropertyValue("--canvas-line").trim() || "#1a1a2a";
+    this.canvasLine =
+      style.getPropertyValue("--canvas-line").trim() || "#1a1a2a";
   }
 
   /**
@@ -479,7 +516,9 @@ export class MockingboardWindow extends BaseWindow {
       const muteState = [];
       for (let psg = 0; psg < 2; psg++) {
         for (let ch = 0; ch < 3; ch++) {
-          muteState.push(!!this.wasmModule._getMockingboardChannelMute(psg, ch));
+          muteState.push(
+            !!this.wasmModule._getMockingboardChannelMute(psg, ch),
+          );
         }
       }
       base.channelMutes = muteState;
@@ -536,7 +575,10 @@ export class MockingboardWindow extends BaseWindow {
         if (muteBtn && this.wasmModule?._setMockingboardChannelMute) {
           const psg = parseInt(muteBtn.dataset.psg, 10) - 1;
           const ch = parseInt(muteBtn.dataset.ch, 10);
-          const currentlyMuted = this.wasmModule._getMockingboardChannelMute(psg, ch);
+          const currentlyMuted = this.wasmModule._getMockingboardChannelMute(
+            psg,
+            ch,
+          );
           this.wasmModule._setMockingboardChannelMute(psg, ch, !currentlyMuted);
           this.updateMuteState();
           if (this.onStateChange) this.onStateChange();
@@ -575,9 +617,9 @@ export class MockingboardWindow extends BaseWindow {
     if (!wasmModule._getMockingboardPSGRegister) return;
 
     const channelRegs = [
-      [0, 1],  // Channel A tone fine/coarse
-      [2, 3],  // Channel B tone fine/coarse
-      [4, 5],  // Channel C tone fine/coarse
+      [0, 1], // Channel A tone fine/coarse
+      [2, 3], // Channel B tone fine/coarse
+      [4, 5], // Channel C tone fine/coarse
     ];
 
     for (let psg = 0; psg < 2; psg++) {
@@ -612,7 +654,8 @@ export class MockingboardWindow extends BaseWindow {
         const toneKey = `psg${psg}ch${ch}tone`;
         if (this.prevValues[toneKey] !== toneEnabled) {
           this.prevValues[toneKey] = toneEnabled;
-          if (psgEl.tone[ch]) psgEl.tone[ch].classList.toggle("on", toneEnabled);
+          if (psgEl.tone[ch])
+            psgEl.tone[ch].classList.toggle("on", toneEnabled);
         }
 
         // Noise enabled (bits 3,4,5 of R7 — 0 = enabled)
@@ -620,7 +663,8 @@ export class MockingboardWindow extends BaseWindow {
         const noiseKey = `psg${psg}ch${ch}noise`;
         if (this.prevValues[noiseKey] !== noiseEnabled) {
           this.prevValues[noiseKey] = noiseEnabled;
-          if (psgEl.noise[ch]) psgEl.noise[ch].classList.toggle("on", noiseEnabled);
+          if (psgEl.noise[ch])
+            psgEl.noise[ch].classList.toggle("on", noiseEnabled);
         }
 
         // Volume / envelope mode
@@ -661,7 +705,8 @@ export class MockingboardWindow extends BaseWindow {
       const envFine = wasmModule._getMockingboardPSGRegister(psg, 11);
       const envCoarse = wasmModule._getMockingboardPSGRegister(psg, 12);
       const envPeriod = envFine | (envCoarse << 8);
-      const envFreq = envPeriod > 0 ? (1023000 / (256 * envPeriod)).toFixed(1) : 0;
+      const envFreq =
+        envPeriod > 0 ? (1023000 / (256 * envPeriod)).toFixed(1) : 0;
       const envFreqKey = `psg${psg}envFreq`;
       if (this.prevValues[envFreqKey] !== envFreq) {
         this.prevValues[envFreqKey] = envFreq;
@@ -672,7 +717,8 @@ export class MockingboardWindow extends BaseWindow {
 
       // Noise frequency
       const noisePeriod = wasmModule._getMockingboardPSGRegister(psg, 6);
-      const noiseFreq = noisePeriod > 0 ? (1023000 / (16 * noisePeriod)).toFixed(1) : 0;
+      const noiseFreq =
+        noisePeriod > 0 ? (1023000 / (16 * noisePeriod)).toFixed(1) : 0;
       const noiseFreqKey = `psg${psg}noiseFreq`;
       if (this.prevValues[noiseFreqKey] !== noiseFreq) {
         this.prevValues[noiseFreqKey] = noiseFreq;
@@ -694,7 +740,8 @@ export class MockingboardWindow extends BaseWindow {
         if (this.prevValues[key] !== isMuted) {
           this.prevValues[key] = isMuted;
           if (psgEl.mute[ch]) psgEl.mute[ch].classList.toggle("muted", isMuted);
-          if (psgEl.channels[ch]) psgEl.channels[ch].classList.toggle("muted", isMuted);
+          if (psgEl.channels[ch])
+            psgEl.channels[ch].classList.toggle("muted", isMuted);
         }
       }
     }
@@ -718,7 +765,12 @@ export class MockingboardWindow extends BaseWindow {
         const height = canvas.height;
         if (width === 0 || height === 0) continue;
 
-        wasmModule._getMockingboardWaveform(psg, ch, this.waveformBufferPtr, sampleCount);
+        wasmModule._getMockingboardWaveform(
+          psg,
+          ch,
+          this.waveformBufferPtr,
+          sampleCount,
+        );
 
         // Clear canvas
         ctx.fillStyle = this.canvasBg;
@@ -754,8 +806,14 @@ export class MockingboardWindow extends BaseWindow {
 
   updateVIAStatus(wasmModule) {
     const controlModes = [
-      "INACT", "READ", "WRITE", "LATCH",
-      "INACT", "READ", "WRITE", "LATCH",
+      "INACT",
+      "READ",
+      "WRITE",
+      "LATCH",
+      "INACT",
+      "READ",
+      "WRITE",
+      "LATCH",
     ];
 
     for (let via = 0; via < 2; via++) {
@@ -834,28 +892,48 @@ export class MockingboardWindow extends BaseWindow {
         const ier = wasmModule._getMockingboardVIATimerInfo(via, 6);
 
         this.updateIfChanged(
-          `via${via}t1cnt`, t1cnt, els.t1cnt,
+          `via${via}t1cnt`,
+          t1cnt,
+          els.t1cnt,
           (v) => "$" + v.toString(16).toUpperCase().padStart(4, "0"),
         );
         this.updateIfChanged(
-          `via${via}t1lat`, t1lat, els.t1lat,
+          `via${via}t1lat`,
+          t1lat,
+          els.t1lat,
           (v) => "$" + v.toString(16).toUpperCase().padStart(4, "0"),
         );
         this.updateIfChanged(
-          `via${via}acr`, acr, els.acr,
+          `via${via}acr`,
+          acr,
+          els.acr,
           (v) => "$" + v.toString(16).toUpperCase().padStart(2, "0"),
         );
         this.updateIfChanged(
-          `via${via}ifr`, ifr, els.ifr,
+          `via${via}ifr`,
+          ifr,
+          els.ifr,
           (v) => "$" + v.toString(16).toUpperCase().padStart(2, "0"),
         );
         this.updateIfChanged(
-          `via${via}ier`, ier, els.ier,
+          `via${via}ier`,
+          ier,
+          els.ier,
           (v) => "$" + v.toString(16).toUpperCase().padStart(2, "0"),
         );
 
-        this.updateClassIfChanged(`via${via}t1run`, t1run !== 0, els.t1run, "active");
-        this.updateClassIfChanged(`via${via}t1fire`, t1fire !== 0, els.t1fire, "active");
+        this.updateClassIfChanged(
+          `via${via}t1run`,
+          t1run !== 0,
+          els.t1run,
+          "active",
+        );
+        this.updateClassIfChanged(
+          `via${via}t1fire`,
+          t1fire !== 0,
+          els.t1fire,
+          "active",
+        );
         this.updateClassIfChanged(
           `via${via}t1irq`,
           (ier & 0x40) !== 0 && (ifr & 0x40) !== 0,

@@ -10,7 +10,7 @@ A cycle-accurate Apple //e Enhanced emulator running in the browser using WebAss
 - **WebGL rendering** — Hardware-accelerated display with configurable CRT shader effects
 - **Audio-driven timing** — Web Audio API AudioWorklet drives frame timing at 48kHz
 - **Disk II controller** — DSK, DO, PO, and WOZ format support with write capability
-- **Expansion cards** — Mockingboard sound card, Thunderclock Plus, Apple Mouse Interface Card, SmartPort hard drive
+- **Expansion cards** — Mockingboard sound card, Thunderclock Plus, Apple Mouse Interface Card, SmartPort hard drive, No-Slot Clock (DS1215)
 - **File explorer** — Browse DOS 3.3 and ProDOS disk contents with BASIC detokenizer and disassembler
 - **Save states** — Autosave slot plus 5 manual save slots, stored in IndexedDB
 - **Built-in debugger** — CPU debugger, memory browser, heat map, soft switch monitor, BASIC conditional breakpoints, and more
