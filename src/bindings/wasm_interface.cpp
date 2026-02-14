@@ -1941,4 +1941,20 @@ int loadBasicProgram(const char* source) {
   return a2e::loadBasicProgram(source, read, write);
 }
 
+// ============================================================================
+// No-Slot Clock (DS1215)
+// ============================================================================
+
+EMSCRIPTEN_KEEPALIVE
+void enableNoSlotClock(bool enable) {
+  REQUIRE_EMULATOR();
+  g_emulator->enableNoSlotClock(enable);
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool isNoSlotClockEnabled() {
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->isNoSlotClockEnabled();
+}
+
 } // extern "C"

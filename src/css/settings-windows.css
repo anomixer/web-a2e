@@ -1229,3 +1229,33 @@
     cursor: not-allowed;
 }
 
+/* ---- No-Slot Clock toggle ---- */
+.nsc-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 10px;
+    background: var(--surface-secondary);
+    border: 1px solid var(--border-primary);
+    border-radius: 4px;
+    margin: 0 4px;
+}
+
+.nsc-toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-primary);
+    cursor: pointer;
+}
+
+.nsc-checkbox {
+    accent-color: var(--accent-orange);
+}
+
+.nsc-note {
+    font-size: 10px;
+    color: var(--text-tertiary);
+}
+

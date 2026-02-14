@@ -14,7 +14,7 @@ import { showToast } from "./toast.js";
  */
 export class SlotConfigurationWindow extends BaseWindow {
   constructor(wasmModule, onResetCallback) {
-    const maxHeight = 625;
+    const maxHeight = 650;
     super({
       id: "slot-configuration",
       title: "Expansion Slots",
@@ -110,6 +110,16 @@ export class SlotConfigurationWindow extends BaseWindow {
           <div class="slot-section-title">Motherboard Slots</div>
           <div class="motherboard-slots" id="motherboard-slots"></div>
         </div>
+        <div class="slot-section">
+          <div class="slot-section-title">Other Hardware</div>
+          <div class="nsc-toggle-row">
+            <label class="nsc-toggle-label">
+              <input type="checkbox" id="nsc-toggle" class="nsc-checkbox">
+              <span>No-Slot Clock (DS1215)</span>
+            </label>
+            <span class="nsc-note">ProDOS real-time clock at $C300</span>
+          </div>
+        </div>
         <div class="slot-footer">
           <button id="slot-apply-btn" class="slot-apply-btn" disabled>Apply &amp; Reset</button>
         </div>
@@ -121,6 +131,32 @@ export class SlotConfigurationWindow extends BaseWindow {
     const applyBtn = this.contentElement.querySelector("#slot-apply-btn");
     if (applyBtn) {
       applyBtn.addEventListener("click", () => this.applyChanges());
+    }
+
+    // No-Slot Clock toggle
+    const nscToggle = this.contentElement.querySelector("#nsc-toggle");
+    if (nscToggle) {
+      // Load saved state
+      const saved = localStorage.getItem("a2e-nsc-enabled");
+      const enabled = saved === "true";
+      nscToggle.checked = enabled;
+      this.applyNoSlotClock(enabled);
+
+      nscToggle.addEventListener("change", () => {
+        const enable = nscToggle.checked;
+        localStorage.setItem("a2e-nsc-enabled", enable ? "true" : "false");
+        this.applyNoSlotClock(enable);
+        showToast(
+          enable ? "No-Slot Clock enabled" : "No-Slot Clock disabled",
+          "info",
+        );
+      });
+    }
+  }
+
+  applyNoSlotClock(enable) {
+    if (this.wasmModule && this.wasmModule._enableNoSlotClock) {
+      this.wasmModule._enableNoSlotClock(enable);
     }
   }
 
@@ -510,6 +546,10 @@ export class SlotConfigurationWindow extends BaseWindow {
         this.wasmModule._free(cardIdPtr);
       }
     }
+
+    // Apply No-Slot Clock setting
+    const nscEnabled = localStorage.getItem("a2e-nsc-enabled") === "true";
+    this.applyNoSlotClock(nscEnabled);
   }
 
   saveSettings() {
