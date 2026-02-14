@@ -58,7 +58,7 @@
 
 /* Agent button */
 .control-btn.agent-btn {
-    color: var(--text-muted);
+    font-size: 16px; /* Ensure emoji is visible */
 }
 
 /* Hidden state - button is completely hidden */
@@ -66,18 +66,18 @@
     display: none;
 }
 
-/* Disconnected state - server available but not connected */
+/* Disconnected state - server available but not connected - gray like other icons */
 .control-btn.agent-btn.disconnected {
-    color: var(--text-muted);
+    color: var(--text-secondary);
 }
 
 .control-btn.agent-btn.disconnected:hover {
-    background: var(--bg-light);
-    color: var(--text-secondary);
-    border-color: var(--border-default);
+    background: var(--bg-panel);
+    color: var(--text-primary);
+    border-color: var(--text-muted);
 }
 
-/* Connected state - yellow */
+/* Connected state - yellow in dark theme */
 .control-btn.agent-btn.connected {
     color: var(--accent-yellow);
 }
@@ -89,7 +89,19 @@
     box-shadow: 0 0 20px rgba(253, 184, 39, 0.3);
 }
 
-/* Severed state - connection lost, reconnecting - spinning sparkles */
+/* Connected state - darker green background in light theme for visibility */
+[data-theme="light"] .control-btn.agent-btn.connected {
+    background: rgba(97, 187, 70, 0.35);
+    border-color: rgba(97, 187, 70, 0.75);
+}
+
+[data-theme="light"] .control-btn.agent-btn.connected:hover {
+    background: rgba(97, 187, 70, 0.45);
+    border-color: rgba(97, 187, 70, 0.9);
+    box-shadow: 0 0 20px rgba(97, 187, 70, 0.5);
+}
+
+/* Severed state - connection lost, reconnecting - red */
 .control-btn.agent-btn.severed {
     background: rgba(224, 58, 62, 0.08);
     color: var(--accent-red);
@@ -101,6 +113,19 @@
     background: rgba(224, 58, 62, 0.15);
     color: var(--accent-red);
     border-color: rgba(224, 58, 62, 0.6);
+}
+
+/* Light theme: severed state keeps icon color, only button changes */
+[data-theme="light"] .control-btn.agent-btn.severed {
+    background: rgba(180, 45, 49, 0.2);
+    color: var(--text-secondary);
+    border-color: rgba(180, 45, 49, 0.65);
+}
+
+[data-theme="light"] .control-btn.agent-btn.severed:hover {
+    background: rgba(180, 45, 49, 0.3);
+    color: var(--text-secondary);
+    border-color: rgba(180, 45, 49, 0.8);
 }
 
 /* Spin the sparkles icon during reconnection */
