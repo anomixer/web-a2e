@@ -54,6 +54,12 @@ When generating code or files, load relevant reference docs to ensure consistenc
 **File**: `docs/setup.md`
 **Contains**: Development environment setup instructions for macOS (CMake, Node.js, Emscripten, ROM files, build commands)
 **Use when**: Setting up development environment, troubleshooting build issues, helping user configure dev tools
+**Related**: `docs/setup.examples[macos].md` - Working examples with actual command output
+
+### setup-examples-macos
+**File**: `docs/setup.examples[macos].md`
+**Contains**: Actual working examples from successful macOS setup (Apple Silicon), real command outputs, step-by-step verification
+**Use when**: User wants to see real examples, verify expected output, troubleshoot specific macOS issues
 
 ### agent-setup
 **File**: `docs/agent-setup.md`
@@ -126,6 +132,9 @@ When generating code or files, load relevant reference docs to ensure consistenc
 **User**: "reference mcp-ag-ui-integration"
 **Action**: Read `docs/mcp-ag-ui-integration.md` into context, understand integration concepts and tool patterns
 
+**User**: "reference setup-examples-macos"
+**Action**: Read `docs/setup.examples[macos].md` into context, see working setup examples
+
 ## Multiple References
 
 User can request multiple references:
@@ -143,8 +152,8 @@ Consider auto-loading when:
 - Working with WASM → auto-load bindings
 - Debugging agent issues → auto-load core-files, ag-ui, agent-setup, connections
 - Extending agent functionality → auto-load core-files, bindings, ag-ui, mcp-ag-ui-integration
-- Setting up dev environment → auto-load setup, project-structure
-- Build troubleshooting → auto-load setup
+- Setting up dev environment → auto-load setup, project-structure, setup-examples-macos
+- Build troubleshooting → auto-load setup, setup-examples-macos
 - Configuring MCP server → auto-load agent-setup, connections
 - Agent connection issues → auto-load agent-setup, connections
 - Switching local/published agent → auto-load agent-setup

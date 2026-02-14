@@ -5,6 +5,8 @@ DESCRIPTION: Install and configure Apple //e emulator development environment on
 
 Install development tools and configure environment for building the Apple //e browser-based emulator.
 
+**For macOS-specific working examples and actual command output**, see `setup.examples[macos].md`
+
 ## Pre-Requisites
 
 - Current Operating System = macOS

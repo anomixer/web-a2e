@@ -9,7 +9,7 @@ Single-file interface layer exposing C++ emulator core to JavaScript via WASM ex
 
 **Convention**: JavaScript allocates WASM heap memory, passes pointers to C++ functions. Uses `stringToUTF8/UTF8ToString` for string conversion.
 
-## Exported Functions (240+ bindings)
+## Exported Functions (261 bindings)
 
 ### Core Emulation
 - `init()` - Initialize emulator instance
@@ -162,6 +162,18 @@ Single-file interface layer exposing C++ emulator core to JavaScript via WASM ex
 - `getBasicDebugInfo(uint16_t*, uint16_t*, uint16_t*, uint16_t*)` - Get TXTTAB/VARTAB/CURLIN/TXTPTR
 - `getBasicLineBytes(uint8_t*, int*, int*)` - Debug line bytes
 - `loadBasicProgram(const char*)` - Load BASIC program from source text
+
+### Debugging - BASIC Condition Rules
+- `addBasicConditionRule(int, const char*)` - Add rule with expression
+- `removeBasicConditionRule(int)` - Remove rule by ID
+- `clearBasicConditionRules()` - Clear all rules
+- `getBasicConditionRuleHitId()` - Get ID of hit rule
+
+### Debugging - BASIC Heat Map
+- `setBasicHeatMapEnabled(bool)` - Enable/disable heat map tracking
+- `clearBasicHeatMap()` - Clear all heat map data
+- `getBasicHeatMapSize()` - Get number of tracked lines
+- `getBasicHeatMapData(uint16_t*, uint32_t*, int)` - Get line execution counts
 
 ### Debugging - Watchpoints
 - `addWatchpoint(uint16_t, uint16_t, uint8_t)` - Add memory watchpoint
@@ -327,3 +339,7 @@ Single-file interface layer exposing C++ emulator core to JavaScript via WASM ex
 - `getCallStack()` - Analyze stack for JSR calls
 - `getCallStackBuffer()` - Get call stack array
 - `isLikelyReturnAddress(uint16_t)` - Validate return address
+
+### No-Slot Clock (DS1215)
+- `enableNoSlotClock(bool)` - Enable/disable no-slot clock
+- `isNoSlotClockEnabled()` - Check if enabled
