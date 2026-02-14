@@ -15,6 +15,7 @@ A cycle-accurate Apple //e Enhanced emulator running in the browser using WebAss
 - **Save states** — Autosave slot plus 5 manual save slots, stored in IndexedDB
 - **Built-in debugger** — CPU debugger, memory browser, heat map, soft switch monitor, BASIC conditional breakpoints, and more
 - **Light/Dark/System themes** — Switchable colour scheme with Apple rainbow logo accent palette
+- **AI Agent integration** — Full programmatic control via MCP and AG-UI event protocol for AI-assisted development
 - **PWA support** — Install as a standalone app with offline functionality
 
 ## Prerequisites
@@ -245,6 +246,17 @@ Development tools are accessible from the **Dev** menu.
 - **Symbols panel** — view all defined labels and their addresses
 - **Hex output** — view assembled machine code bytes
 
+## AI Agent Integration
+
+The emulator exposes an AI agent interface via the [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) and AG-UI event protocol, allowing AI agents (including Claude Code) to fully control the emulator programmatically.
+
+- **MCP Server** (`mcp/appleii-agent/`) — provides tools over stdio + HTTP/SSE on port 3033
+- **Frontend Agent Manager** (`src/js/agent/`) — browser-side client that executes tool calls against the emulator
+
+Agent capabilities include: emulator power/reset, BASIC program editing and execution, 65C02 assembly, disk and hard drive management, file exploration, window management, and expansion slot configuration.
+
+See the [AI Agent wiki page](wiki/AI-Agent.md) for full details.
+
 ## Testing
 
 ### CPU Compliance Tests
@@ -304,6 +316,7 @@ web-a2e/
 │   ├── bindings/            # wasm_interface.cpp (WASM exports)
 │   └── js/                  # ES6 modules
 │       ├── main.js          # AppleIIeEmulator entry point
+│       ├── agent/           # AI agent tools and manager (MCP/AG-UI)
 │       ├── audio/           # Web Audio API driver and AudioWorklet
 │       ├── config/          # App version
 │       ├── debug/           # Debug window implementations

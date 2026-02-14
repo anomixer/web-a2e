@@ -152,6 +152,7 @@ src/
 ├── bindings/           # wasm_interface.cpp - WASM export glue
 └── js/                 # ES6 modules, no framework
     ├── main.js         # Entry point, AppleIIeEmulator class
+    ├── agent/          # AI agent tools and manager (MCP/AG-UI)
     ├── audio/          # Web Audio API driver and worklet
     ├── config/         # App version
     ├── debug/          # Debug window implementations
