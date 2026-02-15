@@ -316,6 +316,8 @@ Registered in `agent-tools.js`, organized by category:
 - `emulatorReboot` — cold reset
 - `directLoadBinaryAt` — load base64 data to memory address
 - `directSaveBinaryRangeTo` — read memory range as base64
+- `captureScreenshot` — capture display as base64 PNG
+- `captureScreenText` — read text from screen (optional row/col range)
 
 **BASIC Program** (`basic-program-tools.js`)
 - `directReadBasic` / `directWriteBasic` / `directRunBasic` / `directNewBasic` — direct memory operations

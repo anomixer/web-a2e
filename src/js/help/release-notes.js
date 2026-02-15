@@ -11,6 +11,23 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "March 7, 2026",
+    features: [
+      {
+        title: "Screen text capture",
+        description:
+          "Added captureScreenText agent tool to read text content from the Apple //e screen, with optional row/column range parameters. Works with 40 and 80-column modes.",
+      },
+      {
+        title: "Screen capture",
+        description:
+          "Added captureScreenshot agent tool to capture the emulator display as a base64 PNG image.",
+      },
+    ],
+    fixes: [],
+    improvements: [],
+  },
+  {
     week: "February 28, 2026",
     features: [
       {
