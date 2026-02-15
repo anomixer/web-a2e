@@ -30,7 +30,7 @@ export class ReleaseNotesWindow extends BaseWindow {
       html += `<div class="release-week">`;
       html += `<h3 class="release-week-header">Week of ${this.escapeHtml(week.week)}</h3>`;
 
-      if (week.features.length > 0) {
+      if (week.features && week.features.length > 0) {
         html += `<div class="release-section">`;
         html += `<h4 class="release-section-header release-section-features"><span class="release-dot release-dot-feature"></span>Features</h4>`;
         html += `<ul class="release-entries">`;
@@ -45,7 +45,7 @@ export class ReleaseNotesWindow extends BaseWindow {
         html += `</ul></div>`;
       }
 
-      if (week.fixes.length > 0) {
+      if (week.fixes && week.fixes.length > 0) {
         html += `<div class="release-section">`;
         html += `<h4 class="release-section-header release-section-fixes"><span class="release-dot release-dot-fix"></span>Fixes</h4>`;
         html += `<ul class="release-entries">`;

@@ -29,6 +29,7 @@ export const RELEASE_NOTES = [
           "Added Z-80 SoftCard expansion card emulation with full Z80 CPU, enabling CP/M software to run on the Apple //e. Includes address translation matching real hardware and CPU switching via I/O and memory-mapped access.",
       },
     ],
+    fixes: [],
     improvements: [
       {
         title: "Performance optimizations",

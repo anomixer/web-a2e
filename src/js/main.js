@@ -149,7 +149,7 @@ class AppleIIeEmulator {
       this.diskManager = new DiskManager(this.wasmModule);
       this.diskManager.init();
       this.diskManager.onDiskLoaded = () => {
-        this.reminderController.dismissBasicReminder();
+        this.reminderController?.dismissBasicReminder();
       };
 
       // Create hard drive window and manager
