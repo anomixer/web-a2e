@@ -53,6 +53,7 @@ export class MemoryHeatMapWindow extends BaseWindow {
 
     });
     this.wasmModule = wasmModule;
+    this.updateEveryNFrames = 6; // ~10fps - heavy pixel work
     this.isTracking = false;
     this.viewMode = "combined"; // combined, reads, writes
     this.decayEnabled = false;

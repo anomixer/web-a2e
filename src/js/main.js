@@ -479,23 +479,34 @@ class AppleIIeEmulator {
   renderFrame() {
     const fbPtr = this.wasmModule._getFramebuffer();
     const fbSize = this.wasmModule._getFramebufferSize();
-    const framebuffer = new Uint8Array(
-      this.wasmModule.HEAPU8.buffer,
-      fbPtr,
-      fbSize,
-    );
 
-    this.renderer.updateTexture(framebuffer);
+    // Reuse typed array view when possible (recreate only if WASM memory grew)
+    const heap = this.wasmModule.HEAPU8.buffer;
+    if (!this._fbView || this._fbViewBuffer !== heap || this._fbViewPtr !== fbPtr || this._fbViewSize !== fbSize) {
+      this._fbView = new Uint8Array(heap, fbPtr, fbSize);
+      this._fbViewBuffer = heap;
+      this._fbViewPtr = fbPtr;
+      this._fbViewSize = fbSize;
+    }
+
+    this.renderer.updateTexture(this._fbView);
     this.renderer.draw();
   }
 
   startRenderLoop() {
+    this._renderFrameCount = 0;
+
     const render = () => {
+      this._renderFrameCount++;
       this.windowManager.updateAll(this.wasmModule);
-      this.diskManager.drivesWindowVisible = this.windowManager.isWindowVisible('disk-drives');
-      this.diskManager.updateLEDs();
-      if (this.hardDriveManager) {
-        this.hardDriveManager.updateLEDs();
+
+      // Throttle disk LED updates to ~15fps (every 4th frame)
+      if (this._renderFrameCount % 4 === 0) {
+        this.diskManager.drivesWindowVisible = this.windowManager.isWindowVisible('disk-drives');
+        this.diskManager.updateLEDs();
+        if (this.hardDriveManager) {
+          this.hardDriveManager.updateLEDs();
+        }
       }
 
       // Beam crosshair overlay — only when CPU debugger is open and CPU is paused

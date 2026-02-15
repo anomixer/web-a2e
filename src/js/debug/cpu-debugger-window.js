@@ -25,6 +25,7 @@ export class CPUDebuggerWindow extends BaseWindow {
     });
 
     this.wasmModule = wasmModule;
+    this.updateEveryNFrames = 2; // ~30fps - responsive for stepping
     this.isRunningCallback = isRunningCallback || (() => true);
     this.bpManager = new BreakpointManager(wasmModule);
     this.labelManager = new LabelManager();

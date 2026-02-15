@@ -150,7 +150,7 @@ export class AudioDriver {
           this.workletNode.port.postMessage({
             type: "samples",
             data: samples,
-          }, [samples.buffer]);
+          });
         }
       }
     };
@@ -247,13 +247,15 @@ export class AudioDriver {
 
     this.wasmModule._generateStereoAudioSamples(this.wasmBufferPtr, count);
 
-    // Copy interleaved stereo samples from WASM memory into a new Float32Array.
-    // A new array is required because the worklet path transfers buffer ownership.
-    const samples = new Float32Array(
-      this.wasmModule.HEAPF32.buffer,
-      this.wasmBufferPtr,
-      count * 2,
-    ).slice();
+    // Copy interleaved stereo samples from WASM memory into a reusable buffer.
+    const totalFloats = count * 2;
+    if (!this._transferBuffer || this._transferBuffer.length < totalFloats) {
+      this._transferBuffer = new Float32Array(totalFloats);
+    }
+    this._transferBuffer.set(
+      new Float32Array(this.wasmModule.HEAPF32.buffer, this.wasmBufferPtr, totalFloats)
+    );
+    const samples = this._transferBuffer;
 
     // Check if we've accumulated enough samples for one or more frames
     const framesReady = this.wasmModule._consumeFrameSamples();

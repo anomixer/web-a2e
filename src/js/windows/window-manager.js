@@ -246,9 +246,13 @@ export class WindowManager {
    * Update all visible windows
    */
   updateAll(wasmModule) {
+    this._frameCounter = (this._frameCounter || 0) + 1;
     for (const window of this.windows.values()) {
       if (window.isVisible) {
-        window.update(wasmModule);
+        const interval = window.updateEveryNFrames || 4;
+        if (interval === 1 || this._frameCounter % interval === 0) {
+          window.update(wasmModule);
+        }
       }
     }
   }

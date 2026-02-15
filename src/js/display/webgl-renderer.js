@@ -481,11 +481,17 @@ export class WebGLRenderer {
       }
     }
 
-    // Update time for animated effects
-    this.time += 0.016; // Approximately 60fps
+    // Update time for animated effects using real elapsed time
+    const now = performance.now() * 0.001;
+    if (this._lastTime === undefined) this._lastTime = now;
+    this.time += now - this._lastTime;
+    this._lastTime = now;
 
-    // Update burn-in accumulation
-    this.updateBurnIn();
+    // Update burn-in accumulation (throttled to every 4th frame)
+    this._burnInCounter = (this._burnInCounter || 0) + 1;
+    if (this._burnInCounter % 4 === 0) {
+      this.updateBurnIn();
+    }
 
     gl.clearColor(0, 0, 0, 0); // Black background
     gl.clear(gl.COLOR_BUFFER_BIT);
@@ -518,44 +524,49 @@ export class WebGLRenderer {
     gl.bindTexture(gl.TEXTURE_2D, this.selectionTexture);
     gl.uniform1i(this.uniforms.selectionTexture, 2);
 
-    // Set all uniforms
+    // Per-frame uniforms (always update)
+    gl.uniform1f(this.uniforms.time, this.time);
+    gl.uniform1f(this.uniforms.beamY, this.crtParams.beamY);
+    gl.uniform1f(this.uniforms.beamX, this.crtParams.beamX);
     gl.uniform2f(
       this.uniforms.resolution,
       this.canvas.width,
       this.canvas.height,
     );
-    gl.uniform2f(this.uniforms.textureSize, this.width, this.height);
-    gl.uniform1f(this.uniforms.time, this.time);
-    gl.uniform1f(this.uniforms.curvature, this.crtParams.curvature);
-    gl.uniform1f(
-      this.uniforms.scanlineIntensity,
-      this.crtParams.scanlineIntensity,
-    );
-    gl.uniform1f(this.uniforms.scanlineWidth, this.crtParams.scanlineWidth);
-    gl.uniform1f(this.uniforms.shadowMask, this.crtParams.shadowMask);
-    gl.uniform1f(this.uniforms.glowIntensity, this.crtParams.glowIntensity);
-    gl.uniform1f(this.uniforms.glowSpread, this.crtParams.glowSpread);
-    gl.uniform1f(this.uniforms.brightness, this.crtParams.brightness);
-    gl.uniform1f(this.uniforms.contrast, this.crtParams.contrast);
-    gl.uniform1f(this.uniforms.saturation, this.crtParams.saturation);
-    gl.uniform1f(this.uniforms.vignette, this.crtParams.vignette);
-    gl.uniform1f(this.uniforms.flicker, this.crtParams.flicker);
-    gl.uniform1f(this.uniforms.rgbOffset, this.crtParams.rgbOffset);
-    gl.uniform1f(this.uniforms.staticNoise, this.crtParams.staticNoise);
-    gl.uniform1f(this.uniforms.jitter, this.crtParams.jitter);
-    gl.uniform1f(this.uniforms.horizontalSync, this.crtParams.horizontalSync);
-    gl.uniform1f(this.uniforms.glowingLine, this.crtParams.glowingLine);
-    gl.uniform1f(this.uniforms.ambientLight, this.crtParams.ambientLight);
-    gl.uniform1f(this.uniforms.burnIn, this.crtParams.burnIn);
-    gl.uniform1f(this.uniforms.overscan, this.crtParams.overscan);
-    gl.uniform1f(this.uniforms.noSignal, this.crtParams.noSignal);
-    gl.uniform1f(this.uniforms.colorBleed, this.crtParams.colorBleed);
-    gl.uniform1f(this.uniforms.ntscFringing, this.crtParams.ntscFringing);
-    gl.uniform1i(this.uniforms.monochromeMode, this.crtParams.monochromeMode);
-    gl.uniform1f(this.uniforms.cornerRadius, this.crtParams.cornerRadius);
-    gl.uniform1f(this.uniforms.screenMargin, this.crtParams.screenMargin);
-    gl.uniform1f(this.uniforms.beamY, this.crtParams.beamY);
-    gl.uniform1f(this.uniforms.beamX, this.crtParams.beamX);
+
+    // Static uniforms (only update when CRT parameters change)
+    if (this._uniformsDirty !== false) {
+      this._uniformsDirty = false;
+      gl.uniform2f(this.uniforms.textureSize, this.width, this.height);
+      gl.uniform1f(this.uniforms.curvature, this.crtParams.curvature);
+      gl.uniform1f(
+        this.uniforms.scanlineIntensity,
+        this.crtParams.scanlineIntensity,
+      );
+      gl.uniform1f(this.uniforms.scanlineWidth, this.crtParams.scanlineWidth);
+      gl.uniform1f(this.uniforms.shadowMask, this.crtParams.shadowMask);
+      gl.uniform1f(this.uniforms.glowIntensity, this.crtParams.glowIntensity);
+      gl.uniform1f(this.uniforms.glowSpread, this.crtParams.glowSpread);
+      gl.uniform1f(this.uniforms.brightness, this.crtParams.brightness);
+      gl.uniform1f(this.uniforms.contrast, this.crtParams.contrast);
+      gl.uniform1f(this.uniforms.saturation, this.crtParams.saturation);
+      gl.uniform1f(this.uniforms.vignette, this.crtParams.vignette);
+      gl.uniform1f(this.uniforms.flicker, this.crtParams.flicker);
+      gl.uniform1f(this.uniforms.rgbOffset, this.crtParams.rgbOffset);
+      gl.uniform1f(this.uniforms.staticNoise, this.crtParams.staticNoise);
+      gl.uniform1f(this.uniforms.jitter, this.crtParams.jitter);
+      gl.uniform1f(this.uniforms.horizontalSync, this.crtParams.horizontalSync);
+      gl.uniform1f(this.uniforms.glowingLine, this.crtParams.glowingLine);
+      gl.uniform1f(this.uniforms.ambientLight, this.crtParams.ambientLight);
+      gl.uniform1f(this.uniforms.burnIn, this.crtParams.burnIn);
+      gl.uniform1f(this.uniforms.overscan, this.crtParams.overscan);
+      gl.uniform1f(this.uniforms.noSignal, this.crtParams.noSignal);
+      gl.uniform1f(this.uniforms.colorBleed, this.crtParams.colorBleed);
+      gl.uniform1f(this.uniforms.ntscFringing, this.crtParams.ntscFringing);
+      gl.uniform1i(this.uniforms.monochromeMode, this.crtParams.monochromeMode);
+      gl.uniform1f(this.uniforms.cornerRadius, this.crtParams.cornerRadius);
+      gl.uniform1f(this.uniforms.screenMargin, this.crtParams.screenMargin);
+    }
 
     // Draw main CRT pass
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
@@ -632,16 +643,18 @@ export class WebGLRenderer {
 
   // Set individual CRT parameter
   setParam(name, value) {
-    if (name in this.crtParams) {
+    if (name in this.crtParams && this.crtParams[name] !== value) {
       this.crtParams[name] = value;
+      this._uniformsDirty = true;
     }
   }
 
   // Set multiple CRT parameters at once
   setParams(params) {
     for (const [name, value] of Object.entries(params)) {
-      if (name in this.crtParams) {
+      if (name in this.crtParams && this.crtParams[name] !== value) {
         this.crtParams[name] = value;
+        this._uniformsDirty = true;
       }
     }
   }
@@ -665,23 +678,15 @@ export class WebGLRenderer {
   setCRTEnabled(enabled) {
     // Apply preset CRT settings
     if (enabled) {
-      this.crtParams.curvature = 0.3;
-      this.crtParams.scanlineIntensity = 0.3;
-      this.crtParams.shadowMask = 0.2;
-      this.crtParams.vignette = 0.2;
-      this.crtParams.glowIntensity = 0.1;
+      this.setParams({ curvature: 0.3, scanlineIntensity: 0.3, shadowMask: 0.2, vignette: 0.2, glowIntensity: 0.1 });
     } else {
-      this.crtParams.curvature = 0;
-      this.crtParams.scanlineIntensity = 0;
-      this.crtParams.shadowMask = 0;
-      this.crtParams.vignette = 0;
-      this.crtParams.glowIntensity = 0;
+      this.setParams({ curvature: 0, scanlineIntensity: 0, shadowMask: 0, vignette: 0, glowIntensity: 0 });
     }
   }
 
   // Set no-signal mode (TV static when emulator is off)
   setNoSignal(enabled) {
-    this.crtParams.noSignal = enabled ? 1.0 : 0.0;
+    this.setParam("noSignal", enabled ? 1.0 : 0.0);
   }
 
   resize(width, height) {

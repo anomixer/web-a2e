@@ -10,9 +10,15 @@ class AppleAudioProcessor extends AudioWorkletProcessor {
     super();
 
     this.running = false;
-    this.sampleBuffer = new Float32Array(0); // Interleaved stereo [L0, R0, L1, R1, ...]
-    this.bufferReadPos = 0;
     this.pendingRequest = false;
+
+    // Pre-allocated ring buffer for interleaved stereo samples.
+    // 16K frames (32K floats) provides ~333ms of buffer at 48kHz.
+    this.ringCapacity = 16384 * 2; // floats (interleaved L/R)
+    this.ringBuffer = new Float32Array(this.ringCapacity);
+    this.ringWritePos = 0;
+    this.ringReadPos = 0;
+    this.ringCount = 0; // number of floats currently buffered
 
     // Handle messages from main thread
     this.port.onmessage = (event) => {
@@ -23,20 +29,36 @@ class AppleAudioProcessor extends AudioWorkletProcessor {
         this.running = false;
         this.pendingRequest = false;
       } else if (event.data.type === "samples") {
-        // Append new interleaved stereo samples to existing buffer
         const newSamples = event.data.data;
-        const remaining = this.sampleBuffer.length - this.bufferReadPos;
+        const len = newSamples.length;
 
-        if (remaining > 0) {
-          // Append to remaining samples
-          const combined = new Float32Array(remaining + newSamples.length);
-          combined.set(this.sampleBuffer.subarray(this.bufferReadPos), 0);
-          combined.set(newSamples, remaining);
-          this.sampleBuffer = combined;
+        // Write into ring buffer (may wrap around)
+        if (len <= this.ringCapacity - this.ringCount) {
+          const firstPart = this.ringCapacity - this.ringWritePos;
+          if (len <= firstPart) {
+            this.ringBuffer.set(newSamples, this.ringWritePos);
+          } else {
+            this.ringBuffer.set(newSamples.subarray(0, firstPart), this.ringWritePos);
+            this.ringBuffer.set(newSamples.subarray(firstPart), 0);
+          }
+          this.ringWritePos = (this.ringWritePos + len) % this.ringCapacity;
+          this.ringCount += len;
         } else {
-          this.sampleBuffer = newSamples;
+          // Overflow — drop oldest data to make room
+          const space = this.ringCapacity;
+          const toWrite = Math.min(len, space);
+          const src = len > space ? newSamples.subarray(len - space) : newSamples;
+          const firstPart = space - this.ringWritePos;
+          if (toWrite <= firstPart) {
+            this.ringBuffer.set(src, this.ringWritePos);
+          } else {
+            this.ringBuffer.set(src.subarray(0, firstPart), this.ringWritePos);
+            this.ringBuffer.set(src.subarray(firstPart), 0);
+          }
+          this.ringWritePos = (this.ringWritePos + toWrite) % this.ringCapacity;
+          this.ringCount = toWrite;
+          this.ringReadPos = this.ringWritePos;
         }
-        this.bufferReadPos = 0;
         this.pendingRequest = false;
       }
     };
@@ -54,11 +76,10 @@ class AppleAudioProcessor extends AudioWorkletProcessor {
       return true;
     }
 
-    // Buffer contains interleaved stereo samples, so remaining frames = remaining / 2
-    const remainingFrames = (this.sampleBuffer.length - this.bufferReadPos) / 2;
+    // Remaining frames = remaining floats / 2 (interleaved stereo)
+    const remainingFrames = this.ringCount / 2;
 
     // Request more samples if buffer is getting low and no request pending
-    // Keep at least 2 frames worth of buffer to avoid underruns
     if (remainingFrames < 1600 && !this.pendingRequest) {
       this.pendingRequest = true;
       this.port.postMessage({
@@ -67,11 +88,15 @@ class AppleAudioProcessor extends AudioWorkletProcessor {
       });
     }
 
-    // Copy interleaved samples to separate L/R channels
-    for (let i = 0; i < leftChannel.length; i++) {
-      if (this.bufferReadPos + 1 < this.sampleBuffer.length) {
-        leftChannel[i] = this.sampleBuffer[this.bufferReadPos++];
-        rightChannel[i] = this.sampleBuffer[this.bufferReadPos++];
+    // Copy interleaved samples to separate L/R channels from ring buffer
+    const frames = leftChannel.length;
+    for (let i = 0; i < frames; i++) {
+      if (this.ringCount >= 2) {
+        leftChannel[i] = this.ringBuffer[this.ringReadPos];
+        this.ringReadPos = (this.ringReadPos + 1) % this.ringCapacity;
+        rightChannel[i] = this.ringBuffer[this.ringReadPos];
+        this.ringReadPos = (this.ringReadPos + 1) % this.ringCapacity;
+        this.ringCount -= 2;
       } else {
         leftChannel[i] = 0;
         rightChannel[i] = 0;
