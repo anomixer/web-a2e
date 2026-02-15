@@ -11,6 +11,29 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "February 28, 2026",
+    features: [
+      {
+        title: "Cursor keys as joystick",
+        description:
+          "Added a Cursor Keys toggle in the Joystick window that remaps arrow keys to joystick input (full deflection). A 'CURSOR KEYS' indicator chip appears in the Monitor title bar when enabled.",
+      },
+      {
+        title: "CP/M disk library",
+        description:
+          "Added CP/M disk images to the built-in disk library.",
+      },
+    ],
+    fixes: [
+      {
+        title: "Release notes crash",
+        description:
+          "Fixed a crash in the release notes window caused by missing fixes array and null reminderController.",
+      },
+    ],
+    improvements: [],
+  },
+  {
     week: "February 22, 2026",
     features: [
       {

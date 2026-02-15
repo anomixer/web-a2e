@@ -170,7 +170,7 @@ Cards are configured via **View > Expansion Slots**.
 
 ### Joystick & Game Controllers
 
-A floating joystick window provides visual paddle/joystick controls that map to the Apple II game ports ($C064-$C067). Physical game controllers are supported via the Gamepad API — the left stick maps to paddle values and buttons A/B map to Apple II buttons 0/1, with a configurable deadzone.
+A floating joystick window provides visual paddle/joystick controls that map to the Apple II game ports ($C064-$C067). Physical game controllers are supported via the Gamepad API — the left stick maps to paddle values and buttons A/B map to Apple II buttons 0/1, with a configurable deadzone. A **Cursor Keys** toggle remaps the arrow keys to joystick input, with an indicator chip in the Monitor title bar when active.
 
 ## Architecture
 
