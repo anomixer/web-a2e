@@ -19,9 +19,7 @@ npm run deploy        # Deploy to VPS via rsync
 
 ## Testing
 
-### CPU Compliance Tests
-
-Klaus Dormann's 6502/65C02 functional test suites (`tests/klaus/`):
+All tests use the Catch2 framework and are built/run via CMake's native build:
 
 ```bash
 mkdir -p build-native && cd build-native
@@ -30,23 +28,7 @@ make -j$(sysctl -n hw.ncpu)
 ctest --verbose
 ```
 
-Test executables: `klaus_6502_test` (NMOS 6502), `klaus_65c02_test` (65C02 extended opcodes)
-
-### Thunderclock Tests
-
-Native C++ tests for Thunderclock card emulation (`tests/thunderclock/`), including MMU integration. Built and run via the same native CMake build above.
-
-### GCR Encoding Tests
-
-GCR (Group Code Recording) encoding tests (`tests/gcr/`). Native C++ tests for disk encoding logic.
-
-### Integration Tests
-
-Ad-hoc JavaScript tests for disk, memory, and boot debugging (`tests/integration/`). Run with Node.js:
-
-```bash
-node tests/integration/disk-boot-test.js
-```
+Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk images (DSK/WOZ/GCR), expansion cards (Disk II, Mockingboard, Thunderclock, Mouse, SmartPort, SSC), filesystems (DOS 3.3, ProDOS, Pascal), BASIC tokenizer/detokenizer, assembler, disassembler, keyboard, condition evaluator, and full emulator integration.
 
 ## Architecture
 
@@ -54,7 +36,7 @@ node tests/integration/disk-boot-test.js
 
 **C++ Core (src/core/)** - Pure emulation logic compiled to WebAssembly:
 
-- `cpu/cpu6502.cpp` - Cycle-accurate 65C02 processor (1.023 MHz)
+- `cpu/6502/cpu6502.cpp` - Cycle-accurate 65C02 processor (1.023 MHz)
 - `mmu/mmu.cpp` - 128KB memory management, soft switches ($C000-$CFFF), expansion slots
 - `video/video.cpp` - TEXT/LORES/HIRES/DHIRES per-scanline rendering
 - `audio/audio.cpp` - Speaker emulation from $C030 toggles
@@ -62,8 +44,13 @@ node tests/integration/disk-boot-test.js
 - `disassembler/` - 65C02 instruction disassembler
 - `input/keyboard.cpp` - Keyboard input handling
 - `cards/` - Pluggable expansion card system (ExpansionCard interface)
-- `cards/mockingboard/` - AY-3-8910 sound chip + VIA 6522 timer
+- `cards/disk2/` - Disk II controller card
+- `cards/mockingboard/` - AY-3-8910 sound chip + VIA 6522 timer + Mockingboard card
+- `cards/mouse/` - Apple Mouse Interface Card
 - `cards/smartport/` - SmartPort hard drive controller (2 block devices, self-built ROM)
+- `cards/softcard/` - Microsoft Z-80 SoftCard with Z80 CPU emulation
+- `cards/ssc/` - Super Serial Card with ACIA 6551
+- `cards/thunderclock/` - Thunderclock Plus real-time clock card
 - `filesystem/` - DOS 3.3 and ProDOS filesystem parsers
 - `basic/` - Applesoft and Integer BASIC detokenizer and tokenizer
 - `debug/` - Condition evaluator for breakpoint expressions (supports BV/BA/BA2 for BASIC variable/array reads)
@@ -135,7 +122,8 @@ Single global `Emulator` instance in C++ (`wasm_interface.cpp`). JS allocates WA
 ```
 src/
 ├── core/               # C++ emulator (namespace a2e::)
-│   ├── cpu/            # 65C02 processor
+│   ├── cpu/
+│   │   └── 6502/          # Cycle-accurate 65C02 processor
 │   ├── mmu/            # Memory management and soft switches
 │   ├── video/          # Per-scanline video rendering
 │   ├── audio/          # Speaker audio
@@ -143,8 +131,14 @@ src/
 │   ├── disassembler/   # 65C02 disassembler
 │   ├── input/          # Keyboard handling
 │   ├── cards/          # Expansion card system
-│   │   ├── mockingboard/  # AY-3-8910 + VIA 6522
-│   │   └── smartport/     # SmartPort hard drive controller
+│   │   ├── disk2/         # Disk II controller card
+│   │   ├── mockingboard/  # AY-3-8910 + VIA 6522 + Mockingboard card
+│   │   ├── mouse/         # Apple Mouse Interface Card
+│   │   ├── smartport/     # SmartPort hard drive controller
+│   │   ├── softcard/      # Microsoft Z-80 SoftCard
+│   │   │   └── z80/       # Z80 CPU emulation core
+│   │   ├── ssc/           # Super Serial Card + ACIA 6551
+│   │   └── thunderclock/  # Thunderclock Plus real-time clock
 │   ├── filesystem/     # DOS 3.3 and ProDOS parsers
 │   ├── basic/          # BASIC tokenizer and detokenizer
 │   ├── debug/          # Condition evaluator
@@ -173,10 +167,10 @@ public/                 # Static assets, built WASM files, shaders
 ├── assets/            # Images and sounds
 └── index.html         # Main HTML entry point
 tests/
-├── klaus/              # Klaus Dormann CPU compliance tests
-├── thunderclock/       # Thunderclock card tests
-├── integration/        # JS integration/debug tests
-└── gcr/                # GCR encoding tests
+├── unit/               # Catch2 unit tests (CPU, cards, disk, audio, etc.)
+├── integration/        # Catch2 integration tests (full emulator)
+├── common/             # Shared test helpers (disk image builder, BASIC program builder)
+└── catch2/             # Catch2 header-only framework
 ```
 
 ### File Naming Convention
@@ -215,11 +209,13 @@ class ExpansionCard {
 
 ### Available Cards
 
-- `Disk2Card` - Wraps Disk2Controller (slot 6)
-- `MockingboardCard` - Dual AY-3-8910 + VIA 6522, stereo output (slot 4)
-- `MouseCard` - Apple Mouse Interface Card via MC6821 PIA command protocol (slot 4)
-- `SmartPortCard` - SmartPort hard drive controller, 2 block devices, self-built ROM (user-configurable slot)
-- `ThunderclockCard` - ProDOS-compatible real-time clock (slots 5, 7)
+- `Disk2Card` (`cards/disk2/`) - Wraps Disk2Controller (slot 6)
+- `MockingboardCard` (`cards/mockingboard/`) - Dual AY-3-8910 + VIA 6522, stereo output (slot 4)
+- `MouseCard` (`cards/mouse/`) - Apple Mouse Interface Card via MC6821 PIA command protocol (slot 4)
+- `SmartPortCard` (`cards/smartport/`) - SmartPort hard drive controller, 2 block devices, self-built ROM (user-configurable slot)
+- `SoftCardZ80` (`cards/softcard/`) - Microsoft Z-80 SoftCard with Z80 CPU emulation (`cards/softcard/z80/`)
+- `SSCCard` (`cards/ssc/`) - Super Serial Card with ACIA 6551
+- `ThunderclockCard` (`cards/thunderclock/`) - ProDOS-compatible real-time clock (slots 5, 7)
 - `NoSlotClock` - DS1215 real-time clock piggybacking on $C300 ROM (not a slot card; toggle in Expansion Slots UI)
 
 ## State Serialization
