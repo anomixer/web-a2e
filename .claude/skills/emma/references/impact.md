@@ -61,11 +61,13 @@ Quick reference for what each tool does and what it assumes from the app:
 - Window IDs: "basic-program", "cpu-debugger", "file-explorer-window", etc.
 
 ### Main Tools
-**What they do**: Power on/off, reset, read/write memory directly
+**What they do**: Power on/off, reset, read/write memory directly, capture screen
 **What they assume**:
 - `emulator.start()`, `emulator.stop()`, `emulator.running` work
 - `_reset()`, `_warmReset()` perform resets
 - `_readMemory(addr)`, `_writeMemory(addr, val)` access full 64KB
+- `emulator.captureScreenshot()` returns base64 PNG (560x384)
+- `_readScreenText(startRow, startCol, endRow, endCol)` returns text pointer
 
 ### Slot Tools
 **What they do**: List/install/remove expansion cards

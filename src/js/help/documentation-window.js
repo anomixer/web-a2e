@@ -960,6 +960,15 @@ export class DocumentationWindow extends BaseWindow {
           <li><strong>Save memory region:</strong> "Read 1024 bytes starting at $4000 and save them to ~/dump.bin"</li>
         </ul>
 
+        <h5>Screen Capture</h5>
+        <ul>
+          <li><strong>Capture screenshot:</strong> "Take a screenshot of the current screen"</li>
+          <li><strong>Save screenshot to file:</strong> "Capture the screen and save it as ~/screenshot.png"</li>
+          <li><strong>Read screen text:</strong> "What text is currently displayed on the screen?"</li>
+          <li><strong>Read specific region:</strong> "Read the text from rows 5 to 15 on the screen"</li>
+          <li><strong>Read CATALOG output:</strong> "Read the text from the screen after running CATALOG"</li>
+        </ul>
+
         <h5>SmartPort Hard Drives</h5>
         <ul>
           <li><strong>Insert image:</strong> "Load ~/Images/Total_Replay.hdv into SmartPort device 1"</li>

@@ -16,6 +16,7 @@ The AI Agent integration allows LLMs like Claude to control the emulator through
   - [BASIC Programs](#basic-programs)
   - [Assembly Programs](#assembly-programs)
   - [Memory Operations](#memory-operations)
+  - [Screen Capture](#screen-capture)
 
 ---
 
@@ -338,6 +339,44 @@ Save 256 bytes from memory address $0800 to ~/output.bin
 **Save memory region:**
 ```
 Read 1024 bytes starting at $4000 and save them to ~/dump.bin
+```
+
+### Screen Capture
+
+**Capture screenshot:**
+```
+Take a screenshot of the current screen
+```
+
+**Save screenshot to file:**
+```
+Capture the screen and save it as ~/screenshot.png
+```
+
+**Read text from screen:**
+```
+What text is currently displayed on the screen?
+```
+
+**Read text from specific region:**
+```
+Read the text from rows 5 to 15 on the screen
+```
+
+**Read CATALOG output:**
+```
+Read the text from the screen after running CATALOG
+```
+
+**Workflow example - verify program output:**
+```
+Write this program to memory:
+10 PRINT "HELLO, WORLD!"
+20 END
+
+Run the program
+Wait 1 second
+Read the text from the screen
 ```
 
 ### Emulator Control

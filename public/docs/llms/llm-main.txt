@@ -40,6 +40,51 @@ emma_command({ command: "directSaveBinaryRangeTo", params: { address: 8192, leng
 ```
 Reads a range of memory and returns it as base64-encoded binary data. Both address and length can be hex (`"$0100"`) or decimal (`256`). Use with MCP tool `save_disk_file` to save to local filesystem.
 
+## Screen Capture
+
+**Capture screenshot as PNG:**
+```
+emma_command({ command: "captureScreenshot", params: {} })
+```
+Captures the current screen as a 560x384 PNG image, returned as base64-encoded data. Useful for visual debugging, documentation, or test verification.
+
+Returns:
+```
+{
+  success: true,
+  imageBase64: "iVBORw0KG...",  // PNG data as base64
+  width: 560,
+  height: 384,
+  message: "Screen captured as 560x384 PNG"
+}
+```
+
+**Read text from screen:**
+```
+emma_command({ command: "captureScreenText", params: {} })
+emma_command({ command: "captureScreenText", params: { startRow: 0, startCol: 0, endRow: 23, endCol: 79 } })
+```
+Reads text content from the Apple //e screen. All parameters are optional and default to full screen (24 rows x 80 columns). Useful for reading program output, catalog listings, or error messages.
+
+Parameters:
+- `startRow`: Starting row (0-23, default 0)
+- `startCol`: Starting column (0-79, default 0)
+- `endRow`: Ending row (0-23, default 23)
+- `endCol`: Ending column (0-79, default 79)
+
+Returns:
+```
+{
+  success: true,
+  text: "CATALOG\n\nDISK VOLUME 254\n\n A 002 HELLO\n...",
+  startRow: 0,
+  startCol: 0,
+  endRow: 23,
+  endCol: 79,
+  message: "Screen text captured from (0,0) to (23,79)"
+}
+```
+
 ## Workflow Examples
 
 **Loading binary file from local filesystem to memory:**
@@ -49,3 +94,11 @@ Reads a range of memory and returns it as base64-encoded binary data. Both addre
 **Saving memory range to local filesystem:**
 1. Read memory: `directSaveBinaryRangeTo({ address: "$0800", length: "$0400" })`
 2. Save to file: `save_disk_file({ path: "~/output.bin", contentBase64: result.contentBase64 })`
+
+**Capturing screenshot to local filesystem:**
+1. Capture screen: `captureScreenshot({})`
+2. Save to file: `save_disk_file({ path: "~/screenshot.png", contentBase64: result.imageBase64 })`
+
+**Reading program output from screen:**
+1. Capture text: `captureScreenText({ startRow: 5, startCol: 0, endRow: 15, endCol: 79 })`
+2. Process the text in `result.text`
