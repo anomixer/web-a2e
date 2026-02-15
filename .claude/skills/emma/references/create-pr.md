@@ -69,43 +69,62 @@ git show <commit-hash> --stat
 
 ### 4. Generate PR Description
 
-**Format**:
-```markdown
-[Brief overview paragraph - no more than one paragraph describing what's being improved/added/fixed. Use direct language like "Improves...", "Adds...", "Fixes..." - NOT "This PR..."]
+**Format** (GitHub-friendly, no markdown headers/bold):
 
-## Features
-
-- Brief feature description (user-facing language)
-- Another feature (focus on what, not how)
-
-## Changes to Existing
-
-- Updated [component] to [what changed]
-- Refactored [area] for [benefit]
-
-## Deployment Changes
-
-- Updated [dependency] to version X
-- Added new build step: [description]
-
-## Breaking Changes
-
-- [API/behavior] changed from X to Y
-- [Feature] removed - use [alternative] instead
-
-## Testing
-
-To test these features:
-1. [Quick step 1]
-2. [Quick step 2]
-3. [Expected result]
-
-Or try: [concise example usage]
+**Single feature or small changes:**
 ```
+[Brief overview paragraph]
+
+FEATURES
+
+- Feature description
+- Another feature
+
+CHANGES TO EXISTING
+
+- Updated [component]
+
+TESTING
+
+Testing instructions
+```
+
+**Multiple distinct features (3+ points each):**
+```
+[Brief overview paragraph mentioning all features]
+
+FEATURE NAME 1
+
+- Feature 1 detail
+- Feature 1 detail
+- Feature 1 detail
+
+FEATURE NAME 2
+
+- Feature 2 detail
+- Feature 2 detail
+- Feature 2 detail
+
+CHANGES TO EXISTING
+
+- Changes if any
+
+TESTING
+
+Feature 1:
+- Testing instructions
+
+Feature 2:
+- Testing instructions
+```
+
+**Rule**: If PR contains multiple distinct features, each with 3 or more bullet points, give each feature its own section with a descriptive name (e.g., "AGENT CONNECTION UI", "EMMA SKILL SYSTEM"). Don't lump them together in a single FEATURES section.
 
 **Guidelines**:
 - **Overview first**: Start with a brief overview paragraph (1 paragraph max)
 - **Direct language**: Use "Improves...", "Adds...", "Fixes..." - NOT "This PR..."
+- **GitHub-friendly format**: Use CAPS for section headers (not ##), plain text (not **bold**)
+- **Separate distinct features**: If PR has multiple features with 3+ points each, give each its own section
 - **Concise**: 1-2 lines per item maximum
 - **User-facing**: Describe what users see, not implementation
 - **Omit sections**: If no items in a category, omit the entire section
