@@ -16,7 +16,7 @@ export const RELEASE_NOTES = [
       {
         title: "Cursor keys as joystick",
         description:
-          "Added a Cursor Keys toggle in the Joystick window that remaps arrow keys to joystick input (full deflection). A 'CURSOR KEYS' indicator chip appears in the Monitor title bar when enabled.",
+          "Added a cursor keys joystick toggle in the Monitor title bar that remaps arrow keys to joystick input with full deflection. The JOY label highlights green when active.",
       },
       {
         title: "CP/M disk library",

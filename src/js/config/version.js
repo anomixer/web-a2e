@@ -5,4 +5,4 @@
  *  Mike Daley <michael_daley@icloud.com>
  */
 
-export const VERSION = "1.0.13";
+export const VERSION = "1.0.14";
