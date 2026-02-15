@@ -219,4 +219,53 @@ export const mainTools = {
       message: `Read ${len} bytes (${lengthHex}) from ${addrHex}-${endHex}`,
     };
   },
+
+  /**
+   * Capture the current screen as a base64 PNG image
+   */
+  captureScreenshot: async () => {
+    const emulator = window.emulator;
+    if (!emulator?.wasmModule) {
+      throw new Error("Emulator not available");
+    }
+
+    const imageBase64 = emulator.captureScreenshot();
+
+    return {
+      success: true,
+      imageBase64,
+      width: 560,
+      height: 384,
+      message: "Screen captured as 560x384 PNG",
+    };
+  },
+
+  /**
+   * Read text from the Apple //e screen
+   * Parameters: startRow, startCol, endRow, endCol (all optional, default full screen)
+   */
+  captureScreenText: (params = {}) => {
+    const emulator = window.emulator;
+    if (!emulator?.wasmModule) {
+      throw new Error("Emulator not available");
+    }
+
+    const startRow = params.startRow ?? 0;
+    const startCol = params.startCol ?? 0;
+    const endRow = params.endRow ?? 23;
+    const endCol = params.endCol ?? 79;
+
+    const ptr = emulator.wasmModule._readScreenText(startRow, startCol, endRow, endCol);
+    const text = emulator.wasmModule.UTF8ToString(ptr);
+
+    return {
+      success: true,
+      text,
+      startRow,
+      startCol,
+      endRow,
+      endCol,
+      message: `Screen text captured from (${startRow},${startCol}) to (${endRow},${endCol})`,
+    };
+  },
 };

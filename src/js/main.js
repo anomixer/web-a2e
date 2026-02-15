@@ -493,6 +493,29 @@ class AppleIIeEmulator {
     console.log("Emulator powered off");
   }
 
+  captureScreenshot() {
+    const fbPtr = this.wasmModule._getFramebuffer();
+    const fbSize = this.wasmModule._getFramebufferSize();
+    const heap = this.wasmModule.HEAPU8.buffer;
+    const fbData = new Uint8Array(heap, fbPtr, fbSize);
+
+    const width = 560;
+    const height = 384;
+
+    if (!this._screenshotCanvas) {
+      this._screenshotCanvas = document.createElement("canvas");
+      this._screenshotCanvas.width = width;
+      this._screenshotCanvas.height = height;
+      this._screenshotCtx = this._screenshotCanvas.getContext("2d");
+    }
+
+    const copy = new Uint8ClampedArray(fbSize);
+    copy.set(fbData);
+    const imageData = new ImageData(copy, width, height);
+    this._screenshotCtx.putImageData(imageData, 0, 0);
+    return this._screenshotCanvas.toDataURL("image/png");
+  }
+
   renderFrame() {
     const fbPtr = this.wasmModule._getFramebuffer();
     const fbSize = this.wasmModule._getFramebufferSize();
