@@ -11,6 +11,7 @@ Simply tell emma what you need in natural language:
 /emma I need to make an agent tool that [does X]
 /emma update the docs to reflect [change]
 /emma will this change to [file] affect any tools?
+/emma make a github PR for these features
 /emma reference styles
 /emma how do I [question]?
 ```
@@ -79,6 +80,17 @@ Emma detects your intent and routes to the appropriate specialized guide:
 - `docs/bindings.md` - WASM bindings quick reference
 - `docs/architecture.md` - System architecture overview
 
+### Creating Pull Requests
+
+**Intent**: Generating GitHub PR descriptions from commit history
+
+**Examples**:
+- "make a github PR for these features"
+- "create a PR description"
+- "generate PR for recent changes"
+
+**Routes to**: `references/create-pr.md`
+
 ### Answering Questions
 
 **Intent**: Finding information in docs or codebase
@@ -123,6 +135,7 @@ The skill dispatcher reads the command and routes to the appropriate reference:
 │   ├── update.md              # Update any documentation
 │   ├── impact.md              # Analyze change impacts
 │   ├── reference.md           # Load docs into context
+│   ├── create-pr.md           # Generate GitHub PR descriptions
 │   └── query.md               # Query docs
 └── docs/                       # Important reference docs
     ├── styles.md              # Coding styles & conventions
@@ -141,10 +154,12 @@ When invoked, emma:
    - Tool creation keywords → `new-app-tool.md` or `new-agent-tool.md`
    - Update/doc keywords → `update.md`
    - Impact/affect/change keywords → `impact.md`
+   - PR/pull request keywords → `create-pr.md`
+   - Reference keywords → `reference.md`
    - Question patterns → `query.md`
 3. **Loads only relevant reference** (progressive disclosure)
 4. **Executes with context** from the reference
-5. **Returns results** (code, docs, analysis)
+5. **Returns results** (code, docs, analysis, PR descriptions)
 
 ### Intent Detection Patterns
 
@@ -163,6 +178,10 @@ When invoked, emma:
 **Reference**:
 - Keywords: reference, apply, load, use
 - Context: "styles", "bindings", "architecture", "conventions"
+
+**Pull Request Creation**:
+- Keywords: PR, pull request, github, description, create, make, generate
+- Context: "for these features", "recent changes", "unpushed commits"
 
 **Questions**:
 - Patterns: how, what, where, when, why, can I, does it

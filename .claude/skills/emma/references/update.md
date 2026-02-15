@@ -2,6 +2,12 @@
 
 Updates documentation after tool changes, or updates project/emma docs.
 
+## Important Safeguards
+
+**DO NOT update CLAUDE.md** unless the user explicitly requests it by name. CLAUDE.md is the main project documentation and should only be updated when specifically asked.
+
+**Project structure updates** should go to `.claude/skills/emma/docs/project-structure.md`, which mirrors the project structure for EMMA's reference.
+
 ## What to Update
 
 Detect from user request:
@@ -14,16 +20,17 @@ When a new app tool is added, consider updating these 4 types of docs:
 3. `wiki/AI Agent.md` - Wiki documentation (if documented)
 4. `src/js/help/documentation-window.js` - In-app help (if user-facing)
 
-**Project Docs** (when user says "CLAUDE.md", "README", "release notes"):
-- `CLAUDE.md` - Project overview, architecture, commands
+**Project Docs** (ONLY when explicitly requested by name):
+- `CLAUDE.md` - Project overview, architecture, commands (⚠️ UPDATE ONLY IF EXPLICITLY REQUESTED)
 - `README.md` - User-facing project description
 - `src/js/help/release-notes.js` - Release history in UI
 - `src/js/config/release-notes.json` - Structured release data
 
-**Emma Docs** (when user says "bindings", "app-tools", "agent-tools"):
+**Emma Docs** (when user says "bindings", "app-tools", "agent-tools", "project structure"):
 - `docs/bindings.md` - WASM interface reference
 - `docs/app-tools.md` - App tool registry
 - `docs/agent-tools.md` - Agent tool registry
+- `docs/project-structure.md` - Complete project structure (scanned from file system)
 
 ## Process: After Tool Added/Changed
 
@@ -181,6 +188,7 @@ bindings, app-tools, agent-tools, architecture, commands
 - **agent-tools.md**: Scan `appleii-agent/src/tools/` for MCP tools
 - **architecture.md**: Extract from CLAUDE.md + code analysis
 - **commands.md**: Extract from package.json scripts + CLAUDE.md
+- **project-structure.md**: Scan entire web-a2e + appleii-agent file trees (see below)
 
 ### 3. Structure with Progressive Disclosure
 
@@ -193,6 +201,51 @@ bindings, app-tools, agent-tools, architecture, commands
 - Cross-check function names
 - Verify registrations
 - Update stale info
+
+### 5. Update Project Structure (Special Case)
+
+When user says "update project structure" or "update the project structure":
+
+**Goal**: Regenerate `docs/project-structure.md` to match current file system state of the **emulator project** (web-a2e + appleii-agent).
+
+**Focus**: The main emulator codebase, NOT the EMMA skill. EMMA skill is included as a minor detail.
+
+**Process**:
+
+1. **Scan web-a2e** (current repo):
+   - Use `find` or `ls -R` to get directory tree
+   - Focus on **emulator directories**: `src/core/`, `src/js/`, `public/`, `tests/`, `roms/`
+   - Include `.claude/skills/emma/` as a minor detail (just show it exists with current files)
+   - Note key files: `.mcp.json`, `package.json`, `CMakeLists.txt`, `vite.config.js`
+   - **Priority order**: src/core → src/js → public → tests → .claude (minor)
+
+2. **Scan appleii-agent** (if available at `../appleii-agent`):
+   - Check if directory exists: `ls ../appleii-agent`
+   - If exists, scan `src/` and `tools/` directories
+   - If not exists, use existing documentation as reference
+
+3. **Generate structure**:
+   - Update directory trees to match current state
+   - Add comments for key directories/files
+   - Preserve existing documentation about purpose and relationships
+   - Keep "How the Projects Connect" and other explanatory sections
+
+4. **Update, don't replace**:
+   - Keep the narrative sections (Repository Layout, Communication Flow, etc.)
+   - Only update the directory tree portions
+   - Preserve file descriptions and notes
+
+**Example scan commands**:
+```bash
+# Scan web-a2e EMMA skill
+find .claude/skills/emma -type f -name "*.md" | sort
+
+# Scan agent tools (if available)
+find ../appleii-agent/src/tools -type f -name "*.js" 2>/dev/null | sort
+
+# Get directory structure
+tree -L 3 -I 'node_modules|dist|build-native' .
+```
 
 ## Progressive Loading
 
