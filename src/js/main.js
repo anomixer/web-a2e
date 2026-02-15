@@ -29,6 +29,7 @@ import "../css/window-switcher.css";
 import "../css/responsive.css";
 
 import { VERSION } from "./config/version.js";
+import { featureFlags } from "./config/feature-flags.js";
 import { DEFAULT_LAYOUT } from "./config/default-layout.js";
 import { WebGLRenderer } from "./display/webgl-renderer.js";
 import { AudioDriver } from "./audio/audio-driver.js";
@@ -396,6 +397,12 @@ class AppleIIeEmulator {
           saveStatesWindow.refreshAutosaveRow();
         }
       };
+
+      // Apply feature flags
+      if (!featureFlags.isEnabled('serialPort')) {
+        const el = document.getElementById('btn-serial-port');
+        if (el) el.style.display = 'none';
+      }
 
       // Enable mouse handler if a mouse card is configured
       this.updateMouseHandlerState();
