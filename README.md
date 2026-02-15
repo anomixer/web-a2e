@@ -10,7 +10,7 @@ A cycle-accurate Apple //e Enhanced emulator running in the browser using WebAss
 - **WebGL rendering** — Hardware-accelerated display with configurable CRT shader effects
 - **Audio-driven timing** — Web Audio API AudioWorklet drives frame timing at 48kHz
 - **Disk II controller** — DSK, DO, PO, and WOZ format support with write capability
-- **Expansion cards** — Mockingboard sound card, Thunderclock Plus, Apple Mouse Interface Card, SmartPort hard drive, No-Slot Clock (DS1215)
+- **Expansion cards** — Mockingboard sound card, Thunderclock Plus, Apple Mouse Interface Card, SmartPort hard drive, Super Serial Card, Microsoft Z-80 SoftCard, No-Slot Clock (DS1215)
 - **File explorer** — Browse DOS 3.3 and ProDOS disk contents with BASIC detokenizer and disassembler
 - **Save states** — Autosave slot plus 5 manual save slots, stored in IndexedDB
 - **Built-in debugger** — CPU debugger, memory browser, heat map, soft switch monitor, BASIC conditional breakpoints, and more
@@ -148,19 +148,25 @@ Cards are configured via **View > Expansion Slots**.
 
 | Slot | Default | Available Cards |
 |------|---------|-----------------|
-| 1 | Empty | — |
-| 2 | Empty | — |
+| 1 | Empty | Z-80 SoftCard |
+| 2 | Empty | SmartPort, Z-80 SoftCard |
 | 3 | 80-Column | Built-in (fixed) |
-| 4 | Mockingboard | Mouse Card, Empty |
-| 5 | Thunderclock Plus | Empty |
+| 4 | Mockingboard | Mouse Card, SmartPort, Z-80 SoftCard, Empty |
+| 5 | Thunderclock Plus | SmartPort, Z-80 SoftCard, Empty |
 | 6 | Disk II | Empty |
-| 7 | Empty | Thunderclock Plus |
+| 7 | Empty | Thunderclock Plus, SmartPort, Z-80 SoftCard |
 
 **Mockingboard** — Dual AY-3-8910 sound chips with VIA 6522 timers. Stereo output with per-channel mute controls. All audio (speaker, Mockingboard, drive sounds) is unified under a single volume slider and mute toggle.
 
 **Thunderclock Plus** — ProDOS-compatible real-time clock card.
 
 **Apple Mouse Interface Card** — Mouse input via MC6821 PIA command protocol.
+
+**SmartPort Hard Drive** — Block device controller supporting two hard drive images (.hdv/.po/.2mg).
+
+**Super Serial Card** — ACIA 6551-based serial card with built-in WebSocket-to-TCP proxy and Hayes modem emulation for BBS and dial-up software.
+
+**Microsoft Z-80 SoftCard** — Z80 co-processor card enabling CP/M software to run on the Apple //e. Full Z80 CPU emulation at 2.041 MHz with hardware-accurate address translation.
 
 ### Joystick & Game Controllers
 
@@ -298,7 +304,8 @@ node tests/integration/disk-boot-test.js
 web-a2e/
 ├── src/
 │   ├── core/                # C++ emulator core (namespace a2e::)
-│   │   ├── cpu/             # 65C02 CPU emulation
+│   │   ├── cpu/
+│   │   │   └── 6502/        # Cycle-accurate 65C02 processor
 │   │   ├── mmu/             # Memory management, soft switches
 │   │   ├── video/           # Per-scanline video rendering
 │   │   ├── audio/           # Speaker emulation
@@ -306,12 +313,23 @@ web-a2e/
 │   │   ├── disassembler/    # 65C02 disassembler
 │   │   ├── input/           # Keyboard handling
 │   │   ├── cards/           # Expansion card system
-│   │   │   └── mockingboard/  # AY-3-8910 + VIA 6522
+│   │   │   ├── disk2/       # Disk II controller
+│   │   │   ├── mockingboard/  # AY-3-8910 + VIA 6522
+│   │   │   ├── mouse/       # Apple Mouse Interface Card
+│   │   │   ├── smartport/   # SmartPort hard drive controller
+│   │   │   ├── softcard/    # Microsoft Z-80 SoftCard
+│   │   │   │   └── z80/     # Z80 CPU emulation core
+│   │   │   ├── ssc/         # Super Serial Card + ACIA 6551
+│   │   │   └── thunderclock/  # Thunderclock Plus
 │   │   ├── filesystem/      # DOS 3.3 and ProDOS parsers
-│   │   ├── basic/           # BASIC detokenizer
+│   │   ├── basic/           # BASIC tokenizer and detokenizer
 │   │   ├── assembler/       # 65C02 assembler (Merlin-style syntax)
 │   │   ├── debug/           # Condition evaluator
-│   │   ├── emulator.cpp     # Core coordinator, state serialization
+│   │   ├── emulator/        # Split emulator implementation files
+│   │   │   ├── emulator_state.cpp  # State serialization
+│   │   │   └── emulator_debug.cpp  # Debug facilities
+│   │   ├── emulator.cpp     # Core coordinator
+│   │   ├── emulator.hpp     # Emulator class declaration
 │   │   └── types.hpp        # Shared constants
 │   ├── bindings/            # wasm_interface.cpp (WASM exports)
 │   └── js/                  # ES6 modules
@@ -361,8 +379,6 @@ Requires WebAssembly, WebGL 2.0, Web Audio API (AudioWorklet), IndexedDB, and Se
 ## TODO
 
 ### Expansion Cards
-- **Microsoft Softcard (Z80)** — Z80 co-processor card for running CP/M software
-- **Super Serial Card** — RS-232 serial interface for printer and modem emulation
 - **Parallel Printer Card** — Centronics parallel port for printing to file/PDF
 
 ### Input

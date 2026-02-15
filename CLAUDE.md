@@ -55,7 +55,9 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 - `basic/` - Applesoft and Integer BASIC detokenizer and tokenizer
 - `debug/` - Condition evaluator for breakpoint expressions (supports BV/BA/BA2 for BASIC variable/array reads)
 - `noslot_clock.cpp` - DS1215 No-Slot Clock (ProDOS RTC at $C300)
-- `emulator.cpp` - Core coordinator, state serialization
+- `emulator.cpp` - Core coordinator
+- `emulator/emulator_state.cpp` - State serialization (exportState/importState)
+- `emulator/emulator_debug.cpp` - Debug facilities (breakpoints, watchpoints, trace, beam)
 
 **JavaScript Layer (src/js/)** - Browser integration:
 
@@ -142,8 +144,12 @@ src/
 │   ├── filesystem/     # DOS 3.3 and ProDOS parsers
 │   ├── basic/          # BASIC tokenizer and detokenizer
 │   ├── debug/          # Condition evaluator
+│   ├── emulator/       # Split emulator implementation files
+│   │   ├── emulator_state.cpp  # State serialization (exportState/importState)
+│   │   └── emulator_debug.cpp  # Debug facilities (breakpoints, watchpoints, trace, beam)
 │   ├── noslot_clock.cpp # DS1215 No-Slot Clock (ProDOS RTC at $C300)
-│   ├── emulator.cpp    # Core coordinator, state serialization
+│   ├── emulator.cpp    # Core coordinator
+│   ├── emulator.hpp    # Emulator class declaration
 │   └── types.hpp       # Shared constants and types
 ├── bindings/           # wasm_interface.cpp - WASM export glue
 └── js/                 # ES6 modules, no framework
@@ -228,7 +234,7 @@ When the user says "release", perform all of the following steps:
 
 1. **Review git log** since the last release notes entry to identify all changes
 2. **Bump version** in `src/js/config/version.js`
-3. **Update release notes** in both `src/js/help/release-notes.js` and `src/js/config/release-notes.json`
+3. **Update release notes** in `src/js/help/release-notes.js`
 4. **Update README.md** to reflect any new features, changed commands, or updated project information
 5. **Update CLAUDE.md** to reflect any architectural changes, new files/directories, new build steps, new expansion cards, new debug windows, or other structural changes to the codebase
 

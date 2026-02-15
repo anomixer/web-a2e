@@ -11,6 +11,43 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "February 22, 2026",
+    features: [
+      {
+        title: "Super Serial Card",
+        description:
+          "Added Super Serial Card (SSC) emulation with ACIA 6551 chip and a built-in WebSocket-to-TCP proxy, enabling serial communication from the Apple //e to external services.",
+      },
+      {
+        title: "Hayes modem emulator",
+        description:
+          "Added Hayes-compatible modem emulation for SSC serial connections, supporting AT command set for BBS and dial-up software.",
+      },
+      {
+        title: "Microsoft Z-80 SoftCard",
+        description:
+          "Added Z-80 SoftCard expansion card emulation with full Z80 CPU, enabling CP/M software to run on the Apple //e. Includes address translation matching real hardware and CPU switching via I/O and memory-mapped access.",
+      },
+    ],
+    improvements: [
+      {
+        title: "Performance optimizations",
+        description:
+          "Reduced CPU/GPU usage through render loop and audio path optimizations for smoother operation and lower power consumption.",
+      },
+      {
+        title: "Code reorganization",
+        description:
+          "Reorganized expansion card and CPU source files into per-card subdirectories, moved emulator split files into emulator/ subdirectory, and removed dead code and unused assets.",
+      },
+      {
+        title: "Feature flags system",
+        description:
+          "Added a feature flags system to hide unreleased UI features during development.",
+      },
+    ],
+  },
+  {
     week: "February 17, 2026",
     features: [
       {

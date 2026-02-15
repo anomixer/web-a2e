@@ -95,27 +95,29 @@ web-a2e/
 │   │   ├── basic/
 │   │   ├── cards/           # Expansion card system
 │   │   │   ├── expansion_card.hpp
-│   │   │   ├── disk2_card.cpp
-│   │   │   ├── mockingboard/      # AY-3-8910 + VIA 6522
-│   │   │   │   ├── ay8910.cpp
-│   │   │   │   └── via6522.cpp
-│   │   │   ├── mockingboard_card.cpp
-│   │   │   ├── mouse_card.cpp
-│   │   │   ├── smartport/
-│   │   │   │   ├── smartport_card.cpp
-│   │   │   │   └── block_device.cpp
-│   │   │   ├── softcard_z80.cpp   # Z80 SoftCard emulation
-│   │   │   └── thunderclock_card.cpp
+│   │   │   ├── disk2/            # Disk II controller card
+│   │   │   ├── mockingboard/     # AY-3-8910 + VIA 6522 + Mockingboard card
+│   │   │   ├── mouse/            # Apple Mouse Interface Card
+│   │   │   ├── smartport/        # SmartPort hard drive controller
+│   │   │   ├── softcard/         # Microsoft Z-80 SoftCard
+│   │   │   │   └── z80/          # Z80 CPU emulation core
+│   │   │   ├── ssc/              # Super Serial Card + ACIA 6551
+│   │   │   └── thunderclock/     # Thunderclock Plus real-time clock
 │   │   ├── cpu/
+│   │   │   └── 6502/             # Cycle-accurate 65C02 processor
 │   │   ├── debug/
 │   │   ├── disassembler/
 │   │   ├── disk-image/
+│   │   ├── emulator/        # Split emulator implementation files
+│   │   │   ├── emulator_state.cpp  # State serialization
+│   │   │   └── emulator_debug.cpp  # Debug facilities
 │   │   ├── filesystem/
 │   │   ├── input/
 │   │   ├── mmu/
 │   │   ├── video/
-│   │   ├── z80/             # Z80 CPU emulator
 │   │   ├── emulator.cpp     # Core coordinator
+│   │   ├── emulator.hpp     # Emulator class declaration
+│   │   ├── noslot_clock.cpp  # DS1215 No-Slot Clock
 │   │   └── types.hpp        # Shared constants
 │   │
 │   ├── css/                 # Stylesheets

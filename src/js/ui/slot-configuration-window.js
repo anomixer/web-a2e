@@ -14,7 +14,7 @@ import { showToast } from "./toast.js";
  */
 export class SlotConfigurationWindow extends BaseWindow {
   constructor(wasmModule, onResetCallback) {
-    const maxHeight = 650;
+    const maxHeight = 700;
     super({
       id: "slot-configuration",
       title: "Expansion Slots",
@@ -52,7 +52,12 @@ export class SlotConfigurationWindow extends BaseWindow {
 
     // Slot metadata
     this.slots = [
-      { slot: 1, label: "Slot 1", available: ["ssc", "softcard"], note: "Printer / Serial" },
+      {
+        slot: 1,
+        label: "Slot 1",
+        available: ["ssc", "softcard"],
+        note: "Printer / Serial",
+      },
       {
         slot: 2,
         label: "Slot 2",
