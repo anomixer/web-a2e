@@ -269,6 +269,8 @@ Built-in debug windows accessible via Debug menu:
 | F11              | Step Into                |
 | Shift+F11        | Step Out                 |
 
+The Joystick window has a **Cursor Keys** toggle that remaps the arrow keys to joystick input (full deflection 0/255 per axis). When enabled, a "CURSOR KEYS" chip appears in the Monitor title bar. The setting persists via localStorage.
+
 ## Agent / MCP Integration
 
 The emulator exposes an AI agent interface via the Model Context Protocol (MCP) and AG-UI event protocol. This allows AI agents (including Claude Code) to fully control the emulator programmatically.
