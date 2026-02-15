@@ -5,7 +5,7 @@
       "command": "bunx",
       "args": [
         "-y",
-        "@retrotech71/appleii-agent"
+        "@retrotech71/appleii-agent@latest"
       ]
     }
   }

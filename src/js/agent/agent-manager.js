@@ -525,7 +525,12 @@ export class AgentManager {
    * Handle connection errors
    */
   _handleConnectionError() {
-    this.disconnect();
+    // Close EventSource but keep reconnection state
+    if (this.eventSource) {
+      console.log("[AgentManager] Closing broken connection");
+      this.eventSource.close();
+      this.eventSource = null;
+    }
 
     // Start reconnection window if not already started
     if (!this.reconnectStartTime) {
