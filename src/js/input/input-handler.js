@@ -25,6 +25,9 @@ export class InputHandler {
     // MessageChannel for zero-delay batch scheduling (avoids setTimeout's ~4ms minimum)
     this.pasteChannel = new MessageChannel();
     this.pasteChannel.port1.onmessage = () => this.processPasteQueue();
+
+    // Reference to joystick window for cursor-keys-as-joystick feature
+    this.joystickWindow = null;
   }
 
   init() {
@@ -126,6 +129,12 @@ export class InputHandler {
       event.preventDefault();
     }
 
+    // Check if cursor keys should act as joystick
+    if (this.joystickWindow && this.joystickWindow.handleCursorKey(keyCode, true)) {
+      event.preventDefault();
+      return;
+    }
+
     // Send raw keycode to WASM - C++ handles the translation
     this.wasmModule._handleRawKeyDown(keyCode, shift, ctrl, alt, meta, capsLock);
   }
@@ -138,6 +147,11 @@ export class InputHandler {
     const ctrl = event.ctrlKey;
     const alt = event.altKey;
     const meta = event.metaKey;
+
+    // Check if cursor keys should act as joystick
+    if (this.joystickWindow && this.joystickWindow.handleCursorKey(keyCode, false)) {
+      return;
+    }
 
     // Send raw keycode to WASM
     this.wasmModule._handleRawKeyUp(keyCode, shift, ctrl, alt, meta);

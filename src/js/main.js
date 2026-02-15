@@ -247,6 +247,11 @@ class AppleIIeEmulator {
 
       this.gamepadHandler = new GamepadHandler(this.wasmModule, joystickWindow);
       joystickWindow.gamepadHandler = this.gamepadHandler;
+      this.inputHandler.joystickWindow = joystickWindow;
+      joystickWindow.onCursorKeysChanged = (enabled) => {
+        this.screenWindow.setCursorKeysIndicator(enabled);
+      };
+      this.screenWindow.setCursorKeysIndicator(joystickWindow.cursorKeysEnabled);
 
       const mockingboardWindow = new MockingboardWindow(this.wasmModule);
       mockingboardWindow.create();

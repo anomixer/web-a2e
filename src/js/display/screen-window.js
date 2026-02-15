@@ -59,8 +59,15 @@ export class ScreenWindow extends BaseWindow {
       </svg>
     `;
 
-    // Insert charset switch and lock button into header
+    // Cursor keys chip (hidden by default)
+    this._cursorKeysChip = document.createElement("span");
+    this._cursorKeysChip.className = "screen-window-cursor-keys-chip";
+    this._cursorKeysChip.textContent = "CURSOR KEYS";
+    this._cursorKeysChip.style.display = "none";
+
+    // Insert charset switch, cursor keys chip, and lock button into header
     this.headerElement.appendChild(charsetSwitch);
+    this.headerElement.appendChild(this._cursorKeysChip);
     this.headerElement.appendChild(this._lockBtn);
 
     // Prevent clicks from starting a window drag
@@ -98,6 +105,15 @@ export class ScreenWindow extends BaseWindow {
       this.constrainToViewport();
     }
     if (this.onStateChange) this.onStateChange();
+  }
+
+  /**
+   * Show or hide the cursor keys indicator chip.
+   */
+  setCursorKeysIndicator(enabled) {
+    if (this._cursorKeysChip) {
+      this._cursorKeysChip.style.display = enabled ? "" : "none";
+    }
   }
 
   /**

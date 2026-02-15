@@ -25,6 +25,9 @@ export class JoystickWindow extends BaseWindow {
     this.button0Pressed = false;
     this.button1Pressed = false;
     this.gamepadHandler = null;
+    this.cursorKeysEnabled = localStorage.getItem("joystick-cursor-keys") === "true";
+    this.cursorKeysState = { left: false, right: false, up: false, down: false };
+    this.onCursorKeysChanged = null; // callback when toggle changes
   }
 
   renderContent() {
@@ -77,6 +80,17 @@ export class JoystickWindow extends BaseWindow {
           <div class="gamepad-status-row">
             <label class="gamepad-toggle-label">
               <div class="gamepad-toggle-switch">
+                <input type="checkbox" class="gamepad-toggle cursor-keys-toggle" />
+                <span class="gamepad-toggle-slider"></span>
+              </div>
+              <span class="gamepad-toggle-text">Cursor Keys</span>
+            </label>
+          </div>
+        </div>
+        <div class="gamepad-section">
+          <div class="gamepad-status-row">
+            <label class="gamepad-toggle-label">
+              <div class="gamepad-toggle-switch">
                 <input type="checkbox" class="gamepad-toggle" />
                 <span class="gamepad-toggle-slider"></span>
               </div>
@@ -124,8 +138,12 @@ export class JoystickWindow extends BaseWindow {
       ".gamepad-deadzone-value",
     );
 
+    // Cursor keys toggle
+    this.cursorKeysToggle = this.contentElement.querySelector(".cursor-keys-toggle");
+
     this.setupJoystickEventListeners();
     this.setupGamepadEventListeners();
+    this.setupCursorKeysToggle();
     this.updateKnobPosition();
     this.updatePaddleValues();
 
@@ -322,6 +340,59 @@ export class JoystickWindow extends BaseWindow {
     }
   }
 
+  setupCursorKeysToggle() {
+    if (this.cursorKeysToggle) {
+      this.cursorKeysToggle.checked = this.cursorKeysEnabled;
+      this.cursorKeysToggle.addEventListener("change", () => {
+        this.cursorKeysEnabled = this.cursorKeysToggle.checked;
+        localStorage.setItem("joystick-cursor-keys", this.cursorKeysEnabled);
+        if (!this.cursorKeysEnabled) {
+          // Release all directions and re-center
+          this.cursorKeysState = { left: false, right: false, up: false, down: false };
+          this.updateCursorKeysPaddle();
+        }
+        if (this.onCursorKeysChanged) this.onCursorKeysChanged(this.cursorKeysEnabled);
+      });
+      // Fire initial state
+      if (this.onCursorKeysChanged) this.onCursorKeysChanged(this.cursorKeysEnabled);
+    }
+  }
+
+  /**
+   * Handle a cursor key press/release for joystick emulation.
+   * Returns true if the key was consumed, false otherwise.
+   */
+  handleCursorKey(keyCode, pressed) {
+    if (!this.cursorKeysEnabled) return false;
+
+    switch (keyCode) {
+      case 37: this.cursorKeysState.left = pressed; break;   // Left
+      case 39: this.cursorKeysState.right = pressed; break;  // Right
+      case 38: this.cursorKeysState.up = pressed; break;     // Up
+      case 40: this.cursorKeysState.down = pressed; break;   // Down
+      default: return false;
+    }
+
+    this.updateCursorKeysPaddle();
+    return true;
+  }
+
+  updateCursorKeysPaddle() {
+    const s = this.cursorKeysState;
+    // Map to 0, 0.5, or 1 per axis
+    let x = 0.5;
+    let y = 0.5;
+    if (s.left && !s.right) x = 0;
+    else if (s.right && !s.left) x = 1;
+    if (s.up && !s.down) y = 0;
+    else if (s.down && !s.up) y = 1;
+
+    this.knobX = x;
+    this.knobY = y;
+    this.updateKnobPosition();
+    this.updatePaddleValues();
+  }
+
   /**
    * Called by GamepadHandler to move the knob from external input.
    * @param {number} normX - 0..1 position
@@ -388,6 +459,7 @@ export class JoystickWindow extends BaseWindow {
       ...baseState,
       knobX: this.knobX,
       knobY: this.knobY,
+      cursorKeysEnabled: this.cursorKeysEnabled,
     };
   }
 
@@ -395,6 +467,10 @@ export class JoystickWindow extends BaseWindow {
     super.restoreState(state);
     if (state.knobX !== undefined) this.knobX = state.knobX;
     if (state.knobY !== undefined) this.knobY = state.knobY;
+    if (state.cursorKeysEnabled !== undefined) {
+      this.cursorKeysEnabled = state.cursorKeysEnabled;
+      if (this.cursorKeysToggle) this.cursorKeysToggle.checked = this.cursorKeysEnabled;
+    }
     // Update visuals after restoring
     if (this.knobElement) {
       this.updateKnobPosition();
