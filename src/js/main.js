@@ -248,10 +248,15 @@ class AppleIIeEmulator {
       this.gamepadHandler = new GamepadHandler(this.wasmModule, joystickWindow);
       joystickWindow.gamepadHandler = this.gamepadHandler;
       this.inputHandler.joystickWindow = joystickWindow;
+
+      // Wire monitor header toggle to joystick cursor keys
+      this.screenWindow.setCursorKeysState(joystickWindow.cursorKeysEnabled);
+      this.screenWindow.onCursorKeysToggle((enabled) => {
+        joystickWindow.setCursorKeysEnabled(enabled);
+      });
       joystickWindow.onCursorKeysChanged = (enabled) => {
-        this.screenWindow.setCursorKeysIndicator(enabled);
+        this.screenWindow.setCursorKeysState(enabled);
       };
-      this.screenWindow.setCursorKeysIndicator(joystickWindow.cursorKeysEnabled);
 
       const mockingboardWindow = new MockingboardWindow(this.wasmModule);
       mockingboardWindow.create();

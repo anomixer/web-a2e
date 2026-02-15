@@ -266,20 +266,77 @@ body.full-page-mode #screen {
     border-color: var(--text-muted);
 }
 
-/* Cursor keys indicator chip in screen window header */
-.screen-window-cursor-keys-chip {
-    font-family: var(--font-mono);
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--accent-green);
-    background: var(--accent-green-dim);
-    border: 1px solid var(--accent-green-dim);
-    border-radius: 3px;
-    padding: 1px 5px;
+/* Cursor keys joystick toggle in screen window header */
+.screen-window-cursor-keys-switch {
+    display: flex;
+    align-items: center;
+    gap: 4px;
     margin-right: 8px;
-    white-space: nowrap;
+}
+
+.screen-window-cursor-keys-switch .cursor-keys-label {
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--text-muted);
+    user-select: none;
+    transition: color 0.2s;
+}
+
+.screen-window-cursor-keys-switch .cursor-keys-label-text {
+    font-family: var(--font-mono);
+    letter-spacing: 0.05em;
+}
+
+.screen-window-cursor-keys-switch:has(#screen-window-cursor-keys-toggle:checked) .cursor-keys-label-text {
+    color: var(--accent-green);
+}
+
+.screen-window-cursor-keys-switch .cursor-keys-toggle {
+    position: relative;
+    display: inline-block;
+    width: 24px;
+    height: 14px;
+    cursor: pointer;
+}
+
+.screen-window-cursor-keys-switch .cursor-keys-toggle input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.screen-window-cursor-keys-switch .cursor-keys-slider {
+    position: absolute;
+    inset: 0;
+    background: var(--input-bg-deeper);
+    border: 1px solid var(--border-color);
+    border-radius: 7px;
+    transition: all 0.2s;
+}
+
+.screen-window-cursor-keys-switch .cursor-keys-slider::before {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    transition: all 0.2s;
+}
+
+.screen-window-cursor-keys-switch .cursor-keys-toggle input:checked + .cursor-keys-slider {
+    border-color: var(--accent-green-dim);
+}
+
+.screen-window-cursor-keys-switch .cursor-keys-toggle input:checked + .cursor-keys-slider::before {
+    transform: translateX(10px);
+    background: var(--accent-green);
+}
+
+.screen-window-cursor-keys-switch .cursor-keys-toggle:hover .cursor-keys-slider {
+    border-color: var(--text-muted);
 }
 
 /* Full page toolbar - auto-hiding top bar */

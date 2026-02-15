@@ -80,17 +80,6 @@ export class JoystickWindow extends BaseWindow {
           <div class="gamepad-status-row">
             <label class="gamepad-toggle-label">
               <div class="gamepad-toggle-switch">
-                <input type="checkbox" class="gamepad-toggle cursor-keys-toggle" />
-                <span class="gamepad-toggle-slider"></span>
-              </div>
-              <span class="gamepad-toggle-text">Cursor Keys</span>
-            </label>
-          </div>
-        </div>
-        <div class="gamepad-section">
-          <div class="gamepad-status-row">
-            <label class="gamepad-toggle-label">
-              <div class="gamepad-toggle-switch">
                 <input type="checkbox" class="gamepad-toggle" />
                 <span class="gamepad-toggle-slider"></span>
               </div>
@@ -138,12 +127,8 @@ export class JoystickWindow extends BaseWindow {
       ".gamepad-deadzone-value",
     );
 
-    // Cursor keys toggle
-    this.cursorKeysToggle = this.contentElement.querySelector(".cursor-keys-toggle");
-
     this.setupJoystickEventListeners();
     this.setupGamepadEventListeners();
-    this.setupCursorKeysToggle();
     this.updateKnobPosition();
     this.updatePaddleValues();
 
@@ -340,22 +325,14 @@ export class JoystickWindow extends BaseWindow {
     }
   }
 
-  setupCursorKeysToggle() {
-    if (this.cursorKeysToggle) {
-      this.cursorKeysToggle.checked = this.cursorKeysEnabled;
-      this.cursorKeysToggle.addEventListener("change", () => {
-        this.cursorKeysEnabled = this.cursorKeysToggle.checked;
-        localStorage.setItem("joystick-cursor-keys", this.cursorKeysEnabled);
-        if (!this.cursorKeysEnabled) {
-          // Release all directions and re-center
-          this.cursorKeysState = { left: false, right: false, up: false, down: false };
-          this.updateCursorKeysPaddle();
-        }
-        if (this.onCursorKeysChanged) this.onCursorKeysChanged(this.cursorKeysEnabled);
-      });
-      // Fire initial state
-      if (this.onCursorKeysChanged) this.onCursorKeysChanged(this.cursorKeysEnabled);
+  setCursorKeysEnabled(enabled) {
+    this.cursorKeysEnabled = enabled;
+    localStorage.setItem("joystick-cursor-keys", enabled);
+    if (!enabled) {
+      this.cursorKeysState = { left: false, right: false, up: false, down: false };
+      this.updateCursorKeysPaddle();
     }
+    if (this.onCursorKeysChanged) this.onCursorKeysChanged(enabled);
   }
 
   /**
@@ -469,7 +446,7 @@ export class JoystickWindow extends BaseWindow {
     if (state.knobY !== undefined) this.knobY = state.knobY;
     if (state.cursorKeysEnabled !== undefined) {
       this.cursorKeysEnabled = state.cursorKeysEnabled;
-      if (this.cursorKeysToggle) this.cursorKeysToggle.checked = this.cursorKeysEnabled;
+      if (this.onCursorKeysChanged) this.onCursorKeysChanged(this.cursorKeysEnabled);
     }
     // Update visuals after restoring
     if (this.knobElement) {

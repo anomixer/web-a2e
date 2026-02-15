@@ -59,19 +59,30 @@ export class ScreenWindow extends BaseWindow {
       </svg>
     `;
 
-    // Cursor keys chip (hidden by default)
-    this._cursorKeysChip = document.createElement("span");
-    this._cursorKeysChip.className = "screen-window-cursor-keys-chip";
-    this._cursorKeysChip.textContent = "CURSOR KEYS";
-    this._cursorKeysChip.style.display = "none";
+    // Cursor keys joystick toggle
+    this._cursorKeysSwitch = document.createElement("div");
+    this._cursorKeysSwitch.className = "screen-window-cursor-keys-switch";
+    this._cursorKeysSwitch.title = "Use cursor keys as joystick";
+    this._cursorKeysSwitch.innerHTML = `
+      <span class="cursor-keys-label">&#x2734;</span>
+      <label class="cursor-keys-toggle">
+        <input type="checkbox" id="screen-window-cursor-keys-toggle" />
+        <span class="cursor-keys-slider"></span>
+      </label>
+      <span class="cursor-keys-label cursor-keys-label-text">JOY</span>
+    `;
+    this._cursorKeysCheckbox = this._cursorKeysSwitch.querySelector("#screen-window-cursor-keys-toggle");
 
-    // Insert charset switch, cursor keys chip, and lock button into header
+    // Insert charset switch, cursor keys toggle, and lock button into header
     this.headerElement.appendChild(charsetSwitch);
-    this.headerElement.appendChild(this._cursorKeysChip);
+    this.headerElement.appendChild(this._cursorKeysSwitch);
     this.headerElement.appendChild(this._lockBtn);
 
     // Prevent clicks from starting a window drag
     charsetSwitch.addEventListener("mousedown", (e) => {
+      e.stopPropagation();
+    });
+    this._cursorKeysSwitch.addEventListener("mousedown", (e) => {
       e.stopPropagation();
     });
     this._lockBtn.addEventListener("mousedown", (e) => {
@@ -108,11 +119,19 @@ export class ScreenWindow extends BaseWindow {
   }
 
   /**
-   * Show or hide the cursor keys indicator chip.
+   * Set the cursor keys toggle state and optional change handler.
    */
-  setCursorKeysIndicator(enabled) {
-    if (this._cursorKeysChip) {
-      this._cursorKeysChip.style.display = enabled ? "" : "none";
+  setCursorKeysState(enabled) {
+    if (this._cursorKeysCheckbox) {
+      this._cursorKeysCheckbox.checked = enabled;
+    }
+  }
+
+  onCursorKeysToggle(callback) {
+    if (this._cursorKeysCheckbox) {
+      this._cursorKeysCheckbox.addEventListener("change", () => {
+        callback(this._cursorKeysCheckbox.checked);
+      });
     }
   }
 
