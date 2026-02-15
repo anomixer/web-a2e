@@ -26,7 +26,7 @@ const PRECACHE_ASSETS = [
   "/css/file-explorer.css",
   "/css/documentation.css",
   "/css/responsive.css",
-  "/images/drive-open.png",
+  "/assets/drive-open.png",
 ];
 
 // Install event - cache core assets
