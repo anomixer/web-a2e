@@ -11,6 +11,29 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "March 14, 2026",
+    features: [
+      {
+        title: "WASM emulator moved to Web Worker",
+        description:
+          "The entire WASM emulation core now runs in a dedicated Web Worker thread, eliminating main-thread blocking from CPU emulation, disk image parsing, and state serialization. Loading large disk images (including 32MB SmartPort hard drives) no longer causes audio dropouts or UI freezes.",
+      },
+    ],
+    fixes: [],
+    improvements: [
+      {
+        title: "Audio-driven timing preserved",
+        description:
+          "The AudioWorklet remains the master clock, requesting samples from the Worker to maintain cycle-accurate timing at 48kHz regardless of screen refresh rate or system load.",
+      },
+      {
+        title: "Async RPC proxy",
+        description:
+          "All WASM function calls are transparently proxied through an ES6 Proxy that auto-generates async RPC. Fire-and-forget calls (input, control) skip waiting for responses. Debug windows use batched queries for efficient multi-register reads.",
+      },
+    ],
+  },
+  {
     week: "March 7, 2026",
     features: [
       {

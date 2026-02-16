@@ -8,7 +8,8 @@ A cycle-accurate Apple //e Enhanced emulator running in the browser using WebAss
 - **Full Apple //e memory architecture** — 128KB RAM (64KB main + 64KB auxiliary), language card, soft switches
 - **Multiple display modes** — Text (40/80 col), LoRes, Double LoRes, HiRes, Double HiRes, monochrome
 - **WebGL rendering** — Hardware-accelerated display with configurable CRT shader effects
-- **Audio-driven timing** — Web Audio API AudioWorklet drives frame timing at 48kHz
+- **Web Worker architecture** — WASM emulation runs in a dedicated Worker thread, eliminating main-thread blocking
+- **Audio-driven timing** — Web Audio API AudioWorklet drives frame timing at 48kHz via Worker RPC
 - **Disk II controller** — DSK, DO, PO, and WOZ format support with write capability
 - **Expansion cards** — Mockingboard sound card, Thunderclock Plus, Apple Mouse Interface Card, SmartPort hard drive, Super Serial Card, Microsoft Z-80 SoftCard, No-Slot Clock (DS1215)
 - **File explorer** — Browse DOS 3.3 and ProDOS disk contents with BASIC detokenizer and disassembler
