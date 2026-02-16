@@ -14,7 +14,7 @@ import { showToast } from "./toast.js";
  */
 export class SlotConfigurationWindow extends BaseWindow {
   constructor(wasmModule, onResetCallback) {
-    const maxHeight = 700;
+    const maxHeight = 720;
     super({
       id: "slot-configuration",
       title: "Expansion Slots",
@@ -522,7 +522,11 @@ export class SlotConfigurationWindow extends BaseWindow {
         const slotNum = slotInfo.slot;
         const cardId = this.slotAssignments[slotNum] || "empty";
         const cardIdPtr = await this.wasmModule._malloc(cardId.length + 1);
-        await this.wasmModule.stringToUTF8(cardId, cardIdPtr, cardId.length + 1);
+        await this.wasmModule.stringToUTF8(
+          cardId,
+          cardIdPtr,
+          cardId.length + 1,
+        );
         this.wasmModule._setSlotCard(slotNum, cardIdPtr);
         await this.wasmModule._free(cardIdPtr);
       }
@@ -550,7 +554,11 @@ export class SlotConfigurationWindow extends BaseWindow {
       for (const [slot, cardId] of Object.entries(config)) {
         const slotNum = parseInt(slot, 10);
         const cardIdPtr = await this.wasmModule._malloc(cardId.length + 1);
-        await this.wasmModule.stringToUTF8(cardId, cardIdPtr, cardId.length + 1);
+        await this.wasmModule.stringToUTF8(
+          cardId,
+          cardIdPtr,
+          cardId.length + 1,
+        );
         this.wasmModule._setSlotCard(slotNum, cardIdPtr);
         await this.wasmModule._free(cardIdPtr);
       }
