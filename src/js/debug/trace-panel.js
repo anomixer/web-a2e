@@ -32,22 +32,32 @@ const MODE_ZPI = 13;
 const MODE_AIX = 14;
 const MODE_ZPR = 15;
 
-function getMnemonicTable(wasmModule) {
+async function getMnemonicTable(wasmModule) {
   if (MNEMONICS) return MNEMONICS;
   MNEMONICS = new Array(256);
+  // Batch all 256 mnemonic pointer reads
+  const batchCalls = [];
   for (let i = 0; i < 256; i++) {
-    const ptr = wasmModule._getOpcodeMnemonic(i);
-    MNEMONICS[i] = ptr ? wasmModule.UTF8ToString(ptr) : "???";
+    batchCalls.push(['_getOpcodeMnemonic', i]);
+  }
+  const ptrs = await wasmModule.batch(batchCalls);
+  for (let i = 0; i < 256; i++) {
+    MNEMONICS[i] = ptrs[i] ? await wasmModule.UTF8ToString(ptrs[i]) : "???";
   }
   return MNEMONICS;
 }
 
-function getAddrModeTable(wasmModule) {
+async function getAddrModeTable(wasmModule) {
   if (ADDR_MODES) return ADDR_MODES;
   if (!wasmModule._getOpcodeAddressingMode) return null;
   ADDR_MODES = new Uint8Array(256);
+  const batchCalls = [];
   for (let i = 0; i < 256; i++) {
-    ADDR_MODES[i] = wasmModule._getOpcodeAddressingMode(i);
+    batchCalls.push(['_getOpcodeAddressingMode', i]);
+  }
+  const results = await wasmModule.batch(batchCalls);
+  for (let i = 0; i < 256; i++) {
+    ADDR_MODES[i] = results[i];
   }
   return ADDR_MODES;
 }
@@ -136,12 +146,12 @@ export class TracePanelWindow extends BaseWindow {
     this.setupContentEventListeners();
   }
 
-  update(wasmModule) {
+  async update(wasmModule) {
     this.wasmModule = wasmModule;
 
     const countEl = this.contentElement.querySelector("#trace-count");
     if (countEl && this.wasmModule._getTraceCount) {
-      const count = this.wasmModule._getTraceCount();
+      const count = await this.wasmModule._getTraceCount();
       countEl.textContent = `${count} entries`;
 
       // Auto-scroll to latest entry when recording
@@ -155,7 +165,7 @@ export class TracePanelWindow extends BaseWindow {
       }
     }
 
-    this.renderVisibleRows();
+    await this.renderVisibleRows();
   }
 
   formatOperand(mode, op1, op2, pc, len) {
@@ -190,17 +200,19 @@ export class TracePanelWindow extends BaseWindow {
     }
   }
 
-  renderVisibleRows() {
+  async renderVisibleRows() {
     const container = this.contentElement.querySelector("#trace-scroll");
     const spacer = this.contentElement.querySelector("#trace-spacer");
     const rowsEl = this.contentElement.querySelector("#trace-rows");
     if (!container || !spacer || !rowsEl) return;
     if (!this.wasmModule._getTraceCount || !this.wasmModule._getTraceBuffer) return;
 
-    const count = this.wasmModule._getTraceCount();
-    const head = this.wasmModule._getTraceHead();
-    const capacity = this.wasmModule._getTraceCapacity();
-    const bufPtr = this.wasmModule._getTraceBuffer();
+    const [count, head, capacity, bufPtr] = await this.wasmModule.batch([
+      ['_getTraceCount'],
+      ['_getTraceHead'],
+      ['_getTraceCapacity'],
+      ['_getTraceBuffer'],
+    ]);
 
     if (!bufPtr || count === 0) {
       spacer.style.height = "0px";
@@ -222,36 +234,48 @@ export class TracePanelWindow extends BaseWindow {
     // uint8_t operand1, operand2, instrLen, padding;
     // uint32_t cycle;
     const ENTRY_SIZE = 16;
-    const heap = this.wasmModule.HEAPU8;
-    const modes = getAddrModeTable(this.wasmModule);
+    const modes = await getAddrModeTable(this.wasmModule);
+    const mnemonics = await getMnemonicTable(this.wasmModule);
+
+    // Read all visible trace entries in one bulk read
+    // We need to handle ring buffer indexing, so compute all byte ranges needed
+    const entriesToRead = endIdx - startIdx;
+    if (entriesToRead <= 0) {
+      rowsEl.innerHTML = '';
+      return;
+    }
+
+    // Collect all ring buffer offsets and read them
+    const ringIndices = [];
+    for (let i = startIdx; i < endIdx; i++) {
+      ringIndices.push(count < capacity ? i : (head + i) % capacity);
+    }
+
+    // Read all entry data via heapRead calls
+    const entryDataPromises = ringIndices.map(ringIdx =>
+      this.wasmModule.heapRead(bufPtr + ringIdx * ENTRY_SIZE, ENTRY_SIZE)
+    );
+    const entryDataArrays = await Promise.all(entryDataPromises);
 
     let html = "";
     rowsEl.style.transform = `translateY(${startIdx * this.ROW_HEIGHT}px)`;
 
-    for (let i = startIdx; i < endIdx; i++) {
-      // Ring buffer index: oldest entry is at head (if full), newest is at head-1
-      let ringIdx;
-      if (count < capacity) {
-        ringIdx = i;
-      } else {
-        ringIdx = (head + i) % capacity;
-      }
+    for (let idx = 0; idx < entryDataArrays.length; idx++) {
+      const heap = entryDataArrays[idx];
+      const pc = heap[0] | (heap[1] << 8);
+      const opcode = heap[2];
+      const a = heap[3];
+      const x = heap[4];
+      const y = heap[5];
+      const sp = heap[6];
+      const p = heap[7];
+      const op1 = heap[8];
+      const op2 = heap[9];
+      const len = heap[10];
+      const cycle = heap[12] | (heap[13] << 8) |
+                    (heap[14] << 16) | (heap[15] << 24);
 
-      const offset = bufPtr + ringIdx * ENTRY_SIZE;
-      const pc = heap[offset] | (heap[offset + 1] << 8);
-      const opcode = heap[offset + 2];
-      const a = heap[offset + 3];
-      const x = heap[offset + 4];
-      const y = heap[offset + 5];
-      const sp = heap[offset + 6];
-      const p = heap[offset + 7];
-      const op1 = heap[offset + 8];
-      const op2 = heap[offset + 9];
-      const len = heap[offset + 10];
-      const cycle = heap[offset + 12] | (heap[offset + 13] << 8) |
-                    (heap[offset + 14] << 16) | (heap[offset + 15] << 24);
-
-      const mnemonic = getMnemonicTable(this.wasmModule)[opcode] || "???";
+      const mnemonic = mnemonics[opcode] || "???";
       let bytesStr = this.hex2(opcode);
       if (len >= 2) bytesStr += " " + this.hex2(op1);
       if (len >= 3) bytesStr += " " + this.hex2(op2);

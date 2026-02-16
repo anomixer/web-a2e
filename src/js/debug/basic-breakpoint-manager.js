@@ -255,7 +255,7 @@ export class BasicBreakpointManager {
    * Evaluate whether a breakpoint should actually fire.
    * Returns true if we should stay paused, false if we should resume.
    */
-  shouldBreak(lineNumber, statementIndex) {
+  async shouldBreak(lineNumber, statementIndex) {
     const key = BasicBreakpointManager._key(lineNumber, statementIndex);
     const entry = this.breakpoints.get(key);
     if (!entry || !entry.enabled) return false;
@@ -264,7 +264,7 @@ export class BasicBreakpointManager {
 
     if (entry.condition) {
       try {
-        const result = this.evaluateCondition(entry.condition);
+        const result = await this.evaluateCondition(entry.condition);
         if (!result) return false;
       } catch (e) {
         console.warn("BASIC breakpoint condition error:", e.message);
@@ -287,13 +287,13 @@ export class BasicBreakpointManager {
   /**
    * Sync all condition-only rules to C++ for native evaluation at $D820
    */
-  _syncConditionRulesToWasm() {
+  async _syncConditionRulesToWasm() {
     try {
       this.wasmModule._clearBasicConditionRules();
       for (const entry of this.breakpoints.values()) {
         if (entry.lineNumber !== -1 || !entry.enabled || !entry.condition) continue;
-        const exprPtr = this.wasmModule._malloc(entry.condition.length + 1);
-        this.wasmModule.stringToUTF8(entry.condition, exprPtr, entry.condition.length + 1);
+        const exprPtr = await this.wasmModule._malloc(entry.condition.length + 1);
+        await this.wasmModule.stringToUTF8(entry.condition, exprPtr, entry.condition.length + 1);
         this.wasmModule._addBasicConditionRule(entry.statementIndex, exprPtr);
         this.wasmModule._free(exprPtr);
       }
@@ -303,10 +303,10 @@ export class BasicBreakpointManager {
   /**
    * Evaluate a condition expression via C++ evaluator.
    */
-  evaluateCondition(expr) {
-    const exprPtr = this.wasmModule._malloc(expr.length + 1);
-    this.wasmModule.stringToUTF8(expr, exprPtr, expr.length + 1);
-    const result = this.wasmModule._evaluateCondition(exprPtr);
+  async evaluateCondition(expr) {
+    const exprPtr = await this.wasmModule._malloc(expr.length + 1);
+    await this.wasmModule.stringToUTF8(expr, exprPtr, expr.length + 1);
+    const result = await this.wasmModule._evaluateCondition(exprPtr);
     this.wasmModule._free(exprPtr);
     return result;
   }
@@ -341,17 +341,17 @@ export class BasicBreakpointManager {
   /**
    * Start line stepping mode
    */
-  startLineStep() {
+  async startLineStep() {
     this.steppingMode = "line";
-    this.lastCurlin = this._getCurlin();
+    this.lastCurlin = await this._getCurlin();
   }
 
   /**
    * Start statement stepping mode
    */
-  startStatementStep() {
+  async startStatementStep() {
     this.steppingMode = "statement";
-    this.lastTxtptr = this._getTxtptr();
+    this.lastTxtptr = await this._getTxtptr();
   }
 
   /**
@@ -366,11 +366,11 @@ export class BasicBreakpointManager {
   /**
    * Check if we should break due to stepping
    */
-  checkStepBreak() {
+  async checkStepBreak() {
     if (!this.steppingMode) return false;
 
-    const curlin = this._getCurlin();
-    const isRunning = !this._isDirectMode();
+    const curlin = await this._getCurlin();
+    const isRunning = !(await this._isDirectMode());
 
     if (this.steppingMode === "line") {
       if (curlin !== this.lastCurlin && isRunning) {
@@ -383,7 +383,7 @@ export class BasicBreakpointManager {
         return true;
       }
     } else if (this.steppingMode === "statement") {
-      const txtptr = this._getTxtptr();
+      const txtptr = await this._getTxtptr();
       if (txtptr !== this.lastTxtptr) {
         this.lastTxtptr = txtptr;
         this.steppingMode = null;
@@ -401,9 +401,9 @@ export class BasicBreakpointManager {
   /**
    * Check if a BASIC breakpoint was hit
    */
-  isBreakpointHit() {
+  async isBreakpointHit() {
     try {
-      return this.wasmModule._isBasicBreakpointHit();
+      return await this.wasmModule._isBasicBreakpointHit();
     } catch (e) {
       return false;
     }
@@ -412,24 +412,24 @@ export class BasicBreakpointManager {
   /**
    * Get the line number where breakpoint was hit
    */
-  getBreakLine() {
+  async getBreakLine() {
     try {
-      return this.wasmModule._getBasicBreakLine();
+      return await this.wasmModule._getBasicBreakLine();
     } catch (e) {
       return 0;
     }
   }
 
-  _getCurlin() {
-    return readWord(this.wasmModule, 0x75);
+  async _getCurlin() {
+    return await readWord(this.wasmModule, 0x75);
   }
 
-  _isDirectMode() {
-    return peek(this.wasmModule, 0x76) === 0xff;
+  async _isDirectMode() {
+    return (await peek(this.wasmModule, 0x76)) === 0xff;
   }
 
-  _getTxtptr() {
-    return readWord(this.wasmModule, 0x7a);
+  async _getTxtptr() {
+    return await readWord(this.wasmModule, 0x7a);
   }
 
   // ---- WASM sync helpers ----

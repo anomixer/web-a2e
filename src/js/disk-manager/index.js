@@ -480,17 +480,17 @@ export class DiskManager {
 
   // Drive state and LED updates
 
-  updateLEDs() {
+  async updateLEDs() {
     // Update drive images and track display based on motor state
     if (!this.wasmModule._getDiskMotorOn) return;
 
     const selectedDrive = this.wasmModule._getSelectedDrive
-      ? this.wasmModule._getSelectedDrive()
+      ? await this.wasmModule._getSelectedDrive()
       : 0;
 
     // Check if any motor is running for motor sound
     const anyMotorOn =
-      this.wasmModule._getDiskMotorOn(0) || this.wasmModule._getDiskMotorOn(1);
+      await this.wasmModule._getDiskMotorOn(0) || await this.wasmModule._getDiskMotorOn(1);
     if (anyMotorOn && !this.sounds.motorRunning) {
       this.sounds.startMotorSound();
     } else if (!anyMotorOn && this.sounds.motorRunning) {
@@ -499,7 +499,7 @@ export class DiskManager {
 
     for (let driveNum = 0; driveNum < 2; driveNum++) {
       const drive = this.drives[driveNum];
-      const motorOn = this.wasmModule._getDiskMotorOn(driveNum);
+      const motorOn = await this.wasmModule._getDiskMotorOn(driveNum);
       const isActive = motorOn && driveNum === selectedDrive;
       const hasDisk = drive.filename !== null;
 
@@ -509,7 +509,7 @@ export class DiskManager {
       let isWriteMode = false;
       if (drive.trackLabel) {
         if (hasDisk && this.wasmModule._getDiskTrack) {
-          track = this.wasmModule._getDiskTrack(driveNum);
+          track = await this.wasmModule._getDiskTrack(driveNum);
           drive.trackLabel.textContent = `T${track.toString().padStart(2, "0")}`;
 
           // Check for track change and play seek sound (only on whole track changes)
@@ -554,13 +554,13 @@ export class DiskManager {
 
           // Get head position
           if (this.wasmModule._getDiskHeadPosition) {
-            quarterTrack = this.wasmModule._getDiskHeadPosition(driveNum);
+            quarterTrack = await this.wasmModule._getDiskHeadPosition(driveNum);
             drive.lastHeadPosition = quarterTrack;
           }
 
           // Get write mode
           if (this.wasmModule._getDiskWriteMode) {
-            isWriteMode = this.wasmModule._getDiskWriteMode(driveNum);
+            isWriteMode = await this.wasmModule._getDiskWriteMode(driveNum);
           }
         } else {
           drive.trackLabel.textContent = "T--";
@@ -816,17 +816,17 @@ export class DiskManager {
    * Sync UI with emulator state after a state restore
    * This updates the drive displays to show any disks loaded from the state snapshot
    */
-  syncWithEmulatorState() {
+  async syncWithEmulatorState() {
     for (let driveNum = 0; driveNum < 2; driveNum++) {
       const drive = this.drives[driveNum];
-      const hasDisk = this.wasmModule._isDiskInserted(driveNum);
+      const hasDisk = await this.wasmModule._isDiskInserted(driveNum);
 
       if (hasDisk) {
         // Get filename from emulator
-        const filenamePtr = this.wasmModule._getDiskFilename(driveNum);
+        const filenamePtr = await this.wasmModule._getDiskFilename(driveNum);
         let filename = "Restored Disk";
         if (filenamePtr) {
-          filename = this.wasmModule.UTF8ToString(filenamePtr);
+          filename = await this.wasmModule.UTF8ToString(filenamePtr);
         }
 
         drive.filename = filename;

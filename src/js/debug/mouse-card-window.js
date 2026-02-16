@@ -206,7 +206,7 @@ export class MouseCardWindow extends BaseWindow {
     };
   }
 
-  update(wasmModule) {
+  async update(wasmModule) {
     if (!wasmModule) return;
     this.wasmModule = wasmModule;
 
@@ -216,7 +216,7 @@ export class MouseCardWindow extends BaseWindow {
 
     // Check if mouse card is installed
     const installed = wasmModule._isMouseCardInstalled
-      ? wasmModule._isMouseCardInstalled()
+      ? await wasmModule._isMouseCardInstalled()
       : false;
 
     this.updateIfChanged("installed", installed, this.elements.installed, (v) =>
@@ -233,46 +233,55 @@ export class MouseCardWindow extends BaseWindow {
 
     if (!installed || !wasmModule._getMouseCardState) return;
 
-    const state = (field) => wasmModule._getMouseCardState(field);
-    const pia = (reg) => wasmModule._getMouseCardPIARegister(reg);
+    // Batch read all state fields (0-17) and PIA registers (0-7)
+    const stateCalls = [];
+    for (let i = 0; i <= 17; i++) {
+      stateCalls.push(['_getMouseCardState', i]);
+    }
+    for (let i = 0; i < 8; i++) {
+      stateCalls.push(['_getMouseCardPIARegister', i]);
+    }
+    const allResults = await wasmModule.batch(stateCalls);
+    const stateVals = allResults.slice(0, 18);
+    const piaVals = allResults.slice(18, 26);
 
     // Slot
-    this.updateIfChanged("slot", state(0), this.elements.slot, (v) =>
+    this.updateIfChanged("slot", stateVals[0], this.elements.slot, (v) =>
       v.toString(),
     );
 
     // Position
-    this.updateIfChanged("x", state(1), this.elements.x, (v) =>
+    this.updateIfChanged("x", stateVals[1], this.elements.x, (v) =>
       v.toString(),
     );
-    this.updateIfChanged("y", state(2), this.elements.y, (v) =>
+    this.updateIfChanged("y", stateVals[2], this.elements.y, (v) =>
       v.toString(),
     );
 
     // Button
-    const btnDown = state(3) !== 0;
+    const btnDown = stateVals[3] !== 0;
     this.updateIfChanged("button", btnDown, this.elements.button, (v) =>
       v ? "DOWN" : "UP",
     );
     this.updateClassIfChanged("button-cls", btnDown, this.elements.button, "active");
 
     // Flags
-    this.updateClassIfChanged("moved", state(4) !== 0, this.elements.moved, "active");
+    this.updateClassIfChanged("moved", stateVals[4] !== 0, this.elements.moved, "active");
     this.updateClassIfChanged(
       "btnChanged",
-      state(5) !== 0,
+      stateVals[5] !== 0,
       this.elements.btnChanged,
       "active",
     );
 
     // Clamp bounds
-    const clampX = `${state(6)}..${state(7)}`;
-    const clampY = `${state(8)}..${state(9)}`;
+    const clampX = `${stateVals[6]}..${stateVals[7]}`;
+    const clampY = `${stateVals[8]}..${stateVals[9]}`;
     this.updateIfChanged("clampX", clampX, this.elements.clampX, (v) => v);
     this.updateIfChanged("clampY", clampY, this.elements.clampY, (v) => v);
 
     // Mode
-    const mode = state(15);
+    const mode = stateVals[15];
     this.updateIfChanged("modeHex", mode, this.elements.modeHex, (v) =>
       "$" + v.toString(16).toUpperCase(),
     );
@@ -282,17 +291,17 @@ export class MouseCardWindow extends BaseWindow {
     this.updateClassIfChanged("modeVbl", (mode & 8) !== 0, this.elements.modeVbl, "active");
 
     // IRQ state
-    const irqActive = state(10) !== 0;
+    const irqActive = stateVals[10] !== 0;
     this.updateIfChanged("irq", irqActive, this.elements.irq, (v) =>
       v ? "ACTIVE" : "OFF",
     );
     this.updateClassIfChanged("irq-cls", irqActive, this.elements.irq, "irq-active");
-    this.updateClassIfChanged("irqVbl", state(11) !== 0, this.elements.irqVbl, "active");
-    this.updateClassIfChanged("irqMov", state(12) !== 0, this.elements.irqMov, "active");
-    this.updateClassIfChanged("irqBtn", state(13) !== 0, this.elements.irqBtn, "active");
+    this.updateClassIfChanged("irqVbl", stateVals[11] !== 0, this.elements.irqVbl, "active");
+    this.updateClassIfChanged("irqMov", stateVals[12] !== 0, this.elements.irqMov, "active");
+    this.updateClassIfChanged("irqBtn", stateVals[13] !== 0, this.elements.irqBtn, "active");
 
     // VBL
-    const inVbl = state(14) !== 0;
+    const inVbl = stateVals[14] !== 0;
     this.updateIfChanged("inVbl", inVbl, this.elements.inVbl, (v) =>
       v ? "YES" : "NO",
     );
@@ -311,7 +320,7 @@ export class MouseCardWindow extends BaseWindow {
     ];
 
     for (const r of piaRegs) {
-      const val = pia(r.field);
+      const val = piaVals[r.field];
       this.updateIfChanged(
         `pia-${r.el}`,
         val,
@@ -327,14 +336,14 @@ export class MouseCardWindow extends BaseWindow {
     }
 
     // Protocol
-    const lastCmd = state(16);
+    const lastCmd = stateVals[16];
     this.updateIfChanged("cmdHex", lastCmd, this.elements.cmdHex, (v) =>
       "$" + v.toString(16).toUpperCase().padStart(2, "0"),
     );
     const cmdName = this.commandNames[lastCmd & 0xf0] || "?";
     this.updateIfChanged("cmdName", cmdName, this.elements.cmdName, (v) => v);
 
-    this.updateIfChanged("respState", state(17), this.elements.respState, (v) =>
+    this.updateIfChanged("respState", stateVals[17], this.elements.respState, (v) =>
       v.toString(),
     );
   }

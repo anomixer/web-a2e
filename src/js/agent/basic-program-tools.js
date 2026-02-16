@@ -136,8 +136,8 @@ export const basicProgramTools = {
     };
 
     // Read MEMSIZE ($73) - the ROM sets FRETOP to this on CLR/NEW
-    const memsizeLo = wasmModule._readMemory(0x73);
-    const memsizeHi = wasmModule._readMemory(0x74);
+    const memsizeLo = await wasmModule._readMemory(0x73);
+    const memsizeHi = await wasmModule._readMemory(0x74);
     const memsize = memsizeLo | (memsizeHi << 8);
 
     // Update Applesoft zero page pointers
@@ -215,8 +215,8 @@ export const basicProgramTools = {
     };
 
     // Read MEMSIZE ($73)
-    const memsizeLo = wasmModule._readMemory(0x73);
-    const memsizeHi = wasmModule._readMemory(0x74);
+    const memsizeLo = await wasmModule._readMemory(0x73);
+    const memsizeHi = await wasmModule._readMemory(0x74);
     const memsize = memsizeLo | (memsizeHi << 8);
 
     // TXTTAB - start of BASIC program area
@@ -682,9 +682,9 @@ export const basicProgramTools = {
     }
 
     // Check if paused at a BASIC breakpoint
-    const isPaused = wasmModule._isPaused();
+    const isPaused = await wasmModule._isPaused();
     const isBasicBreakpointHit = wasmModule._isBasicBreakpointHit
-      ? wasmModule._isBasicBreakpointHit()
+      ? await wasmModule._isBasicBreakpointHit()
       : false;
 
     if (!isPaused || !isBasicBreakpointHit) {
@@ -696,8 +696,8 @@ export const basicProgramTools = {
     }
 
     // Read CURLIN from zero page $75-$76
-    const lo = wasmModule._readMemory(0x75);
-    const hi = wasmModule._readMemory(0x76);
+    const lo = await wasmModule._readMemory(0x75);
+    const hi = await wasmModule._readMemory(0x76);
     const lineNumber = lo | (hi << 8);
 
     return {
@@ -839,17 +839,17 @@ export const basicProgramTools = {
     }
 
     // Check if emulator is paused
-    const isPaused = wasmModule._isPaused();
+    const isPaused = await wasmModule._isPaused();
     if (!isPaused) {
       throw new Error("Emulator must be paused at a breakpoint to step");
     }
 
     // Check if we're at a BASIC breakpoint or in BASIC program
     const isBasicBreakpointHit = wasmModule._isBasicBreakpointHit
-      ? wasmModule._isBasicBreakpointHit()
+      ? await wasmModule._isBasicBreakpointHit()
       : false;
     const isBasicRunning = wasmModule._isBasicProgramRunning
-      ? wasmModule._isBasicProgramRunning()
+      ? await wasmModule._isBasicProgramRunning()
       : false;
 
     if (!isBasicBreakpointHit && !isBasicRunning) {
@@ -857,14 +857,14 @@ export const basicProgramTools = {
     }
 
     // Helper to read CURLIN (current line number) from zero page $75-$76
-    const readCurlin = () => {
-      const lo = wasmModule._readMemory(0x75);
-      const hi = wasmModule._readMemory(0x76);
+    const readCurlin = async () => {
+      const lo = await wasmModule._readMemory(0x75);
+      const hi = await wasmModule._readMemory(0x76);
       return lo | (hi << 8);
     };
 
     // Get current line before stepping (read CURLIN from zero page)
-    const previousLine = readCurlin();
+    const previousLine = await readCurlin();
 
     // Clear breakpoint hit flag
     if (wasmModule._clearBasicBreakpointHit) {
@@ -882,7 +882,7 @@ export const basicProgramTools = {
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     // Get new line after stepping (read CURLIN again)
-    const currentLine = readCurlin();
+    const currentLine = await readCurlin();
 
     return {
       success: true,

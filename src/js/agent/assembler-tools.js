@@ -299,7 +299,7 @@ export const assemblerTools = {
       const NAMED_RETURNS = {
         "monitor": 0xFF69,
         "basic": 0xE003,
-        "auto": wasmModule._getPC(),
+        "auto": await wasmModule._getPC(),
       };
 
       if (typeof returnTo === "string") {
@@ -323,7 +323,7 @@ export const assemblerTools = {
 
       // RTS pops address and adds 1, so push (returnAddr - 1)
       const rtsAddr = (returnAddr - 1) & 0xFFFF;
-      const sp = wasmModule._getSP();
+      const sp = await wasmModule._getSP();
       wasmModule._writeMemory(0x0100 + sp, (rtsAddr >> 8) & 0xFF);
       wasmModule._writeMemory(0x0100 + ((sp - 1) & 0xFF), rtsAddr & 0xFF);
       wasmModule._setRegSP((sp - 2) & 0xFF);

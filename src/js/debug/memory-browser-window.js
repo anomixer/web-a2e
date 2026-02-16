@@ -229,7 +229,7 @@ export class MemoryBrowserWindow extends BaseWindow {
     }
   }
 
-  searchBytes() {
+  async searchBytes() {
     const input = this.searchInput.value.trim().replace(/\s/g, "");
     if (input.length === 0 || input.length % 2 !== 0) return;
 
@@ -244,9 +244,12 @@ export class MemoryBrowserWindow extends BaseWindow {
     const startAddr = this.baseAddress + 1;
     for (let i = 0; i < 65536; i++) {
       const addr = (startAddr + i) & 0xffff;
+      // Batch read the bytes we need to compare
+      const batchCalls = bytes.map((_, j) => ['_peekMemory', (addr + j) & 0xffff]);
+      const results = await this.wasmModule.batch(batchCalls);
       let found = true;
       for (let j = 0; j < bytes.length; j++) {
-        if (this.wasmModule._peekMemory((addr + j) & 0xffff) !== bytes[j]) {
+        if (results[j] !== bytes[j]) {
           found = false;
           break;
         }
@@ -296,8 +299,8 @@ export class MemoryBrowserWindow extends BaseWindow {
     this.regionNameSpan.textContent = "Unknown";
   }
 
-  startEditByte(addr) {
-    const currentValue = this.wasmModule._peekMemory(addr);
+  async startEditByte(addr) {
+    const currentValue = await this.wasmModule._peekMemory(addr);
     const newValueStr = prompt(
       `Edit $${this.formatHex(addr, 4)}\nCurrent value: $${this.formatHex(currentValue, 2)}`,
       this.formatHex(currentValue, 2),
@@ -319,15 +322,25 @@ export class MemoryBrowserWindow extends BaseWindow {
     return "Unknown";
   }
 
-  update(wasmModule) {
+  async update(wasmModule) {
     if (!this.isVisible || !this.contentDiv) return;
-    if (!wasmModule._isPaused() && !this.forceRefresh) return;
+    const isPaused = await wasmModule._isPaused();
+    if (!isPaused && !this.forceRefresh) return;
     this.forceRefresh = false;
 
     const now = Date.now();
     const fadeTime = 1000;
 
+    // Batch read all visible memory addresses
+    const totalBytes = Math.min(this.visibleRows * this.bytesPerRow, 0x10000 - this.baseAddress);
+    const batchCalls = [];
+    for (let i = 0; i < totalBytes; i++) {
+      batchCalls.push(['_peekMemory', this.baseAddress + i]);
+    }
+    const memValues = await wasmModule.batch(batchCalls);
+
     let html = "";
+    let memIdx = 0;
     for (let row = 0; row < this.visibleRows; row++) {
       const rowAddr = this.baseAddress + row * this.bytesPerRow;
       if (rowAddr >= 0x10000) break;
@@ -341,7 +354,7 @@ export class MemoryBrowserWindow extends BaseWindow {
         const addr = rowAddr + col;
         if (addr >= 0x10000) break;
 
-        const value = wasmModule._peekMemory(addr);
+        const value = memValues[memIdx];
         const prevValue = this.previousMemory[addr];
 
         if (value !== prevValue) {
@@ -369,14 +382,16 @@ export class MemoryBrowserWindow extends BaseWindow {
         }
 
         html += `<span class="${byteClass}" data-addr="${addr}">${this.formatHex(value, 2)}</span>`;
+        memIdx++;
       }
 
       // ASCII
       html += '<span class="mem-ascii">';
+      const asciiStart = row * this.bytesPerRow;
       for (let col = 0; col < this.bytesPerRow; col++) {
         const addr = rowAddr + col;
         if (addr >= 0x10000) break;
-        const value = wasmModule._peekMemory(addr);
+        const value = memValues[asciiStart + col];
         const ch = value & 0x7f;
         html += ch >= 0x20 && ch < 0x7f ? String.fromCharCode(ch) : ".";
       }

@@ -430,14 +430,14 @@ export class SoftSwitchWindow extends BaseWindow {
   /**
    * Update all soft switch states
    */
-  update(wasmModule) {
+  async update(wasmModule) {
     this.wasmModule = wasmModule;
 
     // Get both low and high 32-bit parts of the state
-    const stateLow = wasmModule._getSoftSwitchState();
-    const stateHigh = wasmModule._getSoftSwitchStateHigh
-      ? wasmModule._getSoftSwitchStateHigh()
-      : 0;
+    const [stateLow, stateHigh] = await wasmModule.batch([
+      ['_getSoftSwitchState'],
+      ['_getSoftSwitchStateHigh'],
+    ]);
 
     for (const group of this.switchGroups) {
       for (const sw of group.switches) {

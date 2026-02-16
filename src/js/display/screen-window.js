@@ -11,7 +11,7 @@ export class ScreenWindow extends BaseWindow {
   constructor(renderer, textSelection) {
     super({
       id: "screen-window",
-      title: "Monitor",
+      title: "Screen",
       minWidth: 284, // 280 min canvas + 4px padding/border
       minHeight: 244, // 210 min canvas + ~34px header
       defaultWidth: 480,
@@ -71,7 +71,9 @@ export class ScreenWindow extends BaseWindow {
       </label>
       <span class="cursor-keys-label cursor-keys-label-text">JOY</span>
     `;
-    this._cursorKeysCheckbox = this._cursorKeysSwitch.querySelector("#screen-window-cursor-keys-toggle");
+    this._cursorKeysCheckbox = this._cursorKeysSwitch.querySelector(
+      "#screen-window-cursor-keys-toggle",
+    );
 
     // Insert charset switch, cursor keys toggle, and lock button into header
     this.headerElement.appendChild(charsetSwitch);

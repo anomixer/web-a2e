@@ -52,16 +52,16 @@ export class StackViewerWindow extends BaseWindow {
     this.contentDiv = this.contentElement.querySelector(".stack-content");
   }
 
-  analyzeReturnAddress(lowByte, highByte) {
+  async analyzeReturnAddress(lowByte, highByte) {
     // Return addresses on 6502 are pushed as addr-1 (JSR pushes PC+2, which points to last byte of JSR)
     const retAddr = ((highByte << 8) | lowByte) + 1;
 
     if (retAddr > 0xffff) return null;
 
     // Try to disassemble the instruction at the return address
-    const disasm = this.wasmModule._disassembleAt(retAddr);
-    if (disasm) {
-      const disasmStr = this.wasmModule.UTF8ToString(disasm);
+    const disasmPtr = await this.wasmModule._disassembleAt(retAddr);
+    if (disasmPtr) {
+      const disasmStr = await this.wasmModule.UTF8ToString(disasmPtr);
       // Extract just the instruction mnemonic
       const match = disasmStr.match(/:\s*[0-9A-F ]+\s+(\w+)/);
       if (match) {
@@ -74,20 +74,22 @@ export class StackViewerWindow extends BaseWindow {
     return { addr: retAddr, instr: "???" };
   }
 
-  isLikelyReturnAddress(sp, wasmModule) {
+  async isLikelyReturnAddress(sp, wasmModule) {
     if (sp >= 0xfe) return false; // Need at least 2 bytes
 
-    const low = wasmModule._peekMemory(0x100 + sp + 1);
-    const high = wasmModule._peekMemory(0x100 + sp + 2);
+    const [low, high] = await wasmModule.batch([
+      ['_peekMemory', 0x100 + sp + 1],
+      ['_peekMemory', 0x100 + sp + 2],
+    ]);
     const addr = ((high << 8) | low) + 1;
 
-    return wasmModule._isLikelyReturnAddress(addr & 0xffff);
+    return await wasmModule._isLikelyReturnAddress(addr & 0xffff);
   }
 
-  update(wasmModule) {
+  async update(wasmModule) {
     if (!this.isVisible || !this.contentDiv) return;
 
-    const sp = wasmModule._getSP();
+    const sp = await wasmModule._getSP();
     const stackDepth = 0xff - sp;
 
     // Update SP display
@@ -109,41 +111,60 @@ export class StackViewerWindow extends BaseWindow {
       this.depthFill.classList.remove("warning", "danger");
     }
 
+    // Batch-read all stack bytes upfront
+    const batchCalls = [];
+    for (let addr = 0x1ff; addr > 0x100 + sp; addr--) {
+      batchCalls.push(['_peekMemory', addr]);
+    }
+    const stackBytes = stackDepth > 0 ? await wasmModule.batch(batchCalls) : [];
+    // stackBytes[0] = value at $01FF, stackBytes[1] = value at $01FE, etc.
+
+    // Also batch-read potential JSR check bytes
+    const jsrCheckCalls = [];
+    const jsrCheckAddrs = [];
+    let idx = 0;
+    for (let i = 0xff; i > sp; i--, idx++) {
+      if (i > sp + 1) {
+        const value = stackBytes[0xff - i];
+        const prevValue = stackBytes[0xff - (i - 1)];
+        const testAddr = ((value << 8) | prevValue) + 1;
+        if (
+          (testAddr >= 0x0800 && testAddr < 0xc000) ||
+          (testAddr >= 0xd000 && testAddr <= 0xffff)
+        ) {
+          const beforeRet = testAddr - 3;
+          if (beforeRet >= 0) {
+            jsrCheckCalls.push(['_peekMemory', beforeRet]);
+            jsrCheckAddrs.push({ i, testAddr, beforeRet });
+          }
+        }
+      }
+    }
+    const jsrCheckResults = jsrCheckCalls.length > 0 ? await wasmModule.batch(jsrCheckCalls) : [];
+    const jsrMap = new Map();
+    for (let j = 0; j < jsrCheckAddrs.length; j++) {
+      if (jsrCheckResults[j] === 0x20) {
+        jsrMap.set(jsrCheckAddrs[j].i, true);
+      }
+    }
+
     // Build stack view (from top of stack down to SP)
     let html = "";
-    let i = 0xff;
     let skipReturnAddr = false;
 
-    while (i > sp) {
+    for (let i = 0xff; i > sp; i--) {
       const addr = 0x100 + i;
-      const value = wasmModule._peekMemory(addr);
+      const value = stackBytes[0xff - i];
       const isSP = i === sp + 1; // Current top of stack
 
       // Try to detect return addresses (pairs of bytes)
       let returnInfo = null;
       let isReturnAddr = false;
 
-      if (i > sp + 1) {
-        // Check if this could be the high byte of a return address
-        const prevValue = wasmModule._peekMemory(0x100 + i - 1);
-        const testAddr = ((value << 8) | prevValue) + 1;
-
-        // Heuristic: return addresses typically point to ROM or program area
-        if (
-          (testAddr >= 0x0800 && testAddr < 0xc000) ||
-          (testAddr >= 0xd000 && testAddr <= 0xffff)
-        ) {
-          // Check if the instruction before the return address was a JSR
-          const beforeRet = testAddr - 3;
-          if (beforeRet >= 0) {
-            const possibleJSR = wasmModule._peekMemory(beforeRet);
-            if (possibleJSR === 0x20) {
-              // JSR opcode
-              isReturnAddr = true;
-              returnInfo = this.analyzeReturnAddress(prevValue, value);
-            }
-          }
-        }
+      if (i > sp + 1 && jsrMap.has(i)) {
+        const prevValue = stackBytes[0xff - (i - 1)];
+        isReturnAddr = true;
+        returnInfo = await this.analyzeReturnAddress(prevValue, value);
       }
 
       const classes = ["stack-entry"];
@@ -170,8 +191,6 @@ export class StackViewerWindow extends BaseWindow {
           <span class="stack-info-text">${infoStr}</span>
         </div>
       `;
-
-      i--;
     }
 
     // Add empty stack marker if stack is empty
@@ -183,19 +202,21 @@ export class StackViewerWindow extends BaseWindow {
     this.previousSP = sp;
 
     // Build call stack summary
-    this.updateCallStack(wasmModule, sp);
+    await this.updateCallStack(wasmModule, sp);
   }
 
   /**
    * Build a call stack summary by walking the stack for return addresses.
    * Display: current_PC → caller → caller → ...
    */
-  updateCallStack(wasmModule, sp) {
+  async updateCallStack(wasmModule, sp) {
     const callStackEl = this.contentElement.querySelector("#call-stack");
     if (!callStackEl) return;
 
-    const pc = wasmModule._getPC();
-    const count = wasmModule._getCallStack();
+    const [pc, count] = await wasmModule.batch([
+      ['_getPC'],
+      ['_getCallStack'],
+    ]);
 
     if (count === 0) {
       callStackEl.innerHTML = "";
@@ -203,14 +224,14 @@ export class StackViewerWindow extends BaseWindow {
     }
 
     // Read packed CallStackEntry structs (4 bytes each: uint16_t returnAddr, uint16_t jsrTarget)
-    const bufPtr = wasmModule._getCallStackBuffer();
-    const heap = wasmModule.HEAPU8;
+    const bufPtr = await wasmModule._getCallStackBuffer();
+    const heap = await wasmModule.heapRead(bufPtr, count * 4);
 
     let stackHtml = '<span class="call-stack-label">Call:</span> ';
     stackHtml += `<span class="call-stack-addr">$${this.formatHex(pc, 4)}</span>`;
 
     for (let i = 0; i < count; i++) {
-      const offset = bufPtr + i * 4;
+      const offset = i * 4;
       const retAddr = heap[offset] | (heap[offset + 1] << 8);
       const jsrTarget = heap[offset + 2] | (heap[offset + 3] << 8);
       stackHtml += ` ← <span class="call-stack-addr" title="Returns to $${this.formatHex(retAddr, 4)}">$${this.formatHex(jsrTarget, 4)}</span>`;

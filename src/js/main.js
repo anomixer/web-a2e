@@ -33,6 +33,7 @@ import { featureFlags } from "./config/feature-flags.js";
 import { DEFAULT_LAYOUT } from "./config/default-layout.js";
 import { WebGLRenderer } from "./display/webgl-renderer.js";
 import { AudioDriver } from "./audio/audio-driver.js";
+import { WasmProxy } from "./worker/wasm-proxy.js";
 import { InputHandler, TextSelection, JoystickWindow, MouseHandler, GamepadHandler } from "./input/index.js";
 import { DiskManager } from "./disk-manager/index.js";
 import { DiskDrivesWindow } from "./disk-manager/disk-drives-window.js";
@@ -102,25 +103,30 @@ class AppleIIeEmulator {
     this.showLoading(true);
 
     try {
-      // Load WASM module - use global function loaded via script tag
-      this.wasmModule = await window.createA2EModule();
-
-      // Initialize emulator
-      this.wasmModule._init();
+      // Load WASM module in a Web Worker via proxy
+      this.wasmModule = new WasmProxy();
+      await this.wasmModule.init('/a2e.js');
 
       // Set up renderer
       const canvas = document.getElementById("screen");
       this.renderer = new WebGLRenderer(canvas);
       await this.renderer.init();
 
-      // Set up audio driver (drives timing)
+      // Set up audio driver (relay mode — Worker generates samples)
       this.audioDriver = new AudioDriver(this.wasmModule);
 
-      // Connect audio-driven frame sync to rendering via rAF flag
-      // (avoids doing GPU texture uploads from the audio callback context,
-      // which causes stutters in Safari and Brave under heavy I/O)
+      // Audio-driven timing: AudioWorklet requests samples → Worker generates
+      this.audioDriver.onSamplesRequested = (count) => {
+        this.wasmModule.requestSamples(count);
+      };
+
+      // Connect Worker audio samples to AudioDriver relay
       this.frameReady = false;
-      this.audioDriver.onFrameReady = () => {
+      this.wasmModule.onAudioSamples = (samples) => {
+        this.audioDriver.relaySamples(samples);
+      };
+      this.wasmModule.onFrameReady = (fbData) => {
+        this._lastFramebuffer = fbData;
         this.frameReady = true;
       };
 
@@ -287,9 +293,9 @@ class AppleIIeEmulator {
       // Slot configuration window
       const slotConfigWindow = new SlotConfigurationWindow(
         this.wasmModule,
-        () => {
-          this.wasmModule._reset();
-          this.updateMouseHandlerState();
+        async () => {
+          await this.wasmModule._reset();
+          await this.updateMouseHandlerState();
           if (this.hardDriveManager) {
             this.hardDriveManager.syncWithEmulatorState();
           }
@@ -361,7 +367,7 @@ class AppleIIeEmulator {
       // Set up serial manager and Hayes modem for Super Serial Card
       this.serialManager = new SerialManager(this.wasmModule);
       this.modem = new HayesModem(this.wasmModule, this.serialManager);
-      this.wasmModule._setSerialTxCallback();
+      await this.wasmModule._setSerialTxCallback();
 
       // Serial connection window
       const serialConnectionWindow = new SerialConnectionWindow(this.modem);
@@ -434,13 +440,13 @@ class AppleIIeEmulator {
   /**
    * Check slot configuration and enable/disable mouse handler accordingly
    */
-  updateMouseHandlerState() {
-    if (!this.mouseHandler || !this.wasmModule._getSlotCard) return;
+  async updateMouseHandlerState() {
+    if (!this.mouseHandler) return;
     let mousePresent = false;
     for (let slot = 1; slot <= 7; slot++) {
-      const ptr = this.wasmModule._getSlotCard(slot);
+      const ptr = await this.wasmModule._getSlotCard(slot);
       if (ptr) {
-        const name = this.wasmModule.UTF8ToString(ptr);
+        const name = await this.wasmModule.UTF8ToString(ptr);
         if (name === "mouse") {
           mousePresent = true;
           break;
@@ -462,11 +468,11 @@ class AppleIIeEmulator {
     return this.running;
   }
 
-  start() {
+  async start() {
     if (this.running) return;
 
     if (this.inputHandler) this.inputHandler.cancelPaste();
-    this.wasmModule._reset();
+    await this.wasmModule._reset();
     this.running = true;
     this.renderer.setNoSignal(false);
     this.audioDriver.start();
@@ -476,15 +482,13 @@ class AppleIIeEmulator {
     console.log("Emulator powered on");
   }
 
-  stop() {
+  async stop() {
     if (!this.running) return;
 
     this.running = false;
     this.audioDriver.stop();
 
-    if (this.wasmModule._stopDiskMotor) {
-      this.wasmModule._stopDiskMotor();
-    }
+    this.wasmModule._stopDiskMotor();
 
     this.renderer.setNoSignal(true);
     if (this.uiController) {
@@ -494,10 +498,7 @@ class AppleIIeEmulator {
   }
 
   captureScreenshot() {
-    const fbPtr = this.wasmModule._getFramebuffer();
-    const fbSize = this.wasmModule._getFramebufferSize();
-    const heap = this.wasmModule.HEAPU8.buffer;
-    const fbData = new Uint8Array(heap, fbPtr, fbSize);
+    if (!this._lastFramebuffer) return null;
 
     const width = 560;
     const height = 384;
@@ -509,34 +510,23 @@ class AppleIIeEmulator {
       this._screenshotCtx = this._screenshotCanvas.getContext("2d");
     }
 
-    const copy = new Uint8ClampedArray(fbSize);
-    copy.set(fbData);
+    const copy = new Uint8ClampedArray(this._lastFramebuffer);
     const imageData = new ImageData(copy, width, height);
     this._screenshotCtx.putImageData(imageData, 0, 0);
     return this._screenshotCanvas.toDataURL("image/png");
   }
 
   renderFrame() {
-    const fbPtr = this.wasmModule._getFramebuffer();
-    const fbSize = this.wasmModule._getFramebufferSize();
-
-    // Reuse typed array view when possible (recreate only if WASM memory grew)
-    const heap = this.wasmModule.HEAPU8.buffer;
-    if (!this._fbView || this._fbViewBuffer !== heap || this._fbViewPtr !== fbPtr || this._fbViewSize !== fbSize) {
-      this._fbView = new Uint8Array(heap, fbPtr, fbSize);
-      this._fbViewBuffer = heap;
-      this._fbViewPtr = fbPtr;
-      this._fbViewSize = fbSize;
-    }
-
-    this.renderer.updateTexture(this._fbView);
+    if (!this._lastFramebuffer) return;
+    this.renderer.updateTexture(this._lastFramebuffer);
     this.renderer.draw();
   }
 
   startRenderLoop() {
     this._renderFrameCount = 0;
+    this._cachedIsPaused = false;
 
-    const render = () => {
+    const render = async () => {
       this._renderFrameCount++;
       this.windowManager.updateAll(this.wasmModule);
 
@@ -549,14 +539,18 @@ class AppleIIeEmulator {
         }
       }
 
+      // Poll pause state from Worker (async, cached for this frame)
+      if (this.running) {
+        this._cachedIsPaused = await this.wasmModule._isPaused();
+      }
+      const isPaused = this.running && this._cachedIsPaused;
+
       // Beam crosshair overlay — only when CPU debugger is open and CPU is paused
-      const isPaused = this.running && this.wasmModule._isPaused();
       if (isPaused && this.cpuDebuggerWindow && this.cpuDebuggerWindow.isVisible) {
-        const scanline = this.wasmModule._getBeamScanline();
-        const hPos = this.wasmModule._getBeamHPos();
-        // Map beam Y to center of scanline band (0–191 visible, ≥192 is VBL)
+        const [scanline, hPos] = await this.wasmModule.batch([
+          ['_getBeamScanline'], ['_getBeamHPos']
+        ]);
         this.renderer.setParam("beamY", scanline < 192 ? (scanline + 0.5) / 192.0 : -1.0);
-        // Map beam X to leading edge of column (hPos 25–64 → columns 0–39)
         this.renderer.setParam("beamX", hPos >= 25 ? (hPos - 25) / 40.0 : -1.0);
       } else {
         this.renderer.setParam("beamY", -1.0);
@@ -567,11 +561,10 @@ class AppleIIeEmulator {
         this.frameReady = false;
         this.renderFrame();
       } else if (!this.running || isPaused) {
-        // Force a complete re-render of the framebuffer from current video
-        // memory so the display shows the full screen after stepping/pausing,
-        // not a partial frame based on beam position.
         if (isPaused) {
-          this.wasmModule._forceRenderFrame();
+          await this.wasmModule._forceRenderFrame();
+          // After forcing render, the Worker will send a framebuffer via onFrameReady
+          // On next frame we'll pick it up. For now, re-draw with what we have.
           this.renderFrame();
         } else {
           this.renderer.draw();
@@ -596,9 +589,9 @@ class AppleIIeEmulator {
   /**
    * Clean up resources and remove event listeners.
    */
-  destroy() {
+  async destroy() {
     if (this.running) {
-      this.stop();
+      await this.stop();
     }
 
     if (this.stateManager) {
@@ -636,6 +629,10 @@ class AppleIIeEmulator {
       this.gamepadHandler = null;
     }
     
+    if (this.wasmModule && this.wasmModule.destroy) {
+      this.wasmModule.destroy();
+    }
+
     this.renderer = null;
     this.diskManager = null;
     this.hardDriveManager = null;

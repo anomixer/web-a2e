@@ -26,28 +26,28 @@ function getWasm() {
   return wasmModule;
 }
 
-function getSlotCard(wasmModule, slot) {
-  const ptr = wasmModule._getSlotCard(slot);
-  return ptr ? wasmModule.UTF8ToString(ptr) : "empty";
+async function getSlotCard(wasmModule, slot) {
+  const ptr = await wasmModule._getSlotCard(slot);
+  return ptr ? await wasmModule.UTF8ToString(ptr) : "empty";
 }
 
 function getSlotConfig(slot) {
   return SLOT_CONFIG.find(cfg => cfg.slot === slot);
 }
 
-function setSlotCardWasm(wasmModule, slot, cardId) {
-  const cardIdPtr = wasmModule._malloc(cardId.length + 1);
-  wasmModule.stringToUTF8(cardId, cardIdPtr, cardId.length + 1);
+async function setSlotCardWasm(wasmModule, slot, cardId) {
+  const cardIdPtr = await wasmModule._malloc(cardId.length + 1);
+  await wasmModule.stringToUTF8(cardId, cardIdPtr, cardId.length + 1);
   wasmModule._setSlotCard(slot, cardIdPtr);
-  wasmModule._free(cardIdPtr);
+  await wasmModule._free(cardIdPtr);
 }
 
-function persistSlotConfig(wasmModule) {
+async function persistSlotConfig(wasmModule) {
   try {
     const config = {};
     for (const cfg of SLOT_CONFIG) {
       if (!cfg.fixed) {
-        config[cfg.slot] = getSlotCard(wasmModule, cfg.slot);
+        config[cfg.slot] = await getSlotCard(wasmModule, cfg.slot);
       }
     }
     localStorage.setItem("a2e-slot-config", JSON.stringify(config));
@@ -71,12 +71,15 @@ export const slotTools = {
     const wasmModule = getWasm();
 
     // Get current card in every slot
-    const slotState = SLOT_CONFIG.map(cfg => ({
-      slot: cfg.slot,
-      currentCard: cfg.fixed ? "80col" : getSlotCard(wasmModule, cfg.slot),
-      fixed: cfg.fixed,
-      compatible: cfg.compatible,
-    }));
+    const slotState = [];
+    for (const cfg of SLOT_CONFIG) {
+      slotState.push({
+        slot: cfg.slot,
+        currentCard: cfg.fixed ? "80col" : await getSlotCard(wasmModule, cfg.slot),
+        fixed: cfg.fixed,
+        compatible: cfg.compatible,
+      });
+    }
 
     // Collect all cards currently installed
     const installedCards = {};
@@ -144,7 +147,7 @@ export const slotTools = {
     }
 
     const wasmModule = getWasm();
-    const currentCard = getSlotCard(wasmModule, slot);
+    const currentCard = await getSlotCard(wasmModule, slot);
 
     // Already installed in this slot
     if (currentCard === card) {
@@ -160,16 +163,16 @@ export const slotTools = {
     // If the card is installed in another slot, remove it from there
     let movedFrom = null;
     for (const c of SLOT_CONFIG) {
-      if (!c.fixed && c.slot !== slot && getSlotCard(wasmModule, c.slot) === card) {
-        setSlotCardWasm(wasmModule, c.slot, "empty");
+      if (!c.fixed && c.slot !== slot && await getSlotCard(wasmModule, c.slot) === card) {
+        await setSlotCardWasm(wasmModule, c.slot, "empty");
         movedFrom = c.slot;
         break;
       }
     }
 
     // Install the card
-    setSlotCardWasm(wasmModule, slot, card);
-    persistSlotConfig(wasmModule);
+    await setSlotCardWasm(wasmModule, slot, card);
+    await persistSlotConfig(wasmModule);
     wasmModule._reset();
 
     const displaced = currentCard !== "empty" ? currentCard : null;
@@ -211,7 +214,7 @@ export const slotTools = {
     }
 
     const wasmModule = getWasm();
-    const currentCard = getSlotCard(wasmModule, slot);
+    const currentCard = await getSlotCard(wasmModule, slot);
 
     if (currentCard === "empty") {
       return {
@@ -222,8 +225,8 @@ export const slotTools = {
       };
     }
 
-    setSlotCardWasm(wasmModule, slot, "empty");
-    persistSlotConfig(wasmModule);
+    await setSlotCardWasm(wasmModule, slot, "empty");
+    await persistSlotConfig(wasmModule);
     wasmModule._reset();
 
     return {
@@ -267,7 +270,7 @@ export const slotTools = {
     }
 
     const wasmModule = getWasm();
-    const card = getSlotCard(wasmModule, fromSlot);
+    const card = await getSlotCard(wasmModule, fromSlot);
 
     if (card === "empty") {
       throw new Error(`Slot ${fromSlot} is empty — nothing to move`);
@@ -279,16 +282,16 @@ export const slotTools = {
       );
     }
 
-    const occupant = getSlotCard(wasmModule, toSlot);
+    const occupant = await getSlotCard(wasmModule, toSlot);
     if (occupant !== "empty") {
       throw new Error(
         `Slot ${toSlot} is occupied by ${occupant}. Remove it first with slotsRemoveCard.`
       );
     }
 
-    setSlotCardWasm(wasmModule, fromSlot, "empty");
-    setSlotCardWasm(wasmModule, toSlot, card);
-    persistSlotConfig(wasmModule);
+    await setSlotCardWasm(wasmModule, fromSlot, "empty");
+    await setSlotCardWasm(wasmModule, toSlot, card);
+    await persistSlotConfig(wasmModule);
     wasmModule._reset();
 
     return {

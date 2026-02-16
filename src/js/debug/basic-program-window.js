@@ -739,8 +739,8 @@ export class BasicProgramWindow extends BaseWindow {
    * Read heat map data from the C++ emulator into this.lineHeatMap.
    * Converts raw execution counts to normalized 0.0–1.0 heat values.
    */
-  _readHeatMapFromWasm() {
-    const size = this.wasmModule._getBasicHeatMapSize();
+  async _readHeatMapFromWasm() {
+    const size = await this.wasmModule._getBasicHeatMapSize();
     if (size === 0) {
       this.lineHeatMap.clear();
       return;
@@ -748,14 +748,14 @@ export class BasicProgramWindow extends BaseWindow {
 
     const maxEntries = Math.min(size, 1024);
     // Allocate buffers: uint16_t[] for lines, uint32_t[] for counts
-    const linesPtr = this.wasmModule._malloc(maxEntries * 2);
-    const countsPtr = this.wasmModule._malloc(maxEntries * 4);
+    const linesPtr = await this.wasmModule._malloc(maxEntries * 2);
+    const countsPtr = await this.wasmModule._malloc(maxEntries * 4);
 
-    const count = this.wasmModule._getBasicHeatMapData(linesPtr, countsPtr, maxEntries);
+    const count = await this.wasmModule._getBasicHeatMapData(linesPtr, countsPtr, maxEntries);
 
     // Read data from WASM heap
-    const lines = new Uint16Array(this.wasmModule.HEAPU8.buffer, linesPtr, count);
-    const counts = new Uint32Array(this.wasmModule.HEAPU8.buffer, countsPtr, count);
+    const lines = await this.wasmModule.heapReadU16(linesPtr, count);
+    const counts = await this.wasmModule.heapReadU32(countsPtr, count);
 
     // Find max count for normalization
     let maxCount = 0;
@@ -1435,9 +1435,9 @@ export class BasicProgramWindow extends BaseWindow {
     }
   }
 
-  _isInBasic() {
+  async _isInBasic() {
     const emulatorOn = this.isRunningCallback ? this.isRunningCallback() : false;
-    return emulatorOn && this.wasmModule._peekMemory(0x33) === 0xDD;
+    return emulatorOn && await this.wasmModule._peekMemory(0x33) === 0xDD;
   }
 
   loadFromMemory() {
@@ -1463,7 +1463,7 @@ export class BasicProgramWindow extends BaseWindow {
     console.log(`Loaded ${lines.length} lines from memory`);
   }
 
-  loadIntoMemory() {
+  async loadIntoMemory() {
     if (this.isRunningCallback && !this.isRunningCallback()) {
       showToast("Emulator is off", "error");
       return;
@@ -1478,10 +1478,12 @@ export class BasicProgramWindow extends BaseWindow {
     // Allocate source string on WASM heap and call C++ tokenizer
     const encoder = new TextEncoder();
     const encoded = encoder.encode(text);
-    const ptr = this.wasmModule._malloc(encoded.length + 1);
-    this.wasmModule.HEAPU8.set(encoded, ptr);
-    this.wasmModule.HEAPU8[ptr + encoded.length] = 0; // null terminator
-    const result = this.wasmModule._loadBasicProgram(ptr);
+    const ptr = await this.wasmModule._malloc(encoded.length + 1);
+    const buf = new Uint8Array(encoded.length + 1);
+    buf.set(encoded);
+    buf[encoded.length] = 0; // null terminator
+    await this.wasmModule.heapWrite(ptr, buf);
+    const result = await this.wasmModule._loadBasicProgram(ptr);
     this.wasmModule._free(ptr);
 
     if (result === -1) {
@@ -1544,13 +1546,13 @@ export class BasicProgramWindow extends BaseWindow {
   /**
    * Run - Type RUN command into emulator to start BASIC program
    */
-  handleRun() {
+  async handleRun() {
     if (!this.isRunningCallback || !this.isRunningCallback()) {
       console.log("Emulator not running");
       return;
     }
 
-    const isPaused = this.wasmModule._isPaused();
+    const isPaused = await this.wasmModule._isPaused();
 
     if (isPaused) {
       // Continue from pause
@@ -1600,14 +1602,14 @@ export class BasicProgramWindow extends BaseWindow {
     this._breakpointHitLine = false;
   }
 
-  handleStop() {
+  async handleStop() {
     if (!this.isRunningCallback || !this.isRunningCallback()) {
       return;
     }
 
     this._clearBreakpointPulse();
     // Unpause if paused so the keystroke is processed
-    if (this.wasmModule._isPaused()) {
+    if (await this.wasmModule._isPaused()) {
       this.wasmModule._setPaused(false);
     }
 
@@ -1701,12 +1703,12 @@ export class BasicProgramWindow extends BaseWindow {
     return key;
   }
 
-  renderVariables() {
+  async renderVariables() {
     const now = Date.now();
     const fadeTime = 1000;
 
-    const variables = this.variableInspector.getSimpleVariables();
-    const arrays = this.variableInspector.getArrayVariables();
+    const variables = await this.variableInspector.getSimpleVariables();
+    const arrays = await this.variableInspector.getArrayVariables();
 
     if (variables.length === 0 && arrays.length === 0) {
       if (this._varStructureKey !== "empty") {
@@ -1722,15 +1724,15 @@ export class BasicProgramWindow extends BaseWindow {
 
     if (structureChanged) {
       this._varStructureKey = structureKey;
-      this._fullRenderVariables(variables, arrays);
+      await this._fullRenderVariables(variables, arrays);
       return;
     }
 
     // In-place value update — no DOM rebuild
-    this._updateVariableValues(variables, arrays);
+    await this._updateVariableValues(variables, arrays);
   }
 
-  _fullRenderVariables(variables, arrays) {
+  async _fullRenderVariables(variables, arrays) {
     let html = "";
 
     if (variables.length > 0) {
@@ -1740,7 +1742,7 @@ export class BasicProgramWindow extends BaseWindow {
         this.previousVariables.set(v.name, displayValue);
 
         const typeClass = `var-type-${v.type}`;
-        const isPaused = this.wasmModule._isPaused && this.wasmModule._isPaused();
+        const isPaused = this.wasmModule._isPaused ? await this.wasmModule._isPaused() : false;
         const editableClass = isPaused ? "editable" : "";
         html += `
           <div class="basic-dbg-var-row ${typeClass}" data-var-addr="${v.addr}" data-var-type="${v.type}">
@@ -1766,7 +1768,7 @@ export class BasicProgramWindow extends BaseWindow {
               <span class="basic-dbg-arr-info">${arr.totalElements} el</span>
             </div>
             <div class="basic-dbg-arr-body" style="display: ${isExpanded ? "block" : "none"}">
-              ${this.renderArrayContents(arr)}
+              ${await this.renderArrayContents(arr)}
             </div>
           </div>
         `;
@@ -1777,8 +1779,8 @@ export class BasicProgramWindow extends BaseWindow {
     this.varPanel.innerHTML = html;
   }
 
-  _updateVariableValues(variables, arrays) {
-    const isPaused = this.wasmModule._isPaused && this.wasmModule._isPaused();
+  async _updateVariableValues(variables, arrays) {
+    const isPaused = this.wasmModule._isPaused ? await this.wasmModule._isPaused() : false;
     // Update simple variable values in-place
     const rows = this.varPanel.querySelectorAll(".basic-dbg-var-row");
     for (let i = 0; i < variables.length && i < rows.length; i++) {
@@ -1935,11 +1937,11 @@ export class BasicProgramWindow extends BaseWindow {
   /**
    * Render array contents as a grid or table
    */
-  renderArrayContents(arr) {
+  async renderArrayContents(arr) {
     const dims = arr.dimensions;
     const values = arr.values;
     const type = arr.type;
-    const isPaused = this.wasmModule._isPaused && this.wasmModule._isPaused();
+    const isPaused = this.wasmModule._isPaused ? await this.wasmModule._isPaused() : false;
     const editClass = isPaused ? " editable" : "";
 
     // Format a single value using the same logic as simple variables
@@ -2017,9 +2019,9 @@ export class BasicProgramWindow extends BaseWindow {
   /**
    * Get the statement index for the current break position
    */
-  _getBreakStatementIndex(breakLine) {
+  async _getBreakStatementIndex(breakLine) {
     if (this.wasmModule._getBasicTxtptr) {
-      const txtptr = this.wasmModule._getBasicTxtptr();
+      const txtptr = await this.wasmModule._getBasicTxtptr();
       const info = this.programParser.getCurrentStatementInfo(breakLine, txtptr);
       if (info) return info.statementIndex;
     }
@@ -2142,17 +2144,17 @@ export class BasicProgramWindow extends BaseWindow {
   // Update Loop
   // ========================================
 
-  update(wasmModule) {
+  async update(wasmModule) {
     if (!this.isVisible) return;
 
     const now = Date.now();
     const state = this.programParser.getExecutionState();
-    const isPaused = wasmModule._isPaused();
+    const isPaused = await wasmModule._isPaused();
 
     // Track BASIC program running state from C++ ROM hooks ($D912=RUN, $D43C=RESTART)
     const isEditing = this.varPanel && this.varPanel.querySelector(".basic-dbg-var-edit");
     const programRunning = this.wasmModule._isBasicProgramRunning
-      ? this.wasmModule._isBasicProgramRunning()
+      ? await this.wasmModule._isBasicProgramRunning()
       : false;
 
     const emulatorOn = this.isRunningCallback ? this.isRunningCallback() : false;
@@ -2174,14 +2176,14 @@ export class BasicProgramWindow extends BaseWindow {
     // Auto-stop refresh when program ends or pauses
     if (this._varAutoRefresh && (!programRunning || isPaused)) {
       this._varAutoRefresh = false;
-      this.renderVariables();
+      await this.renderVariables();
     }
 
     // Refresh variables at 30fps while auto-refresh is active
     if (this._varAutoRefresh) {
       if (!this._lastVarUpdateTime || now - this._lastVarUpdateTime >= 33) {
         this._lastVarUpdateTime = now;
-        this.renderVariables();
+        await this.renderVariables();
       }
     }
 
@@ -2193,19 +2195,19 @@ export class BasicProgramWindow extends BaseWindow {
 
     // Check for BASIC breakpoint hit (breakpoint or step completion)
     // Track state transition to detect NEW breakpoint hits (not just being paused at one)
-    const basicBreakpointHit = isPaused && wasmModule._isBasicBreakpointHit();
+    const basicBreakpointHit = isPaused && await wasmModule._isBasicBreakpointHit();
     if (basicBreakpointHit && !this._lastBasicBreakpointHit) {
-      const breakLine = wasmModule._getBasicBreakLine();
+      const breakLine = await wasmModule._getBasicBreakLine();
 
       // Check if this was a line/statement breakpoint match
-      const stmtIdx = this._getBreakStatementIndex(breakLine);
+      const stmtIdx = await this._getBreakStatementIndex(breakLine);
       const bpEntry = this.breakpointManager.get(breakLine, stmtIdx)
         || this.breakpointManager.get(breakLine, -1);
 
       if (bpEntry) {
         // Line breakpoint matched - evaluate its condition if it has one
         if (bpEntry.condition) {
-          if (!this.breakpointManager.shouldBreak(bpEntry.lineNumber, bpEntry.statementIndex)) {
+          if (!await this.breakpointManager.shouldBreak(bpEntry.lineNumber, bpEntry.statementIndex)) {
             wasmModule._setPaused(false);
             if (wasmModule._clearBasicBreakpointHit) wasmModule._clearBasicBreakpointHit();
             this._lastBasicBreakpointHit = false;
@@ -2219,7 +2221,7 @@ export class BasicProgramWindow extends BaseWindow {
       this._breakpointHitLine = true;
       // Get statement info using TXTPTR from execution state
       if (wasmModule._getBasicTxtptr) {
-        const txtptr = wasmModule._getBasicTxtptr();
+        const txtptr = await wasmModule._getBasicTxtptr();
         this.currentStatementInfo = this.programParser.getCurrentStatementInfo(breakLine, txtptr);
       } else {
         this.currentStatementInfo = null;
@@ -2227,12 +2229,12 @@ export class BasicProgramWindow extends BaseWindow {
 
       this.updateGutter();
       this.updateHighlighting();
-      this.renderVariables();
+      await this.renderVariables();
 
       // Pulse the triggered breakpoint item
       this._clearBreakpointPulse();
       const condRuleId = wasmModule._getBasicConditionRuleHitId
-        ? wasmModule._getBasicConditionRuleHitId() : -1;
+        ? await wasmModule._getBasicConditionRuleHitId() : -1;
       if (condRuleId >= 0) {
         // Condition-only rule hit
         const el = this.bpList?.querySelector(
@@ -2252,10 +2254,12 @@ export class BasicProgramWindow extends BaseWindow {
     // so next RUN will properly detect the first breakpoint hit
     if (!state.running && this._lastProgramRunning) {
       // Check if program stopped due to a runtime error
-      if (this.wasmModule._isBasicErrorHit && this.wasmModule._isBasicErrorHit()) {
-        const errorLine = this.wasmModule._getBasicErrorLine();
-        const errorTxtptr = this.wasmModule._getBasicErrorTxtptr();
-        const errorCode = this.wasmModule._getBasicErrorCode();
+      if (this.wasmModule._isBasicErrorHit && await this.wasmModule._isBasicErrorHit()) {
+        const [errorLine, errorTxtptr, errorCode] = await this.wasmModule.batch([
+          ['_getBasicErrorLine'],
+          ['_getBasicErrorTxtptr'],
+          ['_getBasicErrorCode'],
+        ]);
         this._setError(errorLine, errorTxtptr, errorCode);
         this.wasmModule._clearBasicError();
       }
@@ -2300,7 +2304,7 @@ export class BasicProgramWindow extends BaseWindow {
       // Update statement info even if line hasn't changed (statement may have changed)
       let stmtInfo = null;
       if (wasmModule._getBasicTxtptr && state.currentLine !== null) {
-        const txtptr = wasmModule._getBasicTxtptr();
+        const txtptr = await wasmModule._getBasicTxtptr();
         stmtInfo = this.programParser.getCurrentStatementInfo(state.currentLine, txtptr);
       }
       const stmtChanged = this._statementInfoChanged(this.currentStatementInfo, stmtInfo);
@@ -2313,8 +2317,10 @@ export class BasicProgramWindow extends BaseWindow {
       }
     } else if (programRunning) {
       // While running, track the current line via CURLIN ($75-$76)
-      const curlinLo = this.wasmModule._peekMemory(0x75);
-      const curlinHi = this.wasmModule._peekMemory(0x76);
+      const [curlinLo, curlinHi] = await this.wasmModule.batch([
+        ['_peekMemory', 0x75],
+        ['_peekMemory', 0x76],
+      ]);
       // $FF in high byte means direct/immediate mode - not in a program line
       if (curlinHi !== 0xFF) {
         const runningLine = curlinLo | (curlinHi << 8);
@@ -2329,7 +2335,7 @@ export class BasicProgramWindow extends BaseWindow {
 
         // Heat map: read from C++ counters
         if (this.heatMapEnabled) {
-          this._readHeatMapFromWasm();
+          await this._readHeatMapFromWasm();
         }
 
         // Update gutter styles in-place when line changed or heat map active

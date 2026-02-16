@@ -187,8 +187,8 @@ export class InputHandler {
   }
 
   // Convert character to Apple II key code (for paste only)
-  charToAppleKey(char) {
-    const result = this.wasmModule._charToAppleKey(char.charCodeAt(0));
+  async charToAppleKey(char) {
+    const result = await this.wasmModule._charToAppleKey(char.charCodeAt(0));
     return result >= 0 ? result : null;
   }
 
@@ -196,7 +196,7 @@ export class InputHandler {
   // to keep the UI responsive and let the audio worklet drive emulation.
   // Speed multiplier (set via WASM) makes the audio-driven emulation run
   // faster, while small boost cycle batches handle immediate key processing.
-  processPasteQueue() {
+  async processPasteQueue() {
     if (this.pasteQueue.length === 0) {
       this.restorePasteSpeed();
       this.pasteTimer = null;
@@ -210,11 +210,11 @@ export class InputHandler {
     while (this.pasteQueue.length > 0 && performance.now() < batchEnd) {
       // Wait for keyboard ready, running small boost cycles until it is
       if (this.wasmModule._isKeyboardReady) {
-        while (!this.wasmModule._isKeyboardReady()) {
-          this.wasmModule._runCycles(BOOST_BATCH);
+        while (!await this.wasmModule._isKeyboardReady()) {
+          await this.wasmModule._runCycles(BOOST_BATCH);
           if (performance.now() >= batchEnd) break;
         }
-        if (!this.wasmModule._isKeyboardReady()) {
+        if (!await this.wasmModule._isKeyboardReady()) {
           break;
         }
       }
@@ -223,7 +223,7 @@ export class InputHandler {
       this.wasmModule._keyDown(appleKey);
 
       // Run a small burst to start processing the keystroke
-      this.wasmModule._runCycles(BOOST_BATCH);
+      await this.wasmModule._runCycles(BOOST_BATCH);
     }
 
     // Schedule next batch if more characters remain
@@ -241,10 +241,10 @@ export class InputHandler {
   }
 
   // Set emulation speed multiplier for fast paste/input
-  setPasteSpeed(multiplier) {
+  async setPasteSpeed(multiplier) {
     if (!this.pasteSpeedUp && this.wasmModule._setSpeedMultiplier) {
       this.savedSpeedMultiplier = this.wasmModule._getSpeedMultiplier
-        ? this.wasmModule._getSpeedMultiplier()
+        ? await this.wasmModule._getSpeedMultiplier()
         : 1;
       this.wasmModule._setSpeedMultiplier(multiplier);
       this.pasteSpeedUp = true;
@@ -274,12 +274,12 @@ export class InputHandler {
   // speedMultiplier: emulation speed during input (1=normal, 8=8x)
   // onStart: callback when pasting begins
   // onComplete: callback when pasting finishes (or is cancelled)
-  queueTextInput(text, { speedMultiplier = 8, onStart = null, onComplete = null } = {}) {
+  async queueTextInput(text, { speedMultiplier = 8, onStart = null, onComplete = null } = {}) {
     this.pasteOnComplete = onComplete;
-    this.setPasteSpeed(speedMultiplier);
+    await this.setPasteSpeed(speedMultiplier);
 
     for (const char of text) {
-      const appleKey = this.charToAppleKey(char);
+      const appleKey = await this.charToAppleKey(char);
       if (appleKey !== null) {
         this.pasteQueue.push(appleKey);
       }
@@ -387,8 +387,8 @@ export class InputHandler {
   }
 
   // Send a character to the emulator (for mobile input)
-  sendCharToEmulator(char) {
-    const appleKey = this.charToAppleKey(char);
+  async sendCharToEmulator(char) {
+    const appleKey = await this.charToAppleKey(char);
     if (appleKey !== null) {
       this.wasmModule._keyDown(appleKey);
     }

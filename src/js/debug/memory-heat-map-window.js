@@ -204,7 +204,7 @@ export class MemoryHeatMapWindow extends BaseWindow {
     this.countsSpan.textContent = "";
   }
 
-  showAddressInfo(addr, regions, prefix) {
+  async showAddressInfo(addr, regions, prefix) {
     if (addr < 0 || addr > 0xffff) return;
 
     this.addrSpan.textContent = `${prefix} $${this.formatHex(addr, 4)}`;
@@ -218,44 +218,59 @@ export class MemoryHeatMapWindow extends BaseWindow {
     }
 
     // Get counts from WASM memory
-    const readCountsPtr = this.wasmModule._getMemoryReadCounts();
-    const writeCountsPtr = this.wasmModule._getMemoryWriteCounts();
+    const [readCountsPtr, writeCountsPtr] = await this.wasmModule.batch([
+      ['_getMemoryReadCounts'],
+      ['_getMemoryWriteCounts'],
+    ]);
 
     if (readCountsPtr && writeCountsPtr) {
-      const readCount = this.wasmModule.HEAPU8[readCountsPtr + addr];
-      const writeCount = this.wasmModule.HEAPU8[writeCountsPtr + addr];
-      this.countsSpan.textContent = `R: ${readCount} W: ${writeCount}`;
+      const [readData, writeData] = await Promise.all([
+        this.wasmModule.heapRead(readCountsPtr + addr, 1),
+        this.wasmModule.heapRead(writeCountsPtr + addr, 1),
+      ]);
+      this.countsSpan.textContent = `R: ${readData[0]} W: ${writeData[0]}`;
     }
   }
 
-  update(wasmModule) {
+  async update(wasmModule) {
     if (!this.isVisible || !this.canvasMain || !this.canvasAux) return;
 
-    const readCountsPtr = wasmModule._getMemoryReadCounts();
-    const writeCountsPtr = wasmModule._getMemoryWriteCounts();
-    const mainRAMPtr = wasmModule._getMainRAM();
-    const auxRAMPtr = wasmModule._getAuxRAM();
-    const systemROMPtr = wasmModule._getSystemROM();
+    const [readCountsPtr, writeCountsPtr, mainRAMPtr, auxRAMPtr, systemROMPtr] = await wasmModule.batch([
+      ['_getMemoryReadCounts'],
+      ['_getMemoryWriteCounts'],
+      ['_getMainRAM'],
+      ['_getAuxRAM'],
+      ['_getSystemROM'],
+    ]);
 
     if (!readCountsPtr || !writeCountsPtr) return;
+
+    // Bulk-read all tracking and memory data
+    const [readCounts, writeCounts, mainRAM, systemROM, auxRAM] = await Promise.all([
+      wasmModule.heapRead(readCountsPtr, 65536),
+      wasmModule.heapRead(writeCountsPtr, 65536),
+      mainRAMPtr ? wasmModule.heapRead(mainRAMPtr, 0xc000) : null,
+      systemROMPtr ? wasmModule.heapRead(systemROMPtr, 0x4000) : null,
+      auxRAMPtr ? wasmModule.heapRead(auxRAMPtr, 65536) : null,
+    ]);
 
     // Update main memory canvas
     this.updateCanvas(
       this.imageDataMain,
       this.ctxMain,
-      readCountsPtr,
-      writeCountsPtr,
-      mainRAMPtr,
-      systemROMPtr,
+      readCounts,
+      writeCounts,
+      mainRAM,
+      systemROM,
     );
 
     // Update aux memory canvas
     this.updateCanvasAux(
       this.imageDataAux,
       this.ctxAux,
-      readCountsPtr,
-      writeCountsPtr,
-      auxRAMPtr,
+      readCounts,
+      writeCounts,
+      auxRAM,
     );
 
     // Apply decay if enabled
@@ -286,24 +301,23 @@ export class MemoryHeatMapWindow extends BaseWindow {
   updateCanvas(
     imageData,
     ctx,
-    readCountsPtr,
-    writeCountsPtr,
-    mainRAMPtr,
-    systemROMPtr,
+    readCounts,
+    writeCounts,
+    mainRAM,
+    systemROM,
   ) {
     const data = imageData.data;
-    const wasmModule = this.wasmModule;
 
     for (let addr = 0; addr < 65536; addr++) {
-      const readCount = wasmModule.HEAPU8[readCountsPtr + addr];
-      const writeCount = wasmModule.HEAPU8[writeCountsPtr + addr];
+      const readCount = readCounts[addr];
+      const writeCount = writeCounts[addr];
 
       // Get memory content for background brightness
       let memValue = 0;
-      if (mainRAMPtr && addr < 0xc000) {
-        memValue = wasmModule.HEAPU8[mainRAMPtr + addr];
-      } else if (systemROMPtr && addr >= 0xc000) {
-        memValue = wasmModule.HEAPU8[systemROMPtr + (addr - 0xc000)];
+      if (mainRAM && addr < 0xc000) {
+        memValue = mainRAM[addr];
+      } else if (systemROM && addr >= 0xc000) {
+        memValue = systemROM[addr - 0xc000];
       }
 
       const pixelIndex = addr * 4;
@@ -369,21 +383,20 @@ export class MemoryHeatMapWindow extends BaseWindow {
     ctx.putImageData(imageData, 0, 0);
   }
 
-  updateCanvasAux(imageData, ctx, readCountsPtr, writeCountsPtr, auxRAMPtr) {
+  updateCanvasAux(imageData, ctx, readCounts, writeCounts, auxRAM) {
     const data = imageData.data;
-    const wasmModule = this.wasmModule;
 
     for (let addr = 0; addr < 65536; addr++) {
       // Note: tracking counts are for the main address space
       // Aux memory accesses happen when RAMRD/RAMWRT are set
       // For now, show aux memory content with dimmed tracking overlay
-      const readCount = wasmModule.HEAPU8[readCountsPtr + addr];
-      const writeCount = wasmModule.HEAPU8[writeCountsPtr + addr];
+      const readCount = readCounts[addr];
+      const writeCount = writeCounts[addr];
 
       // Get aux memory content
       let memValue = 0;
-      if (auxRAMPtr) {
-        memValue = wasmModule.HEAPU8[auxRAMPtr + addr];
+      if (auxRAM) {
+        memValue = auxRAM[addr];
       }
 
       const pixelIndex = addr * 4;

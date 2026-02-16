@@ -13,13 +13,13 @@ import {
   addToRecentImages,
 } from "../disk-manager/hard-drive-persistence.js";
 
-function requireSmartPort() {
+async function requireSmartPort() {
   const wasmModule = window.emulator?.wasmModule;
   if (!wasmModule) {
     throw new Error("WASM module not available");
   }
   if (!wasmModule._isSmartPortCardInstalled ||
-      !wasmModule._isSmartPortCardInstalled()) {
+      !await wasmModule._isSmartPortCardInstalled()) {
     throw new Error(
       "SmartPort card is not installed. Use slotsInstallCard to install it in a compatible slot."
     );
@@ -53,7 +53,7 @@ export const smartportTools = {
 
     const deviceIndex = deviceNum - 1;
 
-    requireSmartPort();
+    await requireSmartPort();
 
     const hardDriveManager = window.emulator?.hardDriveManager;
     if (!hardDriveManager) {
@@ -149,7 +149,7 @@ export const smartportTools = {
 
     const deviceIndex = deviceNum - 1;
 
-    requireSmartPort();
+    await requireSmartPort();
 
     const hardDriveManager = window.emulator?.hardDriveManager;
     if (!hardDriveManager) {
@@ -226,7 +226,7 @@ export const smartportTools = {
 
     const deviceIndex = deviceNum - 1;
 
-    const wasmModule = requireSmartPort();
+    const wasmModule = await requireSmartPort();
 
     const hardDriveManager = window.emulator?.hardDriveManager;
     if (!hardDriveManager) {
