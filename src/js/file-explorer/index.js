@@ -294,10 +294,10 @@ export class FileExplorerWindow extends BaseWindow {
   /**
    * Show the source selector only when SmartPort card is installed
    */
-  updateSourceSelector() {
+  async updateSourceSelector() {
     const sourceSelector = this.element.querySelector(".fe-source-selector");
     const wasm = this.wasmModule;
-    const hasSmartPort = wasm._isSmartPortCardInstalled && wasm._isSmartPortCardInstalled();
+    const hasSmartPort = wasm._isSmartPortCardInstalled && await wasm._isSmartPortCardInstalled();
     sourceSelector.classList.toggle("hidden", !hasSmartPort);
     // Sync button active state
     sourceSelector.querySelectorAll(".fe-source-btn").forEach((b) => {
@@ -347,13 +347,13 @@ export class FileExplorerWindow extends BaseWindow {
     this.loadFloppyDisk();
   }
 
-  loadHardDrive() {
+  async loadHardDrive() {
     const wasm = this.wasmModule;
     const diskInfo = this.element.querySelector(".fe-disk-info");
     const catalogList = this.element.querySelector(".fe-catalog-list");
 
     // Check if HD image is inserted
-    if (!wasm._isSmartPortImageInserted(this.selectedDrive)) {
+    if (!await wasm._isSmartPortImageInserted(this.selectedDrive)) {
       diskInfo.textContent = "No image inserted";
       catalogList.innerHTML = '<div class="fe-empty">No image in device</div>';
       this.catalog = [];
@@ -365,14 +365,14 @@ export class FileExplorerWindow extends BaseWindow {
     }
 
     // Get block data pointer (raw ProDOS blocks, skipping any 2IMG header)
-    const sizePtr = wasm._malloc(4);
-    const dataPtr = wasm._getSmartPortBlockData(this.selectedDrive, sizePtr);
-    const size = new Uint32Array(wasm.HEAPU8.buffer, sizePtr, 1)[0];
-    wasm._free(sizePtr);
+    const sizePtr = await wasm._malloc(4);
+    const dataPtr = await wasm._getSmartPortBlockData(this.selectedDrive, sizePtr);
+    const size = (await wasm.heapReadU32(sizePtr, 1))[0];
+    await wasm._free(sizePtr);
 
     if (!dataPtr || size === 0) {
-      const filenamePtr = wasm._getSmartPortImageFilename(this.selectedDrive);
-      const filename = filenamePtr ? wasm.UTF8ToString(filenamePtr) : "Hard Drive";
+      const filenamePtr = await wasm._getSmartPortImageFilename(this.selectedDrive);
+      const filename = filenamePtr ? await wasm.UTF8ToString(filenamePtr) : "Hard Drive";
       diskInfo.textContent = filename;
       catalogList.innerHTML =
         '<div class="fe-empty">Cannot read block data</div>';
@@ -388,24 +388,24 @@ export class FileExplorerWindow extends BaseWindow {
     this.diskDataSize = size;
 
     // Get filename
-    const filenamePtr = wasm._getSmartPortImageFilename(this.selectedDrive);
-    const filename = filenamePtr ? wasm.UTF8ToString(filenamePtr) : "Unknown";
+    const filenamePtr = await wasm._getSmartPortImageFilename(this.selectedDrive);
+    const filename = filenamePtr ? await wasm.UTF8ToString(filenamePtr) : "Unknown";
 
     // HD images - try ProDOS first, then Pascal
-    if (wasm._isProDOSFormat(dataPtr, size)) {
+    if (await wasm._isProDOSFormat(dataPtr, size)) {
       this.diskFormat = "prodos";
-      wasm._getProDOSVolumeInfo(dataPtr, size);
-      const volumeName = wasm.UTF8ToString(wasm._getProDOSVolumeName());
+      await wasm._getProDOSVolumeInfo(dataPtr, size);
+      const volumeName = await wasm.UTF8ToString(await wasm._getProDOSVolumeName());
       this.volumeInfo = { volumeName };
       diskInfo.textContent = `${filename} (ProDOS: ${volumeName})`;
 
       this.currentPath = "";
       this.directoryStack = [];
       this.loadProDOSDirectory(2, "");
-    } else if (wasm._isPascalFormat(dataPtr, size)) {
+    } else if (await wasm._isPascalFormat(dataPtr, size)) {
       this.diskFormat = "pascal";
-      wasm._getPascalVolumeInfo(dataPtr, size);
-      const volumeName = wasm.UTF8ToString(wasm._getPascalVolumeName());
+      await wasm._getPascalVolumeInfo(dataPtr, size);
+      const volumeName = await wasm.UTF8ToString(await wasm._getPascalVolumeName());
       this.volumeInfo = { volumeName };
       diskInfo.textContent = `${filename} (Pascal: ${volumeName})`;
 
@@ -423,13 +423,13 @@ export class FileExplorerWindow extends BaseWindow {
     this.clearFileView();
   }
 
-  loadFloppyDisk() {
+  async loadFloppyDisk() {
     const wasm = this.wasmModule;
     const diskInfo = this.element.querySelector(".fe-disk-info");
     const catalogList = this.element.querySelector(".fe-catalog-list");
 
     // Check if disk is inserted
-    if (!wasm._isDiskInserted(this.selectedDrive)) {
+    if (!await wasm._isDiskInserted(this.selectedDrive)) {
       diskInfo.textContent = "No disk inserted";
       catalogList.innerHTML = '<div class="fe-empty">No disk in drive</div>';
       this.catalog = [];
@@ -441,14 +441,14 @@ export class FileExplorerWindow extends BaseWindow {
     }
 
     // Get disk sector data pointer (stays in WASM heap)
-    const sizePtr = wasm._malloc(4);
-    const dataPtr = wasm._getDiskSectorData(this.selectedDrive, sizePtr);
-    const size = new Uint32Array(wasm.HEAPU8.buffer, sizePtr, 1)[0];
-    wasm._free(sizePtr);
+    const sizePtr = await wasm._malloc(4);
+    const dataPtr = await wasm._getDiskSectorData(this.selectedDrive, sizePtr);
+    const size = (await wasm.heapReadU32(sizePtr, 1))[0];
+    await wasm._free(sizePtr);
 
     if (!dataPtr || size === 0) {
-      const filenamePtr = wasm._getDiskFilename(this.selectedDrive);
-      const filename = filenamePtr ? wasm.UTF8ToString(filenamePtr) : "Disk";
+      const filenamePtr = await wasm._getDiskFilename(this.selectedDrive);
+      const filename = filenamePtr ? await wasm.UTF8ToString(filenamePtr) : "Disk";
       diskInfo.textContent = filename;
       catalogList.innerHTML =
         '<div class="fe-empty">Cannot read sector data<br><small>Copy-protected or non-standard disk format</small></div>';
@@ -464,35 +464,36 @@ export class FileExplorerWindow extends BaseWindow {
     this.diskDataSize = size;
 
     // Get filename
-    const filenamePtr = wasm._getDiskFilename(this.selectedDrive);
-    const filename = filenamePtr ? wasm.UTF8ToString(filenamePtr) : "Unknown";
+    const filenamePtr = await wasm._getDiskFilename(this.selectedDrive);
+    const filename = filenamePtr ? await wasm.UTF8ToString(filenamePtr) : "Unknown";
 
     // Check disk format using WASM - try ProDOS first, then DOS 3.3
-    if (wasm._isProDOSFormat(dataPtr, size)) {
+    if (await wasm._isProDOSFormat(dataPtr, size)) {
       this.diskFormat = "prodos";
-      wasm._getProDOSVolumeInfo(dataPtr, size);
-      const volumeName = wasm.UTF8ToString(wasm._getProDOSVolumeName());
+      await wasm._getProDOSVolumeInfo(dataPtr, size);
+      const volumeName = await wasm.UTF8ToString(await wasm._getProDOSVolumeName());
       this.volumeInfo = { volumeName };
       diskInfo.textContent = `${filename} (ProDOS: ${volumeName})`;
 
       // Read ProDOS catalog via WASM
-      const count = wasm._getProDOSCatalog(dataPtr, size);
+      const count = await wasm._getProDOSCatalog(dataPtr, size);
       this.catalog = [];
       for (let i = 0; i < count; i++) {
+        const fileType = await wasm._getProDOSEntryFileType(i);
         this.catalog.push({
-          filename: wasm.UTF8ToString(wasm._getProDOSEntryFilename(i)),
-          path: wasm.UTF8ToString(wasm._getProDOSEntryPath(i)),
-          fileType: wasm._getProDOSEntryFileType(i),
-          fileTypeName: wasm.UTF8ToString(wasm._getProDOSEntryFileTypeName(i)),
+          filename: await wasm.UTF8ToString(await wasm._getProDOSEntryFilename(i)),
+          path: await wasm.UTF8ToString(await wasm._getProDOSEntryPath(i)),
+          fileType: fileType,
+          fileTypeName: await wasm.UTF8ToString(await wasm._getProDOSEntryFileTypeName(i)),
           fileTypeDescription:
-            PRODOS_FILE_DESCRIPTIONS[wasm._getProDOSEntryFileType(i)] ||
+            PRODOS_FILE_DESCRIPTIONS[fileType] ||
             "Unknown",
-          storageType: wasm._getProDOSEntryStorageType(i),
-          eof: wasm._getProDOSEntryEOF(i),
-          auxType: wasm._getProDOSEntryAuxType(i),
-          blocksUsed: wasm._getProDOSEntryBlocksUsed(i),
-          isLocked: wasm._getProDOSEntryIsLocked(i),
-          isDirectory: wasm._getProDOSEntryIsDirectory(i),
+          storageType: await wasm._getProDOSEntryStorageType(i),
+          eof: await wasm._getProDOSEntryEOF(i),
+          auxType: await wasm._getProDOSEntryAuxType(i),
+          blocksUsed: await wasm._getProDOSEntryBlocksUsed(i),
+          isLocked: await wasm._getProDOSEntryIsLocked(i),
+          isDirectory: await wasm._getProDOSEntryIsDirectory(i),
           _wasmIndex: i,
         });
       }
@@ -500,31 +501,32 @@ export class FileExplorerWindow extends BaseWindow {
       // Reset to root directory and render
       this.currentPath = "";
       this.renderProDOSCatalog();
-    } else if (wasm._isPascalFormat(dataPtr, size)) {
+    } else if (await wasm._isPascalFormat(dataPtr, size)) {
       this.diskFormat = "pascal";
-      wasm._getPascalVolumeInfo(dataPtr, size);
-      const volumeName = wasm.UTF8ToString(wasm._getPascalVolumeName());
+      await wasm._getPascalVolumeInfo(dataPtr, size);
+      const volumeName = await wasm.UTF8ToString(await wasm._getPascalVolumeName());
       this.volumeInfo = { volumeName };
       diskInfo.textContent = `${filename} (Pascal: ${volumeName})`;
 
-      this.loadPascalCatalog();
-    } else if (wasm._isDOS33Format(dataPtr, size)) {
+      await this.loadPascalCatalog();
+    } else if (await wasm._isDOS33Format(dataPtr, size)) {
       this.diskFormat = "dos33";
       diskInfo.textContent = `${filename} (DOS 3.3)`;
 
       // Read DOS 3.3 catalog via WASM
-      const count = wasm._getDOS33Catalog(dataPtr, size);
+      const count = await wasm._getDOS33Catalog(dataPtr, size);
       this.catalog = [];
       for (let i = 0; i < count; i++) {
+        const fileType = await wasm._getDOS33EntryFileType(i);
         this.catalog.push({
-          filename: wasm.UTF8ToString(wasm._getDOS33EntryFilename(i)),
-          fileType: wasm._getDOS33EntryFileType(i),
-          fileTypeName: wasm.UTF8ToString(wasm._getDOS33EntryFileTypeName(i)),
+          filename: await wasm.UTF8ToString(await wasm._getDOS33EntryFilename(i)),
+          fileType: fileType,
+          fileTypeName: await wasm.UTF8ToString(await wasm._getDOS33EntryFileTypeName(i)),
           fileTypeDescription:
-            DOS33_FILE_DESCRIPTIONS[wasm._getDOS33EntryFileType(i)] ||
+            DOS33_FILE_DESCRIPTIONS[fileType] ||
             "Unknown",
-          isLocked: wasm._getDOS33EntryIsLocked(i),
-          sectorCount: wasm._getDOS33EntrySectorCount(i),
+          isLocked: await wasm._getDOS33EntryIsLocked(i),
+          sectorCount: await wasm._getDOS33EntrySectorCount(i),
           _wasmIndex: i,
         });
       }
@@ -562,41 +564,45 @@ export class FileExplorerWindow extends BaseWindow {
    * Load a single ProDOS directory on-demand (for HD mode).
    * For floppies, the full catalog is small enough to load at once.
    */
-  loadProDOSDirectory(startBlock, path) {
+  async loadProDOSDirectory(startBlock, path) {
     const wasm = this.wasmModule;
     const catalogList = this.element.querySelector(".fe-catalog-list");
 
     // Allocate path string in WASM heap
     const pathBytes = new TextEncoder().encode(path);
-    const pathPtr = wasm._malloc(pathBytes.length + 1);
-    wasm.HEAPU8.set(pathBytes, pathPtr);
-    wasm.HEAPU8[pathPtr + pathBytes.length] = 0;
+    const pathPtr = await wasm._malloc(pathBytes.length + 1);
+    // Write path bytes + null terminator
+    const pathWithNull = new Uint8Array(pathBytes.length + 1);
+    pathWithNull.set(pathBytes);
+    pathWithNull[pathBytes.length] = 0;
+    await wasm.heapWrite(pathPtr, pathWithNull);
 
-    const count = wasm._getProDOSDirectory(
+    const count = await wasm._getProDOSDirectory(
       this.diskDataPtr,
       this.diskDataSize,
       startBlock,
       pathPtr,
     );
-    wasm._free(pathPtr);
+    await wasm._free(pathPtr);
 
     this.catalog = [];
     for (let i = 0; i < count; i++) {
+      const fileType = await wasm._getProDOSEntryFileType(i);
       this.catalog.push({
-        filename: wasm.UTF8ToString(wasm._getProDOSEntryFilename(i)),
-        path: wasm.UTF8ToString(wasm._getProDOSEntryPath(i)),
-        fileType: wasm._getProDOSEntryFileType(i),
-        fileTypeName: wasm.UTF8ToString(wasm._getProDOSEntryFileTypeName(i)),
+        filename: await wasm.UTF8ToString(await wasm._getProDOSEntryFilename(i)),
+        path: await wasm.UTF8ToString(await wasm._getProDOSEntryPath(i)),
+        fileType: fileType,
+        fileTypeName: await wasm.UTF8ToString(await wasm._getProDOSEntryFileTypeName(i)),
         fileTypeDescription:
-          PRODOS_FILE_DESCRIPTIONS[wasm._getProDOSEntryFileType(i)] ||
+          PRODOS_FILE_DESCRIPTIONS[fileType] ||
           "Unknown",
-        storageType: wasm._getProDOSEntryStorageType(i),
-        eof: wasm._getProDOSEntryEOF(i),
-        auxType: wasm._getProDOSEntryAuxType(i),
-        blocksUsed: wasm._getProDOSEntryBlocksUsed(i),
-        isLocked: wasm._getProDOSEntryIsLocked(i),
-        isDirectory: wasm._getProDOSEntryIsDirectory(i),
-        keyPointer: wasm._getProDOSEntryKeyPointer(i),
+        storageType: await wasm._getProDOSEntryStorageType(i),
+        eof: await wasm._getProDOSEntryEOF(i),
+        auxType: await wasm._getProDOSEntryAuxType(i),
+        blocksUsed: await wasm._getProDOSEntryBlocksUsed(i),
+        isLocked: await wasm._getProDOSEntryIsLocked(i),
+        isDirectory: await wasm._getProDOSEntryIsDirectory(i),
+        keyPointer: await wasm._getProDOSEntryKeyPointer(i),
         _wasmIndex: i,
       });
     }
@@ -610,7 +616,7 @@ export class FileExplorerWindow extends BaseWindow {
   /**
    * Load and render the Pascal catalog (flat directory, no subdirectories)
    */
-  loadPascalCatalog() {
+  async loadPascalCatalog() {
     const wasm = this.wasmModule;
     const catalogList = this.element.querySelector(".fe-catalog-list");
     const pathBar = this.element.querySelector(".fe-path-bar");
@@ -619,17 +625,18 @@ export class FileExplorerWindow extends BaseWindow {
     pathBar.classList.add("hidden");
     pathBar.innerHTML = "";
 
-    const count = wasm._getPascalCatalog(this.diskDataPtr, this.diskDataSize);
+    const count = await wasm._getPascalCatalog(this.diskDataPtr, this.diskDataSize);
     this.catalog = [];
     for (let i = 0; i < count; i++) {
+      const fileType = await wasm._getPascalEntryFileType(i);
       this.catalog.push({
-        filename: wasm.UTF8ToString(wasm._getPascalEntryFilename(i)),
-        fileType: wasm._getPascalEntryFileType(i),
-        fileTypeName: wasm.UTF8ToString(wasm._getPascalEntryFileTypeName(i)),
+        filename: await wasm.UTF8ToString(await wasm._getPascalEntryFilename(i)),
+        fileType: fileType,
+        fileTypeName: await wasm.UTF8ToString(await wasm._getPascalEntryFileTypeName(i)),
         fileTypeDescription:
-          PASCAL_FILE_DESCRIPTIONS[wasm._getPascalEntryFileType(i)] || "Unknown",
-        fileSize: wasm._getPascalEntryFileSize(i),
-        blocksUsed: wasm._getPascalEntryBlocksUsed(i),
+          PASCAL_FILE_DESCRIPTIONS[fileType] || "Unknown",
+        fileSize: await wasm._getPascalEntryFileSize(i),
+        blocksUsed: await wasm._getPascalEntryBlocksUsed(i),
         _wasmIndex: i,
       });
     }
@@ -797,7 +804,7 @@ export class FileExplorerWindow extends BaseWindow {
     this.showFileContents();
   }
 
-  showFileContents() {
+  async showFileContents() {
     const titleEl = this.element.querySelector(".fe-file-title");
     const infoEl = this.element.querySelector(".fe-file-info");
     const contentEl = this.element.querySelector(".fe-file-content");
@@ -883,42 +890,39 @@ export class FileExplorerWindow extends BaseWindow {
         let bytesRead;
 
         if (this.diskFormat === "pascal") {
-          bytesRead = wasm._readPascalFile(
+          bytesRead = await wasm._readPascalFile(
             this.diskDataPtr,
             this.diskDataSize,
             wasmIdx,
           );
-          const bufPtr = wasm._getPascalFileBuffer();
-          const fileData = new Uint8Array(bytesRead);
-          fileData.set(new Uint8Array(wasm.HEAPU8.buffer, bufPtr, bytesRead));
+          const bufPtr = await wasm._getPascalFileBuffer();
+          const fileData = await wasm.heapRead(bufPtr, bytesRead);
           this.currentFileData = {
             filename: cacheKey,
             data: fileData,
             fileType: this.selectedFile.fileType,
           };
         } else if (this.diskFormat === "prodos") {
-          bytesRead = wasm._readProDOSFile(
+          bytesRead = await wasm._readProDOSFile(
             this.diskDataPtr,
             this.diskDataSize,
             wasmIdx,
           );
-          const bufPtr = wasm._getProDOSFileBuffer();
-          const fileData = new Uint8Array(bytesRead);
-          fileData.set(new Uint8Array(wasm.HEAPU8.buffer, bufPtr, bytesRead));
+          const bufPtr = await wasm._getProDOSFileBuffer();
+          const fileData = await wasm.heapRead(bufPtr, bytesRead);
           this.currentFileData = {
             filename: cacheKey,
             data: fileData,
             fileType: this.selectedFile.fileType,
           };
         } else {
-          bytesRead = wasm._readDOS33File(
+          bytesRead = await wasm._readDOS33File(
             this.diskDataPtr,
             this.diskDataSize,
             wasmIdx,
           );
-          const bufPtr = wasm._getDOS33FileBuffer();
-          const fileData = new Uint8Array(bytesRead);
-          fileData.set(new Uint8Array(wasm.HEAPU8.buffer, bufPtr, bytesRead));
+          const bufPtr = await wasm._getDOS33FileBuffer();
+          const fileData = await wasm.heapRead(bufPtr, bytesRead);
           this.currentFileData = {
             filename: cacheKey,
             data: fileData,
@@ -1037,9 +1041,9 @@ export class FileExplorerWindow extends BaseWindow {
         // Non-binary files - use formatFileContents with mapped file type
         let viewerFileType;
         if (this.diskFormat === "pascal") {
-          viewerFileType = wasm._mapPascalFileType(this.selectedFile.fileType);
+          viewerFileType = await wasm._mapPascalFileType(this.selectedFile.fileType);
         } else if (this.diskFormat === "prodos") {
-          viewerFileType = wasm._mapProDOSFileType(this.selectedFile.fileType);
+          viewerFileType = await wasm._mapProDOSFileType(this.selectedFile.fileType);
         } else {
           viewerFileType = this.selectedFile.fileType;
         }
@@ -1088,7 +1092,7 @@ export class FileExplorerWindow extends BaseWindow {
         // ProDOS and Pascal files don't have the 2-byte length header that DOS 3.3 files have
         this.hexDisplayState = null;
         const hasLengthHeader = this.diskFormat === "dos33";
-        const formatted = formatFileContents(fileData, viewerFileType, {
+        const formatted = await formatFileContents(fileData, viewerFileType, {
           hasLengthHeader,
         });
         contentEl.className = `fe-file-content ${formatted.format}`;

@@ -14,7 +14,7 @@ import { showToast } from "./toast.js";
  */
 export class SlotConfigurationWindow extends BaseWindow {
   constructor(wasmModule, onResetCallback) {
-    const maxHeight = 700;
+    const maxHeight = 720;
     super({
       id: "slot-configuration",
       title: "Expansion Slots",
@@ -169,10 +169,10 @@ export class SlotConfigurationWindow extends BaseWindow {
     }
   }
 
-  create() {
+  async create() {
     super.create();
-    this.applyInitialSettings();
-    this.initSlotAssignments();
+    await this.applyInitialSettings();
+    await this.initSlotAssignments();
     this.setupContentEventListeners();
     this.updateView();
   }
@@ -180,11 +180,11 @@ export class SlotConfigurationWindow extends BaseWindow {
   /**
    * Initialize working slot assignments from current WASM state or saved settings
    */
-  initSlotAssignments() {
+  async initSlotAssignments() {
     this.slotAssignments = {};
     for (const slotInfo of this.slots) {
       if (slotInfo.fixed) continue;
-      const card = this.getCurrentSlotCard(slotInfo.slot);
+      const card = await this.getCurrentSlotCard(slotInfo.slot);
       if (card && card !== "empty") {
         this.slotAssignments[slotInfo.slot] = card;
       }
@@ -476,15 +476,15 @@ export class SlotConfigurationWindow extends BaseWindow {
 
   // ---- Existing logic (preserved) ----
 
-  getCurrentSlotCard(slot) {
+  async getCurrentSlotCard(slot) {
     if (this.pendingChanges[slot]) {
       return this.pendingChanges[slot];
     }
 
     if (this.wasmModule && this.wasmModule._getSlotCard) {
-      const ptr = this.wasmModule._getSlotCard(slot);
+      const ptr = await this.wasmModule._getSlotCard(slot);
       if (ptr) {
-        return this.wasmModule.UTF8ToString(ptr);
+        return await this.wasmModule.UTF8ToString(ptr);
       }
     }
 
@@ -512,7 +512,7 @@ export class SlotConfigurationWindow extends BaseWindow {
     }
   }
 
-  applyChanges() {
+  async applyChanges() {
     this.saveSettings();
 
     if (this.wasmModule && this.wasmModule._setSlotCard) {
@@ -521,10 +521,14 @@ export class SlotConfigurationWindow extends BaseWindow {
         if (slotInfo.fixed) continue;
         const slotNum = slotInfo.slot;
         const cardId = this.slotAssignments[slotNum] || "empty";
-        const cardIdPtr = this.wasmModule._malloc(cardId.length + 1);
-        this.wasmModule.stringToUTF8(cardId, cardIdPtr, cardId.length + 1);
+        const cardIdPtr = await this.wasmModule._malloc(cardId.length + 1);
+        await this.wasmModule.stringToUTF8(
+          cardId,
+          cardIdPtr,
+          cardId.length + 1,
+        );
         this.wasmModule._setSlotCard(slotNum, cardIdPtr);
-        this.wasmModule._free(cardIdPtr);
+        await this.wasmModule._free(cardIdPtr);
       }
     }
 
@@ -543,16 +547,20 @@ export class SlotConfigurationWindow extends BaseWindow {
     showToast("Expansion slot configuration updated", "info");
   }
 
-  applyInitialSettings() {
+  async applyInitialSettings() {
     const saved = this.loadSettingsFromStorage();
     const config = saved || { 5: "smartport", 7: "thunderclock" };
     if (this.wasmModule && this.wasmModule._setSlotCard) {
       for (const [slot, cardId] of Object.entries(config)) {
         const slotNum = parseInt(slot, 10);
-        const cardIdPtr = this.wasmModule._malloc(cardId.length + 1);
-        this.wasmModule.stringToUTF8(cardId, cardIdPtr, cardId.length + 1);
+        const cardIdPtr = await this.wasmModule._malloc(cardId.length + 1);
+        await this.wasmModule.stringToUTF8(
+          cardId,
+          cardIdPtr,
+          cardId.length + 1,
+        );
         this.wasmModule._setSlotCard(slotNum, cardIdPtr);
-        this.wasmModule._free(cardIdPtr);
+        await this.wasmModule._free(cardIdPtr);
       }
     }
 

@@ -2141,7 +2141,7 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     this.errorsOverlay.innerHTML = html;
   }
 
-  doAssemble() {
+  async doAssemble() {
     // Format all lines before assembling
     this.formatAllLines();
 
@@ -2180,15 +2180,17 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     // Allocate source string in WASM heap
     const wasm = this.wasmModule;
     const sourceLen = text.length + 1;
-    const sourcePtr = wasm._malloc(sourceLen);
-    wasm.stringToUTF8(text, sourcePtr, sourceLen);
+    const sourcePtr = await wasm._malloc(sourceLen);
+    await wasm.stringToUTF8(text, sourcePtr, sourceLen);
 
-    const success = wasm._assembleSource(sourcePtr);
+    const success = await wasm._assembleSource(sourcePtr);
     wasm._free(sourcePtr);
 
     if (success) {
-      const size = wasm._getAsmOutputSize();
-      const origin = wasm._getAsmOrigin();
+      const [size, origin] = await wasm.batch([
+        ['_getAsmOutputSize'],
+        ['_getAsmOrigin'],
+      ]);
       this.lastAssembledSize = size;
       this.lastOrigin = origin;
       this.setStatus(
@@ -2200,11 +2202,11 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
 
       // Store symbols for byte encoding
       this.symbols.clear();
-      const symbolCount = wasm._getAsmSymbolCount();
+      const symbolCount = await wasm._getAsmSymbolCount();
       for (let i = 0; i < symbolCount; i++) {
-        const namePtr = wasm._getAsmSymbolName(i);
-        const name = wasm.UTF8ToString(namePtr);
-        const value = wasm._getAsmSymbolValue(i);
+        const namePtr = await wasm._getAsmSymbolName(i);
+        const name = await wasm.UTF8ToString(namePtr);
+        const value = await wasm._getAsmSymbolValue(i);
         this.symbols.set(name.toUpperCase(), value);
       }
 
@@ -2223,10 +2225,10 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
       // Re-encode all lines with resolved symbols
       this.encodeAllLineBytes();
 
-      this.updateSymbolTable(wasm);
-      this.updateHexOutput(wasm, origin, size);
+      await this.updateSymbolTable(wasm);
+      await this.updateHexOutput(wasm, origin, size);
     } else {
-      const errorCount = wasm._getAsmErrorCount();
+      const errorCount = await wasm._getAsmErrorCount();
       this.setStatus(
         `${errorCount} error${errorCount !== 1 ? "s" : ""}`,
         false,
@@ -2236,9 +2238,9 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
 
       // Collect errors
       for (let i = 0; i < errorCount; i++) {
-        const line = wasm._getAsmErrorLine(i);
-        const msgPtr = wasm._getAsmErrorMessage(i);
-        const msg = wasm.UTF8ToString(msgPtr);
+        const line = await wasm._getAsmErrorLine(i);
+        const msgPtr = await wasm._getAsmErrorMessage(i);
+        const msg = await wasm.UTF8ToString(msgPtr);
 
         if (line >= 1) {
           this.errors.set(line, msg);
@@ -2255,8 +2257,8 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     this.updateCyclesGutter();
   }
 
-  updateSymbolTable(wasm) {
-    const count = wasm._getAsmSymbolCount();
+  async updateSymbolTable(wasm) {
+    const count = await wasm._getAsmSymbolCount();
 
     // Update count badge
     if (this.symbolsCount) {
@@ -2277,9 +2279,9 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     const equates = [];
 
     for (let i = 0; i < count; i++) {
-      const namePtr = wasm._getAsmSymbolName(i);
-      const name = wasm.UTF8ToString(namePtr);
-      const value = wasm._getAsmSymbolValue(i);
+      const namePtr = await wasm._getAsmSymbolName(i);
+      const name = await wasm.UTF8ToString(namePtr);
+      const value = await wasm._getAsmSymbolValue(i);
       const hex =
         "$" + (value & 0xffff).toString(16).toUpperCase().padStart(4, "0");
       const isLocal = name.startsWith(":") || name.startsWith("]");
@@ -2324,7 +2326,7 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     this.symbolsContent.innerHTML = html;
   }
 
-  updateHexOutput(wasm, origin, size) {
+  async updateHexOutput(wasm, origin, size) {
     // Update count badge
     if (this.hexCount) {
       this.hexCount.textContent = size > 0 ? `${size} bytes` : "";
@@ -2339,8 +2341,8 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
       return;
     }
 
-    const bufPtr = wasm._getAsmOutputBuffer();
-    const data = new Uint8Array(wasm.HEAPU8.buffer, bufPtr, size);
+    const bufPtr = await wasm._getAsmOutputBuffer();
+    const data = await wasm.heapRead(bufPtr, size);
 
     // Header showing range
     const endAddr = origin + size - 1;

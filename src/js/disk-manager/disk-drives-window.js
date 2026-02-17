@@ -145,35 +145,35 @@ export class DiskDrivesWindow extends BaseWindow {
   /**
    * Update technical details from WASM state (called by WindowManager.updateAll)
    */
-  update(wasmModule) {
+  async update(wasmModule) {
     if (!this._detailsOpen) return;
 
-    const selectedDrive = wasmModule._getSelectedDrive();
-    const lastByte = wasmModule._getLastDiskByte();
+    const selectedDrive = await wasmModule._getSelectedDrive();
+    const lastByte = await wasmModule._getLastDiskByte();
 
     for (let d = 0; d < 2; d++) {
       const prefix = `dd-d${d + 1}`;
       const el = (id) => this.contentElement.querySelector(`#${prefix}-${id}`);
 
       const qt = el("qt");
-      if (qt) qt.textContent = wasmModule._getDiskHeadPosition(d);
+      if (qt) qt.textContent = await wasmModule._getDiskHeadPosition(d);
 
       const phase = el("phase");
-      if (phase) phase.textContent = wasmModule._getDiskPhase(d);
+      if (phase) phase.textContent = await wasmModule._getDiskPhase(d);
 
       const nibble = el("nibble");
-      if (nibble) nibble.textContent = wasmModule._getCurrentNibblePosition(d);
+      if (nibble) nibble.textContent = await wasmModule._getCurrentNibblePosition(d);
 
       const motor = el("motor");
       if (motor) {
-        const on = wasmModule._getDiskMotorOn(d);
+        const on = await wasmModule._getDiskMotorOn(d);
         motor.textContent = on ? "ON" : "OFF";
         motor.classList.toggle("on", on);
       }
 
       const mode = el("mode");
       if (mode) {
-        const w = wasmModule._getDiskWriteMode(d);
+        const w = await wasmModule._getDiskWriteMode(d);
         mode.textContent = w ? "Write" : "Read";
         mode.classList.toggle("write", w);
       }

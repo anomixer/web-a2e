@@ -453,12 +453,14 @@ let currentRenderer = null;
  * Structure: 16 bytes per instruction
  * Layout: [address:2][target:2][length:1][opcode:1][op1:1][op2:1][mode:1][cat:1][mnem:4][pad:2]
  */
-function parseInstructions(ptr, count) {
+async function parseInstructions(ptr, count) {
   const instructions = [];
-  const heap = wasmModule.HEAPU8;
+  // Read all instruction data in one batch
+  const totalBytes = count * 16;
+  const heap = await wasmModule.heapRead(ptr, totalBytes);
 
   for (let i = 0; i < count; i++) {
-    const offset = ptr + i * 16;
+    const offset = i * 16;
 
     // Read mnemonic as string (4 chars, null-terminated)
     let mnemonic = '';
@@ -516,12 +518,12 @@ export async function disassemble(data, targetElement) {
   }
 
   // Copy data to WASM memory
-  const dataPtr = wasmModule._malloc(codeData.length);
-  wasmModule.HEAPU8.set(codeData, dataPtr);
+  const dataPtr = await wasmModule._malloc(codeData.length);
+  await wasmModule.heapWrite(dataPtr, codeData);
 
   // Call C++ disassembler with flow analysis (recursive descent)
-  const count = wasmModule._disassembleWithFlowAnalysis(dataPtr, codeData.length, baseAddress);
-  wasmModule._free(dataPtr);
+  const count = await wasmModule._disassembleWithFlowAnalysis(dataPtr, codeData.length, baseAddress);
+  await wasmModule._free(dataPtr);
 
   if (count === 0) {
     targetElement.innerHTML = '<pre><span class="dis-comment">; No instructions</span></pre>';
@@ -529,8 +531,8 @@ export async function disassemble(data, targetElement) {
   }
 
   // Get pointer to instruction array
-  const instrPtr = wasmModule._getDisasmInstructions();
-  const codeInstructions = parseInstructions(instrPtr, count);
+  const instrPtr = await wasmModule._getDisasmInstructions();
+  const codeInstructions = await parseInstructions(instrPtr, count);
 
   // Build complete listing with code and data gaps filled
   const listing = buildCompleteListing(codeInstructions, codeData, baseAddress);

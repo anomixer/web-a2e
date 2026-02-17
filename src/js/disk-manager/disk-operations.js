@@ -19,21 +19,21 @@ import {
  * @param {string} filename - The disk filename
  * @returns {boolean} True if successful
  */
-function insertDiskToWasm(wasmModule, driveNum, data, filename) {
+async function insertDiskToWasm(wasmModule, driveNum, data, filename) {
   // Allocate memory for disk data
-  const dataPtr = wasmModule._malloc(data.length);
-  wasmModule.HEAPU8.set(data, dataPtr);
+  const dataPtr = await wasmModule._malloc(data.length);
+  await wasmModule.heapWrite(dataPtr, data);
 
   // Allocate string for filename
-  const filenamePtr = wasmModule._malloc(filename.length + 1);
-  wasmModule.stringToUTF8(filename, filenamePtr, filename.length + 1);
+  const filenamePtr = await wasmModule._malloc(filename.length + 1);
+  await wasmModule.stringToUTF8(filename, filenamePtr, filename.length + 1);
 
   // Insert disk
-  const success = wasmModule._insertDisk(driveNum, dataPtr, data.length, filenamePtr);
+  const success = await wasmModule._insertDisk(driveNum, dataPtr, data.length, filenamePtr);
 
   // Free memory
-  wasmModule._free(dataPtr);
-  wasmModule._free(filenamePtr);
+  await wasmModule._free(dataPtr);
+  await wasmModule._free(filenamePtr);
 
   return success;
 }
@@ -53,7 +53,7 @@ export async function loadDisk({ wasmModule, drive, driveNum, file, onSuccess, o
     const arrayBuffer = await file.arrayBuffer();
     const data = new Uint8Array(arrayBuffer);
 
-    const success = insertDiskToWasm(wasmModule, driveNum, data, file.name);
+    const success = await insertDiskToWasm(wasmModule, driveNum, data, file.name);
 
     if (success) {
       drive.filename = file.name;
@@ -90,9 +90,9 @@ export async function loadDisk({ wasmModule, drive, driveNum, file, onSuccess, o
  * @param {Function} [options.onSuccess] - Callback on successful load
  * @param {Function} [options.onError] - Callback on error
  */
-export function loadDiskFromData({ wasmModule, drive, driveNum, filename, data, onSuccess, onError }) {
+export async function loadDiskFromData({ wasmModule, drive, driveNum, filename, data, onSuccess, onError }) {
   try {
-    const success = insertDiskToWasm(wasmModule, driveNum, data, filename);
+    const success = await insertDiskToWasm(wasmModule, driveNum, data, filename);
 
     if (success) {
       drive.filename = filename;
@@ -120,11 +120,11 @@ export function loadDiskFromData({ wasmModule, drive, driveNum, filename, data, 
  * @param {Function} [options.onSuccess] - Callback on successful insert
  * @param {Function} [options.onError] - Callback on error
  */
-export function insertBlankDisk({ wasmModule, drive, driveNum, onSuccess, onError }) {
+export async function insertBlankDisk({ wasmModule, drive, driveNum, onSuccess, onError }) {
   const filename = "Blank Disk.woz";
 
   // Use the WASM function to create and insert a blank disk
-  const success = wasmModule._insertBlankDisk(driveNum);
+  const success = await wasmModule._insertBlankDisk(driveNum);
 
   if (success) {
     drive.filename = filename;
@@ -172,7 +172,7 @@ export function performEject({ wasmModule, drive, driveNum, onEject }) {
 export async function ejectDisk({ wasmModule, drive, driveNum, onEject }) {
   // Check if disk is modified
   const hasModifiedCheck = typeof wasmModule._isDiskModified === "function";
-  const isModified = hasModifiedCheck && wasmModule._isDiskModified(driveNum);
+  const isModified = hasModifiedCheck && await wasmModule._isDiskModified(driveNum);
 
   if (isModified) {
     // Generate suggested filename
@@ -198,40 +198,32 @@ export async function ejectDisk({ wasmModule, drive, driveNum, onEject }) {
  * @returns {Promise<boolean>} True if saved successfully
  */
 export async function saveDiskWithPicker(wasmModule, driveNum, suggestedName) {
-  const sizePtr = wasmModule._malloc(4);
+  const sizePtr = await wasmModule._malloc(4);
   if (!sizePtr) {
     console.error("saveDiskWithPicker: failed to allocate size pointer");
     return false;
   }
 
-  const dataPtr = wasmModule._getDiskData(driveNum, sizePtr);
+  const dataPtr = await wasmModule._getDiskData(driveNum, sizePtr);
 
   if (!dataPtr) {
     console.error("saveDiskWithPicker: _getDiskData returned null");
-    wasmModule._free(sizePtr);
+    await wasmModule._free(sizePtr);
     return false;
   }
 
   // Read size from WASM memory (little-endian 32-bit value)
-  const heap = wasmModule.HEAPU8;
-  const size =
-    heap[sizePtr] |
-    (heap[sizePtr + 1] << 8) |
-    (heap[sizePtr + 2] << 16) |
-    (heap[sizePtr + 3] << 24);
+  const size = await wasmModule.heapDataViewU32(sizePtr);
 
   if (size <= 0 || size > 10000000) {
     console.error(`saveDiskWithPicker: invalid size ${size}`);
-    wasmModule._free(sizePtr);
+    await wasmModule._free(sizePtr);
     return false;
   }
 
-  const data = new Uint8Array(wasmModule.HEAPU8.buffer, dataPtr, size);
+  const dataCopy = await wasmModule.heapRead(dataPtr, size);
 
-  // Create a copy of the data since the WASM buffer may become invalid
-  const dataCopy = new Uint8Array(data);
-
-  wasmModule._free(sizePtr);
+  await wasmModule._free(sizePtr);
 
   // Try to use File System Access API (modern browsers)
   if ("showSaveFilePicker" in window) {

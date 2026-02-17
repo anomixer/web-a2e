@@ -3,14 +3,18 @@ import { resolve } from "path";
 import { copyFileSync, mkdirSync } from "fs";
 import { serialProxyPlugin } from "./plugins/serial-proxy-plugin.js";
 
-// Plugin to copy audio worklet file (can't be bundled)
-const copyAudioWorklet = () => ({
-  name: "copy-audio-worklet",
+// Plugin to copy audio worklet and emulator worker files (can't be bundled)
+const copyWorkerFiles = () => ({
+  name: "copy-worker-files",
   writeBundle() {
     mkdirSync(resolve(__dirname, "dist"), { recursive: true });
     copyFileSync(
       resolve(__dirname, "src/js/audio/audio-worklet.js"),
       resolve(__dirname, "dist/audio-worklet.js"),
+    );
+    copyFileSync(
+      resolve(__dirname, "src/js/worker/emulator-worker.js"),
+      resolve(__dirname, "dist/emulator-worker.js"),
     );
   },
 });
@@ -93,5 +97,5 @@ export default defineConfig({
     exclude: ["a2e.js"],
   },
 
-  plugins: [serialProxyPlugin(), copyAudioWorklet()],
+  plugins: [serialProxyPlugin(), copyWorkerFiles()],
 });

@@ -462,9 +462,9 @@ export class MockingboardWindow extends BaseWindow {
   /**
    * Allocate WASM buffer for waveform data (called once)
    */
-  allocateWaveformBuffer() {
+  async allocateWaveformBuffer() {
     if (!this.waveformBufferPtr && this.wasmModule?._malloc) {
-      this.waveformBufferPtr = this.wasmModule._malloc(
+      this.waveformBufferPtr = await this.wasmModule._malloc(
         this.waveformSampleCount * 4,
       );
     }
@@ -510,18 +510,17 @@ export class MockingboardWindow extends BaseWindow {
     super.destroy();
   }
 
-  getState() {
+  async getState() {
     const base = super.getState();
     if (this.wasmModule?._getMockingboardChannelMute) {
-      const muteState = [];
+      const batchCalls = [];
       for (let psg = 0; psg < 2; psg++) {
         for (let ch = 0; ch < 3; ch++) {
-          muteState.push(
-            !!this.wasmModule._getMockingboardChannelMute(psg, ch),
-          );
+          batchCalls.push(['_getMockingboardChannelMute', psg, ch]);
         }
       }
-      base.channelMutes = muteState;
+      const results = await this.wasmModule.batch(batchCalls);
+      base.channelMutes = results.map(v => !!v);
     }
     return base;
   }
@@ -533,14 +532,14 @@ export class MockingboardWindow extends BaseWindow {
     super.restoreState(state);
   }
 
-  update(wasmModule) {
+  async update(wasmModule) {
     if (!wasmModule) return;
     this.wasmModule = wasmModule;
 
     // Cache elements on first update
     if (!this.elements) {
       this.cacheElements();
-      this.allocateWaveformBuffer();
+      await this.allocateWaveformBuffer();
       this.updateCanvasColors();
     }
 
@@ -570,37 +569,37 @@ export class MockingboardWindow extends BaseWindow {
     // Set up mute handlers once
     if (!this.muteHandlerAttached && this.contentElement) {
       this.muteHandlerAttached = true;
-      this.contentElement.addEventListener("click", (e) => {
+      this.contentElement.addEventListener("click", async (e) => {
         const muteBtn = e.target.closest(".mb-mute-btn");
         if (muteBtn && this.wasmModule?._setMockingboardChannelMute) {
           const psg = parseInt(muteBtn.dataset.psg, 10) - 1;
           const ch = parseInt(muteBtn.dataset.ch, 10);
-          const currentlyMuted = this.wasmModule._getMockingboardChannelMute(
+          const currentlyMuted = await this.wasmModule._getMockingboardChannelMute(
             psg,
             ch,
           );
           this.wasmModule._setMockingboardChannelMute(psg, ch, !currentlyMuted);
-          this.updateMuteState();
+          await this.updateMuteState();
           if (this.onStateChange) this.onStateChange();
         }
       });
     }
 
     // Update enabled status
-    this.updateEnabled(wasmModule);
+    await this.updateEnabled(wasmModule);
 
     // Update channels
-    this.updateChannels(wasmModule);
-    this.updateWaveforms(wasmModule);
-    this.updateMuteState();
+    await this.updateChannels(wasmModule);
+    await this.updateWaveforms(wasmModule);
+    await this.updateMuteState();
 
     // Update VIA status
-    this.updateVIAStatus(wasmModule);
+    await this.updateVIAStatus(wasmModule);
   }
 
-  updateEnabled(wasmModule) {
+  async updateEnabled(wasmModule) {
     const enabled = wasmModule._isMockingboardEnabled
-      ? wasmModule._isMockingboardEnabled()
+      ? await wasmModule._isMockingboardEnabled()
       : true;
     const key = "enabled";
     if (this.prevValues[key] !== enabled) {
@@ -613,7 +612,7 @@ export class MockingboardWindow extends BaseWindow {
     }
   }
 
-  updateChannels(wasmModule) {
+  async updateChannels(wasmModule) {
     if (!wasmModule._getMockingboardPSGRegister) return;
 
     const channelRegs = [
@@ -622,16 +621,32 @@ export class MockingboardWindow extends BaseWindow {
       [4, 5], // Channel C tone fine/coarse
     ];
 
+    // Batch all PSG register reads for both PSGs:
+    // Per PSG: R7, R0-R5 (tone fine/coarse), R8-R10 (amp), R11-R13 (env), R6 (noise) = 14 regs
+    const batchCalls = [];
+    for (let psg = 0; psg < 2; psg++) {
+      batchCalls.push(['_getMockingboardPSGRegister', psg, 7]);  // R7
+      for (let ch = 0; ch < 3; ch++) {
+        batchCalls.push(['_getMockingboardPSGRegister', psg, channelRegs[ch][0]]); // fine
+        batchCalls.push(['_getMockingboardPSGRegister', psg, channelRegs[ch][1]]); // coarse
+        batchCalls.push(['_getMockingboardPSGRegister', psg, 8 + ch]);             // amp
+      }
+      batchCalls.push(['_getMockingboardPSGRegister', psg, 13]); // env shape
+      batchCalls.push(['_getMockingboardPSGRegister', psg, 11]); // env fine
+      batchCalls.push(['_getMockingboardPSGRegister', psg, 12]); // env coarse
+      batchCalls.push(['_getMockingboardPSGRegister', psg, 6]);  // noise
+    }
+    const results = await wasmModule.batch(batchCalls);
+
+    let ri = 0; // result index
     for (let psg = 0; psg < 2; psg++) {
       const psgEl = this.elements.psg[psg];
-      const r7 = wasmModule._getMockingboardPSGRegister(psg, 7);
+      const r7 = results[ri++];
 
       for (let ch = 0; ch < 3; ch++) {
         // Frequency and note
-        const fineReg = channelRegs[ch][0];
-        const coarseReg = channelRegs[ch][1];
-        const fine = wasmModule._getMockingboardPSGRegister(psg, fineReg);
-        const coarse = wasmModule._getMockingboardPSGRegister(psg, coarseReg);
+        const fine = results[ri++];
+        const coarse = results[ri++];
         const period = fine | ((coarse & 0x0f) << 8);
         const freq = period > 0 ? Math.round(1023000 / (8 * period)) : 0;
 
@@ -668,7 +683,7 @@ export class MockingboardWindow extends BaseWindow {
         }
 
         // Volume / envelope mode
-        const ampReg = wasmModule._getMockingboardPSGRegister(psg, 8 + ch);
+        const ampReg = results[ri++];
         const useEnv = (ampReg & 0x10) !== 0;
         const vol = ampReg & 0x0f;
 
@@ -693,7 +708,7 @@ export class MockingboardWindow extends BaseWindow {
       }
 
       // Envelope shape and frequency
-      const envShape = wasmModule._getMockingboardPSGRegister(psg, 13);
+      const envShape = results[ri++];
       const envShapeKey = `psg${psg}envShape`;
       if (this.prevValues[envShapeKey] !== envShape) {
         this.prevValues[envShapeKey] = envShape;
@@ -702,8 +717,8 @@ export class MockingboardWindow extends BaseWindow {
         }
       }
 
-      const envFine = wasmModule._getMockingboardPSGRegister(psg, 11);
-      const envCoarse = wasmModule._getMockingboardPSGRegister(psg, 12);
+      const envFine = results[ri++];
+      const envCoarse = results[ri++];
       const envPeriod = envFine | (envCoarse << 8);
       const envFreq =
         envPeriod > 0 ? (1023000 / (256 * envPeriod)).toFixed(1) : 0;
@@ -716,7 +731,7 @@ export class MockingboardWindow extends BaseWindow {
       }
 
       // Noise frequency
-      const noisePeriod = wasmModule._getMockingboardPSGRegister(psg, 6);
+      const noisePeriod = results[ri++];
       const noiseFreq =
         noisePeriod > 0 ? (1023000 / (16 * noisePeriod)).toFixed(1) : 0;
       const noiseFreqKey = `psg${psg}noiseFreq`;
@@ -729,13 +744,22 @@ export class MockingboardWindow extends BaseWindow {
     }
   }
 
-  updateMuteState() {
+  async updateMuteState() {
     if (!this.wasmModule?._getMockingboardChannelMute) return;
 
+    const batchCalls = [];
+    for (let psg = 0; psg < 2; psg++) {
+      for (let ch = 0; ch < 3; ch++) {
+        batchCalls.push(['_getMockingboardChannelMute', psg, ch]);
+      }
+    }
+    const muteResults = await this.wasmModule.batch(batchCalls);
+
+    let ri = 0;
     for (let psg = 0; psg < 2; psg++) {
       const psgEl = this.elements.psg[psg];
       for (let ch = 0; ch < 3; ch++) {
-        const isMuted = this.wasmModule._getMockingboardChannelMute(psg, ch);
+        const isMuted = muteResults[ri++];
         const key = `mute${psg}${ch}`;
         if (this.prevValues[key] !== isMuted) {
           this.prevValues[key] = isMuted;
@@ -747,12 +771,11 @@ export class MockingboardWindow extends BaseWindow {
     }
   }
 
-  updateWaveforms(wasmModule) {
+  async updateWaveforms(wasmModule) {
     if (!wasmModule._getMockingboardWaveform || !this.waveformBufferPtr) return;
 
     const colors = [CHANNEL_COLORS.a, CHANNEL_COLORS.b, CHANNEL_COLORS.c];
     const sampleCount = this.waveformSampleCount;
-    const heapOffset = this.waveformBufferPtr >> 2;
 
     for (let psg = 0; psg < 2; psg++) {
       const psgEl = this.elements.psg[psg];
@@ -765,12 +788,15 @@ export class MockingboardWindow extends BaseWindow {
         const height = canvas.height;
         if (width === 0 || height === 0) continue;
 
-        wasmModule._getMockingboardWaveform(
+        await wasmModule._getMockingboardWaveform(
           psg,
           ch,
           this.waveformBufferPtr,
           sampleCount,
         );
+
+        // Read waveform samples from heap
+        const samples = await wasmModule.heapReadF32(this.waveformBufferPtr, sampleCount);
 
         // Clear canvas
         ctx.fillStyle = this.canvasBg;
@@ -790,7 +816,7 @@ export class MockingboardWindow extends BaseWindow {
 
         const xScale = width / (sampleCount - 1);
         for (let i = 0; i < sampleCount; i++) {
-          const sample = wasmModule.HEAPF32[heapOffset + i];
+          const sample = samples[i];
           const x = i * xScale;
           const y = height - sample * (height - 2) - 1;
           if (i === 0) {
@@ -804,7 +830,7 @@ export class MockingboardWindow extends BaseWindow {
     }
   }
 
-  updateVIAStatus(wasmModule) {
+  async updateVIAStatus(wasmModule) {
     const controlModes = [
       "INACT",
       "READ",
@@ -816,12 +842,36 @@ export class MockingboardWindow extends BaseWindow {
       "LATCH",
     ];
 
+    // Batch all VIA reads for both VIAs
+    const batchCalls = [];
+    const hasIRQ = !!wasmModule._getMockingboardVIAIRQ;
+    const hasPort = !!wasmModule._getMockingboardVIAPort;
+    const hasWrite = !!wasmModule._getMockingboardPSGWriteInfo;
+    const hasTimer = !!wasmModule._getMockingboardVIATimerInfo;
+
+    for (let via = 0; via < 2; via++) {
+      if (hasIRQ) batchCalls.push(['_getMockingboardVIAIRQ', via]);
+      if (hasPort) {
+        for (let p = 0; p < 4; p++) batchCalls.push(['_getMockingboardVIAPort', via, p]);
+      }
+      if (hasWrite) {
+        for (let w = 0; w < 3; w++) batchCalls.push(['_getMockingboardPSGWriteInfo', via, w]);
+      }
+      if (hasTimer) {
+        for (let t = 0; t < 7; t++) batchCalls.push(['_getMockingboardVIATimerInfo', via, t]);
+      }
+    }
+
+    if (batchCalls.length === 0) return;
+    const results = await wasmModule.batch(batchCalls);
+
+    let ri = 0;
     for (let via = 0; via < 2; via++) {
       const els = this.elements.via[via];
 
       // IRQ status
-      if (wasmModule._getMockingboardVIAIRQ) {
-        const irqActive = wasmModule._getMockingboardVIAIRQ(via);
+      if (hasIRQ) {
+        const irqActive = results[ri++];
         const key = `via${via}irq`;
         if (this.prevValues[key] !== irqActive) {
           this.prevValues[key] = irqActive;
@@ -833,13 +883,8 @@ export class MockingboardWindow extends BaseWindow {
       }
 
       // VIA ports
-      if (wasmModule._getMockingboardVIAPort) {
-        const ports = [
-          wasmModule._getMockingboardVIAPort(via, 0),
-          wasmModule._getMockingboardVIAPort(via, 1),
-          wasmModule._getMockingboardVIAPort(via, 2),
-          wasmModule._getMockingboardVIAPort(via, 3),
-        ];
+      if (hasPort) {
+        const ports = [results[ri++], results[ri++], results[ri++], results[ri++]];
         const portEls = [els.ora, els.orb, els.ddra, els.ddrb];
         const portKeys = ["ora", "orb", "ddra", "ddrb"];
 
@@ -862,10 +907,10 @@ export class MockingboardWindow extends BaseWindow {
       }
 
       // PSG write info
-      if (wasmModule._getMockingboardPSGWriteInfo) {
-        const writeCount = wasmModule._getMockingboardPSGWriteInfo(via, 0);
-        const lastReg = wasmModule._getMockingboardPSGWriteInfo(via, 1);
-        const lastVal = wasmModule._getMockingboardPSGWriteInfo(via, 2);
+      if (hasWrite) {
+        const writeCount = results[ri++];
+        const lastReg = results[ri++];
+        const lastVal = results[ri++];
 
         const wcKey = `via${via}wc`;
         if (this.prevValues[wcKey] !== writeCount) {
@@ -882,14 +927,14 @@ export class MockingboardWindow extends BaseWindow {
       }
 
       // Timer info
-      if (wasmModule._getMockingboardVIATimerInfo) {
-        const t1cnt = wasmModule._getMockingboardVIATimerInfo(via, 0);
-        const t1lat = wasmModule._getMockingboardVIATimerInfo(via, 1);
-        const t1run = wasmModule._getMockingboardVIATimerInfo(via, 2);
-        const t1fire = wasmModule._getMockingboardVIATimerInfo(via, 3);
-        const acr = wasmModule._getMockingboardVIATimerInfo(via, 4);
-        const ifr = wasmModule._getMockingboardVIATimerInfo(via, 5);
-        const ier = wasmModule._getMockingboardVIATimerInfo(via, 6);
+      if (hasTimer) {
+        const t1cnt = results[ri++];
+        const t1lat = results[ri++];
+        const t1run = results[ri++];
+        const t1fire = results[ri++];
+        const acr = results[ri++];
+        const ifr = results[ri++];
+        const ier = results[ri++];
 
         this.updateIfChanged(
           `via${via}t1cnt`,

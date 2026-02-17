@@ -29,7 +29,7 @@ export function setFileViewerWasm(wasm) {
  * Detokenize BASIC program using WASM and apply JS syntax highlighting.
  * Returns { html, lineNumToIndex, lineCount }
  */
-function detokenizeBasicViaWasm(data, hasLengthHeader, isApplesoft) {
+async function detokenizeBasicViaWasm(data, hasLengthHeader, isApplesoft) {
   if (!wasmModule) {
     return { html: '(WASM module not loaded)', lineNumToIndex: new Map(), lineCount: 0 };
   }
@@ -37,18 +37,18 @@ function detokenizeBasicViaWasm(data, hasLengthHeader, isApplesoft) {
   const wasm = wasmModule;
 
   // Copy data to WASM heap
-  const dataPtr = wasm._malloc(data.length);
-  wasm.HEAPU8.set(data, dataPtr);
+  const dataPtr = await wasm._malloc(data.length);
+  await wasm.heapWrite(dataPtr, data);
 
   // Call WASM detokenizer
   const resultPtr = isApplesoft
-    ? wasm._detokenizeApplesoft(dataPtr, data.length, hasLengthHeader)
-    : wasm._detokenizeIntegerBasic(dataPtr, data.length, hasLengthHeader);
+    ? await wasm._detokenizeApplesoft(dataPtr, data.length, hasLengthHeader)
+    : await wasm._detokenizeIntegerBasic(dataPtr, data.length, hasLengthHeader);
 
-  wasm._free(dataPtr);
+  await wasm._free(dataPtr);
 
   // Read plain text result
-  const plainText = resultPtr ? wasm.UTF8ToString(resultPtr) : '';
+  const plainText = resultPtr ? await wasm.UTF8ToString(resultPtr) : '';
   if (!plainText) {
     return { html: '', lineNumToIndex: new Map(), lineCount: 0 };
   }
@@ -87,12 +87,12 @@ function detokenizeBasicViaWasm(data, hasLengthHeader, isApplesoft) {
   };
 }
 
-function detokenizeApplesoft(data, hasLengthHeader = true) {
-  return detokenizeBasicViaWasm(data, hasLengthHeader, true);
+async function detokenizeApplesoft(data, hasLengthHeader = true) {
+  return await detokenizeBasicViaWasm(data, hasLengthHeader, true);
 }
 
-function detokenizeIntegerBasic(data, hasLengthHeader = true) {
-  return detokenizeBasicViaWasm(data, hasLengthHeader, false);
+async function detokenizeIntegerBasic(data, hasLengthHeader = true) {
+  return await detokenizeBasicViaWasm(data, hasLengthHeader, false);
 }
 
 /**
@@ -206,7 +206,7 @@ export function formatTextFile(data) {
  * @param {boolean} options.hasLengthHeader - Whether BASIC files have 2-byte length header (DOS 3.3 = true, ProDOS = false)
  * @returns {Object} {content, format} where format is 'text' or 'hex'
  */
-export function formatFileContents(data, fileType, options = {}) {
+export async function formatFileContents(data, fileType, options = {}) {
   const { hasLengthHeader = true } = options;
 
   switch (fileType) {
@@ -220,7 +220,7 @@ export function formatFileContents(data, fileType, options = {}) {
     case 0x02: {
       // Applesoft BASIC
       try {
-        const result = detokenizeApplesoft(data, hasLengthHeader);
+        const result = await detokenizeApplesoft(data, hasLengthHeader);
         return {
           content: result.html,
           format: "basic",
@@ -243,7 +243,7 @@ export function formatFileContents(data, fileType, options = {}) {
     case 0x01: {
       // Integer BASIC
       try {
-        const result = detokenizeIntegerBasic(data, hasLengthHeader);
+        const result = await detokenizeIntegerBasic(data, hasLengthHeader);
         return {
           content: result.html,
           format: "basic",

@@ -240,24 +240,43 @@ export class ZeroPageWatchWindow extends BaseWindow {
     this.renderGroups();
   }
 
-  update(wasmModule) {
+  async update(wasmModule) {
     if (!this.isVisible || !this.groupsDiv) return;
 
     const now = Date.now();
     const fadeTime = 1000;
 
+    // Collect all addresses we need to read
+    const valueSpans = this.groupsDiv.querySelectorAll(".zp-value");
+    const addrsToRead = new Set();
+    for (const valueSpan of valueSpans) {
+      const addr = parseInt(valueSpan.dataset.addr, 10);
+      const size = parseInt(valueSpan.dataset.size, 10);
+      addrsToRead.add(addr);
+      if (size === 16) addrsToRead.add((addr + 1) & 0xff);
+    }
+
+    // Batch read all addresses
+    const addrList = [...addrsToRead];
+    const batchCalls = addrList.map(a => ['_peekMemory', a]);
+    const results = await wasmModule.batch(batchCalls);
+    const memValues = new Map();
+    for (let i = 0; i < addrList.length; i++) {
+      memValues.set(addrList[i], results[i]);
+    }
+
     // Update all value displays
-    this.groupsDiv.querySelectorAll(".zp-value").forEach((valueSpan) => {
+    for (const valueSpan of valueSpans) {
       const addr = parseInt(valueSpan.dataset.addr, 10);
       const size = parseInt(valueSpan.dataset.size, 10);
 
       let value;
       if (size === 16) {
-        const low = wasmModule._peekMemory(addr);
-        const high = wasmModule._peekMemory((addr + 1) & 0xff);
+        const low = memValues.get(addr);
+        const high = memValues.get((addr + 1) & 0xff);
         value = (high << 8) | low;
       } else {
-        value = wasmModule._peekMemory(addr);
+        value = memValues.get(addr);
       }
 
       const prevValue = this.previousValues.get(addr);
@@ -292,6 +311,6 @@ export class ZeroPageWatchWindow extends BaseWindow {
       } else {
         watchDiv.classList.remove("changed");
       }
-    });
+    }
   }
 }

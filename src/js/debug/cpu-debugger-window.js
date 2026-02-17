@@ -679,9 +679,9 @@ export class CPUDebuggerWindow extends BaseWindow {
    * Step Over - if current instruction is JSR, run until it returns
    * Otherwise, just do a single step
    */
-  stepOver() {
+  async stepOver() {
     this.bpManager.clearTemp();
-    const tempAddr = this.wasmModule._stepOver();
+    const tempAddr = await this.wasmModule._stepOver();
     if (tempAddr) {
       this.bpManager.syncTemp(tempAddr);
     }
@@ -691,9 +691,9 @@ export class CPUDebuggerWindow extends BaseWindow {
    * Step Out - run until the current subroutine returns
    * Reads return address from stack and sets breakpoint there
    */
-  stepOut() {
+  async stepOut() {
     this.bpManager.clearTemp();
-    const tempAddr = this.wasmModule._stepOut();
+    const tempAddr = await this.wasmModule._stepOut();
     if (tempAddr) {
       this.bpManager.syncTemp(tempAddr);
     }
@@ -788,11 +788,13 @@ export class CPUDebuggerWindow extends BaseWindow {
   /**
    * Update all window content
    */
-  update(wasmModule) {
+  async update(wasmModule) {
     this.wasmModule = wasmModule;
 
-    const pc = this.wasmModule._getPC();
-    const isPaused = this.wasmModule._isPaused();
+    const [pc, isPaused] = await this.wasmModule.batch([
+      ['_getPC'],
+      ['_isPaused'],
+    ]);
 
     // Update status indicator
     const statusEl = this.contentElement.querySelector("#dbg-status");
@@ -815,24 +817,24 @@ export class CPUDebuggerWindow extends BaseWindow {
     }
 
     // Check temp breakpoint
-    this.bpManager.checkTemp(pc);
+    await this.bpManager.checkTemp(pc);
 
     // Check if a watchpoint was hit - evaluate conditions/hit counts (range-aware)
     if (
       isPaused &&
       this.wasmModule._isWatchpointHit &&
-      this.wasmModule._isWatchpointHit()
+      await this.wasmModule._isWatchpointHit()
     ) {
-      const wpAddr = this.wasmModule._getWatchpointAddress();
+      const wpAddr = await this.wasmModule._getWatchpointAddress();
       const entry = this.bpManager.findByAddress(wpAddr);
       if (entry) {
-        if (!this.bpManager.shouldBreakEntry(entry)) {
+        if (!await this.bpManager.shouldBreakEntry(entry)) {
           // Condition not met or hit target not reached - resume
           this.wasmModule._setPaused(false);
           return;
         }
         this._hitBpAddr = entry.address;
-      } else if (!this.bpManager.shouldBreak(wpAddr)) {
+      } else if (!await this.bpManager.shouldBreak(wpAddr)) {
         // Fallback for direct-address match
         this.wasmModule._setPaused(false);
         return;
@@ -845,10 +847,10 @@ export class CPUDebuggerWindow extends BaseWindow {
     if (
       isPaused &&
       this.wasmModule._isBreakpointHit &&
-      this.wasmModule._isBreakpointHit()
+      await this.wasmModule._isBreakpointHit()
     ) {
-      const bpAddr = this.wasmModule._getBreakpointAddress();
-      if (!this.bpManager.shouldBreak(bpAddr)) {
+      const bpAddr = await this.wasmModule._getBreakpointAddress();
+      if (!await this.bpManager.shouldBreak(bpAddr)) {
         // Condition not met - resume execution
         this.wasmModule._setPaused(false);
         return;
@@ -866,18 +868,18 @@ export class CPUDebuggerWindow extends BaseWindow {
       this.disasmViewAddress = null;
     }
 
-    this.updateRegisters();
-    this.updateFlags();
-    this.updateIRQState();
+    await this.updateRegisters();
+    await this.updateFlags();
+    await this.updateIRQState();
     if (isPaused) {
-      this.updateScanline();
+      await this.updateScanline();
     } else {
       this.clearScanline();
     }
-    this.updateDisassembly();
-    this.updateWatchList();
+    await this.updateDisassembly();
+    await this.updateWatchList();
+    await this.updateBeamHitHighlight();
     this.updateBreakpointHitHighlight();
-    this.updateBeamHitHighlight();
   }
 
   /**
@@ -895,28 +897,33 @@ export class CPUDebuggerWindow extends BaseWindow {
   /**
    * Update CPU register display
    */
-  updateRegisters() {
-    CPUDebuggerWindow.REGISTER_DEFS.forEach(({ id, fn, digits }) => {
+  async updateRegisters() {
+    const defs = CPUDebuggerWindow.REGISTER_DEFS.filter(
+      ({ fn }) => this.wasmModule[fn]
+    );
+    const batchCalls = defs.map(({ fn }) => [fn]);
+    const values = await this.wasmModule.batch(batchCalls);
+
+    defs.forEach(({ id, digits }, i) => {
       const elem = this.contentElement.querySelector(`#${id}`);
-      if (elem && this.wasmModule[fn]) {
-        // Don't update if we're currently editing this register
-        if (elem.dataset.editing === "true") return;
-        const value = this.wasmModule[fn]();
-        const text =
-          digits > 0 ? this.formatHex(value, digits) : value.toString();
+      if (!elem) return;
+      // Don't update if we're currently editing this register
+      if (elem.dataset.editing === "true") return;
+      const value = values[i];
+      const text =
+        digits > 0 ? this.formatHex(value, digits) : value.toString();
 
-        // Highlight changes
-        const prevVal = this.previousRegisters[id];
-        if (prevVal !== undefined && prevVal !== text) {
-          elem.classList.remove("changed");
-          // Force reflow to restart animation
-          void elem.offsetWidth;
-          elem.classList.add("changed");
-        }
-        this.previousRegisters[id] = text;
-
-        elem.textContent = text;
+      // Highlight changes
+      const prevVal = this.previousRegisters[id];
+      if (prevVal !== undefined && prevVal !== text) {
+        elem.classList.remove("changed");
+        // Force reflow to restart animation
+        void elem.offsetWidth;
+        elem.classList.add("changed");
       }
+      this.previousRegisters[id] = text;
+
+      elem.textContent = text;
     });
   }
 
@@ -932,9 +939,9 @@ export class CPUDebuggerWindow extends BaseWindow {
       elem.style.cursor = "pointer";
       elem.title = "Click to edit";
 
-      elem.addEventListener("dblclick", (e) => {
+      elem.addEventListener("dblclick", async (e) => {
         e.stopPropagation();
-        if (!this.wasmModule._isPaused()) return;
+        if (!await this.wasmModule._isPaused()) return;
         if (elem.dataset.editing === "true") return;
 
         const currentValue = elem.textContent;
@@ -1064,7 +1071,7 @@ export class CPUDebuggerWindow extends BaseWindow {
   /**
    * Add a beam breakpoint from the toolbar form
    */
-  addBeamBreakpointFromForm() {
+  async addBeamBreakpointFromForm() {
     const modeSelect = this.contentElement.querySelector("#beam-mode-select");
     const scanInput = this.contentElement.querySelector("#beam-scan-input");
     const colInput = this.contentElement.querySelector("#beam-col-input");
@@ -1107,12 +1114,12 @@ export class CPUDebuggerWindow extends BaseWindow {
       }
     }
 
-    const id = this.wasmModule._addBeamBreakpoint(scanline, hPos);
+    const id = await this.wasmModule._addBeamBreakpoint(scanline, hPos);
     if (id < 0) return; // full
 
     this.beamBreakpoints.push({ id, scanline, hPos, enabled: true, mode });
     this.saveBeamBreakpoints();
-    this.updateBeamList();
+    await this.updateBeamList();
   }
 
   /**
@@ -1139,18 +1146,19 @@ export class CPUDebuggerWindow extends BaseWindow {
   /**
    * Render the beam breakpoint list and update the tab badge
    */
-  updateBeamList() {
+  async updateBeamList() {
     const list = this.contentElement.querySelector("#beam-list");
     if (!list) return;
 
     list.innerHTML = "";
-    const isPaused = this.wasmModule._isPaused();
-    const hitId =
-      isPaused &&
-      this.wasmModule._isBeamBreakpointHit &&
-      this.wasmModule._isBeamBreakpointHit()
-        ? this.wasmModule._getBeamBreakpointHitId()
-        : -1;
+    const isPaused = await this.wasmModule._isPaused();
+    let hitId = -1;
+    if (isPaused && this.wasmModule._isBeamBreakpointHit) {
+      const isHit = await this.wasmModule._isBeamBreakpointHit();
+      if (isHit) {
+        hitId = await this.wasmModule._getBeamBreakpointHitId();
+      }
+    }
 
     for (const bp of this.beamBreakpoints) {
       const item = document.createElement("div");
@@ -1220,17 +1228,18 @@ export class CPUDebuggerWindow extends BaseWindow {
   /**
    * Lightweight hit highlight update — toggles .hit class without rebuilding DOM
    */
-  updateBeamHitHighlight() {
+  async updateBeamHitHighlight() {
     const list = this.contentElement.querySelector("#beam-list");
     if (!list) return;
 
-    const isPaused = this.wasmModule._isPaused();
-    const hitId =
-      isPaused &&
-      this.wasmModule._isBeamBreakpointHit &&
-      this.wasmModule._isBeamBreakpointHit()
-        ? this.wasmModule._getBeamBreakpointHitId()
-        : -1;
+    const isPaused = await this.wasmModule._isPaused();
+    let hitId = -1;
+    if (isPaused && this.wasmModule._isBeamBreakpointHit) {
+      const isHit = await this.wasmModule._isBeamBreakpointHit();
+      if (isHit) {
+        hitId = await this.wasmModule._getBeamBreakpointHitId();
+      }
+    }
 
     if (hitId === this._lastBeamHitId) return;
     this._lastBeamHitId = hitId;
@@ -1305,8 +1314,8 @@ export class CPUDebuggerWindow extends BaseWindow {
   /**
    * Update CPU flags display
    */
-  updateFlags() {
-    const p = this.wasmModule._getP();
+  async updateFlags() {
+    const p = await this.wasmModule._getP();
     const flags = [
       { id: "flag-n", bit: 0x80 },
       { id: "flag-v", bit: 0x40 },
@@ -1328,17 +1337,21 @@ export class CPUDebuggerWindow extends BaseWindow {
   /**
    * Update IRQ/NMI state indicators
    */
-  updateIRQState() {
+  async updateIRQState() {
     const indicators = [
       { id: "irq-pending", fn: "_isIRQPending" },
       { id: "nmi-pending", fn: "_isNMIPending" },
       { id: "nmi-edge", fn: "_isNMIEdge" },
     ];
 
-    indicators.forEach(({ id, fn }) => {
+    const available = indicators.filter(({ fn }) => this.wasmModule[fn]);
+    if (available.length === 0) return;
+    const results = await this.wasmModule.batch(available.map(({ fn }) => [fn]));
+
+    available.forEach(({ id }, i) => {
       const elem = this.contentElement.querySelector(`#${id}`);
-      if (elem && this.wasmModule[fn]) {
-        elem.classList.toggle("active", this.wasmModule[fn]());
+      if (elem) {
+        elem.classList.toggle("active", results[i]);
       }
     });
   }
@@ -1363,13 +1376,15 @@ export class CPUDebuggerWindow extends BaseWindow {
    * Update scanline / beam position display.
    * Skips redundant DOM writes so browser title tooltips aren't interrupted.
    */
-  updateScanline() {
-    const frameCycle = this.wasmModule._getFrameCycle();
-    const scanline = this.wasmModule._getBeamScanline();
-    const hPos = this.wasmModule._getBeamHPos();
-    const col = this.wasmModule._getBeamColumn();
-    const inVBL = this.wasmModule._isInVBL();
-    const inHBLANK = this.wasmModule._isInHBLANK();
+  async updateScanline() {
+    const [frameCycle, scanline, hPos, col, inVBL, inHBLANK] = await this.wasmModule.batch([
+      ['_getFrameCycle'],
+      ['_getBeamScanline'],
+      ['_getBeamHPos'],
+      ['_getBeamColumn'],
+      ['_isInVBL'],
+      ['_isInHBLANK'],
+    ]);
 
     const els = this.getBeamElements();
 
@@ -1421,7 +1436,7 @@ export class CPUDebuggerWindow extends BaseWindow {
    * Find a good starting address for disassembly that aligns with instruction boundaries.
    * Scans forward from a safe distance back to find valid instruction starts.
    */
-  findDisasmStartAddress(pc, instructionsBefore) {
+  async findDisasmStartAddress(pc, instructionsBefore) {
     // Start from further back and scan forward to find instruction boundaries
     const maxLookback = instructionsBefore * 3 + 10; // Max bytes to look back
     let startAddr = Math.max(0, pc - maxLookback);
@@ -1431,7 +1446,7 @@ export class CPUDebuggerWindow extends BaseWindow {
     let addr = startAddr;
     while (addr <= pc + 100 && addr <= 0xffff) {
       addresses.push(addr);
-      const opcode = this.wasmModule._peekMemory(addr);
+      const opcode = await this.wasmModule._peekMemory(addr);
       addr += this.getInstructionLength(opcode);
     }
 
@@ -1456,11 +1471,11 @@ export class CPUDebuggerWindow extends BaseWindow {
   /**
    * Update disassembly view
    */
-  updateDisassembly() {
+  async updateDisassembly() {
     const view = this.contentElement.querySelector("#disasm-view");
     if (!view) return;
 
-    const pc = this.wasmModule._getPC();
+    const pc = await this.wasmModule._getPC();
     const totalLines = 24; // Total instructions to show
     const linesBefore = 6; // Instructions to show before center
 
@@ -1468,18 +1483,21 @@ export class CPUDebuggerWindow extends BaseWindow {
     this._profileMax = 0;
     this._profilePtr = 0;
     if (this.profileEnabled && this.wasmModule._getProfileCycles) {
-      this._profilePtr = this.wasmModule._getProfileCycles();
+      this._profilePtr = await this.wasmModule._getProfileCycles();
       if (this._profilePtr) {
-        // Find max for normalization by scanning a quick sample
-        const heap32 = new Uint32Array(this.wasmModule.HEAPU8.buffer);
-        const baseIdx = this._profilePtr >> 2;
-        let max = 0;
-        // Sample the profile to find max
+        // Find max for normalization by sampling the profile array
+        const sampleIndices = [];
         for (let i = 0; i < 65536; i += 64) {
-          const v = heap32[baseIdx + i];
+          sampleIndices.push(i);
+        }
+        const sampleData = await this.wasmModule.heapReadU32(this._profilePtr, 65536);
+        let max = 0;
+        for (let i = 0; i < 65536; i += 64) {
+          const v = sampleData[i];
           if (v > max) max = v;
         }
         this._profileMax = max;
+        this._profileData = sampleData;
       }
     }
 
@@ -1488,7 +1506,7 @@ export class CPUDebuggerWindow extends BaseWindow {
       this.disasmViewAddress !== null ? this.disasmViewAddress : pc;
 
     // Find aligned start address
-    const startAddr = this.findDisasmStartAddress(centerAddr, linesBefore);
+    const startAddr = await this.findDisasmStartAddress(centerAddr, linesBefore);
 
     view.innerHTML = "";
     let addr = startAddr;
@@ -1541,9 +1559,8 @@ export class CPUDebuggerWindow extends BaseWindow {
       }
 
       // Get disassembly from WASM
-      const disasm = this.wasmModule.UTF8ToString(
-        this.wasmModule._disassembleAt(addr),
-      );
+      const disasmPtr = await this.wasmModule._disassembleAt(addr);
+      const disasm = await this.wasmModule.UTF8ToString(disasmPtr);
 
       // Parse: "AAAA: BB BB BB  MMM OPERAND"
       const addrPart = disasm.substring(0, 4);
@@ -1598,12 +1615,12 @@ export class CPUDebuggerWindow extends BaseWindow {
       view.appendChild(line);
 
       // Advance to next instruction
-      const opcode = this.wasmModule._peekMemory(addr);
+      const opcode = await this.wasmModule._peekMemory(addr);
       addr += this.getInstructionLength(opcode);
     }
 
     // Scroll to keep PC visible only while running — when paused, let user scroll freely
-    if (pcLineElement && !this.wasmModule._isPaused()) {
+    if (pcLineElement && !await this.wasmModule._isPaused()) {
       const viewRect = view.getBoundingClientRect();
       const lineRect = pcLineElement.getBoundingClientRect();
 
@@ -2091,7 +2108,7 @@ export class CPUDebuggerWindow extends BaseWindow {
     return `$${this.formatHex(value & 0xffff, 4)} (${value & 0xffff})`;
   }
 
-  updateWatchList() {
+  async updateWatchList() {
     const list = this.contentElement.querySelector("#watch-list");
     if (!list) return;
 
@@ -2107,7 +2124,7 @@ export class CPUDebuggerWindow extends BaseWindow {
         const expr = this.watchExpressions[i];
         let valueStr;
         try {
-          const value = this.bpManager.evaluateValue(expr);
+          const value = await this.bpManager.evaluateValue(expr);
           valueStr = this.formatWatchValue(expr, value);
           this.previousWatchValues[i] = valueStr;
         } catch (e) {
@@ -2145,7 +2162,7 @@ export class CPUDebuggerWindow extends BaseWindow {
 
         let valueStr;
         try {
-          const value = this.bpManager.evaluateValue(expr);
+          const value = await this.bpManager.evaluateValue(expr);
           valueStr = this.formatWatchValue(expr, value);
         } catch (e) {
           valueStr = `err: ${e.message}`;
@@ -2211,13 +2228,13 @@ export class CPUDebuggerWindow extends BaseWindow {
 
   static BEAM_STORAGE_KEY = "a2e-beam-breakpoints";
 
-  loadBeamBreakpoints() {
+  async loadBeamBreakpoints() {
     try {
       const saved = localStorage.getItem(CPUDebuggerWindow.BEAM_STORAGE_KEY);
       if (!saved) return;
       const data = JSON.parse(saved);
       for (const bp of data) {
-        const id = this.wasmModule._addBeamBreakpoint(bp.scanline, bp.hPos);
+        const id = await this.wasmModule._addBeamBreakpoint(bp.scanline, bp.hPos);
         if (id < 0) continue;
         if (!bp.enabled) {
           this.wasmModule._enableBeamBreakpoint(id, false);
@@ -2257,12 +2274,12 @@ export class CPUDebuggerWindow extends BaseWindow {
    * Called after state import since importState() calls reset() which
    * clears all WASM-side beam breakpoints.
    */
-  resyncBeamToWasm() {
+  async resyncBeamToWasm() {
     if (this.wasmModule._clearAllBeamBreakpoints) {
       this.wasmModule._clearAllBeamBreakpoints();
     }
     for (const bp of this.beamBreakpoints) {
-      const newId = this.wasmModule._addBeamBreakpoint(bp.scanline, bp.hPos);
+      const newId = await this.wasmModule._addBeamBreakpoint(bp.scanline, bp.hPos);
       if (newId >= 0) {
         bp.id = newId;
         if (!bp.enabled) {
@@ -2270,7 +2287,7 @@ export class CPUDebuggerWindow extends BaseWindow {
         }
       }
     }
-    this.updateBeamList();
+    await this.updateBeamList();
   }
 
   /**
@@ -2336,9 +2353,8 @@ export class CPUDebuggerWindow extends BaseWindow {
    * Get heat level (1-5) for an address from profiling data
    */
   getHeatLevel(addr) {
-    if (!this._profilePtr || this._profileMax === 0) return 0;
-    const heap32 = new Uint32Array(this.wasmModule.HEAPU8.buffer);
-    const value = heap32[(this._profilePtr >> 2) + addr];
+    if (!this._profilePtr || this._profileMax === 0 || !this._profileData) return 0;
+    const value = this._profileData[addr];
     if (value === 0) return 0;
     const ratio = value / this._profileMax;
     if (ratio > 0.6) return 5;

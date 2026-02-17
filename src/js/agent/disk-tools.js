@@ -383,7 +383,7 @@ export const diskTools = {
     }
 
     // Check if a disk is inserted
-    const isDiskInserted = wasmModule._isDiskInserted(driveIndex);
+    const isDiskInserted = await wasmModule._isDiskInserted(driveIndex);
     if (!isDiskInserted) {
       return {
         success: true,

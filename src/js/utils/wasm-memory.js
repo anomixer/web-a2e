@@ -11,9 +11,9 @@
  * @param {number} addr - Memory address to read
  * @returns {number} Byte value at address
  */
-export function peek(wasmModule, addr) {
+export async function peek(wasmModule, addr) {
   try {
-    return wasmModule._peekMemory(addr);
+    return await wasmModule._peekMemory(addr);
   } catch (e) {
     return 0;
   }
@@ -26,9 +26,9 @@ export function peek(wasmModule, addr) {
  * @param {number} addr - Memory address to read
  * @returns {number} Byte value at address in main RAM
  */
-export function peekMain(wasmModule, addr) {
+export async function peekMain(wasmModule, addr) {
   try {
-    return wasmModule._readMainRAM(addr);
+    return await wasmModule._readMainRAM(addr);
   } catch (e) {
     return 0;
   }
@@ -42,13 +42,17 @@ export function peekMain(wasmModule, addr) {
  * @param {number} addr - Memory address to read
  * @returns {number} 16-bit word value
  */
-export function readWord(wasmModule, addr) {
+export async function readWord(wasmModule, addr) {
   if (addr < 0x200) {
-    const low = peekMain(wasmModule, addr);
-    const high = peekMain(wasmModule, addr + 1);
+    const [low, high] = await wasmModule.batch([
+      ['_readMainRAM', addr],
+      ['_readMainRAM', addr + 1],
+    ]);
     return (high << 8) | low;
   }
-  const low = peek(wasmModule, addr);
-  const high = peek(wasmModule, addr + 1);
+  const [low, high] = await wasmModule.batch([
+    ['_peekMemory', addr],
+    ['_peekMemory', addr + 1],
+  ]);
   return (high << 8) | low;
 }

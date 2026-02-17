@@ -173,30 +173,26 @@ export class StateManager {
    * Capture current emulator state as a Uint8Array
    * @returns {Uint8Array|null}
    */
-  captureStateData() {
+  async captureStateData() {
     if (!this.emulator.isRunning() || !this.wasmModule) {
       return null;
     }
 
-    const sizePtr = this.wasmModule._malloc(4);
+    const sizePtr = await this.wasmModule._malloc(4);
     try {
-      const statePtr = this.wasmModule._exportState(sizePtr);
+      const statePtr = await this.wasmModule._exportState(sizePtr);
 
       if (statePtr && sizePtr) {
-        const heapU32 = new Uint32Array(this.wasmModule.HEAPU8.buffer);
-        const size = heapU32[sizePtr / 4];
+        const size = await this.wasmModule.heapDataViewU32(sizePtr);
 
         if (size > 0) {
-          const stateData = new Uint8Array(size);
-          stateData.set(
-            new Uint8Array(this.wasmModule.HEAPU8.buffer, statePtr, size)
-          );
+          const stateData = await this.wasmModule.heapRead(statePtr, size);
           return stateData;
         }
       }
       return null;
     } finally {
-      this.wasmModule._free(sizePtr);
+      await this.wasmModule._free(sizePtr);
     }
   }
 
@@ -205,7 +201,7 @@ export class StateManager {
    * @param {Uint8Array} stateData
    * @returns {boolean} True if state was imported successfully
    */
-  importStateData(stateData) {
+  async importStateData(stateData) {
     if (!this.wasmModule || !stateData) {
       return false;
     }
@@ -220,13 +216,13 @@ export class StateManager {
     this.emulator.start();
 
     // Copy state data to WASM memory
-    const statePtr = this.wasmModule._malloc(stateData.length);
-    this.wasmModule.HEAPU8.set(stateData, statePtr);
+    const statePtr = await this.wasmModule._malloc(stateData.length);
+    await this.wasmModule.heapWrite(statePtr, stateData);
 
     // Import state
-    const success = this.wasmModule._importState(statePtr, stateData.length);
+    const success = await this.wasmModule._importState(statePtr, stateData.length);
 
-    this.wasmModule._free(statePtr);
+    await this.wasmModule._free(statePtr);
 
     if (success) {
       if (this.reminderController) {
@@ -306,7 +302,7 @@ export class StateManager {
 
     try {
       this.uiController.flashStateButton();
-      const stateData = this.captureStateData();
+      const stateData = await this.captureStateData();
       if (stateData) {
         const thumbnail = this.captureScreenshot();
         const preview = this.capturePreview();
@@ -333,7 +329,7 @@ export class StateManager {
         return false;
       }
 
-      const success = this.importStateData(stateData);
+      const success = await this.importStateData(stateData);
       if (success) {
         console.log("Restored emulator state from storage");
         return true;
@@ -351,7 +347,7 @@ export class StateManager {
    * @returns {Promise<boolean>}
    */
   async saveToSlot(slotNumber) {
-    const stateData = this.captureStateData();
+    const stateData = await this.captureStateData();
     if (!stateData) return false;
 
     const thumbnail = this.captureScreenshot();
@@ -369,7 +365,7 @@ export class StateManager {
     const slot = await loadStateFromSlot(slotNumber);
     if (!slot) return false;
 
-    return this.importStateData(slot.data);
+    return await this.importStateData(slot.data);
   }
 
   /**
@@ -377,8 +373,8 @@ export class StateManager {
    * @param {Uint8Array} stateData
    * @returns {boolean}
    */
-  restoreFromFileData(stateData) {
-    return this.importStateData(stateData);
+  async restoreFromFileData(stateData) {
+    return await this.importStateData(stateData);
   }
 
   /**

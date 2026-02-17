@@ -106,15 +106,14 @@ export class MemoryMapWindow extends BaseWindow {
   /**
    * Update the memory bank map visualization
    */
-  update(wasmModule) {
+  async update(wasmModule) {
     this.wasmModule = wasmModule;
 
     // Get soft switch states
-    const stateLow = wasmModule._getSoftSwitchState();
-    const stateHigh = wasmModule._getSoftSwitchStateHigh
-      ? wasmModule._getSoftSwitchStateHigh()
-      : 0;
-
+    const [stateLow, stateHigh] = await wasmModule.batch([
+      ['_getSoftSwitchState'],
+      ['_getSoftSwitchStateHigh'],
+    ]);
     // Bit positions for relevant switches
     const ALTZP = 10;
     const STORE80 = 6;

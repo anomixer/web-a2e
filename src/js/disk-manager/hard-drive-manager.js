@@ -30,17 +30,17 @@ const libraryCacheDb = createDatabaseManager({
   },
 });
 
-function insertImageToWasm(wasmModule, deviceNum, data, filename) {
-  const dataPtr = wasmModule._malloc(data.length);
-  wasmModule.HEAPU8.set(data, dataPtr);
+async function insertImageToWasm(wasmModule, deviceNum, data, filename) {
+  const dataPtr = await wasmModule._malloc(data.length);
+  await wasmModule.heapWrite(dataPtr, data);
 
-  const filenamePtr = wasmModule._malloc(filename.length + 1);
-  wasmModule.stringToUTF8(filename, filenamePtr, filename.length + 1);
+  const filenamePtr = await wasmModule._malloc(filename.length + 1);
+  await wasmModule.stringToUTF8(filename, filenamePtr, filename.length + 1);
 
-  const success = wasmModule._insertSmartPortImage(deviceNum, dataPtr, data.length, filenamePtr);
+  const success = await wasmModule._insertSmartPortImage(deviceNum, dataPtr, data.length, filenamePtr);
 
-  wasmModule._free(dataPtr);
-  wasmModule._free(filenamePtr);
+  await wasmModule._free(dataPtr);
+  await wasmModule._free(filenamePtr);
 
   return success;
 }
@@ -98,8 +98,8 @@ export class HardDriveManager {
     }
 
     if (device.insertBtn) {
-      device.insertBtn.addEventListener("click", () => {
-        if (!this.isSmartPortInstalled()) {
+      device.insertBtn.addEventListener("click", async () => {
+        if (!await this.isSmartPortInstalled()) {
           showToast("SmartPort card is not installed. Configure it in the Expansion Slots window before loading SmartPort images.", "warning");
           return;
         }
@@ -117,9 +117,9 @@ export class HardDriveManager {
     }
 
     if (device.recentBtn) {
-      device.recentBtn.addEventListener("click", (e) => {
+      device.recentBtn.addEventListener("click", async (e) => {
         e.stopPropagation();
-        if (!this.isSmartPortInstalled()) {
+        if (!await this.isSmartPortInstalled()) {
           showToast("SmartPort card is not installed. Configure it in the Expansion Slots window before loading SmartPort images.", "warning");
           return;
         }
@@ -135,9 +135,9 @@ export class HardDriveManager {
     }
   }
 
-  isSmartPortInstalled() {
+  async isSmartPortInstalled() {
     return this.wasmModule._isSmartPortCardInstalled &&
-           this.wasmModule._isSmartPortCardInstalled();
+           await this.wasmModule._isSmartPortCardInstalled();
   }
 
   refocusCanvas() {
@@ -149,7 +149,7 @@ export class HardDriveManager {
       const arrayBuffer = await file.arrayBuffer();
       const data = new Uint8Array(arrayBuffer);
 
-      const success = insertImageToWasm(this.wasmModule, deviceNum, data, file.name);
+      const success = await insertImageToWasm(this.wasmModule, deviceNum, data, file.name);
 
       if (success) {
         this.devices[deviceNum].filename = file.name;
@@ -167,8 +167,8 @@ export class HardDriveManager {
     }
   }
 
-  loadImageFromData(deviceNum, filename, data) {
-    const success = insertImageToWasm(this.wasmModule, deviceNum, data, filename);
+  async loadImageFromData(deviceNum, filename, data) {
+    const success = await insertImageToWasm(this.wasmModule, deviceNum, data, filename);
     if (success) {
       this.devices[deviceNum].filename = filename;
       this.updateDeviceUI(deviceNum);
@@ -183,18 +183,18 @@ export class HardDriveManager {
 
     // If modified, show host save dialog directly
     if (this.wasmModule._isSmartPortImageModified &&
-        this.wasmModule._isSmartPortImageModified(deviceNum)) {
+        await this.wasmModule._isSmartPortImageModified(deviceNum)) {
       let filename = device.filename || `harddrive${deviceNum + 1}.hdv`;
       if (!filename.includes(".")) filename += ".hdv";
 
       try {
-        const sizePtr = this.wasmModule._malloc(4);
-        const dataPtr = this.wasmModule._getSmartPortImageData(deviceNum, sizePtr);
-        const size = new DataView(this.wasmModule.HEAPU8.buffer).getUint32(sizePtr, true);
-        this.wasmModule._free(sizePtr);
+        const sizePtr = await this.wasmModule._malloc(4);
+        const dataPtr = await this.wasmModule._getSmartPortImageData(deviceNum, sizePtr);
+        const size = await this.wasmModule.heapDataViewU32(sizePtr);
+        await this.wasmModule._free(sizePtr);
 
         if (dataPtr && size > 0) {
-          const data = new Uint8Array(this.wasmModule.HEAPU8.buffer, dataPtr, size);
+          const data = await this.wasmModule.heapRead(dataPtr, size);
           const blob = new Blob([data], { type: "application/octet-stream" });
 
           if (window.showSaveFilePicker) {
@@ -262,11 +262,11 @@ export class HardDriveManager {
     device.infoLabel.textContent = "";
   }
 
-  updateLEDs() {
+  async updateLEDs() {
     if (!this.wasmModule._getSmartPortActivity) return;
 
-    const hasActivity = this.wasmModule._getSmartPortActivity(0);
-    const isWrite = this.wasmModule._getSmartPortActivityWrite(0);
+    const hasActivity = await this.wasmModule._getSmartPortActivity(0);
+    const isWrite = await this.wasmModule._getSmartPortActivityWrite(0);
 
     for (let i = 0; i < 2; i++) {
       const device = this.devices[i];
@@ -308,15 +308,15 @@ export class HardDriveManager {
     }
   }
 
-  syncWithEmulatorState() {
+  async syncWithEmulatorState() {
     for (let deviceNum = 0; deviceNum < 2; deviceNum++) {
       const hasDisk = this.wasmModule._isSmartPortImageInserted &&
-                      this.wasmModule._isSmartPortImageInserted(deviceNum);
+                      await this.wasmModule._isSmartPortImageInserted(deviceNum);
       if (hasDisk) {
-        const filenamePtr = this.wasmModule._getSmartPortImageFilename(deviceNum);
+        const filenamePtr = await this.wasmModule._getSmartPortImageFilename(deviceNum);
         let filename = "Restored Image";
         if (filenamePtr) {
-          filename = this.wasmModule.UTF8ToString(filenamePtr);
+          filename = await this.wasmModule.UTF8ToString(filenamePtr);
         }
         this.devices[deviceNum].filename = filename;
       } else {

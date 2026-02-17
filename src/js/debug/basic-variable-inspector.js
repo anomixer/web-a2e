@@ -31,11 +31,11 @@ export class BasicVariableInspector {
    * Get all simple variables from memory
    * @returns {Array<{name: string, type: string, value: any, rawValue: Uint8Array}>}
    */
-  getSimpleVariables() {
+  async getSimpleVariables() {
     const variables = [];
 
-    const vartab = readWord(this.wasmModule,0x69);
-    const arytab = readWord(this.wasmModule,0x6b);
+    const vartab = await readWord(this.wasmModule,0x69);
+    const arytab = await readWord(this.wasmModule,0x6b);
 
     // No variables if pointers are invalid or equal (empty variable area)
     if (vartab === 0 || arytab === 0 || vartab >= arytab) {
@@ -49,7 +49,7 @@ export class BasicVariableInspector {
 
     let addr = vartab;
     while (addr < arytab) {
-      const varInfo = this._parseVariable(addr);
+      const varInfo = await this._parseVariable(addr);
       if (!varInfo) break;
 
       variables.push(varInfo);
@@ -63,11 +63,11 @@ export class BasicVariableInspector {
    * Get all array variables from memory
    * @returns {Array<{name: string, type: string, dimensions: number[], values: any[]}>}
    */
-  getArrayVariables() {
+  async getArrayVariables() {
     const arrays = [];
 
-    const arytab = readWord(this.wasmModule,0x6b);
-    const strend = readWord(this.wasmModule,0x6d);
+    const arytab = await readWord(this.wasmModule,0x6b);
+    const strend = await readWord(this.wasmModule,0x6d);
 
     if (arytab === 0 || strend === 0 || arytab >= strend) {
       return arrays;
@@ -75,7 +75,7 @@ export class BasicVariableInspector {
 
     let addr = arytab;
     while (addr < strend) {
-      const arrayInfo = this._parseArray(addr);
+      const arrayInfo = await this._parseArray(addr);
       if (!arrayInfo) break;
 
       arrays.push(arrayInfo);
@@ -88,9 +88,11 @@ export class BasicVariableInspector {
   /**
    * Parse a single variable at the given address
    */
-  _parseVariable(addr) {
-    const byte1 = peek(this.wasmModule,addr);
-    const byte2 = peek(this.wasmModule,addr + 1);
+  async _parseVariable(addr) {
+    const [byte1, byte2] = await this.wasmModule.batch([
+      ['_peekMemory', addr],
+      ['_peekMemory', addr + 1],
+    ]);
 
     if (byte1 === 0) return null;
 
@@ -99,10 +101,17 @@ export class BasicVariableInspector {
     let rawValue;
     let size;
 
+    // Batch read the value bytes (up to 5 bytes starting at addr+2)
+    const valueCalls = [];
+    for (let i = 0; i < 5; i++) {
+      valueCalls.push(['_peekMemory', addr + 2 + i]);
+    }
+    const valueBytes = await this.wasmModule.batch(valueCalls);
+
     if (type === "integer") {
       // Integer: 2 bytes (high, low)
-      const high = peek(this.wasmModule,addr + 2);
-      const low = peek(this.wasmModule,addr + 3);
+      const high = valueBytes[0];
+      const low = valueBytes[1];
       value = (high << 8) | low;
       // Convert to signed
       if (value >= 0x8000) value -= 0x10000;
@@ -110,19 +119,16 @@ export class BasicVariableInspector {
       size = 7; // 2 name + 5 value (padded to match real size)
     } else if (type === "string") {
       // String: length + 2-byte pointer
-      const len = peek(this.wasmModule,addr + 2);
-      const ptrLow = peek(this.wasmModule,addr + 3);
-      const ptrHigh = peek(this.wasmModule,addr + 4);
+      const len = valueBytes[0];
+      const ptrLow = valueBytes[1];
+      const ptrHigh = valueBytes[2];
       const ptr = (ptrHigh << 8) | ptrLow;
-      value = this._readString(ptr, len);
+      value = await this._readString(ptr, len);
       rawValue = new Uint8Array([len, ptrLow, ptrHigh]);
       size = 7; // 2 name + 3 value + 2 padding
     } else {
       // Real: 5-byte Applesoft float
-      const floatBytes = new Uint8Array(5);
-      for (let i = 0; i < 5; i++) {
-        floatBytes[i] = peek(this.wasmModule,addr + 2 + i);
-      }
+      const floatBytes = new Uint8Array(valueBytes);
       value = this._decodeApplesoftFloat(floatBytes);
       rawValue = floatBytes;
       size = 7; // 2 name + 5 value
@@ -134,30 +140,36 @@ export class BasicVariableInspector {
   /**
    * Parse an array variable header
    */
-  _parseArray(addr) {
-    const byte1 = peek(this.wasmModule,addr);
-    const byte2 = peek(this.wasmModule,addr + 1);
+  async _parseArray(addr) {
+    // Read header: 2 name bytes + 2 size bytes + 1 numDims byte = 5 bytes
+    const headerCalls = [];
+    for (let i = 0; i < 5; i++) {
+      headerCalls.push(['_peekMemory', addr + i]);
+    }
+    const header = await this.wasmModule.batch(headerCalls);
+    const byte1 = header[0];
+    const byte2 = header[1];
 
     if (byte1 === 0) return null;
 
     const { name, type } = this._parseVariableName(byte1, byte2);
 
     // Total size of array entry (including header) - stored little-endian
-    const sizeLow = peek(this.wasmModule,addr + 2);
-    const sizeHigh = peek(this.wasmModule,addr + 3);
-    const totalSize = (sizeHigh << 8) | sizeLow;
+    const totalSize = (header[3] << 8) | header[2];
 
     // Number of dimensions
-    const numDims = peek(this.wasmModule,addr + 4);
+    const numDims = header[4];
 
     // Read dimension sizes (2 bytes each, stored high-low)
+    const dimCalls = [];
+    for (let i = 0; i < numDims * 2; i++) {
+      dimCalls.push(['_peekMemory', addr + 5 + i]);
+    }
+    const dimBytes = numDims > 0 ? await this.wasmModule.batch(dimCalls) : [];
+
     const dimensions = [];
-    let dimAddr = addr + 5;
     for (let i = 0; i < numDims; i++) {
-      const dimHigh = peek(this.wasmModule,dimAddr);
-      const dimLow = peek(this.wasmModule,dimAddr + 1);
-      dimensions.push((dimHigh << 8) | dimLow);
-      dimAddr += 2;
+      dimensions.push((dimBytes[i * 2] << 8) | dimBytes[i * 2 + 1]);
     }
 
     // Calculate total elements
@@ -166,34 +178,42 @@ export class BasicVariableInspector {
       totalElements *= dim;
     }
 
-    // Read values
-    const values = [];
-    let valueAddr = dimAddr;
+    // Read all element data in one batch
+    const dataStart = addr + 5 + numDims * 2;
     const elementSize = type === "integer" ? 2 : type === "string" ? 3 : 5;
+    const elemCount = Math.min(totalElements, 10000);
+    const totalDataBytes = elemCount * elementSize;
 
-    // Read all elements (Applesoft arrays are limited by memory anyway)
-    for (let i = 0; i < totalElements && i < 10000; i++) {
+    const dataCalls = [];
+    for (let i = 0; i < totalDataBytes; i++) {
+      dataCalls.push(['_peekMemory', dataStart + i]);
+    }
+    const dataBytes = totalDataBytes > 0 ? await this.wasmModule.batch(dataCalls) : [];
+
+    // Parse values from the batch-read data
+    const values = [];
+    for (let i = 0; i < elemCount; i++) {
+      const offset = i * elementSize;
       let elemValue;
       if (type === "integer") {
-        const high = peek(this.wasmModule,valueAddr);
-        const low = peek(this.wasmModule,valueAddr + 1);
+        const high = dataBytes[offset];
+        const low = dataBytes[offset + 1];
         elemValue = (high << 8) | low;
         if (elemValue >= 0x8000) elemValue -= 0x10000;
       } else if (type === "string") {
-        const len = peek(this.wasmModule,valueAddr);
-        const ptrLow = peek(this.wasmModule,valueAddr + 1);
-        const ptrHigh = peek(this.wasmModule,valueAddr + 2);
+        const len = dataBytes[offset];
+        const ptrLow = dataBytes[offset + 1];
+        const ptrHigh = dataBytes[offset + 2];
         const ptr = (ptrHigh << 8) | ptrLow;
-        elemValue = this._readString(ptr, len);
+        elemValue = await this._readString(ptr, len);
       } else {
         const floatBytes = new Uint8Array(5);
         for (let j = 0; j < 5; j++) {
-          floatBytes[j] = peek(this.wasmModule,valueAddr + j);
+          floatBytes[j] = dataBytes[offset + j];
         }
         elemValue = this._decodeApplesoftFloat(floatBytes);
       }
       values.push(elemValue);
-      valueAddr += elementSize;
     }
 
     return {
@@ -274,13 +294,17 @@ export class BasicVariableInspector {
   /**
    * Read a string from memory
    */
-  _readString(ptr, len) {
+  async _readString(ptr, len) {
     if (len === 0 || ptr === 0) return "";
 
+    const batchCalls = [];
+    for (let i = 0; i < len; i++) {
+      batchCalls.push(['_peekMemory', ptr + i]);
+    }
+    const chars = await this.wasmModule.batch(batchCalls);
     let str = "";
     for (let i = 0; i < len; i++) {
-      const char = peek(this.wasmModule,ptr + i) & 0x7f;
-      str += String.fromCharCode(char);
+      str += String.fromCharCode(chars[i] & 0x7f);
     }
     return str;
   }
@@ -291,7 +315,7 @@ export class BasicVariableInspector {
    * @param {string} newValueStr - New value as a string entered by the user
    * @returns {boolean} true if the write succeeded
    */
-  setVariableValue(varInfo, newValueStr) {
+  async setVariableValue(varInfo, newValueStr) {
     const { addr, type } = varInfo;
     const valueAddr = addr + 2; // skip 2-byte name
 
@@ -305,8 +329,12 @@ export class BasicVariableInspector {
     } else if (type === "string") {
       // String editing: write new characters into the existing string buffer
       // We can only write up to the original allocated length
-      const origLen = peek(this.wasmModule, valueAddr);
-      const ptr = peek(this.wasmModule, valueAddr + 1) | (peek(this.wasmModule, valueAddr + 2) << 8);
+      const [origLen, ptrLo, ptrHi] = await this.wasmModule.batch([
+        ['_peekMemory', valueAddr],
+        ['_peekMemory', valueAddr + 1],
+        ['_peekMemory', valueAddr + 2],
+      ]);
+      const ptr = ptrLo | (ptrHi << 8);
       // Strip surrounding quotes if present
       let str = newValueStr;
       if (str.startsWith('"') && str.endsWith('"')) str = str.slice(1, -1);
@@ -340,7 +368,7 @@ export class BasicVariableInspector {
    * @param {string} newValueStr - New value as a string
    * @returns {boolean} true if the write succeeded
    */
-  setArrayElementValue(info, newValueStr) {
+  async setArrayElementValue(info, newValueStr) {
     const { addr, type, numDims, elementIndex } = info;
     const elementSize = type === "integer" ? 2 : type === "string" ? 3 : 5;
     const dataStart = addr + 5 + numDims * 2;
@@ -354,8 +382,12 @@ export class BasicVariableInspector {
       this.wasmModule._writeMemory(elemAddr + 1, unsigned & 0xff);
       return true;
     } else if (type === "string") {
-      const origLen = peek(this.wasmModule, elemAddr);
-      const ptr = peek(this.wasmModule, elemAddr + 1) | (peek(this.wasmModule, elemAddr + 2) << 8);
+      const [origLen, ePtrLo, ePtrHi] = await this.wasmModule.batch([
+        ['_peekMemory', elemAddr],
+        ['_peekMemory', elemAddr + 1],
+        ['_peekMemory', elemAddr + 2],
+      ]);
+      const ptr = ePtrLo | (ePtrHi << 8);
       let str = newValueStr;
       if (str.startsWith('"') && str.endsWith('"')) str = str.slice(1, -1);
       if (str.length > origLen) str = str.slice(0, origLen);

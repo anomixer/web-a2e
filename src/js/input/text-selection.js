@@ -70,12 +70,12 @@ export class TextSelection {
    *   Bit 5: ALTCHARSET
    * @returns {{textMode: boolean, col80: boolean, page2: boolean}}
    */
-  getDisplayMode() {
+  async getDisplayMode() {
     if (!this.wasmModule._getSoftSwitchState) {
       return { textMode: false, col80: false, page2: false };
     }
 
-    const state = this.wasmModule._getSoftSwitchState();
+    const state = await this.wasmModule._getSoftSwitchState();
     return {
       textMode: (state & 0x01) !== 0,  // Bit 0: TEXT mode
       col80: (state & 0x10) !== 0,     // Bit 4: 80COL mode
@@ -86,15 +86,15 @@ export class TextSelection {
   /**
    * Check if the emulator is in text mode
    */
-  isTextMode() {
-    return this.getDisplayMode().textMode;
+  async isTextMode() {
+    return (await this.getDisplayMode()).textMode;
   }
 
   /**
    * Check if 80-column mode is active
    */
-  is80ColumnMode() {
-    return this.getDisplayMode().col80;
+  async is80ColumnMode() {
+    return (await this.getDisplayMode()).col80;
   }
 
   /**
@@ -102,7 +102,7 @@ export class TextSelection {
    * Mirrors the shader transform pipeline (curveUV → applyOverscan → applyScreenMargin)
    * so the mouse mapping matches the curved on-screen content.
    */
-  pixelToChar(x, y) {
+  async pixelToChar(x, y) {
     const rect = this.canvas.getBoundingClientRect();
     const params = this.renderer && this.renderer.crtParams || {};
 
@@ -142,7 +142,7 @@ export class TextSelection {
     const contentX = u * 560;
     const contentY = v * 384;
 
-    const mode = this.getDisplayMode();
+    const mode = await this.getDisplayMode();
     const cols = mode.col80 ? 80 : 40;
     const charWidth = mode.col80 ? this.charWidth80 : this.charWidth40;
 
@@ -180,21 +180,21 @@ export class TextSelection {
   /**
    * Get selected text as a string (delegates to C++ for screen memory reading and decoding)
    */
-  getSelectedText() {
+  async getSelectedText() {
     const sel = this.normalizeSelection();
     if (!sel) return '';
 
-    const resultPtr = this.wasmModule._readScreenText(
+    const resultPtr = await this.wasmModule._readScreenText(
       sel.startRow, sel.startCol, sel.endRow, sel.endCol
     );
-    return resultPtr ? this.wasmModule.UTF8ToString(resultPtr) : '';
+    return resultPtr ? await this.wasmModule.UTF8ToString(resultPtr) : '';
   }
 
   /**
    * Copy selected text to clipboard
    */
   async copyToClipboard() {
-    const text = this.getSelectedText();
+    const text = await this.getSelectedText();
     if (!text) return false;
 
     try {
@@ -215,21 +215,21 @@ export class TextSelection {
     const copyFlashColor = getComputedStyle(document.documentElement)
       .getPropertyValue('--selection-copy-flash').trim() || 'rgba(63, 185, 80, 0.5)';
     ctx.fillStyle = copyFlashColor;
-    this.drawSelectionHighlight();
-
-    setTimeout(() => {
-      this.drawSelectionHighlight();
-    }, 150);
+    this.drawSelectionHighlight().then(() => {
+      setTimeout(() => {
+        this.drawSelectionHighlight();
+      }, 150);
+    });
   }
 
   /**
    * Draw the selection highlight on the overlay
    */
-  drawSelectionHighlight() {
+  async drawSelectionHighlight() {
     const ctx = this.overlayCtx;
     ctx.clearRect(0, 0, 560, 384);
 
-    const mode = this.getDisplayMode();
+    const mode = await this.getDisplayMode();
     if (!mode.textMode) { this.uploadOverlay(); return; }
 
     const sel = this.normalizeSelection();
@@ -287,11 +287,11 @@ export class TextSelection {
 
   // Event handlers
 
-  onMouseDown(e) {
-    if (!this.isTextMode()) return;
+  async onMouseDown(e) {
+    if (!await this.isTextMode()) return;
     if (e.button !== 0) return;
 
-    const pos = this.pixelToChar(e.clientX, e.clientY);
+    const pos = await this.pixelToChar(e.clientX, e.clientY);
     this.selectionStart = pos;
     this.selectionEnd = pos;
     this.isSelecting = true;
@@ -300,21 +300,21 @@ export class TextSelection {
     document.addEventListener('mousemove', this.boundOnMouseMove);
     document.addEventListener('mouseup', this.boundOnMouseUp);
 
-    this.drawSelectionHighlight();
+    await this.drawSelectionHighlight();
     e.preventDefault();
   }
 
-  onMouseMove(e) {
+  async onMouseMove(e) {
     if (!this.isSelecting) return;
-    if (!this.isTextMode()) {
+    if (!await this.isTextMode()) {
       this.clearSelection();
       return;
     }
 
-    const pos = this.pixelToChar(e.clientX, e.clientY);
+    const pos = await this.pixelToChar(e.clientX, e.clientY);
     this.selectionEnd = pos;
 
-    this.drawSelectionHighlight();
+    await this.drawSelectionHighlight();
   }
 
   onMouseUp(e) {
@@ -354,8 +354,8 @@ export class TextSelection {
     }
   }
 
-  onContextMenu(e) {
-    if (!this.isTextMode()) return;
+  async onContextMenu(e) {
+    if (!await this.isTextMode()) return;
 
     if (this.selectionStart && this.selectionEnd) {
       e.preventDefault();
@@ -426,15 +426,15 @@ export class TextSelection {
   /**
    * Select all text on screen
    */
-  selectAll() {
-    if (!this.isTextMode()) return;
+  async selectAll() {
+    if (!await this.isTextMode()) return;
 
-    const cols = this.is80ColumnMode() ? 80 : 40;
+    const cols = await this.is80ColumnMode() ? 80 : 40;
 
     this.selectionStart = { row: 0, col: 0 };
     this.selectionEnd = { row: this.rows - 1, col: cols - 1 };
 
-    this.drawSelectionHighlight();
+    await this.drawSelectionHighlight();
   }
 
   /**

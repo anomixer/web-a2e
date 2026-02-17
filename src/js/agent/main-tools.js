@@ -66,14 +66,14 @@ export const mainTools = {
     }
 
     if (action === "on" && !emulator.running) {
-      emulator.start();
+      await emulator.start();
     } else if (action === "off" && emulator.running) {
-      emulator.stop();
+      await emulator.stop();
     } else if (action === "toggle") {
       if (emulator.running) {
-        emulator.stop();
+        await emulator.stop();
       } else {
-        emulator.start();
+        await emulator.start();
       }
     }
 
@@ -144,7 +144,7 @@ export const mainTools = {
     }
 
     // Pause emulator while writing to ensure clean state
-    const wasPaused = wasmModule._isPaused();
+    const wasPaused = await wasmModule._isPaused();
     wasmModule._setPaused(true);
 
     // Write bytes using writeMemory (like assembler does)
@@ -192,7 +192,7 @@ export const mainTools = {
     // Read bytes using peekMemory (no side effects)
     const bytes = new Uint8Array(len);
     for (let i = 0; i < len; i++) {
-      bytes[i] = wasmModule._peekMemory((addr + i) & 0xffff);
+      bytes[i] = await wasmModule._peekMemory((addr + i) & 0xffff);
     }
 
     // Encode to base64
@@ -244,7 +244,7 @@ export const mainTools = {
    * Read text from the Apple //e screen
    * Parameters: startRow, startCol, endRow, endCol (all optional, default full screen)
    */
-  captureScreenText: (params = {}) => {
+  captureScreenText: async (params = {}) => {
     const emulator = window.emulator;
     if (!emulator?.wasmModule) {
       throw new Error("Emulator not available");
@@ -255,8 +255,8 @@ export const mainTools = {
     const endRow = params.endRow ?? 23;
     const endCol = params.endCol ?? 79;
 
-    const ptr = emulator.wasmModule._readScreenText(startRow, startCol, endRow, endCol);
-    const text = emulator.wasmModule.UTF8ToString(ptr);
+    const ptr = await emulator.wasmModule._readScreenText(startRow, startCol, endRow, endCol);
+    const text = await emulator.wasmModule.UTF8ToString(ptr);
 
     return {
       success: true,

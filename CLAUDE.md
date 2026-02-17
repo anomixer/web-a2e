@@ -62,6 +62,7 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 **JavaScript Layer (src/js/)** - Browser integration:
 
 - `main.js` - AppleIIeEmulator class orchestrating all subsystems
+- `worker/` - Web Worker infrastructure for WASM isolation (see Worker Architecture below)
 - `audio/` - Web Audio API driver and AudioWorklet
 - `display/` - WebGL renderer, CRT shader effects, display settings, screen window
 - `disk-manager/` - Disk drive UI, SmartPort hard drives, persistence, surface rendering, drive sounds
@@ -81,19 +82,47 @@ Light, dark, and system-follow themes controlled by `ThemeManager` (`src/js/ui/t
 
 Control sytles, sizes and layout must be consistent across the entire app.
 
+### Worker Architecture
+
+The WASM emulator runs in a dedicated Web Worker to keep the main thread free:
+
+```
+Main Thread                    Worker Thread                AudioWorklet Thread
+-----------                    -------------                -------------------
+WasmProxy (ES6 Proxy)  ←msg→  emulator-worker.js           audio-worklet.js
+  - WebGL renderer               - WASM module                - ring buffer playback
+  - Debug windows                 - audio generation           - requests samples
+  - Input capture                 - framebuffer copy             when buffer low
+  - Agent tools                   - RPC handler
+```
+
+- `src/js/worker/wasm-proxy.js` — ES6 Proxy intercepts `_functionName()` calls and sends async RPC to Worker. Fire-and-forget calls (input, control) skip waiting for responses.
+- `src/js/worker/emulator-worker.js` — Classic Worker (not module, for `importScripts` compatibility). Loads WASM, handles RPC, generates audio samples on request.
+- `src/js/worker/rpc-protocol.js` — Shared message type constants.
+- `src/js/worker/shared-buffers.js` — SharedArrayBuffer layouts for future phases.
+
+Key patterns:
+- **Fire-and-forget**: Input/control calls (`_keyDown`, `_setPaused`, `_writeMemory`, etc.) post to Worker without waiting for a response.
+- **Batch queries**: `wasmProxy.batch([['_getPC'], ['_getA'], ...])` collapses multiple reads into one round-trip.
+- **Heap access**: Direct `HEAPU8`/`HEAPF32` access is forbidden from the main thread. Use `wasmProxy.heapRead(ptr, size)`, `heapWrite(ptr, data)`, `heapReadU32()`, `heapReadF32()`, `heapDataViewU32()` instead.
+- **Transferable**: Disk images sent to Worker via `wasmProxy.transfer()` for zero-copy ownership transfer.
+
 ### Audio-Driven Timing
 
 The emulator uses Web Audio API for precise timing:
 
-1. AudioWorklet requests samples at 48kHz
-2. WASM runs ~21.3 CPU cycles per audio sample
-3. Frame ready when cycles cross ~17,030 (60Hz)
+1. AudioWorklet `process()` fires at 48kHz hardware rate
+2. When ring buffer runs low, AudioWorklet requests samples from main thread
+3. Main thread forwards request to Worker via `MSG_REQUEST_SAMPLES`
+4. Worker generates samples (running ~21.3 CPU cycles per sample)
+5. Worker posts samples + framebuffer back to main thread
+6. Main thread relays samples to AudioWorklet ring buffer
 
-This ensures consistent speed and works when the browser tab is backgrounded.
+This ensures consistent speed driven by the audio hardware clock.
 
 ### WASM Interface Pattern
 
-Single global `Emulator` instance in C++ (`wasm_interface.cpp`). JS allocates WASM heap with `_malloc`/`_free`, uses `stringToUTF8()`/`UTF8ToString()` for string conversion. New WASM exports must be added to `CMakeLists.txt` EXPORTED_FUNCTIONS list.
+Single global `Emulator` instance in C++ (`wasm_interface.cpp`). WASM runs inside a Web Worker; all JS code accesses it via `WasmProxy` which returns Promises. Heap operations use `wasmProxy.heapRead()`/`heapWrite()` instead of direct `HEAPU8` access. `_malloc()` must be awaited; `_free()` is fire-and-forget. `stringToUTF8()`/`UTF8ToString()` are async. New WASM exports must be added to `CMakeLists.txt` EXPORTED_FUNCTIONS list.
 
 ### Key Constants (src/core/types.hpp)
 
@@ -166,7 +195,8 @@ src/
     ├── state/          # Save state manager and persistence
     ├── ui/             # Menu wiring, reminders, slot configuration
     ├── utils/          # Shared utilities (storage, string, BASIC)
-    └── windows/        # Base window class and window manager
+    ├── windows/        # Base window class and window manager
+    └── worker/         # Web Worker: WASM proxy, emulator worker, RPC protocol
 ├── css/                # Stylesheets (bundled by Vite)
 public/                 # Static assets, built WASM files, shaders
 ├── shaders/           # CRT vertex/fragment shaders

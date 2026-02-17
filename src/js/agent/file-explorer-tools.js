@@ -32,7 +32,7 @@ export const fileExplorerTools = {
     }
 
     // Check if disk is inserted
-    if (!wasmModule._isDiskInserted(drive)) {
+    if (!await wasmModule._isDiskInserted(drive)) {
       return {
         success: false,
         drive: drive,
@@ -43,10 +43,10 @@ export const fileExplorerTools = {
     }
 
     // Get disk data
-    const sizePtr = wasmModule._malloc(4);
-    const dataPtr = wasmModule._getDiskSectorData(drive, sizePtr);
-    const size = new Uint32Array(wasmModule.HEAPU8.buffer, sizePtr, 1)[0];
-    wasmModule._free(sizePtr);
+    const sizePtr = await wasmModule._malloc(4);
+    const dataPtr = await wasmModule._getDiskSectorData(drive, sizePtr);
+    const size = (await wasmModule.heapReadU32(sizePtr, 1))[0];
+    await wasmModule._free(sizePtr);
 
     if (!dataPtr || size === 0) {
       return {
@@ -63,49 +63,49 @@ export const fileExplorerTools = {
     let files = [];
     let volumeName = null;
 
-    if (wasmModule._isProDOSFormat(dataPtr, size)) {
+    if (await wasmModule._isProDOSFormat(dataPtr, size)) {
       format = "prodos";
-      wasmModule._getProDOSVolumeInfo(dataPtr, size);
-      volumeName = wasmModule.UTF8ToString(wasmModule._getProDOSVolumeName());
+      await wasmModule._getProDOSVolumeInfo(dataPtr, size);
+      volumeName = await wasmModule.UTF8ToString(await wasmModule._getProDOSVolumeName());
 
-      const count = wasmModule._getProDOSCatalog(dataPtr, size);
+      const count = await wasmModule._getProDOSCatalog(dataPtr, size);
       for (let i = 0; i < count; i++) {
-        const fileType = wasmModule._getProDOSEntryFileType(i);
-        const isDirectory = wasmModule._getProDOSEntryIsDirectory(i);
+        const fileType = await wasmModule._getProDOSEntryFileType(i);
+        const isDirectory = await wasmModule._getProDOSEntryIsDirectory(i);
 
         files.push({
-          filename: wasmModule.UTF8ToString(
-            wasmModule._getProDOSEntryFilename(i),
+          filename: await wasmModule.UTF8ToString(
+            await wasmModule._getProDOSEntryFilename(i),
           ),
-          path: wasmModule.UTF8ToString(wasmModule._getProDOSEntryPath(i)),
+          path: await wasmModule.UTF8ToString(await wasmModule._getProDOSEntryPath(i)),
           type: fileType,
-          typeName: wasmModule.UTF8ToString(
-            wasmModule._getProDOSEntryFileTypeName(i),
+          typeName: await wasmModule.UTF8ToString(
+            await wasmModule._getProDOSEntryFileTypeName(i),
           ),
           isDirectory: isDirectory,
-          isLocked: wasmModule._getProDOSEntryIsLocked(i),
-          size: wasmModule._getProDOSEntryEOF(i),
-          blocks: wasmModule._getProDOSEntryBlocksUsed(i),
+          isLocked: await wasmModule._getProDOSEntryIsLocked(i),
+          size: await wasmModule._getProDOSEntryEOF(i),
+          blocks: await wasmModule._getProDOSEntryBlocksUsed(i),
           index: i,
         });
       }
-    } else if (wasmModule._isDOS33Format(dataPtr, size)) {
+    } else if (await wasmModule._isDOS33Format(dataPtr, size)) {
       format = "dos33";
 
-      const count = wasmModule._getDOS33Catalog(dataPtr, size);
+      const count = await wasmModule._getDOS33Catalog(dataPtr, size);
       for (let i = 0; i < count; i++) {
-        const fileType = wasmModule._getDOS33EntryFileType(i);
+        const fileType = await wasmModule._getDOS33EntryFileType(i);
 
         files.push({
-          filename: wasmModule.UTF8ToString(
-            wasmModule._getDOS33EntryFilename(i),
+          filename: await wasmModule.UTF8ToString(
+            await wasmModule._getDOS33EntryFilename(i),
           ),
           type: fileType,
-          typeName: wasmModule.UTF8ToString(
-            wasmModule._getDOS33EntryFileTypeName(i),
+          typeName: await wasmModule.UTF8ToString(
+            await wasmModule._getDOS33EntryFileTypeName(i),
           ),
-          isLocked: wasmModule._getDOS33EntryIsLocked(i),
-          sectors: wasmModule._getDOS33EntrySectorCount(i),
+          isLocked: await wasmModule._getDOS33EntryIsLocked(i),
+          sectors: await wasmModule._getDOS33EntrySectorCount(i),
           index: i,
         });
       }
@@ -142,15 +142,15 @@ export const fileExplorerTools = {
     }
 
     // Check if disk is inserted
-    if (!wasmModule._isDiskInserted(drive)) {
+    if (!await wasmModule._isDiskInserted(drive)) {
       throw new Error(`No disk in drive ${drive + 1}`);
     }
 
     // Get disk data
-    const sizePtr = wasmModule._malloc(4);
-    const dataPtr = wasmModule._getDiskSectorData(drive, sizePtr);
-    const size = new Uint32Array(wasmModule.HEAPU8.buffer, sizePtr, 1)[0];
-    wasmModule._free(sizePtr);
+    const sizePtr = await wasmModule._malloc(4);
+    const dataPtr = await wasmModule._getDiskSectorData(drive, sizePtr);
+    const size = (await wasmModule.heapReadU32(sizePtr, 1))[0];
+    await wasmModule._free(sizePtr);
 
     if (!dataPtr || size === 0) {
       throw new Error("Cannot read disk data");
@@ -161,17 +161,17 @@ export const fileExplorerTools = {
     let fileIndex = -1;
     let fileData = null;
 
-    if (wasmModule._isProDOSFormat(dataPtr, size)) {
+    if (await wasmModule._isProDOSFormat(dataPtr, size)) {
       format = "prodos";
-      const count = wasmModule._getProDOSCatalog(dataPtr, size);
+      const count = await wasmModule._getProDOSCatalog(dataPtr, size);
 
       // Find file by name or path
       for (let i = 0; i < count; i++) {
-        const name = wasmModule.UTF8ToString(
-          wasmModule._getProDOSEntryFilename(i),
+        const name = await wasmModule.UTF8ToString(
+          await wasmModule._getProDOSEntryFilename(i),
         );
-        const path = wasmModule.UTF8ToString(
-          wasmModule._getProDOSEntryPath(i),
+        const path = await wasmModule.UTF8ToString(
+          await wasmModule._getProDOSEntryPath(i),
         );
 
         if (name === filename || path === filename) {
@@ -185,22 +185,21 @@ export const fileExplorerTools = {
       }
 
       // Read file
-      const bytesRead = wasmModule._readProDOSFile(dataPtr, size, fileIndex);
+      const bytesRead = await wasmModule._readProDOSFile(dataPtr, size, fileIndex);
       if (bytesRead === 0) {
         throw new Error("Failed to read file");
       }
 
-      const bufPtr = wasmModule._getProDOSFileBuffer();
-      fileData = new Uint8Array(bytesRead);
-      fileData.set(new Uint8Array(wasmModule.HEAPU8.buffer, bufPtr, bytesRead));
-    } else if (wasmModule._isDOS33Format(dataPtr, size)) {
+      const bufPtr = await wasmModule._getProDOSFileBuffer();
+      fileData = await wasmModule.heapRead(bufPtr, bytesRead);
+    } else if (await wasmModule._isDOS33Format(dataPtr, size)) {
       format = "dos33";
-      const count = wasmModule._getDOS33Catalog(dataPtr, size);
+      const count = await wasmModule._getDOS33Catalog(dataPtr, size);
 
       // Find file by name
       for (let i = 0; i < count; i++) {
-        const name = wasmModule.UTF8ToString(
-          wasmModule._getDOS33EntryFilename(i),
+        const name = await wasmModule.UTF8ToString(
+          await wasmModule._getDOS33EntryFilename(i),
         );
         if (name === filename) {
           fileIndex = i;
@@ -213,14 +212,13 @@ export const fileExplorerTools = {
       }
 
       // Read file
-      const bytesRead = wasmModule._readDOS33File(dataPtr, size, fileIndex);
+      const bytesRead = await wasmModule._readDOS33File(dataPtr, size, fileIndex);
       if (bytesRead === 0) {
         throw new Error("Failed to read file");
       }
 
-      const bufPtr = wasmModule._getDOS33FileBuffer();
-      fileData = new Uint8Array(bytesRead);
-      fileData.set(new Uint8Array(wasmModule.HEAPU8.buffer, bufPtr, bytesRead));
+      const bufPtr = await wasmModule._getDOS33FileBuffer();
+      fileData = await wasmModule.heapRead(bufPtr, bytesRead);
     } else {
       throw new Error("Unknown disk format");
     }

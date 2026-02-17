@@ -234,10 +234,10 @@ export class BreakpointManager {
   /**
    * Check if temp breakpoint was hit (call in update loop)
    */
-  checkTemp(pc) {
+  async checkTemp(pc) {
     // Check C++ temp breakpoint first
     try {
-      if (this.wasmModule._isTempBreakpointHit()) {
+      if (await this.wasmModule._isTempBreakpointHit()) {
         this.tempBreakpoint = null;
         return true;
       }
@@ -255,7 +255,7 @@ export class BreakpointManager {
    * Evaluate whether a breakpoint should actually fire.
    * Returns true if we should stay paused, false if we should resume.
    */
-  shouldBreak(address) {
+  async shouldBreak(address) {
     const entry = this.breakpoints.get(address);
     if (!entry || !entry.enabled) return false;
 
@@ -270,7 +270,7 @@ export class BreakpointManager {
     // Evaluate condition
     if (entry.condition) {
       try {
-        const result = this.evaluateCondition(entry.condition);
+        const result = await this.evaluateCondition(entry.condition);
         if (!result) return false;
       } catch (e) {
         // If condition evaluation fails, break anyway
@@ -301,7 +301,7 @@ export class BreakpointManager {
    * Evaluate whether a given breakpoint entry should actually fire.
    * Like shouldBreak() but accepts an entry directly (for range-based lookups).
    */
-  shouldBreakEntry(entry) {
+  async shouldBreakEntry(entry) {
     if (!entry || !entry.enabled) return false;
 
     entry.hitCount++;
@@ -312,7 +312,7 @@ export class BreakpointManager {
 
     if (entry.condition) {
       try {
-        const result = this.evaluateCondition(entry.condition);
+        const result = await this.evaluateCondition(entry.condition);
         if (!result) return false;
       } catch (e) {
         console.warn("Breakpoint condition error:", e.message);
@@ -325,10 +325,10 @@ export class BreakpointManager {
   /**
    * Evaluate a breakpoint condition expression via C++ evaluator.
    */
-  evaluateCondition(expr) {
-    const exprPtr = this.wasmModule._malloc(expr.length + 1);
-    this.wasmModule.stringToUTF8(expr, exprPtr, expr.length + 1);
-    const result = this.wasmModule._evaluateCondition(exprPtr);
+  async evaluateCondition(expr) {
+    const exprPtr = await this.wasmModule._malloc(expr.length + 1);
+    await this.wasmModule.stringToUTF8(expr, exprPtr, expr.length + 1);
+    const result = await this.wasmModule._evaluateCondition(exprPtr);
     this.wasmModule._free(exprPtr);
     return result;
   }
@@ -337,10 +337,10 @@ export class BreakpointManager {
    * Evaluate an expression and return the raw numeric value.
    * Used by watch expressions.
    */
-  evaluateValue(expr) {
-    const exprPtr = this.wasmModule._malloc(expr.length + 1);
-    this.wasmModule.stringToUTF8(expr, exprPtr, expr.length + 1);
-    const result = this.wasmModule._evaluateExpression(exprPtr);
+  async evaluateValue(expr) {
+    const exprPtr = await this.wasmModule._malloc(expr.length + 1);
+    await this.wasmModule.stringToUTF8(expr, exprPtr, expr.length + 1);
+    const result = await this.wasmModule._evaluateExpression(exprPtr);
     this.wasmModule._free(exprPtr);
     return result;
   }
