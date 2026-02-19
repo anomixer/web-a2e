@@ -208,6 +208,130 @@ Set in `.mcp.json` if needed:
 }
 ```
 
+## Sandbox Configuration
+
+The sandbox controls which directories on your filesystem the agent can access. Without it the server starts but all file operations (`load_disk_image`, `save_basic_file`, etc.) are blocked.
+
+### Create the Config File
+
+Create a plain text file — conventionally `~/.appleii/sandbox.config`:
+
+```bash
+mkdir -p ~/.appleii
+touch ~/.appleii/sandbox.config
+```
+
+Edit the file with one entry per line:
+
+```
+# Lines starting with # are comments
+# Format: [key]@/path/to/directory
+
+[disks]@~/Documents/Apple2/Disks
+[games]@~/Documents/Apple2/Games
+[basic]@~/Documents/Apple2/BASIC
+[asm]@~/Documents/Apple2/Assembly
+[files]@~/Documents/Apple2/Files
+```
+
+**Key rules:**
+- Only alphanumeric characters, underscores (`_`), and hyphens (`-`)
+- Must be unique within the file
+- Used as `[key]` prefix when referencing files in tool calls
+
+**Path rules:**
+- Absolute: `/Users/name/Documents/Apple2/Disks`
+- Home-relative: `~/Documents/Apple2/Disks` (tilde is expanded)
+- Relative paths are resolved from the process working directory
+
+### Wire Up the Environment Variable
+
+Add `APPLEII_AGENT_SANDBOX` to the `env` block in `.mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "appleii-agent": {
+      "type": "stdio",
+      "command": "bunx",
+      "args": ["-y", "@retrotech71/appleii-agent"],
+      "env": {
+        "APPLEII_AGENT_SANDBOX": "/path/to/sandbox.config"
+      }
+    }
+  }
+}
+```
+
+This works for all three configuration options (bunx, version-pinned, local dev).
+
+### Using Sandbox Paths
+
+Reference files using `[key]/relative/path/filename` syntax in any tool that accepts a path:
+
+| Prompt example | Resolved path |
+|----------------|---------------|
+| `Load [disks]/ProDOS.dsk into drive 1` | `~/Documents/Apple2/Disks/ProDOS.dsk` |
+| `Save the BASIC program to [basic]/hello.bas` | `~/Documents/Apple2/BASIC/hello.bas` |
+| `Load [games]/Zork/zork1.dsk into drive 2` | `~/Documents/Apple2/Games/Zork/zork1.dsk` |
+
+Full paths (absolute or `~`-prefixed) also work — but only if they fall inside a configured sandbox directory.
+
+**Tools that accept sandbox paths:**
+
+| Tool | Description |
+|------|-------------|
+| `load_disk_image` | Load floppy disk image (.dsk, .do, .po, .nib, .woz) |
+| `load_smartport_image` | Load SmartPort hard drive image (.hdv, .po, .2mg) |
+| `load_file` | Load any file as binary or text |
+| `save_basic_file` | Save BASIC program text (.bas) |
+| `save_asm_file` | Save assembly source (.s, .asm) |
+| `save_disk_file` | Save binary file data (base64 input) |
+
+### Reload After Editing
+
+After editing `sandbox.config`, reload without restarting Claude Code:
+
+```
+mcp__appleii-agent__reload_sandbox
+```
+
+Or ask the agent: `"Reload the sandbox configuration"`
+
+### Security Model
+
+- **Path traversal blocked**: `../` sequences that would escape a sandbox directory are rejected
+- **Out-of-sandbox blocked**: Full paths not inside any configured directory are rejected
+- **Overwrite protection**: Save tools default to `overwrite: false` — pass `overwrite: true` explicitly to replace existing files
+
+### Troubleshooting
+
+**File access blocked — no sandbox configured**
+```
+APPLEII_AGENT_SANDBOX is not set. File operations are disabled.
+```
+→ Add `APPLEII_AGENT_SANDBOX` to the `env` block in `.mcp.json` and restart Claude Code.
+
+**Unknown sandbox key**
+```
+Unknown sandbox path: [mykey]. Available sandboxes: [disks], [basic]
+```
+→ Check the key spelling in your prompt and in `sandbox.config`. Keys are case-sensitive.
+
+**Config file not found**
+```
+Sandbox config not found: /Users/name/.appleii/sandbox.config
+```
+→ Create the file at the path specified in `APPLEII_AGENT_SANDBOX`.
+
+**Path traversal detected**
+```
+Path traversal detected: [disks]/../../etc/passwd escapes its trusted directory.
+```
+→ The path contains `../` sequences that escape the sandbox. Use a direct relative path.
+
+---
+
 ## Development Workflow
 
 ### For Agent Development

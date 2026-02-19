@@ -317,7 +317,32 @@ Two coordinated components:
 - `.mcp.json` (repo root) — MCP client config for running the agent
   - Recommended: `bunx -y @retrotech71/appleii-agent` (auto-installs with Bun)
   - Development: `node /path/to/appleii-agent/src/index.js` (local source)
-- Environment variables: `PORT` (default 3033), `HTTPS=true` for TLS mode
+- Environment variables: `PORT` (default 3033), `HTTPS=true` for TLS mode, `APPLEII_AGENT_SANDBOX` (path to sandbox config — required for all file operations)
+
+### Sandbox Configuration
+
+All MCP file operations (loading/saving disk images, BASIC programs, assembly files) are gated by a sandbox config. Without it the agent starts but file access is completely blocked.
+
+**Config file format** (`~/.appleii/sandbox.config`):
+```
+# Lines starting with # are comments
+[key]@/path/to/directory
+```
+- Key: alphanumeric, underscores, hyphens only
+- Path: absolute or `~`-prefixed home-relative
+
+**Wire it up in `.mcp.json`:**
+```json
+"env": { "APPLEII_AGENT_SANDBOX": "/path/to/sandbox.config" }
+```
+
+**Sandbox path syntax in tool calls:** `[key]/relative/path/file`
+
+**Tools that accept sandbox paths:** `load_disk_image`, `load_smartport_image`, `load_file`, `save_basic_file`, `save_asm_file`, `save_disk_file`
+
+**Reload without restarting:** call `reload_sandbox` after editing the config file — no Claude Code restart needed.
+
+Security: path traversal (`../`) and full paths outside all configured directories are blocked. Save tools default to `overwrite: false`.
 
 ### MCP Server Tools (`mcp/appleii-agent/src/tools/`)
 

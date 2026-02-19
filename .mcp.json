@@ -2,11 +2,13 @@
   "mcpServers": {
     "appleii-agent": {
       "type": "stdio",
-      "command": "bunx",
+      "command": "node",
       "args": [
-        "-y",
-        "@retrotech71/appleii-agent@latest"
-      ]
+        "/Users/Shawn/code/git/[mikedaley]/appleii-agent/src/index.js"
+      ],
+      "env": {
+        "APPLEII_AGENT_SANDBOX": "~/.appleii/sandbox.config"
+      }
     }
   }
 }

@@ -8,6 +8,7 @@ The AI Agent integration allows LLMs like Claude to control the emulator through
 
 - [Connection Status](#connection-status)
 - [Setting Up the MCP Server](#setting-up-the-mcp-server)
+- [Sandbox Configuration](#sandbox-configuration)
 - [Example Prompts](#example-prompts)
   - [Window Management](#window-management)
   - [Disk Management](#disk-management)
@@ -81,6 +82,77 @@ No installation required — the agent is downloaded and run automatically on fi
 ### How It Works
 
 The MCP server starts automatically when your MCP client (e.g., Claude Code) connects. It listens on `http://localhost:3033` and uses the AG-UI protocol to communicate with the emulator frontend running in your browser.
+
+### Sandbox Configuration
+
+All MCP file operations are gated by a sandbox — a config file that maps short alias keys to trusted directories on your filesystem. Without it the agent starts but all file access is blocked.
+
+**1. Create the config file**
+
+Create `~/.appleii/sandbox.config` (or any path you prefer):
+
+```
+# Lines starting with # are comments
+# Format: [key]@/path/to/directory
+
+[disks]@~/Documents/Apple2/Disks
+[games]@~/Documents/Apple2/Games
+[basic]@~/Documents/Apple2/BASIC
+[asm]@~/Documents/Apple2/Assembly
+```
+
+Rules:
+- **Key**: alphanumeric, underscores, and hyphens only — used as `[key]` in tool calls
+- **Path**: absolute path or `~`-prefixed home-relative path to a directory
+- Empty lines and `#` comments are ignored
+
+**2. Point `.mcp.json` to the config**
+
+Add `APPLEII_AGENT_SANDBOX` to the `env` block:
+
+```json
+{
+  "mcpServers": {
+    "appleii-agent": {
+      "type": "stdio",
+      "command": "bunx",
+      "args": ["-y", "@retrotech71/appleii-agent"],
+      "env": {
+        "APPLEII_AGENT_SANDBOX": "/path/to/sandbox.config"
+      }
+    }
+  }
+}
+```
+
+**3. Use sandbox paths in prompts**
+
+Reference files using `[key]/relative/path` syntax:
+
+```
+Load [disks]/ProDOS_2_4_2.dsk into drive 1
+Save the BASIC program to [basic]/hello.bas
+Load [games]/Zork/zork1.dsk into drive 1
+```
+
+Full `~/` paths also work as long as they fall inside a configured sandbox directory.
+
+**4. Reload after editing**
+
+After changing the config file, ask the agent to reload:
+
+```
+Reload the sandbox configuration
+```
+
+No restart of Claude Code or the MCP server is needed.
+
+**Security notes:**
+- Path traversal (`../` escaping a directory) is blocked
+- Full paths outside all configured directories are blocked
+- Save tools default to `overwrite: false` — ask explicitly to overwrite an existing file
+
+---
 
 ### Port Conflict Management
 
@@ -338,19 +410,19 @@ Save 256 bytes from memory address $0800 to ~/output.bin
 
 **Save memory region:**
 ```
-Read 1024 bytes starting at $4000 and save them to ~/dump.bin
+Save 1024 bytes starting at $4000 to [files]/dump.bin
 ```
 
 ### Screen Capture
 
-**Capture screenshot:**
+**View screenshot:**
 ```
 Take a screenshot of the current screen
 ```
 
 **Save screenshot to file:**
 ```
-Capture the screen and save it as ~/screenshot.png
+Save the screen to [t]/screenshot.png
 ```
 
 **Read text from screen:**

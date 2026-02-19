@@ -38,21 +38,27 @@ Loads binary data (base64 encoded) directly into emulator memory at the specifie
 emma_command({ command: "directSaveBinaryRangeTo", params: { address: "$2000", length: "$0100" } })
 emma_command({ command: "directSaveBinaryRangeTo", params: { address: 8192, length: 256 } })
 ```
-Reads a range of memory and returns it as base64-encoded binary data. Both address and length can be hex (`"$0100"`) or decimal (`256`). Use with MCP tool `save_disk_file` to save to local filesystem.
+Reads a range of memory and returns it as base64-encoded binary data. Both address and length can be hex (`"$0100"`) or decimal (`256`). Use MCP tool `save_to` with `from: "memory-range"` to capture directly to a file without the base64 passing through the LLM.
 
 ## Screen Capture
 
-**Capture screenshot as PNG:**
+**View screenshot in LLM context (use MCP tool — not emma_command):**
+```
+get_screenshot()
+```
+Captures the current screen and returns it as a viewable image in the LLM context. Use this to inspect the screen visually.
+
+**Capture screenshot as PNG (app tool — returns base64):**
 ```
 emma_command({ command: "captureScreenshot", params: {} })
 ```
-Captures the current screen as a 560x384 PNG image, returned as base64-encoded data. Useful for visual debugging, documentation, or test verification.
+Returns base64-encoded PNG. Prefer `save_to` or `get_screenshot` over this to avoid base64 in the conversation.
 
 Returns:
 ```
 {
   success: true,
-  imageBase64: "iVBORw0KG...",  // PNG data as base64
+  imageBase64: "data:image/png;base64,iVBORw0KG...",
   width: 560,
   height: 384,
   message: "Screen captured as 560x384 PNG"
@@ -91,13 +97,20 @@ Returns:
 1. Load file: `load_file({ path: "~/program.bin", binary: true })`
 2. Load to memory: `directLoadBinaryAt({ address: "$2000", contentBase64: result.contentBase64 })`
 
-**Saving memory range to local filesystem:**
-1. Read memory: `directSaveBinaryRangeTo({ address: "$0800", length: "$0400" })`
-2. Save to file: `save_disk_file({ path: "~/output.bin", contentBase64: result.contentBase64 })`
+**Saving memory range to local filesystem (single step, no base64 in context):**
+```
+save_to({ from: "memory-range", address: "$0800", length: "$0400", whereTo: "[files]/output.bin" })
+```
 
-**Capturing screenshot to local filesystem:**
-1. Capture screen: `captureScreenshot({})`
-2. Save to file: `save_disk_file({ path: "~/screenshot.png", contentBase64: result.imageBase64 })`
+**Capturing screenshot to local filesystem (single step, no base64 in context):**
+```
+save_to({ from: "screen", whereTo: "[t]/screenshot.png" })
+```
+
+**Viewing screenshot in LLM context:**
+```
+get_screenshot()
+```
 
 **Reading program output from screen:**
 1. Capture text: `captureScreenText({ startRow: 5, startCol: 0, endRow: 15, endCol: 79 })`
