@@ -891,19 +891,47 @@ export class DocumentationWindow extends BaseWindow {
         <p>Click the sparkle icon to open the agent connection panel and view detailed status information.</p>
 
         <h4>Setting Up the MCP Server</h4>
-        <p>The AI Agent uses the Model Context Protocol (MCP) to communicate with LLM clients like Claude Code. Configure your MCP client to connect to the emulator's agent server.</p>
-        <p>Add the following to your MCP configuration file (e.g., <code>~/.claude/mcp.json</code>):</p>
+        <p>The AI Agent uses the Model Context Protocol (MCP) to communicate with LLM clients like Claude Code. Add the following to your MCP configuration file (e.g., <code>.mcp.json</code> in your project or <code>~/.claude/mcp.json</code> globally):</p>
+        <p><strong>Using bunx (recommended):</strong></p>
         <pre><code>{
   "mcpServers": {
     "appleii-agent": {
-      "command": "node",
-      "args": [
-        "/path/to/mcp/appleii-agent/src/index.js"
-      ]
+      "type": "stdio",
+      "command": "bunx",
+      "args": ["-y", "@retrotech71/appleii-agent"],
+      "env": {
+        "APPLEII_AGENT_SANDBOX": "/path/to/sandbox.config"
+      }
     }
   }
 }</code></pre>
-        <p>The server listens on <code>http://localhost:3033</code> by default.</p>
+        <p>No installation required — the package downloads automatically. <a href="https://bun.sh" target="_blank">Bun</a> is recommended; replace <code>bunx</code> with <code>npx</code> if you prefer Node.js. The server listens on <code>http://localhost:3033</code> by default.</p>
+
+        <h4>Sandbox Configuration</h4>
+        <p>The sandbox controls which directories the agent can access on your filesystem. Without it the server starts but all file operations are blocked.</p>
+        <p><strong>1. Create the config file</strong> (<code>~/.appleii/sandbox.config</code>):</p>
+        <pre><code># Lines starting with # are comments
+# Format: [key]@/path/to/directory
+
+[disks]@~/Documents/Apple2/Disks
+[games]@~/Documents/Apple2/Games
+[basic]@~/Documents/Apple2/BASIC</code></pre>
+        <ul>
+          <li><strong>Key:</strong> alphanumeric, underscores, hyphens — used as <code>[key]</code> in requests</li>
+          <li><strong>Path:</strong> absolute or <code>~</code>-prefixed home-relative directory</li>
+          <li>Empty lines and <code>#</code> comments are ignored</li>
+        </ul>
+        <p><strong>2. Set <code>APPLEII_AGENT_SANDBOX</code></strong> in the <code>env</code> block of your <code>.mcp.json</code> (shown above).</p>
+        <p><strong>3. Use sandbox paths</strong> in requests using <code>[key]/relative/path</code> syntax:</p>
+        <ul>
+          <li>"Load <code>[disks]/ProDOS.dsk</code> into drive 1"</li>
+          <li>"Save the BASIC program to <code>[basic]/hello.bas</code>"</li>
+          <li>"Load <code>[games]/Zork/zork1.dsk</code> into drive 2"</li>
+        </ul>
+        <p><strong>4. After editing the config</strong>, ask the agent to "reload the sandbox configuration" — no restart needed.</p>
+        <div class="info-box tip">
+          <p><strong>Tip:</strong> Full <code>~/</code> paths also work as long as they fall inside a configured sandbox directory. Path traversal and out-of-sandbox access are blocked automatically.</p>
+        </div>
 
         <h4>Port Conflict Management</h4>
         <p>The MCP server includes graceful port conflict handling when multiple instances attempt to use port 3033:</p>
@@ -958,6 +986,15 @@ export class DocumentationWindow extends BaseWindow {
           <li><strong>Load binary to memory:</strong> "Load the file ~/program.bin into memory at address $2000"</li>
           <li><strong>Save memory range:</strong> "Save 256 bytes from memory address $0800 to ~/output.bin"</li>
           <li><strong>Save memory region:</strong> "Read 1024 bytes starting at $4000 and save them to ~/dump.bin"</li>
+        </ul>
+
+        <h5>Screen Capture</h5>
+        <ul>
+          <li><strong>Capture screenshot:</strong> "Take a screenshot of the current screen"</li>
+          <li><strong>Save screenshot to file:</strong> "Capture the screen and save it as ~/screenshot.png"</li>
+          <li><strong>Read screen text:</strong> "What text is currently displayed on the screen?"</li>
+          <li><strong>Read specific region:</strong> "Read the text from rows 5 to 15 on the screen"</li>
+          <li><strong>Read CATALOG output:</strong> "Read the text from the screen after running CATALOG"</li>
         </ul>
 
         <h5>SmartPort Hard Drives</h5>

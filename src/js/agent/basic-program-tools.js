@@ -7,6 +7,7 @@
 
 import { BasicProgramParser } from "../debug/basic-program-parser.js";
 import { tokenizeProgram } from "../utils/basic-tokenizer.js";
+import { APPLESOFT_TOKENS } from "../utils/basic-tokens.js";
 
 export const basicProgramTools = {
   /**
@@ -18,9 +19,7 @@ export const basicProgramTools = {
       throw new Error("WASM module not available");
     }
 
-    // Create parser instance to read from memory
-    const parser = new BasicProgramParser(wasmModule);
-    const lines = parser.getLines();
+    const lines = await _readBasicFromMemory(wasmModule);
 
     if (lines.length === 0) {
       return {
@@ -31,7 +30,6 @@ export const basicProgramTools = {
       };
     }
 
-    // Format as program text (line number + text)
     const programText = lines
       .map((line) => `${line.lineNumber} ${line.text}`)
       .join("\n");
@@ -285,15 +283,12 @@ export const basicProgramTools = {
       throw new Error("WASM module not available");
     }
 
-    // Read BASIC program from memory
-    const parser = new BasicProgramParser(wasmModule);
-    const lines = parser.getLines();
+    const lines = await _readBasicFromMemory(wasmModule);
 
     if (lines.length === 0) {
       throw new Error("No BASIC program in memory to save");
     }
 
-    // Format as program text (line number + text)
     const programText = lines
       .map((line) => `${line.lineNumber} ${line.text}`)
       .join("\n");
@@ -548,6 +543,67 @@ export const basicProgramTools = {
     return {
       success: true,
       message: "BASIC program set",
+    };
+  },
+
+  /**
+   * Get BASIC line execution heat map data
+   * Returns raw execution counts and normalized heat values per line
+   */
+  basicProgramGetHeatMap: async (args) => {
+    const wasmModule = window.emulator?.wasmModule;
+    if (!wasmModule) {
+      throw new Error("WASM module not available");
+    }
+
+    if (!wasmModule._getBasicHeatMapSize || !wasmModule._getBasicHeatMapData) {
+      throw new Error("Heat map not supported by this WASM build");
+    }
+
+    const size = await wasmModule._getBasicHeatMapSize();
+    if (size === 0) {
+      return {
+        success: true,
+        enabled: false,
+        lines: [],
+        message: "No heat map data (heat map may not be enabled)",
+      };
+    }
+
+    const maxEntries = Math.min(size, 1024);
+    const linesPtr = await wasmModule._malloc(maxEntries * 2);
+    const countsPtr = await wasmModule._malloc(maxEntries * 4);
+    const count = await wasmModule._getBasicHeatMapData(linesPtr, countsPtr, maxEntries);
+
+    const lineNums = await wasmModule.heapReadU16(linesPtr, count);
+    const rawCounts = await wasmModule.heapReadU32(countsPtr, count);
+    wasmModule._free(linesPtr);
+    wasmModule._free(countsPtr);
+
+    let maxCount = 0;
+    for (let i = 0; i < count; i++) {
+      if (rawCounts[i] > maxCount) maxCount = rawCounts[i];
+    }
+
+    const lines = [];
+    for (let i = 0; i < count; i++) {
+      const heat = maxCount > 0
+        ? Math.log(1 + rawCounts[i]) / Math.log(1 + maxCount)
+        : 0;
+      lines.push({
+        lineNumber: lineNums[i],
+        executions: rawCounts[i],
+        heat: Math.round(heat * 1000) / 1000,
+      });
+    }
+
+    lines.sort((a, b) => b.executions - a.executions);
+
+    return {
+      success: true,
+      count: lines.length,
+      lines,
+      message: `Heat map data for ${lines.length} line(s)`,
     };
   },
 
@@ -892,3 +948,139 @@ export const basicProgramTools = {
     };
   },
 };
+
+// ========================================
+// Private Helpers
+// ========================================
+
+/**
+ * Read and detokenize a BASIC program directly from emulator memory.
+ * Uses bulk heapRead to avoid per-byte round-trips through the Worker.
+ * @param {Object} wasmModule - The WASM proxy
+ * @returns {Array<{lineNumber: number, address: number, text: string}>}
+ */
+async function _readBasicFromMemory(wasmModule) {
+  // Read TXTTAB ($67-$68) and VARTAB ($69-$6A) from main RAM
+  const zp = await wasmModule.batch([
+    ['_readMainRAM', 0x67],
+    ['_readMainRAM', 0x68],
+    ['_readMainRAM', 0x69],
+    ['_readMainRAM', 0x6A],
+  ]);
+  const txttab = (zp[1] << 8) | zp[0];
+  const vartab = (zp[3] << 8) | zp[2];
+
+  if (txttab === 0 || vartab === 0 || txttab >= vartab) {
+    return [];
+  }
+
+  // Read entire program in one round-trip
+  const mainRAMPtr = await wasmModule._getMainRAM();
+  const programBytes = await wasmModule.heapRead(mainRAMPtr + txttab, vartab - txttab);
+
+  const lines = [];
+  let offset = 0;
+  let safety = 0;
+
+  while (offset + 4 <= programBytes.length && safety++ < 10000) {
+    const nextPtr = (programBytes[offset + 1] << 8) | programBytes[offset];
+    if (nextPtr === 0) break;
+
+    const nextOffset = nextPtr - txttab;
+    if (nextOffset <= offset || nextOffset > programBytes.length) break;
+
+    const lineNumber = (programBytes[offset + 3] << 8) | programBytes[offset + 2];
+
+    // Find null terminator of tokenized text
+    let textEnd = offset + 4;
+    while (textEnd < nextOffset && programBytes[textEnd] !== 0) {
+      textEnd++;
+    }
+
+    const tokenBytes = programBytes.slice(offset + 4, textEnd);
+    const text = _detokenizeApplesoft(tokenBytes);
+
+    lines.push({ lineNumber, address: txttab + offset, text });
+    offset = nextOffset;
+  }
+
+  return lines;
+}
+
+/**
+ * Detokenize Applesoft BASIC token bytes to a text string.
+ */
+function _detokenizeApplesoft(bytes) {
+  const isAlphaNum = (c) => /[A-Za-z0-9]/.test(c);
+  let result = "";
+  let inQuote = false;
+  let inRem = false;
+
+  for (let i = 0; i < bytes.length; i++) {
+    const byte = bytes[i];
+
+    if (inQuote || inRem) {
+      if (byte === 0x22) inQuote = false;
+      result += String.fromCharCode(byte & 0x7f);
+      continue;
+    }
+
+    if (byte === 0x22) {
+      inQuote = true;
+      result += '"';
+      continue;
+    }
+
+    if (byte >= 0x80 && byte <= 0xea) {
+      const token = APPLESOFT_TOKENS[byte - 0x80];
+      if (token) {
+        const lastChar = result.length > 0 ? result[result.length - 1] : "";
+        if (isAlphaNum(lastChar)) result += " ";
+        result += token;
+        if (byte === 0xb2) inRem = true;
+        const nextByte = i + 1 < bytes.length ? bytes[i + 1] : 0;
+        if (nextByte !== 0x20 && nextByte !== 0 && isAlphaNum(token[token.length - 1])) {
+          result += " ";
+        }
+        continue;
+      }
+    }
+
+    const char = String.fromCharCode(byte & 0x7f);
+
+    if (byte >= 0x30 && byte <= 0x39) {
+      const lastChar = result.length > 0 ? result[result.length - 1] : "";
+      if (isAlphaNum(lastChar)) result += " ";
+      result += char;
+      while (i + 1 < bytes.length) {
+        const next = bytes[i + 1];
+        if ((next >= 0x30 && next <= 0x39) || next === 0x2e) {
+          result += String.fromCharCode(next);
+          i++;
+        } else break;
+      }
+      continue;
+    }
+
+    const isLetter = (byte >= 0x41 && byte <= 0x5a) || (byte >= 0x61 && byte <= 0x7a);
+    if (isLetter) {
+      const lastChar = result.length > 0 ? result[result.length - 1] : "";
+      if (isAlphaNum(lastChar)) result += " ";
+      result += char;
+      while (i + 1 < bytes.length) {
+        const next = bytes[i + 1];
+        const nextIsLetter = (next >= 0x41 && next <= 0x5a) || (next >= 0x61 && next <= 0x7a);
+        const nextIsDigit = next >= 0x30 && next <= 0x39;
+        if (nextIsLetter || nextIsDigit || next === 0x24 || next === 0x25) {
+          result += String.fromCharCode(next);
+          i++;
+        } else break;
+      }
+      continue;
+    }
+
+    result += char;
+  }
+
+  return result;
+}

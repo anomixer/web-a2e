@@ -5,8 +5,11 @@
       "command": "bunx",
       "args": [
         "-y",
-        "@retrotech71/appleii-agent@latest"
-      ]
+        "@retrotech71/appleii-agent"
+      ],
+      "env": {
+        "APPLEII_AGENT_SANDBOX": "~/.appleii/sandbox.config"
+      }
     }
   }
 }
