@@ -44,11 +44,16 @@ When generating code or files, load relevant reference docs to ensure consistenc
 
 ### core-files
 **Files**:
+- `docs/styles.md` - Coding styles and conventions
+- `docs/bindings.md` - WASM bindings quick reference
+- `docs/ag-ui-tools.md` - AG-UI app tool registry
+- `docs/agent-tools.md` - MCP agent tool registry
+- `docs/mcp-ag-ui-integration.md` - Integration architecture
 - `src/js/agent/agent-manager.js` - Frontend AG-UI client implementation
 - `src/js/agent/agent-tools.js` - Tool registry and command handlers
 
-**Contains**: Core agent integration source code, SSE connection management, tool execution
-**Use when**: Understanding agent architecture, debugging agent issues, extending agent functionality
+**Contains**: Complete context for working on the agent system — styles, bindings, all tool registries, integration architecture, and core source files
+**Use when**: Restoring session context, starting any agent work, "load core files", "restore core files"
 
 ### setup
 **File**: `docs/setup.md`

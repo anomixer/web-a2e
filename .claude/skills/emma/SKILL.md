@@ -64,18 +64,23 @@ Emma detects your intent and routes to the appropriate specialized guide:
 
 **Routes to**: `references/impact.md`
 
-### Referencing Documentation
+### Referencing Documentation / Session Restore
 
-**Intent**: Loading important docs into context for adherence
+**Intent**: Loading important docs into context for adherence, or restoring context after a session summary
 
 **Examples**:
+- "restore the core files"
+- "load core files"
 - "reference styles"
 - "reference bindings"
 - "reference architecture"
 
 **Routes to**: `references/reference.md`
 
+**Session restore shortcut**: "restore/load core files" → always loads `core-files` (all 7 files: 5 docs + 2 source files)
+
 **Available references**:
+- `core-files` - All 7 core files for full session restore (styles, bindings, ag-ui-tools, agent-tools, mcp-ag-ui-integration, agent-manager.js, agent-tools.js)
 - `docs/styles.md` - Coding styles, project styles, conventions
 - `docs/bindings.md` - WASM bindings quick reference
 - `docs/architecture.md` - System architecture overview
@@ -175,9 +180,10 @@ When invoked, emma:
 - Keywords: impact, affect, break, change, sync, update
 - Context: "WASM", "tools", "agent", "binding", "function"
 
-**Reference**:
-- Keywords: reference, apply, load, use
-- Context: "styles", "bindings", "architecture", "conventions"
+**Reference / Session Restore**:
+- Keywords: reference, apply, load, restore, use
+- Context: "core files", "styles", "bindings", "architecture", "conventions", "session"
+- "restore core files" / "load core files" → always loads `core-files` (all 7 files)
 
 **Pull Request Creation**:
 - Keywords: PR, pull request, github, description, create, make, generate
