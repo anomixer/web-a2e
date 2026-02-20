@@ -177,6 +177,7 @@ export class UIController {
   setupAgentButton() {
     console.log("[UIController] setupAgentButton() called");
     const agentBtn = document.getElementById("btn-agent");
+    const agentBtnLabel = agentBtn?.querySelector(".agent-btn-label");
     console.log("[UIController] agentBtn:", agentBtn);
     if (!agentBtn) {
       console.warn("[UIController] Agent button not found");
@@ -230,8 +231,11 @@ export class UIController {
       updateButtonState();
     };
 
-    agentManager.onConnectionChange = (connected) => {
-      console.log(`[UIController] Connection changed: ${connected}`);
+    agentManager.onConnectionChange = (connected, acceptedName) => {
+      console.log(`[UIController] Connection changed: ${connected}${acceptedName ? ` (${acceptedName})` : ""}`);
+      if (acceptedName && agentBtnLabel) {
+        agentBtnLabel.textContent = acceptedName;
+      }
       updateButtonState();
     };
 
@@ -252,7 +256,7 @@ export class UIController {
         agentManager.disconnect();
         // Don't auto-connect, let user click again if they want
       } else {
-        // Disconnected - connect
+        // Disconnected - connect (preferred name comes from localStorage via agent-manager)
         console.log("[UIController] Connecting...");
         agentManager.connect();
         setTimeout(() => updateButtonState(), 100);

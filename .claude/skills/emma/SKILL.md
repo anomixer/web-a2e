@@ -96,6 +96,24 @@ Emma detects your intent and routes to the appropriate specialized guide:
 
 **Routes to**: `references/create-pr.md`
 
+### Managing Tasks
+
+**Intent**: Creating, updating, listing, or resequencing development task sets
+
+**Examples**:
+- "tasks list multiconnect"
+- "what's the next task for multiconnect?"
+- "mark multiconnect 04 as done"
+- "add a task to multiconnect for the button redesign"
+- "check dependencies for multiconnect"
+- "create a new task set called widgets"
+- "resequence multiconnect — swap 03 and 04"
+- "tasks show multiconnect 05"
+
+**Routes to**: `references/task-management.md`
+
+**Task sets location**: `.claude/docs/tasks/<name>/`
+
 ### Answering Questions
 
 **Intent**: Finding information in docs or codebase
@@ -141,6 +159,7 @@ The skill dispatcher reads the command and routes to the appropriate reference:
 │   ├── impact.md              # Analyze change impacts
 │   ├── reference.md           # Load docs into context
 │   ├── create-pr.md           # Generate GitHub PR descriptions
+│   ├── task-management.md     # Manage development task sets
 │   └── query.md               # Query docs
 └── docs/                       # Important reference docs
     ├── styles.md              # Coding styles & conventions
@@ -148,6 +167,11 @@ The skill dispatcher reads the command and routes to the appropriate reference:
     ├── architecture.md        # Architecture overview
     ├── app-tools.md           # App tool registry
     └── agent-tools.md         # Agent tool registry
+
+.claude/docs/tasks/<name>/      # Development task sets (one folder per project)
+    ├── __ - tasks.md          # Manifest: fast index for listing (single file read)
+    ├── 00-overview.md         # Goals & decisions
+    └── 01-nn-*.md             # Individual task files (NN-kebab-title.md)
 ```
 
 ## Intent Detection & Routing
@@ -161,6 +185,7 @@ When invoked, emma:
    - Impact/affect/change keywords → `impact.md`
    - PR/pull request keywords → `create-pr.md`
    - Reference keywords → `reference.md`
+   - Task management keywords → `task-management.md`
    - Question patterns → `query.md`
 3. **Loads only relevant reference** (progressive disclosure)
 4. **Executes with context** from the reference
@@ -188,6 +213,11 @@ When invoked, emma:
 **Pull Request Creation**:
 - Keywords: PR, pull request, github, description, create, make, generate
 - Context: "for these features", "recent changes", "unpushed commits"
+
+**Task Management**:
+- Keywords: tasks, task, todo, backlog, track, sequenc, resequence, mark done, check deps
+- Context: task set names (e.g. "multiconnect"), "list tasks", "add task", "create task set", "what's next", "mark as done", "check dependencies"
+- Routes to: `references/task-management.md`
 
 **Questions**:
 - Patterns: how, what, where, when, why, can I, does it
