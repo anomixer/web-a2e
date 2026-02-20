@@ -353,7 +353,6 @@ Security: path traversal (`../`) and full paths outside all configured directori
 | `set_https` | Enable/disable HTTPS mode |
 | `set_debug` | Set debug logging level |
 | `get_state` | Return current emulator state |
-| `show_window` / `hide_window` / `focus_window` | Window management |
 | `load_disk_image` | Load disk image (.dsk/.do/.po/.nib/.woz) from filesystem, returns base64 |
 | `load_file` | Load arbitrary file from filesystem |
 | `save_basic_file` | Save BASIC program to disk |

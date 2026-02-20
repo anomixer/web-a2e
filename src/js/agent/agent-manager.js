@@ -167,42 +167,6 @@ export class AgentManager {
     console.log(`[AgentManager] Connecting to ${this.serverUrl}/events as "${name}"`);
     console.log(`[AgentManager] Emulator domain: ${domain}`);
 
-    // Check if connection is allowed (detect 409 for single-client mode)
-    try {
-      const testResponse = await fetch(`${this.serverUrl}/events?${eventsQuery}`, {
-        method: "HEAD",
-        signal: AbortSignal.timeout(2000),
-      });
-
-      // If 409, another client is connected
-      if (testResponse.status === 409) {
-        const message = await testResponse.text();
-        console.warn(`[AgentManager] ${message}`);
-
-        // Show confirm dialog with option to disconnect other client
-        const shouldDisconnect = await this._showConnectionConflictDialog(message);
-
-        if (shouldDisconnect) {
-          // User chose to disconnect other client
-          console.log("[AgentManager] Disconnecting other client and retrying...");
-          try {
-            await this.callMCPTool("disconnect_clients", {});
-            // Retry connection after brief delay
-            setTimeout(() => this.connect(), 500);
-          } catch (error) {
-            console.error("[AgentManager] Failed to disconnect other client:", error);
-          }
-        } else {
-          // User chose not to connect
-          console.log("[AgentManager] Connection cancelled by user");
-        }
-        return;
-      }
-    } catch (error) {
-      // HEAD request not supported or other error, proceed with EventSource anyway
-      console.log("[AgentManager] Connection check failed, proceeding with EventSource:", error.message);
-    }
-
     // Check agent version compatibility before connecting
     try {
       const versionCheck = await this._checkVersionCompatibility();
@@ -245,18 +209,6 @@ export class AgentManager {
       console.error("[AgentManager] Failed to create EventSource:", error);
       this._scheduleReconnect();
     }
-  }
-
-  /**
-   * Show dialog when connection is rejected due to another client being connected
-   * @param {string} message - The rejection message from server
-   * @returns {Promise<boolean>} True if user wants to disconnect other client, false otherwise
-   */
-  async _showConnectionConflictDialog(message) {
-    return await showConfirm(
-      message + "\n\nWould you like to disconnect the other client and connect?",
-      "Disconnect and Connect"
-    );
   }
 
   /**
