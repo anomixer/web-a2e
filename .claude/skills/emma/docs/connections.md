@@ -16,12 +16,12 @@ This document describes the connection behaviors between the Apple //e emulator 
 │  - HTTP/HTTPS server on port 3033                            │
 │  - AG-UI protocol (Server-Sent Events)                       │
 └─────────────────┬───────────────────────────────────────────┘
-                  │ HTTP/SSE
+                  │ HTTP/SSE (multiple simultaneous connections)
 ┌─────────────────▼───────────────────────────────────────────┐
-│  web-a2e Emulator (Browser)                                  │
-│  - AgentManager connects via EventSource (SSE)               │
-│  - Executes tool calls from agent                            │
-│  - Returns results via HTTP POST                             │
+│  web-a2e Emulator (Browser Tabs)                             │
+│  - Each tab runs AgentManager, connects via EventSource      │
+│  - Assigned a unique name from the name pool                 │
+│  - One tab is designated as the default for tool routing     │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -29,7 +29,7 @@ This document describes the connection behaviors between the Apple //e emulator 
 
 ### Version Compatibility Check
 
-**Required Minimum Version:** `1.0.2` (configurable)
+**Required Minimum Version:** `1.2.0`
 
 **Implementation:** `src/js/agent/agent-manager.js` - `_checkVersionCompatibility()`
 
@@ -54,10 +54,10 @@ When connecting, the app checks the agent version:
 **Update Minimum Version:**
 ```javascript
 // In agent-manager.js _checkVersionCompatibility()
-const minVersion = "1.0.2"; // Change this value
+const minVersion = "1.2.0"; // Change this value
 
 // Also update in agent-version-tools.js checkAgentCompatibility()
-const { minVersion = "1.0.2" } = args; // Change default here
+const { minVersion = "1.2.0" } = args; // Change default here
 ```
 
 ### Connection States
@@ -91,7 +91,7 @@ if (connected) {
   agentManager.disconnect();
   agentManager.startHeartbeatPolling();
 } else if (reconnecting) {
-  // Abort reconnection (NEW BEHAVIOR)
+  // Abort reconnection
   agentManager.disconnect(); // Clears timeout, resets state
   // Don't auto-connect - let user click again
 } else {
@@ -99,8 +99,6 @@ if (connected) {
   agentManager.connect();
 }
 ```
-
-**Key Fix:** When in reconnecting state, clicking aborts all pending reconnection attempts and resets state cleanly, preventing racing reconnection timers.
 
 ### Reconnection Logic
 
@@ -123,9 +121,12 @@ if (connected) {
    - User can manually connect
 
 **Disconnect Cleanup:**
-The `disconnect()` method now fully resets reconnection state:
+The `disconnect()` method fully resets reconnection state:
 ```javascript
 disconnect() {
+  // Send intentional disconnect signal to server
+  await this._sendDisconnectSignal("intentional");
+
   // Close EventSource
   if (this.eventSource) {
     this.eventSource.close();
@@ -138,23 +139,111 @@ disconnect() {
     this.reconnectTimeout = null;
   }
 
-  // Reset reconnection state (CRITICAL FIX)
+  // Reset reconnection state
   this.reconnectAttempts = 0;
   this.reconnectStartTime = null;
+  this._triedNames.clear();
 }
 ```
 
-### Connection Conflict Handling
+## Multi-Emulator Support
 
-**Implementation:** `src/js/agent/agent-manager.js` - `connect()`
+Multiple browser tabs can connect simultaneously. Each is assigned a unique name and one is designated as the default routing target.
 
-Only one emulator can connect at a time. When attempting to connect while another client is connected:
+### Name Assignment
 
-1. HEAD request to `/events` endpoint returns **409 Conflict**
-2. Shows dialog: "Another Apple //e Emulator Already Connected\n\nWould you like to disconnect the other client and connect?"
-3. User choices:
-   - **"Disconnect and Connect"**: Calls `disconnect_clients` MCP tool, then retries connection
-   - **"Cancel"**: Aborts connection attempt
+**Implementation:** `src/js/agent/agent-manager.js` - `connect()`, `_handleConnectAck()`
+
+**Name pool:** `src/js/agent/emulator-names-list.js` — a list of Apple II-themed names (Merlin, Wozulator, Beagle, etc.)
+
+**Resolution order:**
+1. Use `preferredName` argument if provided
+2. Use name stored in `sessionStorage` (if not already tried this session)
+3. Pick randomly from untried names in the pool
+
+**CONNECT_ACK flow:**
+- Server sends `{ type: "CONNECT_ACK", accepted: true/false, name, isDefault }`
+- If accepted: persist name and `isDefault` to `sessionStorage`
+- If rejected (`name_taken`): add to `_triedNames`, retry with a new name
+
+**Reconnect with same name:**
+- If the tab has a name in `sessionStorage`, it attempts that name first
+- Server accepts it if the existing entry is `disconnected` (stale entry cleared and replaced)
+- Server rejects it only if another tab is actively connected with that name
+
+### Default Routing
+
+**Implementation:** `src/http-server.js` - `resolveEmulator()`
+
+**Auto-assign default on connect:**
+- First emulator to connect when no default exists becomes the default
+- Condition: `!hasDefault && (wasDefault || connectedCount === 0)`
+- `wasDefault` is passed as a query param from sessionStorage on reconnect
+
+**wasDefault yield behavior:**
+- If a tab reconnects with `wasDefault=true` but another default already exists → yields (does NOT steal)
+- Only reclaims default if the slot is free (`!hasDefault`)
+
+**Routing rules (no `emulator` param):**
+| Scenario | Result |
+|----------|--------|
+| 0 connected | Error: "No emulators are connected." |
+| 1 connected | Route to it (regardless of default flag) |
+| 2+ connected, default set | Route to default |
+| 2+ connected, no default | Error: prompt to pick |
+
+**Routing rules (with `emulator` param):**
+| Scenario | Result |
+|----------|--------|
+| `emulator: "Name"` | Route to that specific emulator |
+| `emulator: "all"` | Broadcast to all connected |
+| Named emulator broken | Error: prompt to wait, switch, or abort |
+| Named emulator not found | Error: list connected names |
+
+### Disconnect Rules
+
+**Implementation:** `src/http-server.js` - `_handleDisconnected()`, `_handleBroken()`
+
+**Clean disconnect (button click):**
+1. Browser POSTs to `/disconnect?name=X&type=intentional`
+2. Server sets entry state to `disconnected`, `isDefault = false`
+3. Applies fallback rules (see below)
+4. Entry stays in registry (reconnect can reuse the name)
+
+**Tab close (beacon):**
+1. Browser fires `navigator.sendBeacon` to `/disconnect?name=X&type=unload`
+2. Server **removes** the entry entirely from the registry
+3. No fallback needed (entry gone)
+
+**Broken connection (SSE stream drops unexpectedly):**
+1. Server detects stream close without a disconnect signal
+2. Sets entry state to `broken`, `isDefault` unchanged
+3. Routing to a broken emulator returns a prompt error
+
+**Default fallback rules (on clean disconnect or broken→disconnect):**
+| Remaining connected | Action |
+|---------------------|--------|
+| 0 | No action — routing will error naturally |
+| 1 | Auto-promote to default; queue `_note` for Claude |
+| 2+ | No auto-promote — routing returns `noDefault` error |
+
+### Context Injection
+
+**Implementation:** `src/tools/emma-command.js`, `src/tools/routing-helpers.js`
+
+When a successful tool call completes and there are pending context notes, the `_note` field is appended to the response:
+
+```json
+{
+  "success": true,
+  "result": { ... },
+  "_note": "\"Merlin\" disconnected. \"Wozulator\" is now the default emulator."
+}
+```
+
+**Only queued for auto-promotion** (routing still works but Claude's mental model is stale). Other events (no default, broken connection) are handled by routing errors and don't need a separate note.
+
+**Queue lifecycle:** Notes accumulate between tool calls. The queue is drained and cleared on the next successful routed tool call.
 
 ## MCP Server Connection Behavior (appleii-agent)
 
@@ -228,7 +317,7 @@ The server **does not crash** - it resolves gracefully and sets `portInUse = tru
 
 **Starting After Port Conflict:**
 
-The `externallyShutdown` flag is now **informational only** (does NOT block starting):
+The `externallyShutdown` flag is **informational only** (does NOT block starting):
 
 ```javascript
 async start() {
@@ -303,18 +392,6 @@ Sends POST request to `http://localhost:3033/shutdown` to gracefully shut down a
 - **No server found**: Returns `success: false`, `error: "connection_refused"`
 - **Timeout**: 5 second timeout for request
 
-**Shutdown Endpoint Behavior:**
-
-```javascript
-// In http-server.js
-if (req.method === "POST" && req.url === "/shutdown") {
-  // Mark as external shutdown
-  await this.stop(false); // false = external shutdown
-
-  // this.externallyShutdown = true (set in stop())
-}
-```
-
 ## Connection Flow Diagrams
 
 ### App Connecting to Agent
@@ -331,37 +408,62 @@ if (req.method === "POST" && req.url === "/shutdown") {
 │ (calls get_version MCP tool)    │
 └──────┬──────────────────────────┘
        │
-       ├─── Version < 1.0.2 ───► Show "Agent out of date" dialog
+       ├─── Version < 1.2.0 ───► Show "Agent out of date" dialog
        │                          └─► Block connection (return)
        │
-       └─── Version >= 1.0.2 ──┐
+       └─── Version >= 1.2.0 ──┐
                                 │
        ┌────────────────────────┘
        ▼
-┌─────────────────────────────────┐
-│ HEAD /events (check conflicts)  │
-└──────┬──────────────────────────┘
-       │
-       ├─── 409 Conflict ───► Show "Another client connected" dialog
-       │                      ├─► User chooses "Disconnect and Connect"
-       │                      │   └─► Call disconnect_clients, retry
-       │                      └─► User chooses "Cancel"
-       │                          └─► Abort connection (return)
-       │
-       └─── 200 OK ──┐
-                      │
-       ┌──────────────┘
-       ▼
-┌─────────────────────────────────┐
-│ Create EventSource /events      │
-│ (SSE connection established)    │
-└──────┬──────────────────────────┘
+┌─────────────────────────────────────────────────┐
+│ Create EventSource /events?name=X&wasDefault=Y  │
+│ (SSE connection established)                     │
+└──────┬──────────────────────────────────────────┘
        │
        ▼
 ┌─────────────────────────────────┐
+│ Await CONNECT_ACK               │
+└──────┬──────────────────────────┘
+       │
+       ├─── accepted: false (name_taken) ───► Retry with new name from pool
+       │
+       └─── accepted: true ──┐
+                              │
+       ┌──────────────────────┘
+       ▼
+┌─────────────────────────────────┐
+│ Persist name + isDefault to     │
+│ sessionStorage                  │
 │ Connected (yellow sparkle)      │
-│ - Receive tool calls via SSE    │
-│ - Execute and return results    │
+└─────────────────────────────────┘
+```
+
+### Disconnect Flow
+
+```
+┌─────────────────────────────────┐
+│ User clicks Disconnect          │
+└──────┬──────────────────────────┘
+       │
+       ▼
+┌─────────────────────────────────┐
+│ POST /disconnect?type=intentional│
+│ Server: state = "disconnected"  │
+│ isDefault = false               │
+└──────┬──────────────────────────┘
+       │
+       ├─── was default + 1 remaining ───► Auto-promote, queue _note
+       ├─── was default + 2+ remaining ──► No auto-promote, noDefault error on next route
+       └─── was not default ─────────────► Silent
+
+┌─────────────────────────────────┐
+│ Tab closed (no button click)    │
+└──────┬──────────────────────────┘
+       │
+       ▼
+┌─────────────────────────────────┐
+│ sendBeacon /disconnect?type=unload│
+│ Server: entry REMOVED entirely  │
 └─────────────────────────────────┘
 ```
 
@@ -423,12 +525,16 @@ if (req.method === "POST" && req.url === "/shutdown") {
 ### App (web-a2e)
 
 - **`src/js/agent/agent-manager.js`**
-  - `connect()` - Main connection logic with version check
-  - `disconnect()` - Cleanup and state reset
+  - `connect()` - Name resolution, version check, EventSource creation
+  - `disconnect()` - Sends disconnect signal, cleanup and state reset
+  - `_handleConnectAck()` - Accept/reject name, persist to sessionStorage
+  - `_retryWithNewName()` - Pick new name from pool on rejection
   - `_checkVersionCompatibility()` - Version checking
-  - `_showVersionIncompatibleDialog()` - Version error dialog
-  - `_showConnectionConflictDialog()` - Conflict resolution dialog
+  - `_sendDisconnectSignal()` - POST to /disconnect before closing stream
   - `_scheduleReconnect()` - Reconnection logic
+
+- **`src/js/agent/emulator-names-list.js`**
+  - Pool of Apple II-themed emulator names
 
 - **`src/js/ui/ui-controller.js`**
   - Sparkle button click handler (3 states)
@@ -437,41 +543,49 @@ if (req.method === "POST" && req.url === "/shutdown") {
 - **`src/js/agent/agent-version-tools.js`**
   - `checkAgentCompatibility` - Tool for checking version
   - `getAgentVersion` - Tool for getting version info
-  - Version parsing and comparison utilities
 
 ### MCP Server (appleii-agent)
 
 - **`src/http-server.js`**
+  - `_handleEventStream()` - Name validation, accept/reject, default assignment
+  - `_handleDisconnected()` - Fallback rules, auto-promotion, note queuing
+  - `_handleBroken()` - Broken state (silent — routing error handles it)
+  - `resolveEmulator()` - Routing logic (single, broadcast, default, noDefault, brokenTarget)
+  - `consumeContextNotes()` - Drain and return queued notes
   - `start()` - Graceful port conflict handling
   - `stop(internal)` - Shutdown with external flag
+  - `/disconnect` endpoint - Clean and unload disconnect handler
   - `/shutdown` endpoint - External shutdown handler
-  - State: `portInUse`, `externallyShutdown`, `running`
+
+- **`src/tools/routing-helpers.js`**
+  - `checkResolution()` - Convert routing result to error/prompt response
+  - `sendAppToolCall()` - Send tool call to emulator, attach `_note` on success
+
+- **`src/tools/emma-command.js`**
+  - Main tool call handler, attaches `_note` from context notes queue
+
+- **`src/tools/list-connections.js`**
+  - Returns all emulator records with name, state, isDefault
+
+- **`src/tools/set-default-emulator.js`**
+  - Manually override which emulator is default
 
 - **`src/tools/server-control.js`**
   - `start`, `stop`, `restart`, `status` actions
-  - Port conflict messages
 
 - **`src/tools/shutdown-remote-server.js`**
   - Remote instance shutdown
-  - Connection error handling
-
-- **`src/index.js`**
-  - Startup logic with status checking
-  - Informational logging
 
 ## Design Decisions
 
 ### Why Block Incompatible Connections?
 
-**Decision:** Show "Agent out of date" dialog and prevent connection if version < 1.0.2
+**Decision:** Show "Agent out of date" dialog and prevent connection if version < 1.2.0
 
 **Rationale:**
 - Prevents confusing errors from missing features
 - Clear user guidance to update agent
 - Simpler than feature detection for each tool
-
-**Alternative considered:** Allow connection with warning
-- Rejected: Too confusing, hard to debug which features don't work
 
 ### Why Allow Aborting Reconnection?
 
@@ -482,10 +596,6 @@ if (req.method === "POST" && req.url === "/shutdown") {
 - Prevents racing reconnection timers
 - Allows manual retry with clean state
 
-**Previous behavior:** Clicking during reconnection would call `connect()` again
-- Problem: Multiple reconnection timers running simultaneously
-- Problem: Confusing state when reconnection already scheduled
-
 ### Why Allow Port Reclamation Without MCP Restart?
 
 **Decision:** Remove `externallyShutdown` blocking behavior, make it informational only
@@ -493,54 +603,67 @@ if (req.method === "POST" && req.url === "/shutdown") {
 **Rationale:**
 - Enables coordination between multiple MCP instances
 - Avoids forcing users to restart Claude Code
-- Matches expectation: "reclaim port" should work immediately
 
-**Previous behavior:** `externallyShutdown` permanently blocked starting
-- Problem: Defeated the purpose of port reclamation feature
-- Problem: Required MCP restart (exactly what we wanted to avoid)
+### Why Multi-Emulator Instead of Single-Client?
 
-### Why Single-Client Mode?
-
-**Decision:** Only one emulator can connect to agent at a time (409 conflict)
+**Decision:** Multiple tabs can connect simultaneously, each with a unique name and one designated default
 
 **Rationale:**
-- Tool calls are tied to single emulator instance state
-- Prevents state confusion (which emulator to control?)
-- Provides clear conflict resolution dialog
+- Enables working across multiple emulator configurations simultaneously
+- Claude can target specific emulators by name or broadcast to all
+- Default routing keeps single-emulator workflows simple
 
-**Implementation:** HEAD request checks before EventSource creation
+**Routing precedence:** explicit name > default > single-connected > error
 
-## Future Considerations
+### Why `wasDefault` Yields Instead of Steals?
 
-### Version Range Support
+**Decision:** A reconnecting tab with `wasDefault=true` only reclaims default if no current default exists
 
-Currently supports minimum version only (`>= 1.0.2`). Could extend to:
-- Maximum version (`< 2.0.0` for breaking changes)
-- Feature flags instead of version numbers
-- Dynamic compatibility based on available tools
+**Rationale:**
+- If another emulator was explicitly set as default while this tab was away, that choice should be respected
+- Prevents surprising default switches mid-conversation
 
-### Multiple Client Support
+### Why Only Queue Notes for Auto-Promotion?
 
-Could support multiple emulators by:
-- Adding client IDs to tool calls
-- Routing tools to specific emulator instances
-- More complex UI for selecting target emulator
+**Decision:** Context notes (`_note`) only appear for auto-promotion, not for all state changes
 
-### Automatic Agent Updates
+**Rationale:**
+- Routing errors (noDefault, brokenTarget) already explain the situation at point of use
+- Non-default disconnects don't affect routing
+- Auto-promotion is the only case where routing succeeds but Claude's mental model is stale
 
-Could add:
-- Update notification in app
-- Auto-update mechanism for agent
-- Version compatibility matrix
+### Why Remove Entry on Tab Close but Keep on Clean Disconnect?
+
+**Decision:** `type=unload` (beacon) removes the entry; `type=intentional` (button click) keeps it as `disconnected`
+
+**Rationale:**
+- Tab close is permanent — the session is gone, name can be reused immediately
+- Clean disconnect is temporary — the tab might reconnect and should reclaim its name
+- Stale `disconnected` entries are cleared automatically when the same name reconnects
 
 ## Testing Scenarios
 
 ### Version Compatibility
 
-1. Agent 1.0.2, Required 1.0.2 → ✅ Connect
-2. Agent 1.0.3, Required 1.0.2 → ✅ Connect
-3. Agent 1.0.1, Required 1.0.2 → ❌ Show dialog, block
-4. Agent 1.0.2, Required 1.0.5 → ❌ Show dialog, block
+1. Agent 1.2.0, Required 1.2.0 → ✅ Connect
+2. Agent 1.3.0, Required 1.2.0 → ✅ Connect
+3. Agent 1.1.0, Required 1.2.0 → ❌ Show dialog, block
+
+### Multi-Emulator
+
+1. Open tab A → ✅ Connects as default
+2. Open tab B → ✅ Connects as non-default
+3. Open tab C → ✅ Connects as non-default
+4. Disconnect A (default, 1 remaining B) → ✅ B auto-promoted, `_note` on next tool call
+5. Disconnect A (default, 2+ remaining) → ✅ No auto-promote, next route returns `noDefault` error
+6. Reconnect A → ✅ Reclaims name "A", yields default to B (B is still default)
+7. Close tab C (no button) → ✅ Entry removed entirely (beacon)
+
+### Disconnect Rules
+
+1. Click disconnect → ✅ State = `disconnected`, signal POSTed
+2. Close tab → ✅ Entry removed (beacon)
+3. SSE stream drops → ✅ State = `broken`, routing error on next attempt
 
 ### Port Conflicts
 
@@ -555,13 +678,6 @@ Could add:
 2. Stop agent server → 🔴 Red sparkle, reconnecting
 3. Click sparkle → ✅ Aborts, gray sparkle
 4. Click sparkle again → ✅ Attempts fresh connection
-
-### Connection Conflicts
-
-1. Emulator A connects → ✅ Connected
-2. Emulator B tries to connect → Dialog shown
-3. User clicks "Disconnect and Connect" → ✅ A disconnects, B connects
-4. User clicks "Cancel" → ✅ B stays disconnected, A remains connected
 
 ## Common Issues
 
@@ -585,8 +701,14 @@ Could add:
 **Cause:** Browser and agent disconnected but state not updated
 **Fix:** Disconnect and reconnect in emulator
 
+### Tab reconnects with wrong name
+
+**Cause:** Previous name was rejected (another tab is actively using it)
+**Fix:** Expected behavior — the tab picks a new name from the pool. If the previous name was just `disconnected`, it should reconnect successfully.
+
 ## Version History
 
+- **1.2.0** - Multi-emulator support: name pool, default routing, disconnect rules, context injection, `wasDefault` yield, same-name reconnect
 - **1.0.2** - Added version compatibility checking
 - **1.0.1** - Added port reclamation without MCP restart
 - **1.0.0** - Initial connection architecture with reconnection and port conflict handling
