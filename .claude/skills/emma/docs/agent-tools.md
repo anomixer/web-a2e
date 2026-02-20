@@ -15,19 +15,27 @@ MCP tools registered in `/Users/Shawn/code/git/[mikedaley]/appleii-agent/src/too
 | `disconnect_clients` | Disconnect all SSE clients |
 | `shutdown_remote_server` | Shut down another instance on the same port |
 
-## Window Management
+## Multi-Emulator
+
+MCP tools for managing multiple simultaneously connected emulator tabs. These are called directly (not via `emma_command`).
 
 | Tool | Description |
 |------|-------------|
-| `show_window` | Show + bring to front a window by ID |
-| `hide_window` | Hide a window |
-| `focus_window` | Bring an already-visible window to front |
+| `list_connections` | List all connected emulators with name, connection state, and default status |
+| `set_default_emulator` | Set which emulator receives tool calls by default when no `emulator` param is given |
+
+**Routing rules for tools that accept `emulator`:**
+- `emulator: "Name"` — target a specific emulator by name
+- `emulator: "all"` — broadcast to all connected emulators (where supported)
+- omitted + 1 connected — use it automatically
+- omitted + multiple connected — use the one marked as default
+- omitted + multiple + no default — Claude is prompted to pick
 
 ## Generic Command
 
 | Tool | Description |
 |------|-------------|
-| `emma_command` | Delegate to any frontend app tool via AG-UI |
+| `emma_command` | Delegate to any frontend app tool via AG-UI. Accepts optional `emulator` param for routing |
 
 ## File Operations — Load Into Emulator
 
@@ -41,8 +49,8 @@ MCP tools registered in `/Users/Shawn/code/git/[mikedaley]/appleii-agent/src/too
 
 | Tool | Description |
 |------|-------------|
-| `get_screenshot` | Capture screen → returns MCP image content (viewable by LLM) |
-| `save_to` | Unified: load from source → save to sandbox path. `direct=true` (default) saves silently (no base64 in LLM context); `direct=false` returns content to LLM. |
+| `get_screenshot` | Capture screen → returns MCP image content (viewable by LLM). Accepts optional `emulator` param |
+| `save_to` | Unified: load from source → save to sandbox path. Accepts optional `emulator` param. `direct=true` (default) saves silently (no base64 in LLM context); `direct=false` returns content to LLM. |
 
 ### `save_to` Sources
 

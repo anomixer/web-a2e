@@ -7,6 +7,9 @@
 
 import { executeAgentTool } from "./agent-tools.js";
 import { showConfirm } from "../ui/confirm.js";
+import { EMULATOR_NAMES } from "./emulator-names-list.js";
+
+const EMULATOR_NAME_KEY = "agent-emulator-name";
 
 /**
  * Manages connection to MCP server via AG-UI protocol
@@ -28,10 +31,18 @@ export class AgentManager {
     // Tool call state
     this.activeToolCalls = new Map();
 
+    // Emulator name
+    this._pendingName = null; // Name being used for the current/next connection
+    this._triedNames = new Set(); // Names tried in the current connect session
+
+    // Beforeunload handler (beacon on tab close)
+    this._beforeUnloadHandler = null;
+
     // Heartbeat polling
     this.heartbeatInterval = null;
     this.heartbeatCheckInterval = 15000; // 15 seconds
     this.serverAvailable = false;
+    this.reconnectOnAvailable = false; // Auto-reconnect when server comes back (port reclaim)
 
     // Reconnection timeout
     this.reconnectTimeout = null;
@@ -98,6 +109,12 @@ export class AgentManager {
             if (this.onServerAvailable) {
               this.onServerAvailable();
             }
+            // Auto-reconnect if this was triggered by a port reclaim
+            if (this.reconnectOnAvailable) {
+              this.reconnectOnAvailable = false;
+              console.log("[AgentManager] Auto-reconnecting after port reclaim");
+              this.connect();
+            }
           }
 
           return; // Success, stop trying
@@ -120,8 +137,9 @@ export class AgentManager {
 
   /**
    * Connect to MCP server SSE stream
+   * @param {string|null} preferredName - Preferred emulator name; falls back to localStorage then random pool
    */
-  async connect() {
+  async connect(preferredName = null) {
     // Check if already connected (EventSource is OPEN)
     if (this.eventSource && this.eventSource.readyState === EventSource.OPEN) {
       console.warn("[AgentManager] Already connected");
@@ -138,44 +156,20 @@ export class AgentManager {
     // Detect current domain (where the emulator is running)
     const domain = `${window.location.protocol}//${window.location.host}`;
 
-    console.log(`[AgentManager] Connecting to ${this.serverUrl}/events`);
+    // Resolve emulator name: prefer arg → localStorage (if not already tried) → random from pool
+    const storedName = sessionStorage.getItem(EMULATOR_NAME_KEY);
+    const name = preferredName
+      || (storedName && !this._triedNames.has(storedName) ? storedName : null)
+      || EMULATOR_NAMES.filter(n => !this._triedNames.has(n))[Math.floor(Math.random() * Math.max(1, EMULATOR_NAMES.filter(n => !this._triedNames.has(n)).length))]
+      || EMULATOR_NAMES[Math.floor(Math.random() * EMULATOR_NAMES.length)];
+    this._pendingName = name;
+
+    // Build base query string used for both preflight and EventSource
+    const wasDefault = sessionStorage.getItem(EMULATOR_NAME_KEY + "-default") === "true";
+    const eventsQuery = `name=${encodeURIComponent(name)}&domain=${encodeURIComponent(domain)}&wasDefault=${wasDefault}`;
+
+    console.log(`[AgentManager] Connecting to ${this.serverUrl}/events as "${name}"`);
     console.log(`[AgentManager] Emulator domain: ${domain}`);
-
-    // Check if connection is allowed (detect 409 for single-client mode)
-    try {
-      const testResponse = await fetch(`${this.serverUrl}/events?domain=${encodeURIComponent(domain)}`, {
-        method: "HEAD",
-        signal: AbortSignal.timeout(2000),
-      });
-
-      // If 409, another client is connected
-      if (testResponse.status === 409) {
-        const message = await testResponse.text();
-        console.warn(`[AgentManager] ${message}`);
-
-        // Show confirm dialog with option to disconnect other client
-        const shouldDisconnect = await this._showConnectionConflictDialog(message);
-
-        if (shouldDisconnect) {
-          // User chose to disconnect other client
-          console.log("[AgentManager] Disconnecting other client and retrying...");
-          try {
-            await this.callMCPTool("disconnect_clients", {});
-            // Retry connection after brief delay
-            setTimeout(() => this.connect(), 500);
-          } catch (error) {
-            console.error("[AgentManager] Failed to disconnect other client:", error);
-          }
-        } else {
-          // User chose not to connect
-          console.log("[AgentManager] Connection cancelled by user");
-        }
-        return;
-      }
-    } catch (error) {
-      // HEAD request not supported or other error, proceed with EventSource anyway
-      console.log("[AgentManager] Connection check failed, proceeding with EventSource:", error.message);
-    }
 
     // Check agent version compatibility before connecting
     try {
@@ -195,21 +189,20 @@ export class AgentManager {
     }
 
     try {
-      // Send domain as query parameter so MCP server can fetch llms.txt
-      this.eventSource = new EventSource(`${this.serverUrl}/events?domain=${encodeURIComponent(domain)}`);
+      // Send name + domain as query params so MCP server can assign name and fetch llms.txt
+      this.eventSource = new EventSource(`${this.serverUrl}/events?${eventsQuery}`);
+
+      // Notify server when tab closes so it can remove the registry entry
+      this._beforeUnloadHandler = () => {
+        const storedName = sessionStorage.getItem(EMULATOR_NAME_KEY);
+        if (storedName) {
+          navigator.sendBeacon(`${this.serverUrl}/disconnect?name=${encodeURIComponent(storedName)}&type=unload`);
+        }
+      };
+      window.addEventListener("beforeunload", this._beforeUnloadHandler);
 
       this.eventSource.onopen = () => {
-        console.log("[AgentManager] Connected to MCP server");
-        this.connected = true;
-        this.reconnectAttempts = 0;
-        this.reconnectStartTime = null; // Reset reconnection window
-
-        // Stop heartbeat polling while connected
-        this.stopHeartbeatPolling();
-
-        if (this.onConnectionChange) {
-          this.onConnectionChange(true);
-        }
+        console.log(`[AgentManager] SSE stream open, awaiting CONNECT_ACK as "${this._pendingName}"`);
       };
 
       this.eventSource.onmessage = (e) => {
@@ -219,41 +212,16 @@ export class AgentManager {
       this.eventSource.onerror = (error) => {
         console.error("[AgentManager] Connection error:", error);
         this.connected = false;
+        this._handleConnectionError();
         if (this.onConnectionChange) {
           this.onConnectionChange(false);
         }
-        this._handleConnectionError();
       };
-
-      // Check connection state after a brief delay
-      setTimeout(() => {
-        if (this.eventSource && this.eventSource.readyState === EventSource.OPEN) {
-          if (!this.connected) {
-            console.log("[AgentManager] Connection established (via readyState check)");
-            this.connected = true;
-            if (this.onConnectionChange) {
-              this.onConnectionChange(true);
-            }
-          }
-        }
-      }, 500);
 
     } catch (error) {
       console.error("[AgentManager] Failed to create EventSource:", error);
       this._scheduleReconnect();
     }
-  }
-
-  /**
-   * Show dialog when connection is rejected due to another client being connected
-   * @param {string} message - The rejection message from server
-   * @returns {Promise<boolean>} True if user wants to disconnect other client, false otherwise
-   */
-  async _showConnectionConflictDialog(message) {
-    return await showConfirm(
-      message + "\n\nWould you like to disconnect the other client and connect?",
-      "Disconnect and Connect"
-    );
   }
 
   /**
@@ -276,7 +244,7 @@ export class AgentManager {
       return { major: parts[0], minor: parts[1], patch: parts[2] };
     };
 
-    const minVersion = "1.0.5"; // Required minimum version
+    const minVersion = "1.2.0"; // Required minimum version
     const agentVersion = parseVersion(versionInfo.version);
     const requiredVersion = parseVersion(minVersion);
 
@@ -319,9 +287,19 @@ export class AgentManager {
   /**
    * Disconnect from MCP server and abort any reconnection attempts
    */
-  disconnect() {
+  async disconnect() {
+    // Remove beforeunload listener — we're disconnecting intentionally
+    if (this._beforeUnloadHandler) {
+      window.removeEventListener("beforeunload", this._beforeUnloadHandler);
+      this._beforeUnloadHandler = null;
+    }
+
     if (this.eventSource) {
       console.log("[AgentManager] Disconnecting from MCP server");
+
+      // Notify server of intentional disconnect before closing stream
+      await this._sendDisconnectSignal("intentional");
+
       this.eventSource.close();
       this.eventSource = null;
       this.connected = false;
@@ -339,6 +317,7 @@ export class AgentManager {
     // Reset reconnection state completely
     this.reconnectAttempts = 0;
     this.reconnectStartTime = null;
+    this._triedNames.clear();
   }
 
   /**
@@ -350,6 +329,9 @@ export class AgentManager {
 
       // Route event to appropriate handler
       switch (event.type) {
+        case "CONNECT_ACK":
+          this._handleConnectAck(event);
+          break;
         case "TOOL_CALL_START":
           this._handleToolCallStart(event);
           break;
@@ -378,6 +360,59 @@ export class AgentManager {
     } catch (error) {
       console.error("[AgentManager] Error parsing event:", error);
     }
+  }
+
+  /**
+   * Handle CONNECT_ACK — server accepted or rejected the name
+   */
+  _handleConnectAck(event) {
+    if (event.accepted) {
+      console.log(`[AgentManager] Connected as "${event.name}"${event.isDefault ? " (default)" : ""}`);
+      this.connected = true;
+      this.reconnectAttempts = 0;
+      this.reconnectStartTime = null;
+      this._triedNames.clear();
+
+      // Persist accepted name and default status for future reconnects
+      sessionStorage.setItem(EMULATOR_NAME_KEY, event.name);
+      sessionStorage.setItem(EMULATOR_NAME_KEY + "-default", event.isDefault ? "true" : "false");
+
+      // Stop heartbeat polling while connected
+      this.stopHeartbeatPolling();
+
+      if (this.onConnectionChange) {
+        this.onConnectionChange(true, event.name);
+      }
+    } else {
+      // Only add to _triedNames when explicitly rejected by the server
+      this._triedNames.add(this._pendingName);
+      console.warn(`[AgentManager] Name "${this._pendingName}" rejected (${event.reason}), retrying with new name`);
+      this._retryWithNewName();
+    }
+  }
+
+  /**
+   * Retry connection with a different name from the pool
+   */
+  _retryWithNewName() {
+    if (this.eventSource) {
+      this.eventSource.close();
+      this.eventSource = null;
+    }
+
+    const untried = EMULATOR_NAMES.filter(n => !this._triedNames.has(n));
+
+    if (untried.length === 0) {
+      console.error("[AgentManager] All pool names exhausted — cannot connect");
+      this._triedNames.clear();
+      if (this.onConnectionChange) {
+        this.onConnectionChange(false);
+      }
+      return;
+    }
+
+    const newName = untried[Math.floor(Math.random() * untried.length)];
+    setTimeout(() => this.connect(newName), 200);
   }
 
   /**
@@ -490,6 +525,13 @@ export class AgentManager {
     if (this.onConnectionChange) {
       this.onConnectionChange(false);
     }
+
+    // If server is doing a port reclaim, poll for the new instance and auto-reconnect
+    if (event.reconnect) {
+      console.log("[AgentManager] Port reclaim detected — polling for new server instance");
+      this.reconnectOnAvailable = true;
+      this.startHeartbeatPolling();
+    }
   }
 
   /**
@@ -522,6 +564,23 @@ export class AgentManager {
   }
 
   /**
+   * Send disconnect signal to server before closing the SSE stream
+   * @param {string} type - "intentional" or "unload"
+   */
+  async _sendDisconnectSignal(type = "intentional") {
+    const name = sessionStorage.getItem(EMULATOR_NAME_KEY);
+    if (!name || !this.serverAvailable) return;
+    try {
+      await fetch(`${this.serverUrl}/disconnect?name=${encodeURIComponent(name)}&type=${type}`, {
+        method: "POST",
+        signal: AbortSignal.timeout(1000),
+      });
+    } catch (e) {
+      // Ignore — server may be unreachable
+    }
+  }
+
+  /**
    * Handle connection errors
    */
   _handleConnectionError() {
@@ -549,7 +608,7 @@ export class AgentManager {
     if (this.reconnectStartTime) {
       const elapsed = Date.now() - this.reconnectStartTime;
       if (elapsed >= this.maxReconnectDuration) {
-        console.error("[AgentManager] 3-minute reconnection window expired. Hiding button.");
+        console.error("[AgentManager] 3-minute reconnection window expired. Will reconnect when server returns.");
         this.reconnectStartTime = null;
         this.reconnectAttempts = 0;
 
@@ -559,14 +618,15 @@ export class AgentManager {
           this.onServerUnavailable();
         }
 
-        // Resume heartbeat polling to detect when server comes back
+        // Auto-reconnect when heartbeat detects server again
+        this.reconnectOnAvailable = true;
         this.startHeartbeatPolling();
         return;
       }
     }
 
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error("[AgentManager] Max reconnect attempts reached within window.");
+      console.error("[AgentManager] Max reconnect attempts reached. Will reconnect when server returns.");
       this.reconnectStartTime = null;
       this.reconnectAttempts = 0;
 
@@ -576,7 +636,8 @@ export class AgentManager {
         this.onServerUnavailable();
       }
 
-      // Resume heartbeat polling
+      // Auto-reconnect when heartbeat detects server again
+      this.reconnectOnAvailable = true;
       this.startHeartbeatPolling();
       return;
     }

@@ -177,6 +177,7 @@ export class UIController {
   setupAgentButton() {
     console.log("[UIController] setupAgentButton() called");
     const agentBtn = document.getElementById("btn-agent");
+    const agentBtnLabel = agentBtn?.querySelector(".agent-btn-label");
     console.log("[UIController] agentBtn:", agentBtn);
     if (!agentBtn) {
       console.warn("[UIController] Agent button not found");
@@ -230,35 +231,124 @@ export class UIController {
       updateButtonState();
     };
 
-    agentManager.onConnectionChange = (connected) => {
-      console.log(`[UIController] Connection changed: ${connected}`);
+    agentManager.onConnectionChange = (connected, acceptedName) => {
+      console.log(`[UIController] Connection changed: ${connected}${acceptedName ? ` (${acceptedName})` : ""}`);
+      if (acceptedName && agentBtnLabel) {
+        agentBtnLabel.textContent = acceptedName;
+      }
       updateButtonState();
     };
 
-    // Handle button click
+    // Handle button click — delay when connected to allow double-click rename to cancel first
+    let _clickTimer = null;
+
     agentBtn.addEventListener("click", () => {
       console.log("[UIController] Agent button clicked");
       const state = agentManager.getState();
 
       if (agentManager.isConnected()) {
-        // Connected - disconnect
-        console.log("[UIController] Disconnecting...");
-        agentManager.disconnect();
-        // Resume heartbeat polling after manual disconnect
-        agentManager.startHeartbeatPolling();
+        // Delay 250ms so double-click on label can cancel before disconnect fires
+        clearTimeout(_clickTimer);
+        _clickTimer = setTimeout(() => {
+          _clickTimer = null;
+          console.log("[UIController] Disconnecting...");
+          agentManager.disconnect();
+          agentManager.startHeartbeatPolling();
+          updateButtonState();
+          this.refocusCanvas();
+        }, 250);
       } else if (state.reconnecting) {
         // Reconnecting - abort reconnection and reset to disconnected
         console.log("[UIController] Aborting reconnection attempts...");
         agentManager.disconnect();
-        // Don't auto-connect, let user click again if they want
+        updateButtonState();
+        this.refocusCanvas();
       } else {
-        // Disconnected - connect
+        // Disconnected - connect (preferred name comes from sessionStorage via agent-manager)
         console.log("[UIController] Connecting...");
         agentManager.connect();
         setTimeout(() => updateButtonState(), 100);
+        updateButtonState();
+        this.refocusCanvas();
       }
-      updateButtonState();
-      this.refocusCanvas();
+    });
+
+    // Double-click on label enters inline rename mode (connected state only)
+    agentBtnLabel.addEventListener("dblclick", (e) => {
+      if (!agentManager.isConnected()) return;
+      e.stopPropagation();
+      clearTimeout(_clickTimer);
+      _clickTimer = null;
+
+      const currentName = agentBtnLabel.textContent;
+      const input = document.createElement("input");
+      input.type = "text";
+      input.value = currentName;
+      input.className = "agent-btn-rename-input";
+      input.size = Math.max(4, currentName.length + 1);
+
+      agentBtnLabel.textContent = "";
+      agentBtnLabel.appendChild(input);
+      input.focus();
+      input.select();
+
+      let handled = false;
+
+      const cancel = () => {
+        if (handled) return;
+        handled = true;
+        agentBtnLabel.textContent = currentName;
+        this.refocusCanvas();
+      };
+
+      const confirm = async () => {
+        if (handled) return;
+        handled = true;
+        const newName = input.value;
+        if (!newName || newName === currentName) {
+          agentBtnLabel.textContent = currentName;
+          this.refocusCanvas();
+          return;
+        }
+        try {
+          const response = await fetch(`${agentManager.serverUrl}/emulator-rename`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ oldName: currentName, newName }),
+          });
+          const result = await response.json();
+          if (result.success) {
+            agentBtnLabel.textContent = newName;
+            sessionStorage.setItem("agent-emulator-name", newName);
+          } else {
+            input.classList.add("error");
+            setTimeout(() => { agentBtnLabel.textContent = currentName; }, 800);
+          }
+        } catch (e) {
+          agentBtnLabel.textContent = currentName;
+        }
+        this.refocusCanvas();
+      };
+
+      input.addEventListener("input", () => {
+        const before = input.value;
+        const pos = input.selectionStart;
+        const cleaned = before.replace(/[^\p{L}_-]/gu, "");
+        if (cleaned !== before) {
+          const removedBeforeCursor = before.slice(0, pos).replace(/[^\p{L}_-]/gu, "").length;
+          input.value = cleaned;
+          input.setSelectionRange(removedBeforeCursor, removedBeforeCursor);
+        }
+        input.size = Math.max(4, input.value.length + 1);
+      });
+
+      input.addEventListener("keydown", (e) => {
+        e.stopPropagation();
+        if (e.key === "Enter") { e.preventDefault(); confirm(); }
+        else if (e.key === "Escape") { e.preventDefault(); cancel(); }
+      });
+
+      input.addEventListener("blur", cancel);
     });
 
     // Start heartbeat polling to detect when server becomes available

@@ -56,9 +56,25 @@
     box-shadow: 0 0 20px rgba(248, 81, 73, 0.3);
 }
 
-/* Agent button */
+/* Agent button - two-zone layout: icon (left) + label (right) */
 .control-btn.agent-btn {
-    font-size: 16px; /* Ensure emoji is visible */
+    width: auto;
+    min-width: 36px;
+    padding: 0 8px;
+    gap: 5px;
+}
+
+.agent-btn-icon {
+    display: flex;
+    align-items: center;
+}
+
+.agent-btn-label {
+    display: none;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
 }
 
 /* Hidden state - button is completely hidden */
@@ -80,6 +96,10 @@
 /* Connected state - yellow in dark theme */
 .control-btn.agent-btn.connected {
     color: var(--accent-yellow);
+}
+
+.control-btn.agent-btn.connected .agent-btn-label {
+    display: block;
 }
 
 .control-btn.agent-btn.connected:hover {
@@ -109,6 +129,11 @@
     cursor: pointer; /* Clickable - can cancel */
 }
 
+.control-btn.agent-btn.severed .agent-btn-label {
+    display: block;
+    opacity: 0.6;
+}
+
 .control-btn.agent-btn.severed:hover {
     background: rgba(224, 58, 62, 0.15);
     color: var(--accent-red);
@@ -129,13 +154,33 @@
 }
 
 /* Spin the sparkles icon during reconnection */
-.control-btn.agent-btn.severed svg {
+.control-btn.agent-btn.severed .agent-btn-icon svg {
     animation: gentle-spin 2.5s linear infinite;
 }
 
 @keyframes gentle-spin {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
+}
+
+/* Inline rename input inside the label zone */
+.agent-btn-rename-input {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid currentColor;
+    outline: none;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: inherit;
+    padding: 0;
+    font-family: inherit;
+    min-width: 4ch;
+}
+
+.agent-btn-rename-input.error {
+    border-bottom-color: var(--accent-red);
+    color: var(--accent-red);
 }
 
 /* Compact text-only header buttons (Ctrl+Reset, Reboot) */

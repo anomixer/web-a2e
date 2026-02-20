@@ -86,7 +86,13 @@ CHANGES TO EXISTING
 
 TESTING
 
-Testing instructions
+- Step or thing to verify
+- Another step
+
+PENDING BEFORE MERGE
+
+- [ ] Thing that must be done
+- [x] Thing already done
 ```
 
 **Multiple distinct features (3+ points each):**
@@ -112,10 +118,15 @@ CHANGES TO EXISTING
 TESTING
 
 Feature 1:
-- Testing instructions
+- Step or thing to verify
 
 Feature 2:
-- Testing instructions
+- Step or thing to verify
+
+PENDING BEFORE MERGE
+
+- [ ] Thing that must be done
+- [x] Thing already done
 ```
 
 **Rule**: If PR contains multiple distinct features, each with 3 or more bullet points, give each feature its own section with a descriptive name (e.g., "AGENT CONNECTION UI", "EMMA SKILL SYSTEM"). Don't lump them together in a single FEATURES section.
@@ -146,22 +157,44 @@ Feature 2:
 
 ### 6. Keep Testing Instructions Minimal
 
+Use bullet points. Each bullet is one thing to do or verify — keep it short.
+
 **Good**:
 ```
-## Testing
+TESTING
 
-Open the BASIC Program window and click "Run". The heat map now shows statement execution counts.
+- Open the BASIC Program window and click Run
+- Enable heat map — lines should show execution counts
 ```
 
 **Bad**:
 ```
-## Testing
+TESTING
 
 1. Navigate to src/js/debug/basic-program-window.js
 2. Verify the heat map rendering function is called
 3. Check that getBasicHeatMapData() returns correct values
 4. Inspect the DOM for heat-map-* classes
 ...
+```
+
+### 6b. Pending Before Merge
+
+Always include a `PENDING BEFORE MERGE` section with a GitHub-style checklist.
+
+- Use `- [ ]` for items still to do
+- Use `- [x]` for items already completed
+- Infer pending items from context: are tests missing? docs not updated? branch not reviewed?
+- Ask the user if unsure what's pending
+
+**Example**:
+```
+PENDING BEFORE MERGE
+
+- [x] Core implementation complete
+- [ ] Tests written
+- [ ] Docs updated
+- [ ] PR reviewed
 ```
 
 ### 7. Output
@@ -192,23 +225,32 @@ Wait for user confirmation.
 
 ## Example Output
 
-```markdown
+```
 Adds comprehensive BASIC debugging capabilities including heat maps, statement-level breakpoints, and real-time variable inspection. The BASIC Program window has been redesigned with a unified debugger interface for better usability and performance.
 
-## Features
+FEATURES
 
-- Added BASIC program heat map showing line execution counts
-- New statement-level breakpoints for debugging BASIC code
+- BASIC program heat map showing line execution counts
+- Statement-level breakpoints for debugging BASIC code
 - Real-time variable inspector in BASIC Program window
 
-## Changes to Existing
+CHANGES TO EXISTING
 
 - BASIC Program window now uses unified debugger interface
 - Improved memory efficiency for large BASIC programs
 
-## Testing
+TESTING
 
-Open any BASIC program and click Run. Enable heat map to see which lines execute most. Set breakpoints by clicking line numbers.
+- Open any BASIC program and click Run
+- Enable heat map — lines should show execution counts
+- Click a line number to set a breakpoint, then step through
+
+PENDING BEFORE MERGE
+
+- [x] Core implementation complete
+- [ ] Tests written
+- [ ] Docs updated
+- [ ] PR reviewed
 ```
 
 ## Edge Cases
