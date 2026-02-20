@@ -890,6 +890,17 @@ export class DocumentationWindow extends BaseWindow {
         </table>
         <p>Click the sparkle icon to open the agent connection panel and view detailed status information.</p>
 
+        <h4>Connection Names &amp; Multiple Emulators</h4>
+        <p>Every browser tab that connects is assigned a <strong>unique name</strong> from a name pool — short, memorable words like <em>Bingo</em>, <em>Wozulator</em>, or <em>Pixel</em>. The name appears in the sparkle button label so you always know which tab is which. Names persist across server restarts within the same browser session.</p>
+        <p><strong>To rename:</strong> Double-click the name label on the sparkle button (connected state only). Type a new name and press <kbd>Enter</kbd> to confirm, or <kbd>Escape</kbd> to cancel. Valid characters: Unicode letters, hyphens, underscores — no numbers or spaces.</p>
+        <p><strong>Multiple tabs:</strong> More than one browser tab can connect at once. Claude routes commands based on context:</p>
+        <ul>
+          <li><strong>One connected</strong> — routes to it automatically</li>
+          <li><strong>Multiple, one is default</strong> — routes to the default</li>
+          <li><strong>Named target</strong> — "Take a screenshot of Bingo"</li>
+          <li><strong>Broadcast</strong> — "Reboot all connected emulators"</li>
+        </ul>
+
         <h4>Setting Up the MCP Server</h4>
         <p>The AI Agent uses the Model Context Protocol (MCP) to communicate with LLM clients like Claude Code. Add the following to your MCP configuration file (e.g., <code>.mcp.json</code> in your project or <code>~/.claude/mcp.json</code> globally):</p>
         <p><strong>Using bunx (recommended):</strong></p>
@@ -948,6 +959,15 @@ export class DocumentationWindow extends BaseWindow {
         <p>This allows multiple Claude Code sessions or MCP instances to coordinate gracefully without manual process management.</p>
 
         <h4>Example Prompts</h4>
+
+        <h5>Multi-Emulator</h5>
+        <ul>
+          <li><strong>List connected emulators:</strong> "Show me all connected emulators"</li>
+          <li><strong>Set the default:</strong> "Set Bingo as the default emulator"</li>
+          <li><strong>Target by name:</strong> "Take a screenshot of Wozulator" or "Reboot Bingo"</li>
+          <li><strong>Broadcast:</strong> "Reboot all connected emulators"</li>
+          <li><strong>Send BASIC to specific tab:</strong> "Write this program to Bingo: 10 PRINT &quot;HELLO&quot;"</li>
+        </ul>
 
         <h5>Window Management</h5>
         <ul>

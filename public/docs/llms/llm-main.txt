@@ -115,3 +115,45 @@ get_screenshot()
 **Reading program output from screen:**
 1. Capture text: `captureScreenText({ startRow: 5, startCol: 0, endRow: 15, endCol: 79 })`
 2. Process the text in `result.text`
+
+## Multi-Emulator
+
+Multiple Apple //e browser tabs can connect to the MCP server simultaneously. Each tab is assigned a unique name (e.g. "Bingo", "Wozulator").
+
+**See what's connected:**
+```
+list_connections()
+```
+Returns all connected emulators with name, state, and which is the default. Call this at the start of a multi-emulator session.
+
+**Set the default:**
+```
+set_default_emulator({ name: "Bingo" })
+```
+All subsequent tool calls route to Bingo unless overridden. Do this immediately after the user picks an emulator — don't ask again on each command.
+
+**Target a specific emulator:**
+```
+emma_command({ command: "captureScreenText", params: {}, emulator: "Bingo" })
+get_screenshot({ emulator: "Wozulator" })
+save_to({ from: "screen", whereTo: "[t]/shot.png", emulator: "Bingo" })
+```
+
+**Broadcast to all:**
+```
+emma_command({ command: "emulatorReboot", params: {}, emulator: "all" })
+```
+
+**Routing rules (when `emulator` param is omitted):**
+- 1 connected → use it automatically
+- Multiple connected → use the one marked as default
+- Multiple + no default → Claude picks and immediately calls `set_default_emulator`
+
+**Emulator names:**
+- Assigned from a name pool on connect; persisted in `sessionStorage` across server restarts
+- Double-click the name label on the sparkle button (browser UI) to rename inline
+- Valid names: Unicode letters, hyphens, underscores — no numbers or spaces
+
+**Broken emulators:**
+- Routing is blocked to emulators with a broken connection
+- Warn the user and wait for them to reconnect or pick a different emulator

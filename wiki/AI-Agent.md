@@ -7,9 +7,11 @@ The AI Agent integration allows LLMs like Claude to control the emulator through
 ## Table of Contents
 
 - [Connection Status](#connection-status)
+- [Connection Names & Multi-Emulator](#connection-names--multi-emulator)
 - [Setting Up the MCP Server](#setting-up-the-mcp-server)
 - [Sandbox Configuration](#sandbox-configuration)
 - [Example Prompts](#example-prompts)
+  - [Multi-Emulator](#multi-emulator)
   - [Window Management](#window-management)
   - [Disk Management](#disk-management)
   - [SmartPort Hard Drives](#smartport-hard-drives)
@@ -32,6 +34,36 @@ The agent connection status is shown by a sparkle icon in the toolbar header:
 | <svg viewBox="0 0 24 24" width="20" height="20" fill="#E5504F"><path d="M12 2l1.5 4.5L18 8l-4.5 1.5L12 14l-1.5-4.5L6 8l4.5-1.5L12 2zM6 16l.75 2.25L9 19l-2.25.75L6 22l-.75-2.25L3 19l2.25-.75L6 16zM18 16l.75 2.25L21 19l-2.25.75L18 22l-.75-2.25L15 19l2.25-.75L18 16z"/></svg> | **Interrupted** | Connection error or server unavailable |
 
 Click the sparkle icon to open the agent connection panel and view detailed status information.
+
+---
+
+## Connection Names & Multi-Emulator
+
+Every browser tab that connects to the MCP server is assigned a **unique name** from a name pool — short, memorable words like *Bingo*, *Wozulator*, or *Pixel*. The name appears in the sparkle button label when connected, so you always know which emulator is which.
+
+Names persist across server restarts within the same browser session (stored in `sessionStorage`), so your tab keeps the same identity even if the MCP server is restarted.
+
+### Renaming
+
+**Double-click the name label** on the sparkle button (connected state only) to rename inline:
+
+- Type a new name and press **Enter** to confirm
+- Press **Escape** or click anywhere else to cancel
+- Valid characters: Unicode letters, hyphens, underscores — **no numbers or spaces**
+
+The new name is saved immediately and persists for the life of that browser session.
+
+### Multiple Emulators
+
+Multiple browser tabs can connect simultaneously, each with its own name. Claude can address them individually or broadcast to all:
+
+- **One connected** — commands route to it automatically
+- **Multiple connected, one is default** — commands route to the default
+- **Multiple connected, no default** — Claude will ask you to pick, then set that as the default
+- **Named target** — prefix any request with the emulator name: "Take a screenshot of Bingo"
+- **Broadcast** — "Reboot all connected emulators"
+
+Use `list_connections` to see all connected emulators and which is the default. Use `set_default_emulator` to switch.
 
 ---
 
@@ -178,6 +210,37 @@ This allows multiple Claude Code sessions or MCP instances to coordinate gracefu
 ---
 
 ## Example Prompts
+
+### Multi-Emulator
+
+**List all connected emulators:**
+```
+Show me all connected emulators
+```
+
+**Set the default emulator:**
+```
+Set Bingo as the default emulator
+```
+
+**Send a command to a specific emulator:**
+```
+Take a screenshot of Wozulator
+Reboot Bingo
+Load ProDOS into drive 1 on Pixel
+What's on the screen of Wozulator?
+```
+
+**Broadcast to all:**
+```
+Reboot all connected emulators
+Take screenshots of all connected emulators
+```
+
+**Check which emulator is default:**
+```
+Which emulator is currently the default?
+```
 
 ### Window Management
 
