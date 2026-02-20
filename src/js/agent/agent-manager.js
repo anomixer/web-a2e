@@ -154,13 +154,12 @@ export class AgentManager {
     const domain = `${window.location.protocol}//${window.location.host}`;
 
     // Resolve emulator name: prefer arg → localStorage (if not already tried) → random from pool
-    const storedName = localStorage.getItem(EMULATOR_NAME_KEY);
+    const storedName = sessionStorage.getItem(EMULATOR_NAME_KEY);
     const name = preferredName
       || (storedName && !this._triedNames.has(storedName) ? storedName : null)
       || EMULATOR_NAMES.filter(n => !this._triedNames.has(n))[Math.floor(Math.random() * Math.max(1, EMULATOR_NAMES.filter(n => !this._triedNames.has(n)).length))]
       || EMULATOR_NAMES[Math.floor(Math.random() * EMULATOR_NAMES.length)];
     this._pendingName = name;
-    this._triedNames.add(name);
 
     // Build base query string used for both preflight and EventSource
     const eventsQuery = `name=${encodeURIComponent(name)}&domain=${encodeURIComponent(domain)}`;
@@ -236,10 +235,10 @@ export class AgentManager {
       this.eventSource.onerror = (error) => {
         console.error("[AgentManager] Connection error:", error);
         this.connected = false;
+        this._handleConnectionError();
         if (this.onConnectionChange) {
           this.onConnectionChange(false);
         }
-        this._handleConnectionError();
       };
 
     } catch (error) {
@@ -400,7 +399,7 @@ export class AgentManager {
       this._triedNames.clear();
 
       // Persist accepted name for future reconnects
-      localStorage.setItem(EMULATOR_NAME_KEY, event.name);
+      sessionStorage.setItem(EMULATOR_NAME_KEY, event.name);
 
       // Stop heartbeat polling while connected
       this.stopHeartbeatPolling();
@@ -409,6 +408,8 @@ export class AgentManager {
         this.onConnectionChange(true, event.name);
       }
     } else {
+      // Only add to _triedNames when explicitly rejected by the server
+      this._triedNames.add(this._pendingName);
       console.warn(`[AgentManager] Name "${this._pendingName}" rejected (${event.reason}), retrying with new name`);
       this._retryWithNewName();
     }
@@ -614,7 +615,7 @@ export class AgentManager {
     if (this.reconnectStartTime) {
       const elapsed = Date.now() - this.reconnectStartTime;
       if (elapsed >= this.maxReconnectDuration) {
-        console.error("[AgentManager] 3-minute reconnection window expired. Hiding button.");
+        console.error("[AgentManager] 3-minute reconnection window expired. Will reconnect when server returns.");
         this.reconnectStartTime = null;
         this.reconnectAttempts = 0;
 
@@ -624,14 +625,15 @@ export class AgentManager {
           this.onServerUnavailable();
         }
 
-        // Resume heartbeat polling to detect when server comes back
+        // Auto-reconnect when heartbeat detects server again
+        this.reconnectOnAvailable = true;
         this.startHeartbeatPolling();
         return;
       }
     }
 
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error("[AgentManager] Max reconnect attempts reached within window.");
+      console.error("[AgentManager] Max reconnect attempts reached. Will reconnect when server returns.");
       this.reconnectStartTime = null;
       this.reconnectAttempts = 0;
 
@@ -641,7 +643,8 @@ export class AgentManager {
         this.onServerUnavailable();
       }
 
-      // Resume heartbeat polling
+      // Auto-reconnect when heartbeat detects server again
+      this.reconnectOnAvailable = true;
       this.startHeartbeatPolling();
       return;
     }
