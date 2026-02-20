@@ -35,6 +35,9 @@ export class AgentManager {
     this._pendingName = null; // Name being used for the current/next connection
     this._triedNames = new Set(); // Names tried in the current connect session
 
+    // Beforeunload handler (beacon on tab close)
+    this._beforeUnloadHandler = null;
+
     // Heartbeat polling
     this.heartbeatInterval = null;
     this.heartbeatCheckInterval = 15000; // 15 seconds
@@ -162,7 +165,8 @@ export class AgentManager {
     this._pendingName = name;
 
     // Build base query string used for both preflight and EventSource
-    const eventsQuery = `name=${encodeURIComponent(name)}&domain=${encodeURIComponent(domain)}`;
+    const wasDefault = sessionStorage.getItem(EMULATOR_NAME_KEY + "-default") === "true";
+    const eventsQuery = `name=${encodeURIComponent(name)}&domain=${encodeURIComponent(domain)}&wasDefault=${wasDefault}`;
 
     console.log(`[AgentManager] Connecting to ${this.serverUrl}/events as "${name}"`);
     console.log(`[AgentManager] Emulator domain: ${domain}`);
@@ -187,6 +191,15 @@ export class AgentManager {
     try {
       // Send name + domain as query params so MCP server can assign name and fetch llms.txt
       this.eventSource = new EventSource(`${this.serverUrl}/events?${eventsQuery}`);
+
+      // Notify server when tab closes so it can remove the registry entry
+      this._beforeUnloadHandler = () => {
+        const storedName = sessionStorage.getItem(EMULATOR_NAME_KEY);
+        if (storedName) {
+          navigator.sendBeacon(`${this.serverUrl}/disconnect?name=${encodeURIComponent(storedName)}&type=unload`);
+        }
+      };
+      window.addEventListener("beforeunload", this._beforeUnloadHandler);
 
       this.eventSource.onopen = () => {
         console.log(`[AgentManager] SSE stream open, awaiting CONNECT_ACK as "${this._pendingName}"`);
@@ -231,7 +244,7 @@ export class AgentManager {
       return { major: parts[0], minor: parts[1], patch: parts[2] };
     };
 
-    const minVersion = "1.0.5"; // Required minimum version
+    const minVersion = "1.2.0"; // Required minimum version
     const agentVersion = parseVersion(versionInfo.version);
     const requiredVersion = parseVersion(minVersion);
 
@@ -274,9 +287,19 @@ export class AgentManager {
   /**
    * Disconnect from MCP server and abort any reconnection attempts
    */
-  disconnect() {
+  async disconnect() {
+    // Remove beforeunload listener — we're disconnecting intentionally
+    if (this._beforeUnloadHandler) {
+      window.removeEventListener("beforeunload", this._beforeUnloadHandler);
+      this._beforeUnloadHandler = null;
+    }
+
     if (this.eventSource) {
       console.log("[AgentManager] Disconnecting from MCP server");
+
+      // Notify server of intentional disconnect before closing stream
+      await this._sendDisconnectSignal("intentional");
+
       this.eventSource.close();
       this.eventSource = null;
       this.connected = false;
@@ -350,8 +373,9 @@ export class AgentManager {
       this.reconnectStartTime = null;
       this._triedNames.clear();
 
-      // Persist accepted name for future reconnects
+      // Persist accepted name and default status for future reconnects
       sessionStorage.setItem(EMULATOR_NAME_KEY, event.name);
+      sessionStorage.setItem(EMULATOR_NAME_KEY + "-default", event.isDefault ? "true" : "false");
 
       // Stop heartbeat polling while connected
       this.stopHeartbeatPolling();
@@ -536,6 +560,23 @@ export class AgentManager {
     } catch (error) {
       console.error("[AgentManager] Failed to send tool result:", error);
       throw error;
+    }
+  }
+
+  /**
+   * Send disconnect signal to server before closing the SSE stream
+   * @param {string} type - "intentional" or "unload"
+   */
+  async _sendDisconnectSignal(type = "intentional") {
+    const name = sessionStorage.getItem(EMULATOR_NAME_KEY);
+    if (!name || !this.serverAvailable) return;
+    try {
+      await fetch(`${this.serverUrl}/disconnect?name=${encodeURIComponent(name)}&type=${type}`, {
+        method: "POST",
+        signal: AbortSignal.timeout(1000),
+      });
+    } catch (e) {
+      // Ignore — server may be unreachable
     }
   }
 

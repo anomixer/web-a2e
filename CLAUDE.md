@@ -303,14 +303,27 @@ The Joystick window has a **Cursor Keys** toggle that remaps the arrow keys to j
 
 ## Agent / MCP Integration
 
-The emulator exposes an AI agent interface via the Model Context Protocol (MCP) and AG-UI event protocol. This allows AI agents (including Claude Code) to fully control the emulator programmatically.
+The emulator exposes an AI agent interface via the Model Context Protocol (MCP) and AG-UI event protocol. This allows AI agents (including Claude Code) to fully control the emulator programmatically. Multiple emulator browser tabs can connect simultaneously, each identified by a unique name.
 
 ### Architecture
 
 Two coordinated components:
 
-- **MCP Server** (`mcp/appleii-agent/`) — Node.js process providing MCP tools over stdio + an HTTP/HTTPS server (port 3033) implementing the AG-UI event protocol (SSE)
+- **MCP Server** (`../appleii-agent/`) — Node.js process providing MCP tools over stdio + an HTTP/HTTPS server (port 3033) implementing the AG-UI event protocol (SSE)
 - **Frontend Agent Manager** (`src/js/agent/agent-manager.js`) — Browser-side AG-UI client that connects to the server, receives tool calls via SSE, executes them against the emulator, and returns results
+
+### Multi-Emulator Support
+
+Multiple browser tabs can connect simultaneously. Each tab is assigned a unique name from a name pool (stored in `sessionStorage` so it persists across server restarts within the same tab session).
+
+**Routing**: Tools with an optional `emulator` param route as follows:
+- `emulator: "Name"` — target specific emulator
+- `emulator: "all"` — broadcast to all connected emulators (where supported)
+- omitted + 1 connected — use it
+- omitted + multiple connected — use the one marked as default
+- omitted + multiple + no default — Claude is prompted to pick
+
+**Default emulator**: First tab to connect becomes default. Change with `set_default_emulator`. Use `list_connections` to see all connected emulators and current default.
 
 ### Configuration
 
@@ -338,27 +351,58 @@ All MCP file operations (loading/saving disk images, BASIC programs, assembly fi
 
 **Sandbox path syntax in tool calls:** `[key]/relative/path/file`
 
-**Tools that accept sandbox paths:** `load_disk_image`, `load_smartport_image`, `load_file`, `save_basic_file`, `save_asm_file`, `save_disk_file`
+**Tools that accept sandbox paths:** `load_disk_image`, `load_smartport_image`, `load_file`, `save_to`
 
 **Reload without restarting:** call `reload_sandbox` after editing the config file — no Claude Code restart needed.
 
 Security: path traversal (`../`) and full paths outside all configured directories are blocked. Save tools default to `overwrite: false`.
 
-### MCP Server Tools (`mcp/appleii-agent/src/tools/`)
+### MCP Server Tools (`../appleii-agent/src/tools/`)
+
+**Server / Connection**
 
 | Tool | Description |
 | ---- | ----------- |
-| `emma_command` | Generic command wrapper — delegates to any frontend tool |
 | `server_control` | Start/stop/restart the agent server |
 | `set_https` | Enable/disable HTTPS mode |
 | `set_debug` | Set debug logging level |
-| `get_state` | Return current emulator state |
-| `load_disk_image` | Load disk image (.dsk/.do/.po/.nib/.woz) from filesystem, returns base64 |
-| `load_file` | Load arbitrary file from filesystem |
-| `save_basic_file` | Save BASIC program to disk |
-| `save_asm_file` | Save assembler source to disk |
-| `save_disk_file` | Save extracted disk file to filesystem |
-| `load_smartport_image` | Load hard drive image (.hdv/.po/.2mg) from filesystem |
+| `get_state` | Return current server + emulator state |
+| `get_version` | Agent version info |
+| `reload_sandbox` | Reload sandbox.config without restart |
+| `disconnect_clients` | Disconnect all SSE clients |
+| `shutdown_remote_server` | Shut down another instance on the same port |
+
+**Multi-Emulator**
+
+| Tool | Description |
+| ---- | ----------- |
+| `list_connections` | List all connected emulators with name, state, isDefault |
+| `set_default_emulator` | Set which emulator receives tool calls by default |
+
+**Generic Command**
+
+| Tool | Description |
+| ---- | ----------- |
+| `emma_command` | Delegate to any frontend app tool via AG-UI. Has optional `emulator` param for routing |
+
+**File Operations — Load Into Emulator**
+
+| Tool | Description |
+| ---- | ----------- |
+| `load_disk_image` | Load a disk image (.dsk/.do/.po/.nib/.woz) from filesystem → base64 |
+| `load_smartport_image` | Load a SmartPort hard drive image (.hdv/.po/.2mg) → base64 |
+| `load_file` | Load any file → base64 or text |
+
+**File Operations — Save From Emulator**
+
+| Tool | Description |
+| ---- | ----------- |
+| `get_screenshot` | Capture screen → returns MCP image content (viewable by LLM). Has optional `emulator` param |
+| `save_to` | Load from emulator source → save to sandbox path. Has optional `emulator` param for routing |
+
+`save_to` sources: `basic-editor`, `asm-editor`, `basic-memory`, `file-explorer`, `memory-range`, `screen`, `raw`
+
+**Note:** `showWindow` / `hideWindow` / `focusWindow` are frontend tools — call via `emma_command`, not separate MCP tools.
 
 ### Frontend Agent Tools (`src/js/agent/`)
 
