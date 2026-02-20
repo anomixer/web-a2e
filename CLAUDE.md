@@ -325,6 +325,8 @@ Multiple browser tabs can connect simultaneously. Each tab is assigned a unique 
 
 **Default emulator**: First tab to connect becomes default. Change with `set_default_emulator`. Use `list_connections` to see all connected emulators and current default.
 
+**Rename**: Double-click the emulator name label on the sparkle button (connected state only) to rename inline. Valid names: Unicode letters, hyphens, underscores — no numbers or spaces. Rename POSTs to `/emulator-rename` on the MCP server and persists the new name to `sessionStorage`.
+
 ### Configuration
 
 - `.mcp.json` (repo root) — MCP client config for running the agent

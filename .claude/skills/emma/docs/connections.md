@@ -227,6 +227,32 @@ Multiple browser tabs can connect simultaneously. Each is assigned a unique name
 | 1 | Auto-promote to default; queue `_note` for Claude |
 | 2+ | No auto-promote — routing returns `noDefault` error |
 
+### Rename
+
+Users can rename a connected emulator by double-clicking the label in the sparkle button.
+
+**Implementation:** `src/js/ui/ui-controller.js`, `appleii-agent/src/http-server.js` - `_handleEmulatorRename()`
+
+**Valid name characters:** Unicode letters from any language, hyphens, underscores — no numbers, no spaces, no symbols. Regex: `/^[\p{L}_-]+$/u`
+
+**User flow:**
+1. Double-click `.agent-btn-label` (connected state only)
+2. Label replaced with inline `<input>`, pre-filled with current name, auto-focused
+3. Invalid characters stripped as-you-type (`/[^\p{L}_-]/gu`)
+4. **Enter** → confirm: POST to `/emulator-rename`, update label + `sessionStorage`
+5. **Escape or blur** → cancel, revert to original name
+
+**Server endpoint:** `POST /emulator-rename { oldName, newName }`
+- Validates newName format
+- Rejects if newName taken by a connected emulator
+- Updates `record.name` in place and re-keys the map
+- Queues context note: `"Emulator \"X\" has been renamed to \"Y\"."`
+- Returns `{ success: true, name }` or `{ success: false, reason: "name_taken" | "invalid_name" }`
+
+**Stream close after rename (bug fix):** The `req.on("close")` handler in `_handleEventStream` captures the emulator record object by reference, not the original name string. After a rename the map is re-keyed (old name deleted, new name added) but the record object is the same. The close handler reads `record.name` at close time to get the current key, ensuring disconnect/broken state is always applied correctly regardless of renames.
+
+**Single-click conflict prevention:** The sparkle button click handler delays 250ms when in connected state. Double-clicking the label cancels the timer before disconnect fires.
+
 ### Context Injection
 
 **Implementation:** `src/tools/emma-command.js`, `src/tools/routing-helpers.js`
@@ -537,8 +563,9 @@ Sends POST request to `http://localhost:3033/shutdown` to gracefully shut down a
   - Pool of Apple II-themed emulator names
 
 - **`src/js/ui/ui-controller.js`**
-  - Sparkle button click handler (3 states)
+  - Sparkle button click handler (3 states, 250ms delay for double-click)
   - `updateButtonState()` - Visual state management
+  - Double-click rename: inline input, char stripping, confirm/cancel, POST to `/emulator-rename`
 
 - **`src/js/agent/agent-version-tools.js`**
   - `checkAgentCompatibility` - Tool for checking version
@@ -547,7 +574,9 @@ Sends POST request to `http://localhost:3033/shutdown` to gracefully shut down a
 ### MCP Server (appleii-agent)
 
 - **`src/http-server.js`**
-  - `_handleEventStream()` - Name validation, accept/reject, default assignment
+  - `_handleEventStream()` - Name validation, accept/reject, default assignment; close handler uses `record.name` (not captured original) to survive rename
+  - `_handleEmulatorRename()` - Validates, re-keys registry, queues context note
+  - `_isValidName()` - Unicode letters + hyphens + underscores (`/^[\p{L}_-]+$/u`)
   - `_handleDisconnected()` - Fallback rules, auto-promotion, note queuing
   - `_handleBroken()` - Broken state (silent — routing error handles it)
   - `resolveEmulator()` - Routing logic (single, broadcast, default, noDefault, brokenTarget)
@@ -555,6 +584,7 @@ Sends POST request to `http://localhost:3033/shutdown` to gracefully shut down a
   - `start()` - Graceful port conflict handling
   - `stop(internal)` - Shutdown with external flag
   - `/disconnect` endpoint - Clean and unload disconnect handler
+  - `/emulator-rename` endpoint - Inline rename handler
   - `/shutdown` endpoint - External shutdown handler
 
 - **`src/tools/routing-helpers.js`**
@@ -708,7 +738,7 @@ Sends POST request to `http://localhost:3033/shutdown` to gracefully shut down a
 
 ## Version History
 
-- **1.2.0** - Multi-emulator support: name pool, default routing, disconnect rules, context injection, `wasDefault` yield, same-name reconnect
+- **1.2.0** - Multi-emulator support: name pool, default routing, disconnect rules, context injection, `wasDefault` yield, same-name reconnect, double-click rename, Unicode name validation, stream-close-after-rename bugfix
 - **1.0.2** - Added version compatibility checking
 - **1.0.1** - Added port reclamation without MCP restart
 - **1.0.0** - Initial connection architecture with reconnection and port conflict handling

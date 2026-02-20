@@ -163,6 +163,26 @@
     to { transform: rotate(360deg); }
 }
 
+/* Inline rename input inside the label zone */
+.agent-btn-rename-input {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid currentColor;
+    outline: none;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: inherit;
+    padding: 0;
+    font-family: inherit;
+    min-width: 4ch;
+}
+
+.agent-btn-rename-input.error {
+    border-bottom-color: var(--accent-red);
+    color: var(--accent-red);
+}
+
 /* Compact text-only header buttons (Ctrl+Reset, Reboot) */
 .header-text-btn {
     padding: 6px 10px;
