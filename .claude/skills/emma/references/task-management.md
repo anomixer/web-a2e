@@ -17,7 +17,7 @@ All task sets live at:
   nn-last-task.md
 ```
 
-**Active task sets**: `.claude/docs/tasks/multiconnect/`
+**Active task sets**: See `.claude/docs/tasks/list.md` for the directory of all task sets and their status.
 
 ---
 
@@ -128,6 +128,19 @@ Every task set starts with `00-overview.md`:
 
 ## Commands
 
+### `tasks list` (no name — directory view)
+
+When the user asks to list tasks **without specifying a name**, do not assume a task set. Instead:
+
+1. Read `.claude/docs/tasks/list.md` to get the directory of all task sets and their status
+2. Display each task set: name, description, and status summary (e.g. "3 pending / 10 completed" or "all completed")
+3. Ask the user which one they want to drill into
+4. Once they pick, proceed as `tasks list <name>`
+
+If `.claude/docs/tasks/list.md` is missing or stale, fall back to listing directories under `.claude/docs/tasks/` directly and reading each `__ - tasks.md` to compute status.
+
+**Update `list.md`** whenever a task set is created, or whenever all tasks in a set become completed (flip its status to `all completed`).
+
 ### `tasks list <name>`
 
 Read **only** `.claude/docs/tasks/<name>/__ - tasks.md`. Print the Tasks table with a computed "Blocked by" column (deps that are not yet completed) and a `(next)` marker on the first unblocked pending task. Do **not** show the dependency tree unless the user asks for it.
@@ -226,7 +239,14 @@ Always state the inferences with "inferred from description" so the user can cor
 
 ---
 
-## Process: `tasks list`
+## Process: `tasks list` (no name)
+
+1. Read `.claude/docs/tasks/list.md` for the directory
+2. Display each task set with name, description, and status summary
+3. Ask the user which one to drill into
+4. Proceed with `tasks list <name>` for the chosen set
+
+## Process: `tasks list <name>`
 
 1. Read `.claude/docs/tasks/<name>/__ - tasks.md` (single file — no directory scan)
 2. Compute "Blocked by" for each pending task: list any Depends-on IDs whose Status is not `completed`
