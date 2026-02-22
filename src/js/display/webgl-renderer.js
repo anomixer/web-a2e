@@ -91,6 +91,9 @@ export class WebGLRenderer {
       beamY: -1.0,
       beamX: -1.0,
 
+      // Screen inset — shrinks screen to reveal bezel without curvature
+      screenInset: 0.0,
+
       // Bezel
       surroundColor: [0.784, 0.722, 0.604],
       bezelSpillReach: 0.66,
@@ -251,6 +254,7 @@ export class WebGLRenderer {
         this.program,
         "u_selectionTexture",
       ),
+      screenInset: gl.getUniformLocation(this.program, "u_screenInset"),
       surroundColor: gl.getUniformLocation(this.program, "u_surroundColor"),
       bezelSpillReach: gl.getUniformLocation(this.program, "u_bezelSpillReach"),
       bezelSpillIntensity: gl.getUniformLocation(this.program, "u_bezelSpillIntensity"),
@@ -274,6 +278,7 @@ export class WebGLRenderer {
       curvature: gl.getUniformLocation(this.edgeProgram, "u_curvature"),
       cornerRadius: gl.getUniformLocation(this.edgeProgram, "u_cornerRadius"),
       edgeHighlight: gl.getUniformLocation(this.edgeProgram, "u_edgeHighlight"),
+      screenInset: gl.getUniformLocation(this.edgeProgram, "u_screenInset"),
       textureSize: gl.getUniformLocation(this.edgeProgram, "u_textureSize"),
       resolution: gl.getUniformLocation(this.edgeProgram, "u_resolution"),
     };
@@ -574,6 +579,7 @@ export class WebGLRenderer {
       gl.uniform1i(this.uniforms.monochromeMode, this.crtParams.monochromeMode);
       gl.uniform1f(this.uniforms.cornerRadius, this.crtParams.cornerRadius);
       gl.uniform1f(this.uniforms.screenMargin, this.crtParams.screenMargin);
+      gl.uniform1f(this.uniforms.screenInset, this.crtParams.screenInset);
       gl.uniform3fv(this.uniforms.surroundColor, this.crtParams.surroundColor);
       gl.uniform1f(this.uniforms.bezelSpillReach, this.crtParams.bezelSpillReach);
       gl.uniform1f(this.uniforms.bezelSpillIntensity, this.crtParams.bezelSpillIntensity);
@@ -600,6 +606,7 @@ export class WebGLRenderer {
         this.edgeUniforms.edgeHighlight,
         this.crtParams.edgeHighlight,
       );
+      gl.uniform1f(this.edgeUniforms.screenInset, this.crtParams.screenInset);
       gl.uniform2f(this.edgeUniforms.textureSize, this.width, this.height);
       gl.uniform2f(
         this.edgeUniforms.resolution,

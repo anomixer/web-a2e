@@ -53,6 +53,9 @@ uniform float u_beamX;
 // Screen margin/padding for rounded corners (content is inset by this amount)
 uniform float u_screenMargin;
 
+// Screen inset — shrinks the screen to reveal bezel without curvature
+uniform float u_screenInset;
+
 // Bezel spill controls
 uniform float u_bezelSpillReach;
 uniform float u_bezelSpillIntensity;
@@ -110,6 +113,18 @@ vec2 curveUV(vec2 uv) {
     vec2 curved = uv + cc * distortion;
 
     return curved;
+}
+
+// ============================================
+// Screen inset (shrink screen to reveal bezel)
+// ============================================
+
+vec2 applyScreenInset(vec2 uv) {
+    if (u_screenInset < 0.001) return uv;
+
+    vec2 centered = uv - 0.5;
+    float scale = 1.0 + u_screenInset;
+    return centered * scale + 0.5;
 }
 
 // ============================================
@@ -493,14 +508,16 @@ float edgeFade(vec2 uv) {
 }
 
 float smoothEdge(vec2 uv) {
-    if (u_curvature < 0.001 && u_cornerRadius < 0.001) return 1.0;
+    if (u_cornerRadius < 0.001) return 1.0;
 
+    float aspect = u_textureSize.x / u_textureSize.y;
     vec2 centered = uv - 0.5;
-    // Use explicit corner radius if set, otherwise derive from curvature
-    float cornerRadius = u_cornerRadius > 0.001 ? u_cornerRadius : u_curvature * 0.03;
-    vec2 cornerDist = abs(centered) - (0.5 - cornerRadius);
+    float ry = u_cornerRadius;
+    float rx = ry / aspect;
+    vec2 cornerDist = abs(centered) - (0.5 - vec2(rx, ry));
     cornerDist = max(cornerDist, 0.0);
-    float corner = length(cornerDist) / cornerRadius;
+    vec2 screenDist = cornerDist * vec2(aspect, 1.0);
+    float corner = length(screenDist) / ry;
 
     return 1.0 - smoothstep(0.9, 1.0, corner);
 }
@@ -702,7 +719,7 @@ void main() {
     // Stable screen boundary from undistorted coordinates.
     // The physical CRT mask doesn't wobble — only the beam does.
     // All clipping and alpha use this so nothing renders outside the edge.
-    vec2 stableCurvedUV = curveUV(uv);
+    vec2 stableCurvedUV = applyScreenInset(curveUV(uv));
 
     // Compute bezel color once (with shading effects applied)
     vec3 bezel = bezelShade(uv, stableCurvedUV);
@@ -727,7 +744,7 @@ void main() {
     // Apply signal distortions — the beam wobbles, the mask does not
     vec2 distortedUV = applyHorizontalSync(uv, u_time);
     distortedUV = applyJitter(distortedUV, u_time);
-    vec2 curvedUV = curveUV(distortedUV);
+    vec2 curvedUV = applyScreenInset(curveUV(distortedUV));
 
     // Content coordinates use the distorted beam position
     vec2 contentUV = applyOverscan(curvedUV);
