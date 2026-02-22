@@ -583,23 +583,68 @@ vec3 bezelShade(vec2 uv, vec2 curvedUV) {
     float distFromScreen = max(screenDist.x, screenDist.y);
 
     // Parallax offset: further from screen edge → sample deeper into screen
-    // This simulates the viewing angle off the bezel wall
+    // This simulates the viewing angle off the bezel wall.
+    //
+    // Each bezel wall looks perpendicular to itself into the screen:
+    //   - Left wall (curvedUV.x < 0)  → looks rightward (+x)
+    //   - Right wall (curvedUV.x > 1) → looks leftward  (-x)
+    //   - Top wall (curvedUV.y < 0)   → looks downward  (+y)
+    //   - Bottom wall (curvedUV.y > 1) → looks upward   (-y)
+    // In corners, blend both axes proportionally to the distance from
+    // each edge so the transition is smooth.
     float parallax = distFromScreen * 3.0;
-    vec2 inwardDir = normalize(vec2(0.5) - curvedUV);
+    vec2 wallDir = vec2(0.0);
+    // Horizontal: which vertical wall are we nearest?
+    if (curvedUV.x < 0.0)      wallDir.x =  screenDist.x;  // left wall → look right
+    else if (curvedUV.x > 1.0)  wallDir.x = -screenDist.x;  // right wall → look left
+    // Vertical: which horizontal wall are we nearest?
+    if (curvedUV.y < 0.0)      wallDir.y =  screenDist.y;  // top wall → look down
+    else if (curvedUV.y > 1.0)  wallDir.y = -screenDist.y;  // bottom wall → look up
+    // Normalize (safe: distFromScreen > 0 guarantees non-zero wallDir)
+    float wallDirLen = length(wallDir);
+    vec2 inwardDir = wallDirLen > 0.001 ? wallDir / wallDirLen : vec2(0.0);
     vec2 sampleBase = clamp(curvedUV + inwardDir * parallax, 0.005, 0.995);
 
     // Blur neighbourhood — wider blur further from screen (more diffuse reflection)
+    // Uses a 13-sample Poisson disc instead of a grid to avoid visible
+    // grid/crosshatch artifacts on the bezel.  Samples are Gaussian-weighted
+    // so the center contributes more than the periphery.
     vec2 texelSize = 1.0 / u_textureSize;
-    float blurScale = 3.0 + distFromScreen * 40.0;
+    float blurRadius = (3.0 + distFromScreen * 40.0) * length(texelSize);
+
+    // 13-point Poisson disc (center + two rings, irregularly spaced)
+    const int SPILL_SAMPLES = 13;
+    vec2 disc[13];
+    disc[0]  = vec2( 0.000,  0.000);   // center
+    disc[1]  = vec2(-0.326, -0.406);   // inner ring
+    disc[2]  = vec2( 0.440, -0.284);
+    disc[3]  = vec2( 0.162,  0.468);
+    disc[4]  = vec2(-0.478,  0.180);
+    disc[5]  = vec2( 0.372,  0.342);   // outer ring
+    disc[6]  = vec2(-0.724, -0.340);
+    disc[7]  = vec2( 0.086, -0.762);
+    disc[8]  = vec2( 0.760,  0.120);
+    disc[9]  = vec2(-0.196,  0.780);
+    disc[10] = vec2(-0.680,  0.540);
+    disc[11] = vec2( 0.580, -0.620);
+    disc[12] = vec2(-0.140, -0.900);
+
+    // Gaussian weights: center=1.0, inner≈0.7, outer≈0.35
+    float weights[13];
+    weights[0]  = 1.00;
+    weights[1]  = 0.72; weights[2]  = 0.72; weights[3]  = 0.72; weights[4]  = 0.72;
+    weights[5]  = 0.36; weights[6]  = 0.36; weights[7]  = 0.36; weights[8]  = 0.36;
+    weights[9]  = 0.36; weights[10] = 0.36; weights[11] = 0.36; weights[12] = 0.36;
+
     vec3 spill = vec3(0.0);
-    for (int x = -2; x <= 2; x++) {
-        for (int y = -2; y <= 2; y++) {
-            vec2 sampleUV = sampleBase + vec2(float(x), float(y)) * texelSize * blurScale;
-            sampleUV = clamp(sampleUV, 0.0, 1.0);
-            spill += texture2D(u_texture, sampleUV).rgb;
-        }
+    float totalWeight = 0.0;
+    for (int i = 0; i < SPILL_SAMPLES; i++) {
+        vec2 sampleUV = sampleBase + disc[i] * blurRadius;
+        sampleUV = clamp(sampleUV, 0.0, 1.0);
+        spill += texture2D(u_texture, sampleUV).rgb * weights[i];
+        totalWeight += weights[i];
     }
-    spill /= 25.0;
+    spill /= totalWeight;
 
     // Apply the same brightness/contrast/saturation as the screen content
     spill = adjustColor(spill);
