@@ -8,6 +8,7 @@
  *  Mike Daley <michael_daley@icloud.com>
  */
 
+import { VERSION } from '../config/version.js';
 import {
   MSG_RPC_CALL, MSG_RPC_BATCH, MSG_INIT, MSG_TRANSFER_DATA,
   MSG_RPC_RESULT, MSG_RPC_BATCH_RESULT, MSG_RPC_ERROR,
@@ -115,7 +116,7 @@ export class WasmProxy {
     // In dev mode, load from src; in production, load from root
     const workerPath = import.meta.env.DEV
       ? '/src/js/worker/emulator-worker.js'
-      : '/emulator-worker.js';
+      : `/emulator-worker.js?v=${VERSION}`;
     this.worker = new Worker(workerPath);
 
     this.worker.onmessage = (event) => this._handleMessage(event.data);
