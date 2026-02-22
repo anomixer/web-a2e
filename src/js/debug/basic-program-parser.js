@@ -17,7 +17,6 @@
  */
 
 import { APPLESOFT_TOKENS } from "../utils/basic-tokens.js";
-import { peek, readWord } from "../utils/wasm-memory.js";
 
 export class BasicProgramParser {
   constructor(wasmModule) {
@@ -25,15 +24,62 @@ export class BasicProgramParser {
     this.lineCache = null;
     this.lastTxttab = 0;
     this.lastVartab = 0;
+    this._programBytes = null;
+    this._programBase = 0;
+  }
+
+  /**
+   * Read zero-page pointers for TXTTAB and VARTAB via batch
+   */
+  async _readPointers() {
+    const zp = await this.wasmModule.batch([
+      ['_readMainRAM', 0x67],
+      ['_readMainRAM', 0x68],
+      ['_readMainRAM', 0x69],
+      ['_readMainRAM', 0x6A],
+    ]);
+    return {
+      txttab: (zp[1] << 8) | zp[0],
+      vartab: (zp[3] << 8) | zp[2],
+    };
+  }
+
+  /**
+   * Bulk-read the entire BASIC program from main RAM into a local buffer.
+   * Stores the buffer for use by getCurrentStatementInfo/getStatementCount.
+   */
+  async _loadProgramBytes(txttab, vartab) {
+    const mainRAMPtr = await this.wasmModule._getMainRAM();
+    this._programBytes = await this.wasmModule.heapRead(mainRAMPtr + txttab, vartab - txttab);
+    this._programBase = txttab;
+  }
+
+  /**
+   * Read a byte from the cached program buffer by absolute address.
+   * Falls back to 0 if address is out of range.
+   */
+  _peekCached(addr) {
+    const offset = addr - this._programBase;
+    if (offset < 0 || offset >= this._programBytes.length) return 0;
+    return this._programBytes[offset];
+  }
+
+  /**
+   * Read a 16-bit word from the cached program buffer by absolute address.
+   */
+  _readWordCached(addr) {
+    const offset = addr - this._programBase;
+    if (offset < 0 || offset + 1 >= this._programBytes.length) return 0;
+    return (this._programBytes[offset + 1] << 8) | this._programBytes[offset];
   }
 
   /**
    * Get all program lines
-   * @returns {Array<{lineNumber: number, address: number, text: string}>}
+   * Uses bulk heapRead to avoid per-byte round-trips through the Worker.
+   * @returns {Promise<Array<{lineNumber: number, address: number, text: string, tokenAddress: number}>>}
    */
-  getLines() {
-    const txttab = readWord(this.wasmModule,0x67);
-    const vartab = readWord(this.wasmModule,0x69);
+  async getLines() {
+    const { txttab, vartab } = await this._readPointers();
 
     // Check cache validity
     if (
@@ -50,46 +96,45 @@ export class BasicProgramParser {
       this.lineCache = lines;
       this.lastTxttab = txttab;
       this.lastVartab = vartab;
+      this._programBytes = null;
       return lines;
     }
 
-    let addr = txttab;
-    const endAddr = vartab;
+    // Read entire program in one round-trip
+    await this._loadProgramBytes(txttab, vartab);
+
+    let offset = 0;
     let safetyCount = 0;
     const maxLines = 10000;
+    const programBytes = this._programBytes;
 
-    while (addr < endAddr && safetyCount < maxLines) {
-      const nextPtr = readWord(this.wasmModule,addr);
-
-      // End of program
+    while (offset + 4 <= programBytes.length && safetyCount < maxLines) {
+      const nextPtr = (programBytes[offset + 1] << 8) | programBytes[offset];
       if (nextPtr === 0) break;
 
-      const lineNumber = readWord(this.wasmModule,addr + 2);
-      const textStart = addr + 4;
+      const nextOffset = nextPtr - txttab;
+      if (nextOffset <= offset || nextOffset > programBytes.length) break;
 
-      // Find end of line (null terminator)
+      const lineNumber = (programBytes[offset + 3] << 8) | programBytes[offset + 2];
+      const textStart = offset + 4;
+
+      // Find null terminator of tokenized text
       let textEnd = textStart;
-      while (peek(this.wasmModule,textEnd) !== 0 && textEnd < nextPtr) {
+      while (textEnd < nextOffset && programBytes[textEnd] !== 0) {
         textEnd++;
       }
 
-      // Read tokenized bytes
-      const tokenBytes = new Uint8Array(textEnd - textStart);
-      for (let i = 0; i < tokenBytes.length; i++) {
-        tokenBytes[i] = peek(this.wasmModule,textStart + i);
-      }
-
-      // Detokenize
+      const tokenBytes = programBytes.slice(textStart, textEnd);
       const text = this._detokenize(tokenBytes);
 
       lines.push({
         lineNumber,
-        address: addr,
+        address: txttab + offset,
         text,
-        tokenAddress: textStart,
+        tokenAddress: txttab + textStart,
       });
 
-      addr = nextPtr;
+      offset = nextOffset;
       safetyCount++;
     }
 
@@ -105,14 +150,15 @@ export class BasicProgramParser {
    */
   invalidateCache() {
     this.lineCache = null;
+    this._programBytes = null;
   }
 
   /**
    * Get a map of line numbers to addresses for breakpoint setting
-   * @returns {Map<number, number>}
+   * @returns {Promise<Map<number, number>>}
    */
-  getLineAddressMap() {
-    const lines = this.getLines();
+  async getLineAddressMap() {
+    const lines = await this.getLines();
     const map = new Map();
     for (const line of lines) {
       map.set(line.lineNumber, line.address);
@@ -122,20 +168,23 @@ export class BasicProgramParser {
 
   /**
    * Get execution state
-   * @returns {{running: boolean, currentLine: number, txtptr: number}}
+   * @returns {Promise<{running: boolean, currentLine: number, txtptr: number}>}
    */
-  getExecutionState() {
-    const curlin = readWord(this.wasmModule,0x75);
-    const txtptr = readWord(this.wasmModule,0xb8);
+  async getExecutionState() {
+    const zp = await this.wasmModule.batch([
+      ['_readMainRAM', 0x75],
+      ['_readMainRAM', 0x76],
+      ['_readMainRAM', 0x7A],  // TXTPTR is at $7A-$7B but we only read $B8-$B9 below
+      ['_readMainRAM', 0xB8],
+      ['_readMainRAM', 0xB9],
+    ]);
+    const curlin = (zp[1] << 8) | zp[0];
+    const curlinHi = zp[1];
+    const txtptr = (zp[4] << 8) | zp[3];
 
-    // Use the C++ emulator's ROM-based tracking: PC at $D912 (RUN) = started,
-    // PC at $D43C (RESTART/] prompt) = stopped. This is definitive because it
-    // hooks directly into Applesoft's own execution flow.
     const running = this.wasmModule._isBasicProgramRunning
-      ? this.wasmModule._isBasicProgramRunning()
+      ? await this.wasmModule._isBasicProgramRunning()
       : false;
-    // Direct mode check: only CURLIN+1 ($76) matters (ROM checks INX on $76)
-    const curlinHi = peek(this.wasmModule, 0x76);
     const directMode = curlinHi === 0xff;
     return {
       running,
@@ -147,44 +196,53 @@ export class BasicProgramParser {
   /**
    * Check if BASIC is running (CURLIN+1 != $FF, matching ROM check)
    */
-  isRunning() {
-    return peek(this.wasmModule, 0x76) !== 0xff;
+  async isRunning() {
+    const curlinHi = await this.wasmModule._readMainRAM(0x76);
+    return curlinHi !== 0xff;
   }
 
   /**
    * Get current line number being executed
    * Returns null if in direct mode or not running
    */
-  getCurrentLine() {
-    // Direct mode check: only CURLIN+1 ($76) matters (ROM checks INX on $76)
-    if (peek(this.wasmModule, 0x76) === 0xff) return null;
-    return readWord(this.wasmModule, 0x75);
+  async getCurrentLine() {
+    const zp = await this.wasmModule.batch([
+      ['_readMainRAM', 0x75],
+      ['_readMainRAM', 0x76],
+    ]);
+    if (zp[1] === 0xff) return null;
+    return (zp[1] << 8) | zp[0];
   }
 
   /**
    * Get current text pointer position
    */
-  getTxtptr() {
-    return readWord(this.wasmModule,0x7a);
+  async getTxtptr() {
+    const zp = await this.wasmModule.batch([
+      ['_readMainRAM', 0xB8],
+      ['_readMainRAM', 0xB9],
+    ]);
+    return (zp[1] << 8) | zp[0];
   }
 
   /**
    * Find line info by line number
    */
-  findLine(lineNumber) {
-    const lines = this.getLines();
+  async findLine(lineNumber) {
+    const lines = await this.getLines();
     return lines.find((l) => l.lineNumber === lineNumber) || null;
   }
 
   /**
    * Find the line containing the given address
    */
-  findLineByAddress(addr) {
-    const lines = this.getLines();
+  async findLineByAddress(addr) {
+    const lines = await this.getLines();
+    const { vartab } = await this._readPointers();
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       const nextLine = lines[i + 1];
-      const endAddr = nextLine ? nextLine.address : readWord(this.wasmModule,0x69);
+      const endAddr = nextLine ? nextLine.address : vartab;
 
       if (addr >= line.address && addr < endAddr) {
         return line;
@@ -194,16 +252,24 @@ export class BasicProgramParser {
   }
 
   /**
-   * Get current statement info for the given line and TXTPTR
+   * Get current statement info for the given line and TXTPTR.
+   * Uses the cached program buffer from the last getLines() call for fast local access.
    * Returns {statementIndex, statementCount, statementStart, statementEnd}
    * where statementStart/End are character offsets in the detokenized text
    */
-  getCurrentStatementInfo(lineNumber, txtptr) {
-    const line = this.findLine(lineNumber);
+  async getCurrentStatementInfo(lineNumber, txtptr) {
+    const line = await this.findLine(lineNumber);
     if (!line) return null;
 
-    // Find end of this line's tokens
-    const nextPtr = readWord(this.wasmModule,line.address);
+    // Use cached program bytes if available, otherwise load them
+    if (!this._programBytes) {
+      const { txttab, vartab } = await this._readPointers();
+      if (txttab === 0 || vartab === 0 || txttab >= vartab) return null;
+      await this._loadProgramBytes(txttab, vartab);
+    }
+
+    // Find end of this line's tokens from cached buffer
+    const nextPtr = this._readWordCached(line.address);
     const tokenStart = line.tokenAddress;
     const tokenEnd = nextPtr - 1; // -1 for null terminator
 
@@ -221,7 +287,7 @@ export class BasicProgramParser {
     let currentStatementIndex = 0;
 
     for (let addr = tokenStart; addr < tokenEnd; addr++) {
-      const byte = peek(this.wasmModule,addr);
+      const byte = this._peekCached(addr);
 
       // Track if we've passed TXTPTR
       if (addr === txtptr) {
@@ -286,13 +352,20 @@ export class BasicProgramParser {
   /**
    * Get the number of statements in a given line (colons + 1, respecting quotes/REM/DATA)
    * @param {number} lineNumber
-   * @returns {number} statement count (1 if no colons)
+   * @returns {Promise<number>} statement count (1 if no colons)
    */
-  getStatementCount(lineNumber) {
-    const line = this.findLine(lineNumber);
+  async getStatementCount(lineNumber) {
+    const line = await this.findLine(lineNumber);
     if (!line) return 1;
 
-    const nextPtr = readWord(this.wasmModule, line.address);
+    // Use cached program bytes if available, otherwise load them
+    if (!this._programBytes) {
+      const { txttab, vartab } = await this._readPointers();
+      if (txttab === 0 || vartab === 0 || txttab >= vartab) return 1;
+      await this._loadProgramBytes(txttab, vartab);
+    }
+
+    const nextPtr = this._readWordCached(line.address);
     const tokenStart = line.tokenAddress;
     const tokenEnd = nextPtr - 1;
 
@@ -301,7 +374,7 @@ export class BasicProgramParser {
     let inRem = false;
 
     for (let addr = tokenStart; addr < tokenEnd; addr++) {
-      const byte = peek(this.wasmModule, addr);
+      const byte = this._peekCached(addr);
       if (byte === 0) break;
       if (inRem) continue;
       if (byte === 0x22) { inQuote = !inQuote; continue; }

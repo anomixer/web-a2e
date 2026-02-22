@@ -301,20 +301,20 @@ export class BasicProgramWindow extends BaseWindow {
       setTimeout(() => this.autoFormatCode(), 0);
     });
 
-    this.insertBtn.addEventListener("click", () => {
-      if (!this._isInBasic()) {
+    this.insertBtn.addEventListener("click", async () => {
+      if (!await this._isInBasic()) {
         showToast("Emulator must be at the BASIC prompt to write a program to memory", "warning");
         return;
       }
       this.loadIntoMemory();
     });
 
-    this.loadBtn.addEventListener("click", () => {
-      if (!this._isInBasic()) {
+    this.loadBtn.addEventListener("click", async () => {
+      if (!await this._isInBasic()) {
         showToast("Emulator must be at the BASIC prompt to read a program from memory", "warning");
         return;
       }
-      if (this.programParser.getLines().length === 0) {
+      if ((await this.programParser.getLines()).length === 0) {
         showToast("No BASIC program found in memory", "warning");
         return;
       }
@@ -1437,11 +1437,11 @@ export class BasicProgramWindow extends BaseWindow {
 
   async _isInBasic() {
     const emulatorOn = this.isRunningCallback ? this.isRunningCallback() : false;
-    return emulatorOn && await this.wasmModule._peekMemory(0x33) === 0xDD;
+    return emulatorOn && (await this.wasmModule._peekMemory(0x33)) === 0xDD;
   }
 
-  loadFromMemory() {
-    const lines = this.programParser.getLines();
+  async loadFromMemory() {
+    const lines = await this.programParser.getLines();
     if (lines.length === 0) {
       console.log("No BASIC program in memory");
       return;
@@ -1558,11 +1558,17 @@ export class BasicProgramWindow extends BaseWindow {
       // Continue from pause
       this._clearBreakpointPulse();
       this._varAutoRefresh = true;
-      this._lastBasicBreakpointHit = false;
       this.currentLineNumber = null;
       this.currentStatementInfo = null;
       this.updateGutter();
       this.updateHighlighting();
+
+      // Don't reset _lastBasicBreakpointHit here — the fire-and-forget unpause
+      // hasn't reached the worker yet, so the update loop would re-detect the
+      // old breakpoint as new. Instead, let the update loop track the natural
+      // transition: breakpointHit goes false (when worker processes unpause),
+      // _lastBasicBreakpointHit follows, then the next breakpoint hit is
+      // detected as a new false→true transition.
 
       // Just unpause - the C++ setPaused(false) automatically handles:
       // - Setting skipBasicBreakpointLine_ if we're at a BASIC breakpoint
@@ -1648,9 +1654,9 @@ export class BasicProgramWindow extends BaseWindow {
    * Uses C++ stepBasicStatement() which breaks at $D820 (JSR EXECUTE_STATEMENT),
    * the ROM point where both new-line and colon paths converge.
    */
-  handleStepLine() {
+  async handleStepLine() {
     // Check if BASIC is actually running (not in direct mode)
-    const state = this.programParser.getExecutionState();
+    const state = await this.programParser.getExecutionState();
     if (state.currentLine === null) {
       // BASIC not running - clear any stale state
       // Unpause first, then clear to remove any skip logic
@@ -1661,7 +1667,11 @@ export class BasicProgramWindow extends BaseWindow {
       return;
     }
 
-    // Reset tracking flag so we detect the next breakpoint hit
+    // Set stepping flag BEFORE resetting tracking. This prevents the update loop
+    // from re-detecting the old breakpoint as new before the worker processes the
+    // step command. The flag is cleared when the update loop sees the emulator
+    // has unpaused (step is in progress) or when a new breakpoint hit is detected.
+    this._basicStepping = true;
     this._clearBreakpointPulse();
     this._lastBasicBreakpointHit = false;
 
@@ -2022,7 +2032,7 @@ export class BasicProgramWindow extends BaseWindow {
   async _getBreakStatementIndex(breakLine) {
     if (this.wasmModule._getBasicTxtptr) {
       const txtptr = await this.wasmModule._getBasicTxtptr();
-      const info = this.programParser.getCurrentStatementInfo(breakLine, txtptr);
+      const info = await this.programParser.getCurrentStatementInfo(breakLine, txtptr);
       if (info) return info.statementIndex;
     }
     return -1;
@@ -2147,9 +2157,15 @@ export class BasicProgramWindow extends BaseWindow {
   async update(wasmModule) {
     if (!this.isVisible) return;
 
+    let state, isPaused;
+    try {
+      state = await this.programParser.getExecutionState();
+      isPaused = await wasmModule._isPaused();
+    } catch (e) {
+      console.error("BASIC window update: failed to read state", e);
+      return;
+    }
     const now = Date.now();
-    const state = this.programParser.getExecutionState();
-    const isPaused = await wasmModule._isPaused();
 
     // Track BASIC program running state from C++ ROM hooks ($D912=RUN, $D43C=RESTART)
     const isEditing = this.varPanel && this.varPanel.querySelector(".basic-dbg-var-edit");
@@ -2160,13 +2176,9 @@ export class BasicProgramWindow extends BaseWindow {
     const emulatorOn = this.isRunningCallback ? this.isRunningCallback() : false;
 
     // Update program status indicator
-    if (isPaused && programRunning) {
-      this.setStatus("paused");
-    } else if (programRunning) {
-      this.setStatus("running");
-    } else {
-      this.setStatus("idle");
-    }
+    const newStatus = (isPaused && programRunning) ? "paused"
+      : programRunning ? "running" : "idle";
+    this.setStatus(newStatus);
 
     // Auto-start refresh when program starts running (even from emulator directly)
     if (programRunning && !this._varAutoRefresh && !isPaused) {
@@ -2193,10 +2205,17 @@ export class BasicProgramWindow extends BaseWindow {
     }
     this._lastUpdateTime = now;
 
+    // Clear stepping flag once the emulator has actually unpaused (worker processed the step)
+    if (this._basicStepping && !isPaused) {
+      this._basicStepping = false;
+    }
+
     // Check for BASIC breakpoint hit (breakpoint or step completion)
     // Track state transition to detect NEW breakpoint hits (not just being paused at one)
+    // Skip detection while stepping flag is set to prevent re-detecting the old breakpoint
+    // before the worker has processed the step command
     const basicBreakpointHit = isPaused && await wasmModule._isBasicBreakpointHit();
-    if (basicBreakpointHit && !this._lastBasicBreakpointHit) {
+    if (basicBreakpointHit && !this._lastBasicBreakpointHit && !this._basicStepping) {
       const breakLine = await wasmModule._getBasicBreakLine();
 
       // Check if this was a line/statement breakpoint match
@@ -2222,7 +2241,7 @@ export class BasicProgramWindow extends BaseWindow {
       // Get statement info using TXTPTR from execution state
       if (wasmModule._getBasicTxtptr) {
         const txtptr = await wasmModule._getBasicTxtptr();
-        this.currentStatementInfo = this.programParser.getCurrentStatementInfo(breakLine, txtptr);
+        this.currentStatementInfo = await this.programParser.getCurrentStatementInfo(breakLine, txtptr);
       } else {
         this.currentStatementInfo = null;
       }
@@ -2260,7 +2279,7 @@ export class BasicProgramWindow extends BaseWindow {
           ['_getBasicErrorTxtptr'],
           ['_getBasicErrorCode'],
         ]);
-        this._setError(errorLine, errorTxtptr, errorCode);
+        await this._setError(errorLine, errorTxtptr, errorCode);
         this.wasmModule._clearBasicError();
       }
 
@@ -2305,7 +2324,7 @@ export class BasicProgramWindow extends BaseWindow {
       let stmtInfo = null;
       if (wasmModule._getBasicTxtptr && state.currentLine !== null) {
         const txtptr = await wasmModule._getBasicTxtptr();
-        stmtInfo = this.programParser.getCurrentStatementInfo(state.currentLine, txtptr);
+        stmtInfo = await this.programParser.getCurrentStatementInfo(state.currentLine, txtptr);
       }
       const stmtChanged = this._statementInfoChanged(this.currentStatementInfo, stmtInfo);
 
@@ -2439,10 +2458,10 @@ export class BasicProgramWindow extends BaseWindow {
            a.statementCount !== b.statementCount;
   }
 
-  _setError(lineNumber, txtptr, errorCode) {
+  async _setError(lineNumber, txtptr, errorCode) {
     this.errorLineNumber = lineNumber;
     this.errorMessage = BASIC_ERRORS[errorCode] || `ERROR ${errorCode}`;
-    this.errorStatementInfo = this.programParser.getCurrentStatementInfo(lineNumber, txtptr);
+    this.errorStatementInfo = await this.programParser.getCurrentStatementInfo(lineNumber, txtptr);
 
     // Capture the code portion of the error line for tracking across renumbers
     this.errorLineContent = this._getLineContent(lineNumber);

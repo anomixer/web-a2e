@@ -215,7 +215,16 @@ function updateControlBlock() {
  * This is the timing master — the AudioWorklet drives emulation speed.
  */
 function handleSampleRequest(count) {
-  if (!wasmModule || wasmModule._isPaused()) return;
+  if (!wasmModule) return;
+  if (wasmModule._isPaused()) {
+    // Send empty samples so the AudioWorklet clears its pendingRequest flag.
+    // Without this, the worklet permanently stops requesting samples after a
+    // pause, starving the emulator even after it is unpaused.
+    self.postMessage(
+      { type: MSG_AUDIO_SAMPLES, samples: new ArrayBuffer(0) }
+    );
+    return;
+  }
   generateAndSendAudio(count);
 }
 
