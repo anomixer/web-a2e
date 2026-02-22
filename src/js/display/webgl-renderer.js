@@ -90,6 +90,11 @@ export class WebGLRenderer {
       // Beam position crosshair (-1.0 = off, 0.0–1.0 = normalized position)
       beamY: -1.0,
       beamX: -1.0,
+
+      // Bezel
+      surroundColor: [0.784, 0.722, 0.604],
+      bezelSpillReach: 0.66,
+      bezelSpillIntensity: 0.31,
     };
 
     // Time for animated effects
@@ -246,6 +251,9 @@ export class WebGLRenderer {
         this.program,
         "u_selectionTexture",
       ),
+      surroundColor: gl.getUniformLocation(this.program, "u_surroundColor"),
+      bezelSpillReach: gl.getUniformLocation(this.program, "u_bezelSpillReach"),
+      bezelSpillIntensity: gl.getUniformLocation(this.program, "u_bezelSpillIntensity"),
     };
 
     // Get burn-in program uniform locations
@@ -566,6 +574,9 @@ export class WebGLRenderer {
       gl.uniform1i(this.uniforms.monochromeMode, this.crtParams.monochromeMode);
       gl.uniform1f(this.uniforms.cornerRadius, this.crtParams.cornerRadius);
       gl.uniform1f(this.uniforms.screenMargin, this.crtParams.screenMargin);
+      gl.uniform3fv(this.uniforms.surroundColor, this.crtParams.surroundColor);
+      gl.uniform1f(this.uniforms.bezelSpillReach, this.crtParams.bezelSpillReach);
+      gl.uniform1f(this.uniforms.bezelSpillIntensity, this.crtParams.bezelSpillIntensity);
     }
 
     // Draw main CRT pass

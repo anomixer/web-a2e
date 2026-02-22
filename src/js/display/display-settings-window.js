@@ -59,6 +59,10 @@ export class DisplaySettingsWindow extends BaseWindow {
       ntscFringing: 0,
       // Monochrome mode (0=color, 1=green, 2=amber, 3=white)
       monochromeMode: 0,
+      // Bezel
+      bezelSpillReach: 66,
+      bezelSpillIntensity: 31,
+      bezelColor: "#c8b89a",
     };
 
     // Current values
@@ -99,6 +103,13 @@ export class DisplaySettingsWindow extends BaseWindow {
         ],
       },
       {
+        section: "Bezel",
+        sliders: [
+          { id: "bezelSpillReach", label: "Spill Reach", param: "bezelSpillReach" },
+          { id: "bezelSpillIntensity", label: "Spill Intensity", param: "bezelSpillIntensity" },
+        ],
+      },
+      {
         section: "Image",
         sliders: [
           { id: "brightness", label: "Brightness", param: "brightness" },
@@ -122,6 +133,15 @@ export class DisplaySettingsWindow extends BaseWindow {
             <label title="${slider.label}">${slider.label}</label>
             <input type="range" id="ds-${slider.id}" min="0" max="100" value="${this.settings[slider.id]}">
             <span class="setting-value" id="ds-val-${slider.id}">${this.settings[slider.id]}%</span>
+          </div>`;
+      }
+
+      // Add color picker to the Bezel section
+      if (section.section === "Bezel") {
+        html += `
+          <div class="setting-row">
+            <label title="Bezel Color">Bezel Color</label>
+            <input type="color" id="ds-bezelColor" value="${this.settings.bezelColor}">
           </div>`;
       }
 
@@ -197,6 +217,16 @@ export class DisplaySettingsWindow extends BaseWindow {
           });
         }
       }
+    }
+
+    // Bezel color picker
+    const colorPicker = this.contentElement.querySelector("#ds-bezelColor");
+    if (colorPicker) {
+      colorPicker.addEventListener("input", (e) => {
+        this.settings.bezelColor = e.target.value;
+        this.applyBezelColor(e.target.value);
+        this.saveSettings();
+      });
     }
 
     // Monochrome mode dropdown
@@ -280,6 +310,14 @@ export class DisplaySettingsWindow extends BaseWindow {
     }
   }
 
+  applyBezelColor(hex) {
+    if (!this.renderer) return;
+    const r = parseInt(hex.slice(1, 3), 16) / 255;
+    const g = parseInt(hex.slice(3, 5), 16) / 255;
+    const b = parseInt(hex.slice(5, 7), 16) / 255;
+    this.renderer.setParam("surroundColor", [r, g, b]);
+  }
+
   applyNTSCSettings() {
     const input = this.contentElement.querySelector("#ds-ntscFringing");
     const valueSpan = this.contentElement.querySelector("#ds-val-ntscFringing");
@@ -311,6 +349,11 @@ export class DisplaySettingsWindow extends BaseWindow {
         this.applyToRenderer(slider.param, this.settings[slider.id] / 100);
       }
     }
+
+    // Apply bezel color
+    const colorPicker = this.contentElement.querySelector("#ds-bezelColor");
+    if (colorPicker) colorPicker.value = this.settings.bezelColor;
+    this.applyBezelColor(this.settings.bezelColor);
 
     // Apply monochrome mode
     const monochromeSelect =
