@@ -22,12 +22,11 @@
     outline: none;
 }
 
-/* Fullscreen styles */
+/* Browser fullscreen styles */
 :fullscreen #app {
     background: #000;
 }
 
-:fullscreen header,
 :fullscreen footer,
 :fullscreen #debugger-panel {
     display: none;
@@ -35,19 +34,13 @@
 
 :fullscreen main {
     padding: 0;
-    align-items: center;
-    justify-content: center;
 }
 
 :fullscreen .emulator-section {
     gap: 0;
 }
 
-:fullscreen #monitor-frame {
-    transform: scale(1.1);
-}
-
-/* Full page mode */
+/* Full page mode (legacy — used when browser fullscreen is unavailable) */
 body.full-page-mode {
     overflow: hidden;
 }
@@ -118,6 +111,10 @@ body.full-page-mode #screen {
 }
 
 /* Screen window canvas fills content area */
+#screen-window .debug-window-header {
+    padding-right: 26px; /* room for the absolutely-positioned maximize button */
+}
+
 #screen-window .debug-window-content {
     padding: 0;
     overflow: hidden;
@@ -137,18 +134,20 @@ body.full-page-mode #screen {
     display: block;
 }
 
-/* Viewport lock button in screen window header */
+/* Maximize / chromeless toggle button */
 .screen-window-lock {
-    position: relative;
+    position: absolute;
+    top: 3px;
+    right: 4px;
+    z-index: 10;
     display: grid;
     place-items: center;
-    width: 22px;
-    height: 22px;
+    width: 18px;
+    height: 18px;
     background: transparent;
     border: 1px solid transparent;
     color: var(--text-muted);
     cursor: pointer;
-    margin-right: 6px;
     border-radius: var(--radius-sm);
     opacity: 0.5;
     transition: opacity 0.15s, color 0.15s, background 0.15s, border-color 0.15s;
@@ -179,19 +178,51 @@ body.full-page-mode #screen {
     transition: opacity 0.15s;
 }
 
-.screen-window-lock .lock-icon-locked {
+.screen-window-lock .lock-icon-compress {
     opacity: 0;
 }
 
-.screen-window-lock .lock-icon-unlocked {
+.screen-window-lock .lock-icon-expand {
     opacity: 1;
 }
 
-.screen-window-lock.active .lock-icon-unlocked {
+.screen-window-lock.active .lock-icon-expand {
     opacity: 0;
 }
 
-.screen-window-lock.active .lock-icon-locked {
+.screen-window-lock.active .lock-icon-compress {
+    opacity: 1;
+}
+
+/* Chromeless mode: hide all window furniture */
+.debug-window.chromeless {
+    border: none;
+    border-radius: var(--radius-md);
+    box-shadow: none;
+    overflow: hidden;
+}
+
+.debug-window.chromeless .debug-window-header {
+    display: none;
+}
+
+.debug-window.chromeless .debug-resize-handle {
+    display: none;
+}
+
+/* In chromeless mode, lock button floats over content and fades in on hover */
+.debug-window.chromeless .screen-window-lock {
+    opacity: 0;
+    background: var(--glass-bg);
+    border-color: var(--glass-border);
+    transition: opacity 0.2s;
+}
+
+.debug-window.chromeless:hover .screen-window-lock {
+    opacity: 0.7;
+}
+
+.debug-window.chromeless .screen-window-lock:hover {
     opacity: 1;
 }
 

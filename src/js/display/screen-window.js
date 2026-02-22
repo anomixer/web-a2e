@@ -23,6 +23,7 @@ export class ScreenWindow extends BaseWindow {
     this.renderer = renderer;
     this.textSelection = textSelection;
     this._viewportLocked = false;
+    this._aspect = renderer.width / renderer.height;
   }
 
   renderContent() {
@@ -46,16 +47,16 @@ export class ScreenWindow extends BaseWindow {
       <span class="charset-label">UK</span>
     `;
 
-    // Viewport lock button
+    // Viewport lock button (expand/compress arrows)
     this._lockBtn = document.createElement("button");
     this._lockBtn.className = "screen-window-lock";
     this._lockBtn.title = "Fit to viewport";
     this._lockBtn.innerHTML = `
-      <svg class="lock-icon-unlocked" viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
-        <path d="M4 7V5a4 4 0 0 1 8 0v1h-2V5a2 2 0 0 0-4 0v2H3a1 1 0 0 0-1 1v5a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V8a1 1 0 0 0-1-1H4z"/>
+      <svg class="lock-icon-expand" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
       </svg>
-      <svg class="lock-icon-locked" viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
-        <path d="M4 7V5a4 4 0 0 1 8 0v2h1a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1h1zm2-2v2h4V5a2 2 0 0 0-4 0z"/>
+      <svg class="lock-icon-compress" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/>
       </svg>
     `;
 
@@ -75,10 +76,11 @@ export class ScreenWindow extends BaseWindow {
       "#screen-window-cursor-keys-toggle",
     );
 
-    // Insert charset switch, cursor keys toggle, and lock button into header
+    // Insert charset switch and cursor keys toggle into header
     this.headerElement.appendChild(charsetSwitch);
     this.headerElement.appendChild(this._cursorKeysSwitch);
-    this.headerElement.appendChild(this._lockBtn);
+    // Lock button appended to the window element so it stays visible in chromeless mode
+    this.element.appendChild(this._lockBtn);
 
     // Prevent clicks from starting a window drag
     charsetSwitch.addEventListener("mousedown", (e) => {
@@ -114,9 +116,38 @@ export class ScreenWindow extends BaseWindow {
       this._lockBtn.classList.toggle("active", locked);
       this._lockBtn.title = locked ? "Unlock from viewport" : "Fit to viewport";
     }
+
+    // Hide/show window furniture (header, border, radius, resize handles)
+    if (this.element) {
+      this.element.classList.toggle("chromeless", locked);
+    }
+
     if (locked) {
       this.constrainToViewport();
+    } else {
+      // Exiting chromeless: the header is now visible again and takes up space.
+      // Adjust window height so the content area + header fits the aspect ratio.
+      requestAnimationFrame(() => {
+        const headerH = this.headerElement ? this.headerElement.offsetHeight : 0;
+        const contentW = this.currentWidth;
+        const contentH = Math.round(contentW / this._aspect);
+        const newHeight = contentH + headerH;
+
+        this.element.style.height = `${newHeight}px`;
+        this.currentHeight = newHeight;
+
+        // Re-centre vertically
+        const headerEl = document.querySelector("header");
+        const minTop = headerEl ? headerEl.offsetHeight : 0;
+        const vpH = window.innerHeight;
+        const y = Math.round(minTop + (vpH - minTop - newHeight) / 2);
+        this.element.style.top = `${y}px`;
+        this.currentY = y;
+
+        this._fitCanvas();
+      });
     }
+
     if (this.onStateChange) this.onStateChange();
   }
 
@@ -212,6 +243,54 @@ export class ScreenWindow extends BaseWindow {
   }
 
   /**
+   * Scale the window down (if needed) so it fits within the browser
+   * viewport while maintaining aspect ratio, then centre it.
+   */
+  fitToViewport() {
+    if (!this.element || this._viewportLocked) return;
+
+    const vpW = window.innerWidth;
+    const vpH = window.innerHeight;
+    const headerEl = document.querySelector("header");
+    const minTop = headerEl ? headerEl.offsetHeight : 0;
+    const margin = 24;
+    const headerH = this.headerElement ? this.headerElement.offsetHeight : 0;
+
+    const availW = vpW - margin * 2;
+    const availH = vpH - minTop - margin * 2;
+
+    let w = this.currentWidth;
+    let contentH = w / this._aspect;
+    let h = contentH + headerH;
+
+    // Scale down if too large
+    if (w > availW || h > availH) {
+      if (availW / this._aspect + headerH <= availH) {
+        w = availW;
+      } else {
+        w = Math.round((availH - headerH) * this._aspect);
+      }
+      contentH = w / this._aspect;
+      h = Math.round(contentH) + headerH;
+      w = Math.round(w);
+    }
+
+    const x = Math.round((vpW - w) / 2);
+    const y = Math.round(minTop + (availH - h) / 2 + margin);
+
+    this.element.style.width = `${w}px`;
+    this.element.style.height = `${h}px`;
+    this.element.style.left = `${x}px`;
+    this.element.style.top = `${y}px`;
+    this.currentWidth = w;
+    this.currentHeight = h;
+    this.currentX = x;
+    this.currentY = y;
+
+    this._fitCanvas();
+  }
+
+  /**
    * Constrain to viewport.  When viewport-locked, fill the available
    * area and centre.  The canvas handles its own 4:3 aspect ratio
    * via _fitCanvas.
@@ -222,16 +301,36 @@ export class ScreenWindow extends BaseWindow {
     if (this._viewportLocked) {
       const vpW = window.innerWidth;
       const vpH = window.innerHeight;
-      const header = document.querySelector("header");
-      const footer = document.querySelector("footer");
-      const minTop = header ? header.offsetHeight : 0;
-      const footerH = footer ? footer.offsetHeight : 0;
-      const margin = 8;
+      const headerEl = document.querySelector("header");
+      // Only ignore the app header in browser fullscreen (header slides away)
+      const isFullscreen = !!document.fullscreenElement;
+      const minTop = (!headerEl || isFullscreen) ? 0 : headerEl.offsetHeight;
+      const margin = 24;
 
-      const w = vpW - margin * 2;
-      const h = vpH - minTop - footerH - margin * 2;
-      const x = margin;
-      const y = minTop + margin;
+      // Available space below the app header
+      const availW = vpW - margin * 2;
+      const availH = vpH - minTop - margin * 2;
+
+      // Chromeless hides the window header
+      const windowHeaderH = 0;
+      const availContentH = availH;
+
+      // Fit the largest content rectangle that maintains aspect ratio
+      let contentW, contentH;
+      if (availW / this._aspect <= availContentH) {
+        contentW = availW;
+        contentH = Math.round(availW / this._aspect);
+      } else {
+        contentH = availContentH;
+        contentW = Math.round(availContentH * this._aspect);
+      }
+
+      const w = contentW;
+      const h = contentH + windowHeaderH;
+
+      // Centre in the available space below the app header
+      const x = Math.round((vpW - w) / 2);
+      const y = Math.round(minTop + margin + (availH - h) / 2);
 
       this.element.style.width = `${w}px`;
       this.element.style.height = `${h}px`;
@@ -245,6 +344,44 @@ export class ScreenWindow extends BaseWindow {
       this.lastViewportWidth = vpW;
       this.lastViewportHeight = vpH;
     } else {
+      // Shrink to fit viewport if too large, maintaining aspect ratio
+      const vpW = window.innerWidth;
+      const vpH = window.innerHeight;
+      const headerEl = document.querySelector("header");
+      const minTop = headerEl ? headerEl.offsetHeight : 0;
+      const windowHeaderH = this.headerElement ? this.headerElement.offsetHeight : 0;
+      const availH = vpH - minTop;
+
+      if (this.currentHeight > availH || this.currentWidth > vpW) {
+        const maxContentH = availH - windowHeaderH;
+        const maxContentW = vpW;
+        let w = this.currentWidth;
+        let contentH = w / this._aspect;
+
+        if (contentH + windowHeaderH > availH || w > maxContentW) {
+          if (maxContentW / this._aspect <= maxContentH) {
+            w = maxContentW;
+          } else {
+            w = Math.round(maxContentH * this._aspect);
+          }
+          contentH = w / this._aspect;
+        }
+
+        const h = Math.round(contentH) + windowHeaderH;
+        w = Math.round(w);
+
+        this.element.style.width = `${w}px`;
+        this.element.style.height = `${h}px`;
+        this.currentWidth = w;
+        this.currentHeight = h;
+      }
+
+      // Ensure top is below the app header
+      if (this.currentY < minTop) {
+        this.currentY = minTop;
+        this.element.style.top = `${minTop}px`;
+      }
+
       super.constrainToViewport();
     }
   }
@@ -260,11 +397,10 @@ export class ScreenWindow extends BaseWindow {
     // Let the base class compute unconstrained new dimensions
     super.resize(e);
 
-    // Enforce 4:3 on the content area (window height = content + header)
+    // Enforce aspect ratio on the content area (window height = content + header)
     const headerHeight = this.headerElement
       ? this.headerElement.offsetHeight
       : 0;
-    const ASPECT = 4 / 3; // width / height
 
     // Anchor edges: resizing from n keeps bottom fixed, from w keeps right fixed
     const bottom = this.currentY + this.currentHeight;
@@ -276,22 +412,22 @@ export class ScreenWindow extends BaseWindow {
     if (dir === "n" || dir === "s") {
       // Pure vertical drag: width follows height
       const contentHeight = this.currentHeight - headerHeight;
-      newWidth = Math.round(contentHeight * ASPECT);
+      newWidth = Math.round(contentHeight * this._aspect);
       newHeight = this.currentHeight;
     } else {
       // Has horizontal component (e, w, corners): height follows width
-      const targetContentHeight = Math.round(this.currentWidth / ASPECT);
+      const targetContentHeight = Math.round(this.currentWidth / this._aspect);
       newHeight = targetContentHeight + headerHeight;
     }
 
     // Enforce minimums while maintaining ratio
     if (newWidth < this.minWidth) {
       newWidth = this.minWidth;
-      newHeight = Math.round(newWidth / ASPECT) + headerHeight;
+      newHeight = Math.round(newWidth / this._aspect) + headerHeight;
     }
     if (newHeight < this.minHeight) {
       newHeight = this.minHeight;
-      newWidth = Math.round((newHeight - headerHeight) * ASPECT);
+      newWidth = Math.round((newHeight - headerHeight) * this._aspect);
     }
 
     // Adjust position so the anchored edge stays fixed
@@ -345,12 +481,12 @@ export class ScreenWindow extends BaseWindow {
     if (cw <= 0 || ch <= 0) return;
 
     let w, h;
-    if ((cw * 3) / 4 <= ch) {
+    if (cw / ch <= this._aspect) {
       w = cw;
-      h = (cw * 3) / 4;
+      h = cw / this._aspect;
     } else {
       h = ch;
-      w = (ch * 4) / 3;
+      w = ch * this._aspect;
     }
     w = Math.floor(w);
     h = Math.floor(h);

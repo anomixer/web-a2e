@@ -329,6 +329,14 @@
     background: var(--overlay-hover);
 }
 
+.header-menu-item.menu-item-danger {
+    color: var(--accent-red);
+}
+
+.header-menu-item.menu-item-danger:hover {
+    background: var(--accent-red-bg);
+}
+
 /* Toggle items (autosave, etc.) - non-clickable container with toggle */
 .menu-toggle-item {
     cursor: default;

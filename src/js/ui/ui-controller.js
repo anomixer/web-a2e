@@ -12,6 +12,7 @@
 
 import { clearStateFromStorage } from "../state/state-persistence.js";
 import { ThemeManager } from "./theme-manager.js";
+import { showConfirm } from "./confirm.js";
 
 // Timing constants
 const REMINDER_DISMISS_DELAY_MS = 2000;
@@ -395,6 +396,40 @@ export class UIController {
       });
     }
 
+    // Reset Defaults — clear all persisted data and reload
+    const resetDefaultsBtn = document.getElementById("btn-reset-defaults");
+    if (resetDefaultsBtn) {
+      resetDefaultsBtn.addEventListener("click", async () => {
+        this.closeAllMenus();
+        const confirmed = await showConfirm(
+          "Reset all settings, save states, and window positions to factory defaults? This cannot be undone.",
+          "Reset Defaults",
+        );
+        if (!confirmed) return;
+
+        // Clear all localStorage
+        localStorage.clear();
+
+        // Delete all IndexedDB databases used by the emulator
+        const dbNames = ["a2e-state-persistence", "a2e-hd-persistence"];
+        await Promise.all(
+          dbNames.map(
+            (name) =>
+              new Promise((resolve) => {
+                const req = indexedDB.deleteDatabase(name);
+                req.onsuccess = resolve;
+                req.onerror = resolve;
+                req.onblocked = resolve;
+              }),
+          ),
+        );
+
+        // Prevent beforeunload from re-saving state, then reload
+        window._resettingDefaults = true;
+        window.location.reload();
+      });
+    }
+
     // Prevent system menu from closing when clicking toggle items
     const systemMenu = document.getElementById("file-menu");
     if (systemMenu) {
@@ -705,10 +740,87 @@ export class UIController {
     };
 
     fullscreenBtn.addEventListener("click", () => {
-      if (this.isFullPageMode) {
-        exitFullPageMode();
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
       } else {
-        enterFullPageMode();
+        document.documentElement.requestFullscreen().catch((err) => {
+          console.warn("Fullscreen request failed:", err);
+        });
+      }
+      this.refocusCanvas();
+    });
+
+    const headerEl = document.querySelector("header");
+
+    document.addEventListener("fullscreenchange", () => {
+      const isFullscreen = !!document.fullscreenElement;
+
+      // Wait a frame so viewport dimensions are settled
+      requestAnimationFrame(() => {
+        if (isFullscreen) {
+          // Remember pre-fullscreen state of the screen window
+          this._wasViewportLocked = this.screenWindow?._viewportLocked;
+          this._windowsBeforeFullscreen = this.windowManager.getVisibleWindowIds()
+            .filter(id => id !== "screen-window");
+
+          // Hide all windows except screen, then maximize screen
+          for (const id of this._windowsBeforeFullscreen) {
+            this.windowManager.hideWindow(id);
+          }
+          if (this.screenWindow && !this.screenWindow._viewportLocked) {
+            this.screenWindow.setViewportLocked(true);
+          } else if (this.screenWindow) {
+            // Already locked — just re-constrain for the new viewport size
+            this.screenWindow.constrainToViewport();
+          }
+        } else {
+          // Exiting fullscreen — restore previous state
+          if (headerEl) headerEl.classList.remove("header-visible");
+
+          if (this.screenWindow && !this._wasViewportLocked) {
+            // Remove chromeless mode without the internal repositioning,
+            // then fitToViewport handles sizing and centering in one pass
+            this.screenWindow._viewportLocked = false;
+            if (this.screenWindow._lockBtn) {
+              this.screenWindow._lockBtn.classList.remove("active");
+              this.screenWindow._lockBtn.title = "Fit to viewport";
+            }
+            if (this.screenWindow.element) {
+              this.screenWindow.element.classList.remove("chromeless");
+            }
+            if (this.screenWindow.onStateChange) this.screenWindow.onStateChange();
+            // Double-rAF: first frame lets the browser lay out the
+            // now-visible window header, second frame measures it
+            requestAnimationFrame(() =>
+              requestAnimationFrame(() => this.screenWindow.fitToViewport())
+            );
+          } else if (this.screenWindow) {
+            this.screenWindow.constrainToViewport();
+          }
+
+          // Restore windows that were visible
+          if (this._windowsBeforeFullscreen) {
+            for (const id of this._windowsBeforeFullscreen) {
+              this.windowManager.showWindow(id);
+            }
+            this._windowsBeforeFullscreen = null;
+          }
+        }
+      });
+    });
+
+    // Show/hide header based on mouse proximity to top edge in fullscreen
+    const triggerZone = 48;
+    document.addEventListener("mousemove", (e) => {
+      if (!document.fullscreenElement || !headerEl) return;
+
+      if (e.clientY <= triggerZone) {
+        headerEl.classList.add("header-visible");
+      } else {
+        // Only hide if mouse isn't over the header itself
+        if (!headerEl.contains(e.target)) {
+          headerEl.classList.remove("header-visible");
+        }
       }
     });
 

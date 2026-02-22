@@ -325,9 +325,9 @@ class AppleIIeEmulator {
       // Load saved window states (must be after all windows are registered)
       this.windowManager.loadState();
 
-      // Save window states when page is closed
+      // Save window states when page is closed (unless a reset is in progress)
       window.addEventListener("beforeunload", () => {
-        if (this.windowManager) {
+        if (this.windowManager && !window._resettingDefaults) {
           this.windowManager.saveState();
         }
       });
