@@ -31,8 +31,11 @@ header {
     pointer-events: auto;
 }
 
-/* Auto-hide header mode */
+/* Auto-hide header mode — fixed so it doesn't take flow space */
 header.auto-hide {
+    position: fixed;
+    left: 0;
+    right: 0;
     transform: translateY(-100%);
     opacity: 0;
     pointer-events: none;

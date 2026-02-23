@@ -45,13 +45,27 @@
   flex-direction: column;
 }
 
-/* When a window's contentElement is inside a dock leaf, fill and constrain */
-.dock-leaf-content > .debug-window-content {
+/* When a window's contentElement is inside a dock leaf, fill and constrain.
+   Repeated class bumps specificity to beat ID-scoped overrides like #screen-window. */
+.dock-leaf-content > .debug-window-content.debug-window-content {
   flex: 1;
   min-height: 0;
   overflow: auto;
   display: flex;
   flex-direction: column;
+}
+
+/* Inner content wrappers must not clip when docked — the debug-window-content
+   scrolls instead. flex-shrink:0 ensures they report full content height. */
+.dock-leaf-content > .debug-window-content > * {
+  overflow: visible !important;
+  flex-shrink: 0;
+}
+
+/* Exception: memory browser scroll container needs its own scroll handling */
+.dock-leaf-content > .debug-window-content .mem-browser-scroll-container {
+  overflow: hidden !important;
+  flex-shrink: 1;
 }
 
 /* ─── Tab Bar ─── */

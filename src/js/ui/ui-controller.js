@@ -861,7 +861,7 @@ export class UIController {
     }
 
     // Show/hide header based on mouse proximity to top edge (fullscreen or auto-hide)
-    const triggerZone = 48;
+    const triggerZone = 8;
     document.addEventListener("mousemove", (e) => {
       if (!headerEl) return;
       const isFullscreen = !!document.fullscreenElement;
