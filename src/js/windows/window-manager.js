@@ -10,6 +10,8 @@ export class WindowManager {
     this.windows = new Map();
     this.highestZIndex = 1000;
     this.storageKey = 'a2e-debug-windows';
+    this._paneledWindows = new Set();
+    this.dockManager = null;
 
     // Bind and set up window resize listener to keep windows in viewport
     this.handleWindowResize = this.handleWindowResize.bind(this);
@@ -45,6 +47,11 @@ export class WindowManager {
    * Show a specific window
    */
   showWindow(id) {
+    // If docked, activate the tab instead of showing as floating
+    if (this.dockManager && this.dockManager.isDocked(id)) {
+      this.dockManager.activateTab(id);
+      return;
+    }
     const window = this.windows.get(id);
     if (window) {
       window.show();
@@ -76,6 +83,11 @@ export class WindowManager {
    * Toggle a window's visibility
    */
   toggleWindow(id) {
+    // If docked, activate the tab instead of toggling
+    if (this.dockManager && this.dockManager.isDocked(id)) {
+      this.dockManager.activateTab(id);
+      return;
+    }
     const window = this.windows.get(id);
     if (window) {
       window.toggle();
@@ -100,7 +112,15 @@ export class WindowManager {
    */
   isWindowVisible(id) {
     const window = this.windows.get(id);
+    if (this.dockManager && this.dockManager.isDocked(id)) return true;
     return window ? window.isVisible : false;
+  }
+
+  /**
+   * Check if a window is currently docked.
+   */
+  isDocked(id) {
+    return this.dockManager ? this.dockManager.isDocked(id) : false;
   }
 
   /**
@@ -243,12 +263,21 @@ export class WindowManager {
   }
 
   /**
-   * Update all visible windows
+   * Set which windows are currently paneled in a workspace grid.
+   * Paneled windows get update() calls even when not "visible" as floating windows.
+   * @param {Set<string>} windowIds
+   */
+  setPaneledWindows(windowIds) {
+    this._paneledWindows = windowIds || new Set();
+  }
+
+  /**
+   * Update all visible and paneled windows
    */
   updateAll(wasmModule) {
     this._frameCounter = (this._frameCounter || 0) + 1;
     for (const window of this.windows.values()) {
-      if (window.isVisible) {
+      if (window.isVisible || this._paneledWindows.has(window.id)) {
         const interval = window.updateEveryNFrames || 4;
         if (interval === 1 || this._frameCounter % interval === 0) {
           window.update(wasmModule);

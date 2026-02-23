@@ -54,6 +54,7 @@ export class BaseWindow {
     this.dragOffset = { x: 0, y: 0 };
     this.resizeStart = { x: 0, y: 0, width: 0, height: 0, left: 0, top: 0 };
     this.resizeDirection = null;
+    this._isPaneled = false;
 
     // Track current position/size (needed because getBoundingClientRect returns zeros for hidden elements)
     this.currentX = config.defaultPosition?.x ?? 0;
@@ -228,9 +229,16 @@ export class BaseWindow {
    */
   handleMouseUp(e) {
     if (this.isDragging || this.isResizing) {
+      const wasDragging = this.isDragging;
       this.isDragging = false;
       this.isResizing = false;
       this.element.classList.remove("dragging", "resizing");
+
+      // Notify dock manager of drag end (before clearing state)
+      if (wasDragging && this.onDragEnd) {
+        this.onDragEnd(e.clientX, e.clientY);
+      }
+
       if (this.onStateChange) this.onStateChange();
       this.saveSettings();
     }
@@ -276,6 +284,9 @@ export class BaseWindow {
 
     // Update edge distances after drag
     this.updateEdgeDistances();
+
+    // Notify dock manager of drag movement
+    if (this.onDragMove) this.onDragMove(e.clientX, e.clientY);
   }
 
   /**
@@ -588,6 +599,45 @@ export class BaseWindow {
     // Update viewport tracking
     this.lastViewportWidth = viewportWidth;
     this.lastViewportHeight = viewportHeight;
+  }
+
+  /**
+   * Detach contentElement from the BaseWindow shell for panel mode.
+   * Hides the window shell but keeps the content element alive and reparentable.
+   */
+  detachContent() {
+    if (this._isPaneled) return;
+    this._isPaneled = true;
+
+    // Remove contentElement from the window shell (but don't destroy it)
+    if (this.contentElement && this.contentElement.parentNode === this.element) {
+      this.element.removeChild(this.contentElement);
+    }
+
+    // Hide the window shell
+    this.element.classList.add('hidden');
+    this.element.classList.add('paneled');
+  }
+
+  /**
+   * Return contentElement back into the BaseWindow shell (float mode).
+   */
+  reattachContent() {
+    if (!this._isPaneled) return;
+    this._isPaneled = false;
+
+    // Put contentElement back into the window element
+    if (this.contentElement && this.contentElement.parentNode !== this.element) {
+      this.element.appendChild(this.contentElement);
+    }
+
+    // Remove paneled class (visibility controlled by isVisible)
+    this.element.classList.remove('paneled');
+
+    // Restore visibility based on actual state
+    if (this.isVisible) {
+      this.element.classList.remove('hidden');
+    }
   }
 
   /**
