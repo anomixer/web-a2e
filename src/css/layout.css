@@ -31,6 +31,19 @@ header {
     pointer-events: auto;
 }
 
+/* Auto-hide header mode */
+header.auto-hide {
+    transform: translateY(-100%);
+    opacity: 0;
+    pointer-events: none;
+}
+
+header.auto-hide.header-visible {
+    transform: translateY(0);
+    opacity: 1;
+    pointer-events: auto;
+}
+
 .header-left {
     display: flex;
     align-items: center;

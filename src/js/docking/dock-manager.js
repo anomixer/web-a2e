@@ -14,6 +14,11 @@ import { DockTabBar } from './dock-tab-bar.js';
 import { PRESETS } from './dock-presets.js';
 
 const STORAGE_KEY = 'a2e-dock-layout';
+const STORAGE_KEY_ACTIVE = 'a2e-dock-active-preset';
+
+function presetStorageKey(name) {
+  return `a2e-dock-preset-${name}`;
+}
 
 export class DockManager {
   constructor(windowManager) {
@@ -23,6 +28,7 @@ export class DockManager {
     this.overlay = null;
     this.tabBar = new DockTabBar();
     this.container = null;
+    this._activePreset = null;
 
     this._resizeObserver = null;
     this._dragWindowId = null; // window currently being dragged over dock space
@@ -70,7 +76,8 @@ export class DockManager {
     // Hook into all registered windows for drag callbacks
     this._hookWindowDragCallbacks();
 
-    // Load saved state
+    // Restore the last active preset and its saved state
+    this._activePreset = localStorage.getItem(STORAGE_KEY_ACTIVE) || null;
     this._loadState();
 
     // Rebuild dock (sets empty class if no tree, or renders docked windows)
@@ -378,33 +385,57 @@ export class DockManager {
 
   /**
    * Load a preset layout by name.
+   * Uses saved customization if available, otherwise falls back to factory default.
    * @param {'play'|'code'|'debug'} presetName
    */
   loadPreset(presetName) {
     const presetFactory = PRESETS[presetName];
     if (!presetFactory) return;
 
+    // Save current layout before switching
+    this._saveCurrentPresetState();
+
     // Undock all current windows
     this._undockAll();
 
-    // Build new tree from preset
-    this.tree = presetFactory();
+    // Try to load saved customization for this preset
+    let loaded = false;
+    try {
+      const saved = localStorage.getItem(presetStorageKey(presetName));
+      if (saved) {
+        const data = JSON.parse(saved);
+        this.tree = DockTree.deserialize(data);
+        const validIds = new Set(this.windowManager.windows.keys());
+        this.tree.validate(validIds);
+        if (this.tree.root) {
+          loaded = true;
+        }
+      }
+    } catch (e) {
+      // Fall through to factory default
+    }
 
-    // Validate against registered windows
-    const validIds = new Set(this.windowManager.windows.keys());
-    this.tree.validate(validIds);
+    if (!loaded) {
+      // Build new tree from factory preset
+      this.tree = presetFactory();
+      const validIds = new Set(this.windowManager.windows.keys());
+      this.tree.validate(validIds);
+    }
 
-    // Dock windows (detach from floating shells)
+    // Dock windows (detach from floating shells) and hide all others
     const dockedIds = this.tree.getAllDockedWindowIds();
-    for (const wid of dockedIds) {
-      const win = this.windowManager.getWindow(wid);
-      if (win) {
+    for (const [id, win] of this.windowManager.windows) {
+      if (dockedIds.has(id)) {
         win.detachContent();
+      } else if (win.isVisible) {
+        win.hide();
       }
     }
 
+    this._activePreset = presetName;
     this._rebuildDock();
     this.saveState();
+    this.windowManager.saveState();
   }
 
   /**
@@ -427,9 +458,24 @@ export class DockManager {
 
   // --- Persistence ---
 
+  /**
+   * Save the current dock tree to the active preset's storage slot.
+   */
   saveState() {
     try {
       const data = this.tree.serialize();
+      // Save to the current preset slot
+      if (this._activePreset) {
+        if (data) {
+          localStorage.setItem(presetStorageKey(this._activePreset), JSON.stringify(data));
+        } else {
+          localStorage.removeItem(presetStorageKey(this._activePreset));
+        }
+        localStorage.setItem(STORAGE_KEY_ACTIVE, this._activePreset);
+      } else {
+        localStorage.removeItem(STORAGE_KEY_ACTIVE);
+      }
+      // Also save to the general key for init-time restore
       if (data) {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       } else {
@@ -437,6 +483,22 @@ export class DockManager {
       }
     } catch (e) {
       console.warn('Failed to save dock layout:', e);
+    }
+  }
+
+  /**
+   * Save current preset state before switching away.
+   */
+  _saveCurrentPresetState() {
+    if (this._activePreset && this.tree.root) {
+      try {
+        const data = this.tree.serialize();
+        if (data) {
+          localStorage.setItem(presetStorageKey(this._activePreset), JSON.stringify(data));
+        }
+      } catch (e) {
+        // Ignore save errors during switch
+      }
     }
   }
 
@@ -471,6 +533,8 @@ export class DockManager {
    */
   clearState() {
     this._undockAll();
+    this._activePreset = null;
+    localStorage.removeItem(STORAGE_KEY_ACTIVE);
     localStorage.removeItem(STORAGE_KEY);
   }
 

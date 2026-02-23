@@ -454,15 +454,9 @@ export class UIController {
       const observer = new MutationObserver(() => {
         if (viewContainer.classList.contains('open')) {
           const dockManager = this.windowManager.dockManager;
-          const hasDockedWindows = dockManager && dockManager.tree && dockManager.tree.root;
           layoutBtns.forEach(b => {
-            b.classList.toggle('active', hasDockedWindows ? false : b.dataset.layout === 'float');
+            b.classList.toggle('active', dockManager && dockManager._activePreset === b.dataset.layout);
           });
-          // If docked, none are active (custom arrangement) unless we track it
-          if (hasDockedWindows && dockManager._activePreset) {
-            const presetBtn = document.querySelector(`.layout-btn[data-layout="${dockManager._activePreset}"]`);
-            if (presetBtn) presetBtn.classList.add('active');
-          }
         }
       });
       observer.observe(viewContainer, { attributes: true, attributeFilter: ['class'] });
@@ -474,17 +468,10 @@ export class UIController {
         const dockManager = this.windowManager.dockManager;
         if (!dockManager) return;
 
-        // Update active state on buttons
         layoutBtns.forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
 
-        if (layout === 'float') {
-          dockManager.clearState();
-          dockManager._activePreset = null;
-        } else {
-          dockManager.loadPreset(layout);
-          dockManager._activePreset = layout;
-        }
+        dockManager.loadPreset(layout);
         this.closeAllMenus();
         this.refocusCanvas();
       });
@@ -854,10 +841,32 @@ export class UIController {
       });
     });
 
-    // Show/hide header based on mouse proximity to top edge in fullscreen
+    // --- Auto-hide header toggle ---
+    const autoHideBtn = document.getElementById("btn-auto-hide-header");
+    if (autoHideBtn) {
+      // Restore saved preference
+      if (localStorage.getItem("a2e-auto-hide-header") === "true") {
+        headerEl.classList.add("auto-hide");
+        autoHideBtn.classList.add("active");
+      }
+      autoHideBtn.addEventListener("click", () => {
+        const enabled = headerEl.classList.toggle("auto-hide");
+        autoHideBtn.classList.toggle("active", enabled);
+        localStorage.setItem("a2e-auto-hide-header", enabled);
+        if (!enabled) {
+          headerEl.classList.remove("header-visible");
+        }
+        this.closeAllMenus();
+      });
+    }
+
+    // Show/hide header based on mouse proximity to top edge (fullscreen or auto-hide)
     const triggerZone = 48;
     document.addEventListener("mousemove", (e) => {
-      if (!document.fullscreenElement || !headerEl) return;
+      if (!headerEl) return;
+      const isFullscreen = !!document.fullscreenElement;
+      const isAutoHide = headerEl.classList.contains("auto-hide");
+      if (!isFullscreen && !isAutoHide) return;
 
       if (e.clientY <= triggerZone) {
         headerEl.classList.add("header-visible");
