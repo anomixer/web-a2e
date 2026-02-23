@@ -859,3 +859,40 @@ select:focus {
     background: var(--accent-blue);
     color: white;
 }
+
+/* Layout preset button group (mirrors theme-btn-group) */
+.layout-btn-group {
+    display: flex;
+    gap: 2px;
+    background: var(--input-bg-deeper);
+    border-radius: var(--radius-sm);
+    padding: 2px;
+}
+
+.layout-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 8px;
+    height: 24px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-family: var(--font-sans);
+    font-size: 0.65rem;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+
+.layout-btn:hover {
+    color: var(--text-primary);
+    background: var(--overlay-hover);
+}
+
+.layout-btn.active {
+    background: var(--accent-blue);
+    color: white;
+}

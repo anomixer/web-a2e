@@ -445,6 +445,51 @@ export class UIController {
    * Set up Hardware menu action items
    */
   setupHardwareMenuActions() {
+    // Layout preset buttons
+    const layoutBtns = document.querySelectorAll('.layout-btn');
+
+    // Sync active state when View menu opens
+    const viewContainer = document.getElementById('view-menu-container');
+    if (viewContainer) {
+      const observer = new MutationObserver(() => {
+        if (viewContainer.classList.contains('open')) {
+          const dockManager = this.windowManager.dockManager;
+          const hasDockedWindows = dockManager && dockManager.tree && dockManager.tree.root;
+          layoutBtns.forEach(b => {
+            b.classList.toggle('active', hasDockedWindows ? false : b.dataset.layout === 'float');
+          });
+          // If docked, none are active (custom arrangement) unless we track it
+          if (hasDockedWindows && dockManager._activePreset) {
+            const presetBtn = document.querySelector(`.layout-btn[data-layout="${dockManager._activePreset}"]`);
+            if (presetBtn) presetBtn.classList.add('active');
+          }
+        }
+      });
+      observer.observe(viewContainer, { attributes: true, attributeFilter: ['class'] });
+    }
+
+    layoutBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const layout = btn.dataset.layout;
+        const dockManager = this.windowManager.dockManager;
+        if (!dockManager) return;
+
+        // Update active state on buttons
+        layoutBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+
+        if (layout === 'float') {
+          dockManager.clearState();
+          dockManager._activePreset = null;
+        } else {
+          dockManager.loadPreset(layout);
+          dockManager._activePreset = layout;
+        }
+        this.closeAllMenus();
+        this.refocusCanvas();
+      });
+    });
+
     const drivesBtn = document.getElementById("btn-drives");
     if (drivesBtn) {
       drivesBtn.addEventListener("click", () => {

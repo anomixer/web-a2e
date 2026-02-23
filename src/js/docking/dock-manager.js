@@ -124,7 +124,6 @@ export class DockManager {
 
     // Detach content from floating window shell
     win.detachContent();
-    win.isVisible = false;
 
     if (!this.tree.root) {
       // Empty dock — create root leaf
@@ -357,6 +356,18 @@ export class DockManager {
   _updatePaneledWindows() {
     const dockedIds = this.tree.getAllDockedWindowIds();
     this.windowManager.setPaneledWindows(dockedIds);
+
+    // Set isVisible = true on active tab windows so their update() runs,
+    // and false on inactive tabs so they don't waste cycles
+    for (const leaf of this.tree.getAllLeaves()) {
+      const activeWid = leaf.activeWindowId;
+      for (const wid of leaf.windowIds) {
+        const win = this.windowManager.getWindow(wid);
+        if (win) {
+          win.isVisible = (wid === activeWid);
+        }
+      }
+    }
   }
 
   _updateAllContentSizes() {
@@ -389,7 +400,6 @@ export class DockManager {
       const win = this.windowManager.getWindow(wid);
       if (win) {
         win.detachContent();
-        win.isVisible = false;
       }
     }
 
@@ -407,7 +417,8 @@ export class DockManager {
       const win = this.windowManager.getWindow(wid);
       if (win && win._isPaneled) {
         win.reattachContent();
-        // Don't auto-show — keep current visibility state
+        win.isVisible = true;
+        win.element.classList.remove('hidden');
       }
     }
     this.tree = new DockTree(null);
@@ -447,7 +458,6 @@ export class DockManager {
         const win = this.windowManager.getWindow(wid);
         if (win) {
           win.detachContent();
-          win.isVisible = false;
         }
       }
     } catch (e) {
