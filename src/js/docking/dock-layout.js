@@ -77,6 +77,30 @@ export class DockLayout {
     this._rects.clear();
   }
 
+  /**
+   * Compute child rects for a split node.
+   * @returns {{ rectA, rectSplitter, rectB }}
+   */
+  _computeChildRects(node, rect) {
+    const isH = node.splitDirection === 'h';
+    const totalSize = isH ? rect.w : rect.h;
+    const sizeA = Math.round(totalSize * node.splitRatio - SPLITTER_SIZE / 2);
+    const sizeB = totalSize - sizeA - SPLITTER_SIZE;
+
+    if (isH) {
+      return {
+        rectA: { x: rect.x, y: rect.y, w: sizeA, h: rect.h },
+        rectSplitter: { x: rect.x + sizeA, y: rect.y, w: SPLITTER_SIZE, h: rect.h },
+        rectB: { x: rect.x + sizeA + SPLITTER_SIZE, y: rect.y, w: sizeB, h: rect.h },
+      };
+    }
+    return {
+      rectA: { x: rect.x, y: rect.y, w: rect.w, h: sizeA },
+      rectSplitter: { x: rect.x, y: rect.y + sizeA, w: rect.w, h: SPLITTER_SIZE },
+      rectB: { x: rect.x, y: rect.y + sizeA + SPLITTER_SIZE, w: rect.w, h: sizeB },
+    };
+  }
+
   _layoutNode(node, rect, windowManager) {
     this._rects.set(node.id, { ...rect });
 
@@ -85,23 +109,7 @@ export class DockLayout {
       return;
     }
 
-    // Split node — divide rect between children
-    const isH = node.splitDirection === 'h';
-    const totalSize = isH ? rect.w : rect.h;
-    const sizeA = Math.round(totalSize * node.splitRatio - SPLITTER_SIZE / 2);
-    const sizeB = totalSize - sizeA - SPLITTER_SIZE;
-
-    let rectA, rectSplitter, rectB;
-    if (isH) {
-      rectA = { x: rect.x, y: rect.y, w: sizeA, h: rect.h };
-      rectSplitter = { x: rect.x + sizeA, y: rect.y, w: SPLITTER_SIZE, h: rect.h };
-      rectB = { x: rect.x + sizeA + SPLITTER_SIZE, y: rect.y, w: sizeB, h: rect.h };
-    } else {
-      rectA = { x: rect.x, y: rect.y, w: rect.w, h: sizeA };
-      rectSplitter = { x: rect.x, y: rect.y + sizeA, w: rect.w, h: SPLITTER_SIZE };
-      rectB = { x: rect.x, y: rect.y + sizeA + SPLITTER_SIZE, w: rect.w, h: sizeB };
-    }
-
+    const { rectA, rectSplitter, rectB } = this._computeChildRects(node, rect);
     this._createSplitterElement(node, rectSplitter);
     this._layoutNode(node.childA, rectA, windowManager);
     this._layoutNode(node.childB, rectB, windowManager);
@@ -118,21 +126,7 @@ export class DockLayout {
       return;
     }
 
-    const isH = node.splitDirection === 'h';
-    const totalSize = isH ? rect.w : rect.h;
-    const sizeA = Math.round(totalSize * node.splitRatio - SPLITTER_SIZE / 2);
-    const sizeB = totalSize - sizeA - SPLITTER_SIZE;
-
-    let rectA, rectSplitter, rectB;
-    if (isH) {
-      rectA = { x: rect.x, y: rect.y, w: sizeA, h: rect.h };
-      rectSplitter = { x: rect.x + sizeA, y: rect.y, w: SPLITTER_SIZE, h: rect.h };
-      rectB = { x: rect.x + sizeA + SPLITTER_SIZE, y: rect.y, w: sizeB, h: rect.h };
-    } else {
-      rectA = { x: rect.x, y: rect.y, w: rect.w, h: sizeA };
-      rectSplitter = { x: rect.x, y: rect.y + sizeA, w: rect.w, h: SPLITTER_SIZE };
-      rectB = { x: rect.x, y: rect.y + sizeA + SPLITTER_SIZE, w: rect.w, h: sizeB };
-    }
+    const { rectA, rectSplitter, rectB } = this._computeChildRects(node, rect);
 
     const splEl = this.splitterElements.get(node.id);
     if (splEl) {
@@ -148,12 +142,9 @@ export class DockLayout {
     el.className = 'dock-leaf';
     el.dataset.nodeId = String(node.id);
 
-    // Tab bar
+    // Tab bar (single-tab class is managed by DockTabBar.renderTabs)
     const tabBar = document.createElement('div');
     tabBar.className = 'dock-tab-bar';
-    if (node.windowIds.length <= 1) {
-      tabBar.classList.add('single-tab');
-    }
     el.appendChild(tabBar);
 
     // Content area
@@ -195,9 +186,6 @@ export class DockLayout {
 
   _startSplitterDrag(node, e) {
     const isH = node.splitDirection === 'h';
-    const parentRect = this._rects.get(node.id);
-    // We actually need the parent's bounding rect, which includes both children + splitter.
-    // Since node IS the split node, its rect is the full area.
 
     this._splitterDrag = {
       node,

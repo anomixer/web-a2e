@@ -277,18 +277,10 @@ export class WindowManager {
   updateAll(wasmModule) {
     this._frameCounter = (this._frameCounter || 0) + 1;
 
-    // Ensure docked active-tab windows have isVisible = true each frame,
+    // Ensure docked active-tab windows have correct isVisible each frame,
     // since other code paths (restoreState, hide) may have reset it.
-    if (this.dockManager && this.dockManager.tree.root) {
-      for (const leaf of this.dockManager.tree.getAllLeaves()) {
-        const activeWid = leaf.activeWindowId;
-        for (const wid of leaf.windowIds) {
-          const win = this.windows.get(wid);
-          if (win) {
-            win.isVisible = (wid === activeWid);
-          }
-        }
-      }
+    if (this.dockManager) {
+      this.dockManager.syncDockedVisibility();
     }
 
     for (const window of this.windows.values()) {

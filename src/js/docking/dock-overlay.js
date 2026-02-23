@@ -13,9 +13,7 @@ export class DockOverlay {
   constructor(container) {
     this.container = container;
     this._previewEl = null;
-    this._indicatorEls = [];
     this._active = false;
-    this._lastHit = null;
 
     this._createPreviewElement();
   }
@@ -40,7 +38,6 @@ export class DockOverlay {
   deactivate() {
     this._active = false;
     this._previewEl.classList.add('hidden');
-    this._lastHit = null;
   }
 
   /**
@@ -63,7 +60,6 @@ export class DockOverlay {
     // Check if inside container at all
     if (x < 0 || y < 0 || x > cw || y > ch) {
       this._hidePreview();
-      this._lastHit = null;
       return null;
     }
 
@@ -72,25 +68,21 @@ export class DockOverlay {
       if (x < EDGE_ZONE_SIZE) {
         const hit = { type: 'root-edge', nodeId: null, direction: 'left' };
         this._showPreview({ x: 0, y: 0, w: cw * 0.3, h: ch });
-        this._lastHit = hit;
         return hit;
       }
       if (x > cw - EDGE_ZONE_SIZE) {
         const hit = { type: 'root-edge', nodeId: null, direction: 'right' };
         this._showPreview({ x: cw * 0.7, y: 0, w: cw * 0.3, h: ch });
-        this._lastHit = hit;
         return hit;
       }
       if (y < EDGE_ZONE_SIZE) {
         const hit = { type: 'root-edge', nodeId: null, direction: 'top' };
         this._showPreview({ x: 0, y: 0, w: cw, h: ch * 0.3 });
-        this._lastHit = hit;
         return hit;
       }
       if (y > ch - EDGE_ZONE_SIZE) {
         const hit = { type: 'root-edge', nodeId: null, direction: 'bottom' };
         this._showPreview({ x: 0, y: ch * 0.7, w: cw, h: ch * 0.3 });
-        this._lastHit = hit;
         return hit;
       }
     }
@@ -125,7 +117,6 @@ export class DockOverlay {
           this._showPreview(rect);
         }
 
-        this._lastHit = hit;
         return hit;
       }
     }
@@ -134,12 +125,10 @@ export class DockOverlay {
     if (!tree.root) {
       const hit = { type: 'root-edge', nodeId: null, direction: 'center' };
       this._showPreview({ x: 0, y: 0, w: cw, h: ch });
-      this._lastHit = hit;
       return hit;
     }
 
     this._hidePreview();
-    this._lastHit = null;
     return null;
   }
 
@@ -159,7 +148,5 @@ export class DockOverlay {
     if (this._previewEl && this._previewEl.parentNode) {
       this._previewEl.remove();
     }
-    this._indicatorEls.forEach(el => el.remove());
-    this._indicatorEls = [];
   }
 }

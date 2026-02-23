@@ -60,7 +60,6 @@ export class DockManager {
     // Layout engine callbacks
     this.layout.onRecalculate = () => {
       this.layout.recalculate(this.tree);
-      this._updateAllContentSizes();
     };
     this.layout.onSplitterDragEnd = () => this.saveState();
 
@@ -68,7 +67,6 @@ export class DockManager {
     this._resizeObserver = new ResizeObserver(() => {
       if (this.tree.root) {
         this.layout.recalculate(this.tree);
-        this._updateAllContentSizes();
       }
     });
     this._resizeObserver.observe(this.container);
@@ -363,9 +361,16 @@ export class DockManager {
   _updatePaneledWindows() {
     const dockedIds = this.tree.getAllDockedWindowIds();
     this.windowManager.setPaneledWindows(dockedIds);
+    this.syncDockedVisibility();
+  }
 
-    // Set isVisible = true on active tab windows so their update() runs,
-    // and false on inactive tabs so they don't waste cycles
+  /**
+   * Set isVisible on docked windows: true for active tabs, false for inactive.
+   * Called on rebuild and each frame (via WindowManager.updateAll) to ensure
+   * visibility stays consistent even if other code paths reset it.
+   */
+  syncDockedVisibility() {
+    if (!this.tree.root) return;
     for (const leaf of this.tree.getAllLeaves()) {
       const activeWid = leaf.activeWindowId;
       for (const wid of leaf.windowIds) {
@@ -375,10 +380,6 @@ export class DockManager {
         }
       }
     }
-  }
-
-  _updateAllContentSizes() {
-    // Content areas auto-fill via CSS flex, no manual sizing needed
   }
 
   // --- Presets ---
