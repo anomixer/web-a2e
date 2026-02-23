@@ -16,24 +16,24 @@
 /* Disk drives row inside window content */
 .disk-drives-row {
     display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
     gap: var(--space-md);
     width: 100%;
     padding: var(--space-sm);
 }
 
 .disk-drive {
-    flex: 1;
+    flex: 1 1 250px;
     display: flex;
     flex-direction: column;
     gap: var(--space-sm);
     min-width: 0;
+    box-sizing: border-box;
 }
 
-/* Vertical separator between the two drives */
-.disk-drive + .disk-drive {
-    border-left: 1px solid var(--border-default);
-    padding-left: var(--space-md);
-}
+/* Separator between drives — use gap for spacing, no border/padding asymmetry
+   so both drives have equal internal width and matching canvas heights */
 
 .drive-image-container {
     width: 100%;
@@ -277,75 +277,52 @@
     background: var(--text-muted);
 }
 
-/* Graphics toggle button in window header */
-.drive-graphics-btn {
-    display: grid;
-    place-items: center;
-    width: 22px;
-    height: 22px;
+/* Toolbar for Surface / Details toggles */
+.disk-drives-toolbar {
+    display: flex;
+    gap: var(--space-xs);
+    padding: var(--space-xs) var(--space-sm);
+    border-bottom: 1px solid var(--border-subtle);
+}
+
+.drive-toolbar-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
     background: transparent;
     border: 1px solid transparent;
     color: var(--text-muted);
     cursor: pointer;
-    margin-left: auto;
-    margin-right: 6px;
     border-radius: var(--radius-sm);
-    opacity: 0.5;
+    font-family: var(--font-sans);
+    font-size: 0.625rem;
+    font-weight: 500;
+    opacity: 0.7;
     transition: opacity 0.15s, color 0.15s, background 0.15s, border-color 0.15s;
 }
 
-.drive-graphics-btn:hover {
+.drive-toolbar-btn:hover {
     opacity: 1;
     color: var(--text-primary);
     background: var(--overlay-hover);
     border-color: var(--overlay-white-10);
 }
 
-.drive-graphics-btn.active {
+.drive-toolbar-btn.active {
     opacity: 1;
     color: var(--accent-green);
     background: var(--accent-green-bg);
     border-color: var(--accent-green-border-light);
 }
 
-.drive-graphics-btn.active:hover {
+.drive-toolbar-btn.active:hover {
     background: var(--accent-green-bg-strong);
     border-color: var(--accent-green-border);
 }
 
-/* Detail toggle button in window header */
-.drive-detail-btn {
-    display: grid;
-    place-items: center;
-    width: 22px;
-    height: 22px;
-    background: transparent;
-    border: 1px solid transparent;
-    color: var(--text-muted);
-    cursor: pointer;
-    margin-right: 6px;
-    border-radius: var(--radius-sm);
-    opacity: 0.5;
-    transition: opacity 0.15s, color 0.15s, background 0.15s, border-color 0.15s;
-}
-
-.drive-detail-btn:hover {
-    opacity: 1;
-    color: var(--text-primary);
-    background: var(--overlay-hover);
-    border-color: var(--overlay-white-10);
-}
-
-.drive-detail-btn.active {
-    opacity: 1;
-    color: var(--accent-green);
-    background: var(--accent-green-bg);
-    border-color: var(--accent-green-border-light);
-}
-
-.drive-detail-btn.active:hover {
-    background: var(--accent-green-bg-strong);
-    border-color: var(--accent-green-border);
+.drive-toolbar-btn svg {
+    flex-shrink: 0;
 }
 
 /* Hide graphics mode — collapse disk surface canvases */
