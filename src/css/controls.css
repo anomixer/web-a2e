@@ -943,3 +943,67 @@ select:focus {
 .layout-btn.active svg {
     opacity: 1;
 }
+
+/* Popout side button group */
+.popout-side-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-xs);
+}
+
+.popout-side-row > span {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    font-weight: 500;
+    letter-spacing: 0.03em;
+}
+
+.popout-side-btn-group {
+    display: flex;
+    gap: 4px;
+}
+
+.popout-side-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    padding: 6px 8px;
+    border: 1px solid var(--border-default);
+    background: var(--input-bg);
+    color: var(--text-muted);
+    font-family: var(--font-sans);
+    font-size: 0.65rem;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+
+.popout-side-btn svg {
+    flex-shrink: 0;
+    opacity: 0.6;
+    transition: opacity 0.15s;
+}
+
+.popout-side-btn:hover {
+    color: var(--text-primary);
+    background: var(--overlay-hover);
+    border-color: var(--text-muted);
+}
+
+.popout-side-btn:hover svg {
+    opacity: 1;
+}
+
+.popout-side-btn.active {
+    background: var(--accent-blue-bg-strong);
+    border-color: var(--accent-blue-border);
+    color: var(--accent-blue);
+}
+
+.popout-side-btn.active svg {
+    opacity: 1;
+}

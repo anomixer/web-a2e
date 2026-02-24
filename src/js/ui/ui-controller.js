@@ -478,6 +478,34 @@ export class UIController {
       });
     });
 
+    // Popout side buttons
+    const popoutSideBtns = document.querySelectorAll('.popout-side-btn');
+
+    if (viewContainer) {
+      const sideObserver = new MutationObserver(() => {
+        if (viewContainer.classList.contains('open')) {
+          const currentSide = this._drivePopouts?.getSide() || localStorage.getItem('a2e-popout-side') || 'left';
+          popoutSideBtns.forEach(b => {
+            b.classList.toggle('active', b.dataset.popoutSide === currentSide);
+          });
+        }
+      });
+      sideObserver.observe(viewContainer, { attributes: true, attributeFilter: ['class'] });
+    }
+
+    popoutSideBtns.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const side = btn.dataset.popoutSide;
+        popoutSideBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        if (this._drivePopouts) {
+          this._drivePopouts.setSide(side);
+        }
+        this.closeAllMenus();
+        this.refocusCanvas();
+      });
+    });
+
     const drivesBtn = document.getElementById("btn-drives");
     if (drivesBtn) {
       drivesBtn.addEventListener("click", () => {
@@ -861,13 +889,11 @@ export class UIController {
       });
     }
 
-    // Show/hide header based on mouse proximity to top edge (fullscreen or auto-hide)
+    // Show/hide header based on mouse proximity to top edge (auto-hide only)
     const triggerZone = 8;
     document.addEventListener("mousemove", (e) => {
       if (!headerEl) return;
-      const isFullscreen = !!document.fullscreenElement;
-      const isAutoHide = headerEl.classList.contains("auto-hide");
-      if (!isFullscreen && !isAutoHide) return;
+      if (!headerEl.classList.contains("auto-hide")) return;
 
       if (e.clientY <= triggerZone) {
         headerEl.classList.add("header-visible");

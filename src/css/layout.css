@@ -17,20 +17,6 @@ header {
     transition: transform 0.25s ease, opacity 0.25s ease;
 }
 
-/* In browser fullscreen, header slides up and hides */
-:fullscreen header {
-    transform: translateY(-100%);
-    opacity: 0;
-    pointer-events: none;
-}
-
-/* When mouse is near the top, header slides back in */
-:fullscreen header.header-visible {
-    transform: translateY(0);
-    opacity: 1;
-    pointer-events: auto;
-}
-
 /* Auto-hide header mode — fixed so it doesn't take flow space */
 header.auto-hide {
     position: fixed;

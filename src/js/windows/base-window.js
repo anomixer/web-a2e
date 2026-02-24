@@ -5,6 +5,14 @@
  *  Mike Daley <michael_daley@icloud.com>
  */
 
+/**
+ * Returns true when the header is effectively hidden (auto-hide mode).
+ */
+function isHeaderHidden() {
+  const header = document.querySelector("header");
+  return header && header.classList.contains("auto-hide");
+}
+
 export class BaseWindow {
   constructor(config) {
     this.id = config.id;
@@ -268,7 +276,7 @@ export class BaseWindow {
     // Get header and footer heights to prevent dragging under/over them
     const header = document.querySelector("header");
     const footer = document.querySelector("footer");
-    const minY = header ? header.offsetHeight : 0;
+    const minY = (!header || isHeaderHidden()) ? 0 : header.offsetHeight;
     const footerHeight = footer ? footer.offsetHeight : 0;
 
     // Keep window on screen, below header, and above footer
@@ -353,7 +361,7 @@ export class BaseWindow {
     // Get header and footer heights for bounds checking
     const header = document.querySelector("header");
     const footer = document.querySelector("footer");
-    const minTop = header ? header.offsetHeight : 0;
+    const minTop = (!header || isHeaderHidden()) ? 0 : header.offsetHeight;
     const footerHeight = footer ? footer.offsetHeight : 0;
     const maxBottom = window.innerHeight - footerHeight;
 
@@ -540,7 +548,7 @@ export class BaseWindow {
     // Get header and footer heights to prevent windows going under/over them
     const header = document.querySelector("header");
     const footer = document.querySelector("footer");
-    const minTop = header ? header.offsetHeight : 0;
+    const minTop = (!header || isHeaderHidden()) ? 0 : header.offsetHeight;
     const footerHeight = footer ? footer.offsetHeight : 0;
     const maxBottom = viewportHeight - footerHeight;
 
