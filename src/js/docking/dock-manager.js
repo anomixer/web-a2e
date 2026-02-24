@@ -78,6 +78,11 @@ export class DockManager {
     this._activePreset = localStorage.getItem(STORAGE_KEY_ACTIVE) || null;
     this._loadState();
 
+    // First-time users: default to the "play" preset
+    if (!this.tree.root && !this._activePreset) {
+      this.loadPreset('play');
+    }
+
     // Rebuild dock (sets empty class if no tree, or renders docked windows)
     this._rebuildDock();
   }
