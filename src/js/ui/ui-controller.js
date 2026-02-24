@@ -13,6 +13,7 @@
 import { clearStateFromStorage } from "../state/state-persistence.js";
 import { ThemeManager } from "./theme-manager.js";
 import { showConfirm } from "./confirm.js";
+import { FullscreenDrivePopouts } from "./fullscreen-drive-popouts.js";
 
 // Timing constants
 const REMINDER_DISMISS_DELAY_MS = 2000;
@@ -941,6 +942,13 @@ export class UIController {
         exitFullPageMode();
       });
     }
+
+    // Slide-out drive popouts for full-page/fullscreen modes
+    this._drivePopouts = new FullscreenDrivePopouts(
+      this.diskManager,
+      this.emulator.hardDriveManager
+    );
+    this._drivePopouts.init();
   }
 
   /**

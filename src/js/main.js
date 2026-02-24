@@ -27,6 +27,7 @@ import "../css/file-explorer.css";
 import "../css/documentation.css";
 import "../css/window-switcher.css";
 import "../css/docking.css";
+import "../css/fullscreen-popouts.css";
 import "../css/responsive.css";
 
 import { VERSION } from "./config/version.js";
