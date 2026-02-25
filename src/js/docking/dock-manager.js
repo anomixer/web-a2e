@@ -220,6 +220,7 @@ export class DockManager {
   // --- Drag-to-dock handlers ---
 
   _handleWindowDragMove(win, x, y) {
+    if (this._activePreset === 'window') return;
     if (this.isDocked(win.id)) return;
 
     const containerRect = this.container.getBoundingClientRect();
@@ -241,6 +242,7 @@ export class DockManager {
   }
 
   _handleWindowDragEnd(win, x, y) {
+    if (this._activePreset === 'window') return;
     if (this._dragWindowId !== win.id) return;
 
     const hit = this.overlay.hitTest(x, y, this.tree, this.layout);
@@ -392,7 +394,7 @@ export class DockManager {
   /**
    * Load a preset layout by name.
    * Uses saved customization if available, otherwise falls back to factory default.
-   * @param {'play'|'code'|'debug'} presetName
+   * @param {'play'|'code'|'debug'|'window'} presetName
    */
   loadPreset(presetName) {
     const presetFactory = PRESETS[presetName];
@@ -403,6 +405,24 @@ export class DockManager {
 
     // Undock all current windows
     this._undockAll();
+
+    // "window" preset: empty tree, just show screen floating
+    if (presetName === 'window') {
+      this.tree = new DockTree(null);
+      // Hide all windows except the screen
+      for (const [id, win] of this.windowManager.windows) {
+        if (id === 'screen-window') {
+          win.show();
+        } else if (win.isVisible) {
+          win.hide();
+        }
+      }
+      this._activePreset = presetName;
+      this._rebuildDock();
+      this.saveState();
+      this.windowManager.saveState();
+      return;
+    }
 
     // Try to load saved customization for this preset
     let loaded = false;

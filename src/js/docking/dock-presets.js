@@ -149,4 +149,13 @@ function code() {
   return new DockTree(root);
 }
 
-export const PRESETS = { play, debug, code };
+/**
+ * Window preset: no docking, all windows float freely.
+ *
+ *   (empty dock tree — screen shown as floating window)
+ */
+function window_() {
+  return new DockTree(null);
+}
+
+export const PRESETS = { play, debug, code, window: window_ };
