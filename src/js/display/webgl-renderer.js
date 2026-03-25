@@ -577,7 +577,7 @@ export class WebGLRenderer {
       gl.uniform1f(this.uniforms.colorBleed, this.crtParams.colorBleed);
       gl.uniform1f(this.uniforms.ntscFringing, this.crtParams.ntscFringing);
       gl.uniform1i(this.uniforms.monochromeMode, this.crtParams.monochromeMode);
-      gl.uniform1f(this.uniforms.cornerRadius, this.crtParams.cornerRadius);
+      gl.uniform1f(this.uniforms.cornerRadius, (this.crtParams.screenInset > 0 || this.crtParams.curvature > 0) ? this.crtParams.cornerRadius : 0.0);
       gl.uniform1f(this.uniforms.screenMargin, this.crtParams.screenMargin);
       gl.uniform1f(this.uniforms.screenInset, this.crtParams.screenInset);
       gl.uniform3fv(this.uniforms.surroundColor, this.crtParams.surroundColor);
@@ -601,7 +601,7 @@ export class WebGLRenderer {
 
       // Set edge uniforms
       gl.uniform1f(this.edgeUniforms.curvature, this.crtParams.curvature);
-      gl.uniform1f(this.edgeUniforms.cornerRadius, this.crtParams.cornerRadius);
+      gl.uniform1f(this.edgeUniforms.cornerRadius, (this.crtParams.screenInset > 0 || this.crtParams.curvature > 0) ? this.crtParams.cornerRadius : 0.0);
       gl.uniform1f(
         this.edgeUniforms.edgeHighlight,
         this.crtParams.edgeHighlight,

@@ -1,0 +1,308 @@
+/*
+ * fullscreen-popouts.css - Slide-out drive panels
+ */
+
+/* --- Wrapper --- */
+.fp-drive-popout {
+  position: fixed;
+  z-index: 10001;
+  display: flex;
+  align-items: center;
+  transition: transform 0.25s ease;
+}
+
+/* Vertical stacking: top popout above center, bottom below */
+.fp-drive-popout--top {
+  top: calc(50% - 4px);
+  transform: translateY(-100%);
+}
+
+.fp-drive-popout--bottom {
+  top: calc(50% + 4px);
+}
+
+/* Left side: panel + tab, slides in from left */
+.fp-drive-popout--left {
+  left: 0;
+  flex-direction: row;
+}
+
+.fp-drive-popout--left.fp-drive-popout--top {
+  transform: translateY(-100%) translateX(calc(-100% + 24px));
+}
+
+.fp-drive-popout--left.fp-drive-popout--bottom {
+  transform: translateX(calc(-100% + 24px));
+}
+
+/* Right side: tab + panel, slides in from right */
+.fp-drive-popout--right {
+  right: 0;
+  flex-direction: row;
+}
+
+.fp-drive-popout--right.fp-drive-popout--top {
+  transform: translateY(-100%) translateX(calc(100% - 24px));
+}
+
+.fp-drive-popout--right.fp-drive-popout--bottom {
+  transform: translateX(calc(100% - 24px));
+}
+
+/* Open state */
+.fp-drive-popout--left.fp-drive-popout--top.open {
+  transform: translateY(-100%) translateX(0);
+}
+
+.fp-drive-popout--left.fp-drive-popout--bottom.open {
+  transform: translateX(0);
+}
+
+.fp-drive-popout--right.fp-drive-popout--top.open {
+  transform: translateY(-100%) translateX(0);
+}
+
+.fp-drive-popout--right.fp-drive-popout--bottom.open {
+  transform: translateX(0);
+}
+
+/* --- Tab handle (always visible) --- */
+.fp-popout-tab {
+  width: 24px;
+  min-height: 60px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: rgba(10, 10, 11, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+  flex-shrink: 0;
+}
+
+.fp-drive-popout--left .fp-popout-tab {
+  border-radius: 0 8px 8px 0;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-left: none;
+  box-shadow: 2px 0 10px rgba(0, 0, 0, 0.5), 0 0 4px rgba(255, 255, 255, 0.15);
+}
+
+.fp-drive-popout--right .fp-popout-tab {
+  border-radius: 8px 0 0 8px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-right: none;
+  box-shadow: -2px 0 10px rgba(0, 0, 0, 0.5), 0 0 4px rgba(255, 255, 255, 0.15);
+}
+
+.fp-popout-tab:hover {
+  background: rgba(10, 10, 11, 0.85);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.fp-popout-chevron {
+  display: flex;
+  opacity: 0.5;
+}
+
+/* --- Slide-out panel --- */
+.fp-popout-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  background: rgba(10, 10, 11, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), 0 0 4px rgba(255, 255, 255, 0.15);
+  white-space: nowrap;
+}
+
+.fp-drive-popout--left .fp-popout-panel {
+  border-radius: 0 10px 10px 0;
+  border-left: none;
+  box-shadow: 2px 0 14px rgba(0, 0, 0, 0.5), 0 0 4px rgba(255, 255, 255, 0.15);
+}
+
+.fp-drive-popout--right .fp-popout-panel {
+  border-radius: 10px 0 0 10px;
+  border-right: none;
+  box-shadow: -2px 0 14px rgba(0, 0, 0, 0.5), 0 0 4px rgba(255, 255, 255, 0.15);
+}
+
+.fp-drive-popout.open .fp-popout-chevron {
+  opacity: 0;
+}
+
+/* --- Drive row --- */
+.fp-popout-drive-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.fp-popout-drive-row + .fp-popout-drive-row {
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding-top: 8px;
+}
+
+/* LED indicator */
+.fp-popout-led {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  flex-shrink: 0;
+  transition: background 0.15s ease;
+}
+
+.fp-popout-led.active {
+  background: #f5821f;
+  box-shadow: 0 0 6px rgba(245, 130, 31, 0.6);
+}
+
+/* Name label */
+.fp-popout-name {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  min-width: 80px;
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Controls */
+.fp-popout-controls {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.fp-popout-btn {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.6);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  padding: 0;
+}
+
+.fp-popout-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.fp-popout-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+/* --- Dropdown containers --- */
+.fp-dropdown-container {
+  position: relative;
+}
+
+.fp-recent-dropdown {
+  display: none;
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 180px;
+  max-height: 240px;
+  overflow-y: auto;
+  background: rgba(10, 10, 11, 0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  z-index: 10002;
+  padding: 4px 0;
+}
+
+.fp-recent-dropdown.open {
+  display: block;
+}
+
+.fp-recent-item {
+  padding: 5px 10px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 0.15s ease;
+}
+
+.fp-recent-item:hover:not(.fp-recent-empty) {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.fp-recent-item.fp-recent-empty {
+  color: rgba(255, 255, 255, 0.35);
+  font-style: italic;
+  cursor: default;
+}
+
+.fp-recent-separator {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+  margin: 3px 0;
+}
+
+.fp-recent-item.fp-recent-clear {
+  color: rgba(255, 255, 255, 0.4);
+  text-align: center;
+}
+
+.fp-recent-item.fp-recent-clear:hover {
+  color: #e03a3e;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.fp-recent-dropdown::-webkit-scrollbar {
+  width: 5px;
+}
+
+.fp-recent-dropdown::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.fp-recent-dropdown::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+
+.fp-recent-dropdown::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* Library items use the managers' recent-* classes */
+.fp-recent-dropdown .recent-item {
+  padding: 5px 10px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 0.15s ease;
+}
+
+.fp-recent-dropdown .recent-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}

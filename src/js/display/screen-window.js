@@ -302,9 +302,9 @@ export class ScreenWindow extends BaseWindow {
       const vpW = window.innerWidth;
       const vpH = window.innerHeight;
       const headerEl = document.querySelector("header");
-      // Only ignore the app header in browser fullscreen (header slides away)
-      const isFullscreen = !!document.fullscreenElement;
-      const minTop = (!headerEl || isFullscreen) ? 0 : headerEl.offsetHeight;
+      // Ignore the app header when it's hidden (auto-hide mode)
+      const headerHidden = !headerEl || headerEl.classList.contains("auto-hide");
+      const minTop = headerHidden ? 0 : headerEl.offsetHeight;
       const margin = 24;
 
       // Available space below the app header

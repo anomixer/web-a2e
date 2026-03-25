@@ -26,6 +26,8 @@ import "../css/release-notes.css";
 import "../css/file-explorer.css";
 import "../css/documentation.css";
 import "../css/window-switcher.css";
+import "../css/docking.css";
+import "../css/fullscreen-popouts.css";
 import "../css/responsive.css";
 
 import { VERSION } from "./config/version.js";
@@ -54,6 +56,7 @@ import { StateManager } from "./state/state-manager.js";
 import { SaveStatesWindow } from "./state/save-states-window.js";
 import { AgentManager } from "./agent/index.js";
 import { SerialManager } from "./serial/serial-manager.js";
+import { DockManager } from "./docking/index.js";
 import {
   WindowManager,
   CPUDebuggerWindow,
@@ -92,6 +95,7 @@ class AppleIIeEmulator {
     this.agentManager = null;
     this.serialManager = null;
     this.modem = null;
+    this.dockManager = null;
 
     this.running = false;
   }
@@ -423,6 +427,11 @@ class AppleIIeEmulator {
       // Enable mouse handler if a mouse card is configured
       this.updateMouseHandlerState();
 
+      // Set up dock manager (after all windows registered so drag hooks cover everything)
+      this.dockManager = new DockManager(this.windowManager);
+      this.windowManager.dockManager = this.dockManager;
+      this.dockManager.init();
+
       // Start render loop
       this.startRenderLoop();
 
@@ -617,6 +626,11 @@ class AppleIIeEmulator {
     if (this.themeManager) {
       this.themeManager.destroy();
       this.themeManager = null;
+    }
+
+    if (this.dockManager) {
+      this.dockManager.destroy();
+      this.dockManager = null;
     }
 
     if (this.agentManager) {

@@ -105,6 +105,7 @@ export class FileExplorerWindow extends BaseWindow {
     this.currentFileData = null; // Cache for current file data
     this.basicLineNumToIndex = null; // For BASIC GOTO/GOSUB navigation
     this.basicOriginalHtml = null; // Original unhighlighted BASIC content
+    this._dockedInitDone = false; // Tracks if catalog was loaded after docking
 
     // Hex view dynamic column state
     this.hexDisplayState = null; // { data, baseAddress, maxBytes }
@@ -182,8 +183,8 @@ export class FileExplorerWindow extends BaseWindow {
     this.loadSettings();
 
     // Source selector (Floppy / HD)
-    const sourceSelector = this.element.querySelector(".fe-source-selector");
-    const sourceBtns = this.element.querySelectorAll(".fe-source-btn");
+    const sourceSelector = this.contentElement.querySelector(".fe-source-selector");
+    const sourceBtns = this.contentElement.querySelectorAll(".fe-source-btn");
     sourceBtns.forEach((btn) => {
       btn.addEventListener("click", () => {
         const newSource = btn.dataset.source;
@@ -198,7 +199,7 @@ export class FileExplorerWindow extends BaseWindow {
     });
 
     // Drive selector
-    const driveBtns = this.element.querySelectorAll(".fe-drive-btn");
+    const driveBtns = this.contentElement.querySelectorAll(".fe-drive-btn");
     driveBtns.forEach((btn) => {
       btn.addEventListener("click", () => {
         driveBtns.forEach((b) => b.classList.remove("active"));
@@ -209,11 +210,11 @@ export class FileExplorerWindow extends BaseWindow {
     });
 
     // Refresh button
-    const refreshBtn = this.element.querySelector(".fe-refresh-btn");
+    const refreshBtn = this.contentElement.querySelector(".fe-refresh-btn");
     refreshBtn.addEventListener("click", () => this.loadDisk());
 
     // Catalog item selection
-    const catalogList = this.element.querySelector(".fe-catalog-list");
+    const catalogList = this.contentElement.querySelector(".fe-catalog-list");
     catalogList.addEventListener("click", (e) => {
       const item = e.target.closest(".fe-catalog-item");
       if (item) {
@@ -232,7 +233,7 @@ export class FileExplorerWindow extends BaseWindow {
     });
 
     // Path bar breadcrumb navigation (ProDOS)
-    const pathBar = this.element.querySelector(".fe-path-bar");
+    const pathBar = this.contentElement.querySelector(".fe-path-bar");
     pathBar.addEventListener("click", (e) => {
       const pathItem = e.target.closest(".fe-path-item");
       if (pathItem && !pathItem.matches(":last-child")) {
@@ -242,7 +243,7 @@ export class FileExplorerWindow extends BaseWindow {
     });
 
     // View toggle for binary files
-    const viewToggle = this.element.querySelector(".fe-view-toggle");
+    const viewToggle = this.contentElement.querySelector(".fe-view-toggle");
     viewToggle.addEventListener("click", (e) => {
       const btn = e.target.closest(".fe-view-btn");
       if (btn) {
@@ -260,7 +261,7 @@ export class FileExplorerWindow extends BaseWindow {
     });
 
     // View toggle for text files (TEXT/MERLIN)
-    const textViewToggle = this.element.querySelector(".fe-text-view-toggle");
+    const textViewToggle = this.contentElement.querySelector(".fe-text-view-toggle");
     textViewToggle.addEventListener("click", (e) => {
       const btn = e.target.closest(".fe-view-btn");
       if (btn) {
@@ -291,11 +292,25 @@ export class FileExplorerWindow extends BaseWindow {
     this.loadDisk();
   }
 
+  update() {
+    if (!this.isVisible) {
+      this._dockedInitDone = false;
+      return;
+    }
+    // When docked, load catalog on first visible frame
+    if (this._isPaneled && !this._dockedInitDone) {
+      this._dockedInitDone = true;
+      this.updateSourceSelector();
+      this.updateDriveButtons();
+      this.loadDisk();
+    }
+  }
+
   /**
    * Show the source selector only when SmartPort card is installed
    */
   async updateSourceSelector() {
-    const sourceSelector = this.element.querySelector(".fe-source-selector");
+    const sourceSelector = this.contentElement.querySelector(".fe-source-selector");
     const wasm = this.wasmModule;
     const hasSmartPort = wasm._isSmartPortCardInstalled && await wasm._isSmartPortCardInstalled();
     sourceSelector.classList.toggle("hidden", !hasSmartPort);
@@ -309,8 +324,8 @@ export class FileExplorerWindow extends BaseWindow {
    * Update drive button labels based on source type
    */
   updateDriveButtons() {
-    const driveBtns = this.element.querySelectorAll(".fe-drive-btn");
-    const label = this.element.querySelector(".fe-drive-selector label");
+    const driveBtns = this.contentElement.querySelectorAll(".fe-drive-btn");
+    const label = this.contentElement.querySelector(".fe-drive-selector label");
     if (this.sourceType === "hd") {
       label.textContent = "Device:";
     } else {
@@ -349,8 +364,8 @@ export class FileExplorerWindow extends BaseWindow {
 
   async loadHardDrive() {
     const wasm = this.wasmModule;
-    const diskInfo = this.element.querySelector(".fe-disk-info");
-    const catalogList = this.element.querySelector(".fe-catalog-list");
+    const diskInfo = this.contentElement.querySelector(".fe-disk-info");
+    const catalogList = this.contentElement.querySelector(".fe-catalog-list");
 
     // Check if HD image is inserted
     if (!await wasm._isSmartPortImageInserted(this.selectedDrive)) {
@@ -425,8 +440,8 @@ export class FileExplorerWindow extends BaseWindow {
 
   async loadFloppyDisk() {
     const wasm = this.wasmModule;
-    const diskInfo = this.element.querySelector(".fe-disk-info");
-    const catalogList = this.element.querySelector(".fe-catalog-list");
+    const diskInfo = this.contentElement.querySelector(".fe-disk-info");
+    const catalogList = this.contentElement.querySelector(".fe-catalog-list");
 
     // Check if disk is inserted
     if (!await wasm._isDiskInserted(this.selectedDrive)) {
@@ -566,7 +581,7 @@ export class FileExplorerWindow extends BaseWindow {
    */
   async loadProDOSDirectory(startBlock, path) {
     const wasm = this.wasmModule;
-    const catalogList = this.element.querySelector(".fe-catalog-list");
+    const catalogList = this.contentElement.querySelector(".fe-catalog-list");
 
     // Allocate path string in WASM heap
     const pathBytes = new TextEncoder().encode(path);
@@ -618,8 +633,8 @@ export class FileExplorerWindow extends BaseWindow {
    */
   async loadPascalCatalog() {
     const wasm = this.wasmModule;
-    const catalogList = this.element.querySelector(".fe-catalog-list");
-    const pathBar = this.element.querySelector(".fe-path-bar");
+    const catalogList = this.contentElement.querySelector(".fe-catalog-list");
+    const pathBar = this.contentElement.querySelector(".fe-path-bar");
 
     // Hide path bar (Pascal has no subdirectories)
     pathBar.classList.add("hidden");
@@ -664,8 +679,8 @@ export class FileExplorerWindow extends BaseWindow {
    * For floppy mode: catalog contains full tree, filtered by currentPath.
    */
   renderProDOSCatalog() {
-    const catalogList = this.element.querySelector(".fe-catalog-list");
-    const pathBar = this.element.querySelector(".fe-path-bar");
+    const catalogList = this.contentElement.querySelector(".fe-catalog-list");
+    const pathBar = this.contentElement.querySelector(".fe-path-bar");
 
     // Show/hide path bar based on whether we're in a subdirectory
     if (this.currentPath) {
@@ -790,7 +805,7 @@ export class FileExplorerWindow extends BaseWindow {
     }
 
     // Update selection UI - compare with data-index attribute since items may be filtered
-    const items = this.element.querySelectorAll(".fe-catalog-item");
+    const items = this.contentElement.querySelectorAll(".fe-catalog-item");
     items.forEach((item) => {
       const itemIndex = parseInt(item.dataset.index, 10);
       item.classList.toggle("selected", itemIndex === index);
@@ -805,13 +820,13 @@ export class FileExplorerWindow extends BaseWindow {
   }
 
   async showFileContents() {
-    const titleEl = this.element.querySelector(".fe-file-title");
-    const infoEl = this.element.querySelector(".fe-file-info");
-    const contentEl = this.element.querySelector(".fe-file-content");
-    const viewToggle = this.element.querySelector(".fe-view-toggle");
-    const textViewToggle = this.element.querySelector(".fe-text-view-toggle");
-    const asmLegend = this.element.querySelector(".fe-asm-legend");
-    const hexLegend = this.element.querySelector(".fe-hex-legend");
+    const titleEl = this.contentElement.querySelector(".fe-file-title");
+    const infoEl = this.contentElement.querySelector(".fe-file-info");
+    const contentEl = this.contentElement.querySelector(".fe-file-content");
+    const viewToggle = this.contentElement.querySelector(".fe-view-toggle");
+    const textViewToggle = this.contentElement.querySelector(".fe-text-view-toggle");
+    const asmLegend = this.contentElement.querySelector(".fe-asm-legend");
+    const hexLegend = this.contentElement.querySelector(".fe-hex-legend");
 
     if (!this.selectedFile || !this.diskDataPtr) {
       this.clearFileView();
@@ -1131,7 +1146,7 @@ export class FileExplorerWindow extends BaseWindow {
     const lineIndex = this.basicLineNumToIndex.get(targetLineNum);
     if (lineIndex === undefined) return;
 
-    const contentEl = this.element.querySelector(".fe-file-content");
+    const contentEl = this.contentElement.querySelector(".fe-file-content");
     const pre = contentEl.querySelector("pre");
     if (!pre) return;
 
@@ -1158,7 +1173,7 @@ export class FileExplorerWindow extends BaseWindow {
    * Set up ResizeObserver to dynamically adjust hex column count
    */
   setupHexResizeObserver() {
-    const contentEl = this.element.querySelector(".fe-file-content");
+    const contentEl = this.contentElement.querySelector(".fe-file-content");
     if (!contentEl) return;
 
     this.hexResizeObserver = new ResizeObserver(() => {
@@ -1178,7 +1193,7 @@ export class FileExplorerWindow extends BaseWindow {
    * Calculate optimal bytes per row based on available width
    */
   calculateBytesPerRow() {
-    const contentEl = this.element.querySelector(".fe-file-content");
+    const contentEl = this.contentElement.querySelector(".fe-file-content");
     if (!contentEl) return 16;
 
     // Create a test element to measure monospace character width
@@ -1225,7 +1240,7 @@ export class FileExplorerWindow extends BaseWindow {
    * Re-render hex dump with current bytesPerRow
    */
   rerenderHex() {
-    const contentEl = this.element.querySelector(".fe-file-content");
+    const contentEl = this.contentElement.querySelector(".fe-file-content");
     if (!contentEl || !this.hexDisplayState) return;
 
     const { data, baseAddress, maxBytes } = this.hexDisplayState;
@@ -1239,13 +1254,13 @@ export class FileExplorerWindow extends BaseWindow {
   }
 
   clearFileView() {
-    const titleEl = this.element.querySelector(".fe-file-title");
-    const infoEl = this.element.querySelector(".fe-file-info");
-    const contentEl = this.element.querySelector(".fe-file-content");
-    const viewToggle = this.element.querySelector(".fe-view-toggle");
-    const textViewToggle = this.element.querySelector(".fe-text-view-toggle");
-    const asmLegend = this.element.querySelector(".fe-asm-legend");
-    const hexLegend = this.element.querySelector(".fe-hex-legend");
+    const titleEl = this.contentElement.querySelector(".fe-file-title");
+    const infoEl = this.contentElement.querySelector(".fe-file-info");
+    const contentEl = this.contentElement.querySelector(".fe-file-content");
+    const viewToggle = this.contentElement.querySelector(".fe-view-toggle");
+    const textViewToggle = this.contentElement.querySelector(".fe-text-view-toggle");
+    const asmLegend = this.contentElement.querySelector(".fe-asm-legend");
+    const hexLegend = this.contentElement.querySelector(".fe-hex-legend");
 
     titleEl.textContent = "Select a file";
     infoEl.textContent = "";

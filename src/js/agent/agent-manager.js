@@ -21,6 +21,13 @@ export class AgentManager {
     this.currentProtocol = "http"; // Will be auto-detected
     this.eventSource = null;
     this.connected = false;
+
+    // Safari blocks cross-origin requests to localhost from remote origins;
+    // disable agent features in Safari when not running from localhost
+    const host = window.location.hostname;
+    const isLocalhost = (host === "localhost" || host === "127.0.0.1" || host === "[::1]");
+    const isSafari = /^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+    this._agentDisabled = isSafari && !isLocalhost;
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 36; // 3 minutes at 5 second intervals
     this.reconnectDelay = 5000; // 5 seconds
@@ -54,6 +61,9 @@ export class AgentManager {
    * Start heartbeat polling to detect when MCP server becomes available
    */
   startHeartbeatPolling() {
+    if (this._agentDisabled) {
+      return; // Safari blocks localhost access from remote origins
+    }
     if (this.heartbeatInterval) {
       return; // Already polling
     }
@@ -140,6 +150,12 @@ export class AgentManager {
    * @param {string|null} preferredName - Preferred emulator name; falls back to localStorage then random pool
    */
   async connect(preferredName = null) {
+    // Safari blocks localhost access from remote origins
+    if (this._agentDisabled) {
+      console.log("[AgentManager] Agent connection disabled (Safari + remote origin)");
+      return;
+    }
+
     // Check if already connected (EventSource is OPEN)
     if (this.eventSource && this.eventSource.readyState === EventSource.OPEN) {
       console.warn("[AgentManager] Already connected");

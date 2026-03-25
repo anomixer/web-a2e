@@ -1,0 +1,228 @@
+/* Docking System Styles */
+
+/* ─── Dock Space Container ─── */
+/* Always overlays the main content area. When empty, it's invisible
+   and pointer-events pass through to the emulator section beneath. */
+.dock-space {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* All children (leaves, splitters, preview) receive pointer events */
+.dock-space > * {
+  pointer-events: auto;
+}
+
+/* When dock has content, fill with bg so emulator section doesn't bleed through */
+.dock-space:not(.empty) {
+  pointer-events: auto;
+  background: var(--bg-dark);
+}
+
+/* ─── Leaf Nodes ─── */
+.dock-leaf {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg-dark);
+  border: 1px solid var(--border-default);
+  box-sizing: border-box;
+}
+
+.dock-leaf-content {
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* When a window's contentElement is inside a dock leaf, fill and constrain.
+   Repeated class bumps specificity to beat ID-scoped overrides like #screen-window. */
+.dock-leaf-content > .debug-window-content.debug-window-content {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Inner content wrappers must not clip when docked — the debug-window-content
+   scrolls instead. flex-shrink:0 ensures they report full content height. */
+.dock-leaf-content > .debug-window-content > * {
+  overflow: visible !important;
+  flex-shrink: 0;
+}
+
+/* Exception: memory browser scroll container needs its own scroll handling */
+.dock-leaf-content > .debug-window-content .mem-browser-scroll-container {
+  overflow: hidden !important;
+  flex-shrink: 1;
+}
+
+/* ─── Tab Bar ─── */
+.dock-tab-bar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: var(--bg-medium);
+  border-bottom: 1px solid var(--border-default);
+  flex-shrink: 0;
+  min-height: 24px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* Single-tab leaf: subtler bar but still visible for undocking */
+.dock-tab-bar.single-tab {
+  min-height: 20px;
+}
+
+.dock-tab {
+  display: flex;
+  align-items: center;
+  padding: 3px 10px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-sans);
+  font-size: 0.65rem;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  position: relative;
+  transition: color 0.12s, background 0.12s;
+  border-right: 1px solid var(--border-muted);
+}
+
+.dock-tab:last-child {
+  border-right: none;
+}
+
+.dock-tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-light);
+}
+
+.dock-tab.active {
+  color: var(--text-primary);
+  background: var(--bg-dark);
+}
+
+.dock-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent-blue, #009DDC);
+}
+
+.dock-tab-label {
+  pointer-events: none;
+}
+
+.dock-tab-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  margin-left: 4px;
+  border-radius: var(--radius-sm);
+  font-size: 0.75rem;
+  line-height: 1;
+  color: var(--text-muted);
+  transition: background 0.1s, color 0.1s;
+  flex-shrink: 0;
+}
+
+.dock-tab-close:hover {
+  background: var(--bg-light);
+  color: var(--text-primary);
+}
+
+.dock-tab.dragging {
+  opacity: 0.5;
+}
+
+/* ─── Splitters ─── */
+.dock-splitter {
+  position: absolute;
+  z-index: 10;
+  background: var(--border-default);
+  transition: background 0.12s;
+}
+
+.dock-splitter-h {
+  cursor: col-resize;
+}
+
+.dock-splitter-v {
+  cursor: row-resize;
+}
+
+.dock-splitter:hover,
+.dock-splitter.active {
+  background: var(--accent-blue, #009DDC);
+}
+
+/* Wider hit target for splitters */
+.dock-splitter::before {
+  content: '';
+  position: absolute;
+}
+
+.dock-splitter-h::before {
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  right: -4px;
+}
+
+.dock-splitter-v::before {
+  left: 0;
+  right: 0;
+  top: -4px;
+  bottom: -4px;
+}
+
+/* Prevent pointer events on content during splitter drag */
+body.dock-splitter-dragging .dock-leaf-content {
+  pointer-events: none;
+}
+
+body.dock-splitter-dragging .dock-leaf-content iframe,
+body.dock-splitter-dragging .dock-leaf-content canvas {
+  pointer-events: none;
+}
+
+/* ─── Drop Preview ─── */
+.dock-drop-preview {
+  position: absolute;
+  z-index: 50;
+  background: var(--accent-blue, #009DDC);
+  opacity: 0.15;
+  border: 2px solid var(--accent-blue, #009DDC);
+  border-radius: var(--radius-sm);
+  pointer-events: none;
+  transition: left 0.1s ease, top 0.1s ease, width 0.1s ease, height 0.1s ease;
+}
+
+.dock-drop-preview.hidden {
+  display: none;
+}
+
+/* ─── Paneled window shell hiding ─── */
+.debug-window.paneled {
+  display: none !important;
+}

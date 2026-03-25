@@ -11,6 +11,60 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "March 23, 2026",
+    features: [
+      {
+        title: "Binary-tree docking system",
+        description:
+          "Replaced the CSS Grid workspace with an ImGui-style binary-tree docking layout, allowing windows to be docked, split, and resized by dragging into drop zones.",
+      },
+      {
+        title: "Window layout mode",
+        description:
+          "Added a \"Window\" layout mode for free-floating windows without docking, alongside the existing docked layouts.",
+      },
+      {
+        title: "Slide-out drive popouts",
+        description:
+          "Disk drives now slide out as popout panels in full-page and fullscreen modes, with a configurable side selector for left or right placement.",
+      },
+      {
+        title: "Layout presets",
+        description:
+          "Added preset-based layouts (including a default play preset for first-time users) with per-preset state persistence, so each preset remembers its own window arrangement.",
+      },
+    ],
+    fixes: [
+      {
+        title: "Safari agent connection",
+        description:
+          "Fixed the site failing to load in Safari when served from a remote origin, caused by blocked cross-origin requests to the local MCP agent server.",
+      },
+      {
+        title: "Screen corner radius",
+        description:
+          "Screen corner radius is now only applied when bezel or curvature effects are active, preventing clipped corners on a flat display.",
+      },
+    ],
+    improvements: [
+      {
+        title: "Auto-hide header",
+        description:
+          "The header bar auto-hides in full-page and fullscreen modes to maximize screen real estate.",
+      },
+      {
+        title: "SmartPort drive stacking",
+        description:
+          "SmartPort drives now stack vertically when the window is narrow, improving usability on smaller screens.",
+      },
+      {
+        title: "Disk drive toolbar",
+        description:
+          "Moved disk drive Surface/Details toggles from the header into a content toolbar for a cleaner layout.",
+      },
+    ],
+  },
+  {
     week: "March 14, 2026",
     features: [
       {
