@@ -1,0 +1,510 @@
+/*
+ * epson-fx80.js - Epson FX-80 printer emulation (Epson ESC/P protocol)
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ *  Shawn Bullock <shawn@agenticexpert.ai>
+ *
+ * Reference: Epson FX Series Printer User's Manual Vol 1 (Tutorial) and
+ *            Vol 2 (Reference) — Appendixes B and C for control code tables.
+ */
+
+import { PrinterBase } from "./printer-base.js";
+import { DRAFT_ROM } from "./imagewriter-rom-draft.js";
+
+// Parser states
+const S_NORMAL    = 0;
+const S_ESC       = 1;
+const S_PARAM1    = 2;  // consuming first param byte; _paramCmd holds ESC command
+const S_PARAM2    = 3;  // consuming second param byte (ESC %, ESC ?, ESC :)
+const S_PARAM3    = 4;  // consuming third param byte (ESC : only)
+const S_IMG_MODE  = 5;  // ESC * : density mode byte
+const S_IMG_LO    = 6;  // graphics: low byte of column count
+const S_IMG_HI    = 7;  // graphics: high byte of column count
+const S_IMG_DATA  = 8;  // graphics: consuming 8-bit column bytes
+const S_IMG9_D    = 9;  // ESC ^ : density byte
+const S_IMG9_LO   = 10; // ESC ^ : lo byte of column count
+const S_IMG9_HI   = 11; // ESC ^ : hi byte of column count
+const S_IMG9_B1   = 12; // ESC ^ : first byte per column (pins 1-8)
+const S_IMG9_B2   = 13; // ESC ^ : second byte per column (pin 9 = bit 0)
+const S_VT_LIST   = 14; // ESC B : vertical tab stop list until CHR$(0)
+const S_HT_LIST   = 15; // ESC D : horizontal tab stop list until CHR$(0)
+const S_ESC_C2    = 16; // ESC C 0 n : form length in inches (second byte)
+const S_AMP1      = 17; // ESC & : should-be-zero byte
+const S_AMP2      = 18; // ESC & : start character code
+const S_AMP3      = 19; // ESC & : end character code; starts char loop
+const S_AMP_ATTR  = 20; // ESC & char: attribute byte
+const S_AMP_DATA  = 21; // ESC & char: 11 column data bytes
+
+// Internal canvas resolution: 480 dpi (LCM of 60, 120, 240)
+const DPI = 480;
+
+// Vertical: 72 dpi (9-pin head) → row height in canvas px
+const DOT_V = DPI / 72;  // ~6.667 px
+
+// Horizontal text dot pitch: 120 dpi → column width in canvas px
+const DOT_W = DPI / 120; // 4 px
+
+// Graphics column widths at supported densities
+const IMG_W_K = DPI / 60;   // 8 px  — ESC K single-density  (60 dpi)
+const IMG_W_L = DPI / 120;  // 4 px  — ESC L/Y double-density (120 dpi)
+const IMG_W_Z = DPI / 240;  // 2 px  — ESC Z quad-density   (240 dpi)
+
+// ESC * mode byte → graphics dot-column width
+const STAR_WIDTHS = [
+  DPI / 60,   // mode 0 — 60 dpi
+  DPI / 120,  // mode 1 — 120 dpi
+  DPI / 120,  // mode 2 — 120 dpi (high-speed, no adjacent dots)
+  DPI / 240,  // mode 3 — 240 dpi
+  DPI / 80,   // mode 4 —  80 dpi
+  DPI / 72,   // mode 5 —  72 dpi
+  DPI / 90,   // mode 6 —  90 dpi
+];
+
+// Character pitch → characters per inch
+const CPI = { pica: 10, elite: 12, compressed: 137 / 8 };
+
+// Default line spacing: 1/6" = 12/72" (12-dot rows)
+const DEFAULT_LINE_HEIGHT = DPI / 6;
+
+// n/216" unit (for ESC 3, ESC J, ESC j)
+const UNIT_216 = DPI / 216;
+
+export class EpsonFX80 extends PrinterBase {
+  constructor() {
+    super();
+    this._customChars = new Map();
+    this._resetParserState();
+    this._resetRenderState();
+  }
+
+  _resetParserState() {
+    this._state       = S_NORMAL;
+    this._paramCmd    = 0;
+    this._param1Val   = 0;
+    this._imgCount    = 0;
+    this._imgDotW     = IMG_W_K;
+    this._img9DotW    = IMG_W_K;
+    this._img9Byte1   = 0;
+    this._ampC1       = 0;
+    this._ampC2       = 0;
+    this._ampCur      = 0;
+    this._ampColsLeft = 0;
+    this._ampBuf      = [];
+  }
+
+  _resetRenderState() {
+    this._pitch      = 'pica';
+    this._expanded   = false;
+    this._emphasized = false;
+    this._dblStrike  = false;
+    this._underline  = false;
+    this._italic     = false;
+    this._script     = 0;      // 0=none, 1=superscript, 2=subscript
+    this._lineHeight = DEFAULT_LINE_HEIGHT;
+    this._xDot       = 0;
+    this._yDot       = 0;
+  }
+
+  reset() {
+    this._resetParserState();
+    this._resetRenderState();
+  }
+
+  receiveByte(byte) {
+    const ch = byte & 0x7F; // strip Apple II high bit
+
+    switch (this._state) {
+      case S_NORMAL:    this._normal(ch);    break;
+      case S_ESC:       this._esc(ch);       break;
+      case S_PARAM1:    this._param1(ch);    break;
+      case S_PARAM2:    this._param2(ch);    break;
+      case S_PARAM3:    this._state = S_NORMAL; break; // absorb ESC : third param
+
+      case S_IMG_MODE:
+        this._imgDotW  = STAR_WIDTHS[ch & 7] ?? IMG_W_L;
+        this._imgCount = 0;
+        this._state    = S_IMG_LO;
+        break;
+
+      case S_IMG_LO:
+        this._imgCount = ch;
+        this._state    = S_IMG_HI;
+        break;
+
+      case S_IMG_HI:
+        this._imgCount |= (ch << 8);
+        this._state = this._imgCount > 0 ? S_IMG_DATA : S_NORMAL;
+        break;
+
+      case S_IMG_DATA:
+        this.emit('printDots', {
+          byte: ch, xDot: this._xDot, yDot: this._yDot,
+          dotW: this._imgDotW, dotH: DOT_V, color: 'black',
+        });
+        this._xDot += this._imgDotW;
+        if (--this._imgCount <= 0) this._state = S_NORMAL;
+        break;
+
+      case S_IMG9_D:
+        this._img9DotW = ch === 0 ? IMG_W_K : IMG_W_L;
+        this._state    = S_IMG9_LO;
+        break;
+
+      case S_IMG9_LO:
+        this._imgCount = ch;
+        this._state    = S_IMG9_HI;
+        break;
+
+      case S_IMG9_HI:
+        // Nine-pin: n = n1 + 255*n2  (per Vol 2 Appendix B)
+        this._imgCount += ch * 255;
+        this._state = this._imgCount > 0 ? S_IMG9_B1 : S_NORMAL;
+        break;
+
+      case S_IMG9_B1:
+        this._img9Byte1 = ch;
+        this._state     = S_IMG9_B2;
+        break;
+
+      case S_IMG9_B2: {
+        // Combine: pins 1-8 from byte1, pin 9 from bit 0 of byte2
+        const bits9 = this._img9Byte1 | ((ch & 1) << 8);
+        this.emit('printDots', {
+          byte: bits9, xDot: this._xDot, yDot: this._yDot,
+          dotW: this._img9DotW, dotH: DOT_V, color: 'black',
+        });
+        this._xDot += this._img9DotW;
+        if (--this._imgCount <= 0) this._state = S_NORMAL;
+        else this._state = S_IMG9_B1;
+        break;
+      }
+
+      case S_VT_LIST:
+        if (ch === 0) this._state = S_NORMAL;
+        break;
+
+      case S_HT_LIST:
+        if (ch === 0) this._state = S_NORMAL;
+        break;
+
+      case S_ESC_C2:
+        this._state = S_NORMAL; // form length in inches — ignore
+        break;
+
+      case S_AMP1:
+        this._state = S_AMP2; // absorb must-be-zero byte
+        break;
+
+      case S_AMP2:
+        this._ampC1 = ch;
+        this._state = S_AMP3;
+        break;
+
+      case S_AMP3:
+        this._ampC2  = ch;
+        this._ampCur = this._ampC1;
+        if (this._ampCur > this._ampC2) { this._state = S_NORMAL; break; }
+        this._ampBuf      = [];
+        this._ampColsLeft = 11;
+        this._state       = S_AMP_ATTR;
+        break;
+
+      case S_AMP_ATTR:
+        // attribute byte consumed; we don't track proportional widths
+        this._ampBuf      = [];
+        this._ampColsLeft = 11;
+        this._state       = S_AMP_DATA;
+        break;
+
+      case S_AMP_DATA:
+        this._ampBuf.push(ch);
+        if (--this._ampColsLeft <= 0) {
+          this._customChars.set(this._ampCur, new Uint8Array(this._ampBuf));
+          this._ampCur++;
+          if (this._ampCur > this._ampC2) this._state = S_NORMAL;
+          else this._state = S_AMP_ATTR;
+        }
+        break;
+    }
+  }
+
+  _normal(ch) {
+    switch (ch) {
+      case 0x07: break;                           // BEL — ignore
+      case 0x08:                                  // BS — backspace
+        this._xDot = Math.max(0, this._xDot - this._charAdvance());
+        break;
+      case 0x09: break;                           // HT — horizontal tab (not impl)
+      case 0x0A:                                  // LF — line feed
+        this._yDot += this._lineHeight;
+        this.emit('linefeed');
+        break;
+      case 0x0B: break;                           // VT — vertical tab (not impl)
+      case 0x0C:                                  // FF — form feed
+        this._xDot = 0; this._yDot = 0;
+        this.emit('formfeed');
+        break;
+      case 0x0D:                                  // CR — carriage return + implicit LF
+        this._xDot  = 0;
+        this._yDot += this._lineHeight;
+        this.emit('newline');
+        break;
+      case 0x0E:                                  // SO — one-line expanded on
+        this._expanded = true;
+        break;
+      case 0x0F:                                  // SI — compressed on (17.16 cpi)
+        this._pitch = 'compressed';
+        break;
+      case 0x11: break;                           // DC1 — printer on (ignore)
+      case 0x12:                                  // DC2 — compressed off
+        if (this._pitch === 'compressed') this._pitch = 'pica';
+        break;
+      case 0x13: break;                           // DC3 — printer off (ignore)
+      case 0x14:                                  // DC4 — one-line expanded off
+        this._expanded = false;
+        break;
+      case 0x18: break;                           // CAN — cancel buffer (ignore)
+      case 0x1B:                                  // ESC
+        this._state = S_ESC;
+        break;
+      case 0x7F: break;                           // DEL — ignore
+      default:
+        if (ch >= 0x20) this._emitChar(ch);
+        break;
+    }
+  }
+
+  _esc(ch) {
+    this._state = S_NORMAL; // default: single-byte ESC command
+
+    switch (ch) {
+      // ——— No-parameter commands ———
+      case 0x23: break;                           // ESC # — accept 8th bit as-is (ignore)
+      case 0x30: this._lineHeight = DPI / 8;            break; // ESC 0 — 1/8" (9-dot)
+      case 0x31: this._lineHeight = DPI * 7 / 72;       break; // ESC 1 — 7/72" (7-dot)
+      case 0x32: this._lineHeight = DEFAULT_LINE_HEIGHT; break; // ESC 2 — 1/6" (default)
+      case 0x34: this._italic     = true;               break; // ESC 4 — italic on
+      case 0x35: this._italic     = false;              break; // ESC 5 — italic off
+      case 0x36: break;                           // ESC 6 — enable chars 128-159 (ignore)
+      case 0x37: break;                           // ESC 7 — disable chars 128-159 (ignore)
+      case 0x38: break;                           // ESC 8 — paper sensor off
+      case 0x39: break;                           // ESC 9 — paper sensor on
+      case 0x3C: break;                           // ESC < — one-line unidirectional (ignore)
+      case 0x3D: break;                           // ESC = — high bit off (ignore)
+      case 0x3E: break;                           // ESC > — high bit on (ignore)
+      case 0x40:                                  // ESC @ — full reset
+        this._resetRenderState();
+        this._resetParserState();
+        this._state = S_NORMAL;
+        break;
+      case 0x45: this._emphasized = true;  break; // ESC E — emphasized on
+      case 0x46: this._emphasized = false; break; // ESC F — emphasized off
+      case 0x47: this._dblStrike  = true;  break; // ESC G — double-strike on
+      case 0x48: this._dblStrike  = false; break; // ESC H — double-strike off
+      case 0x4D: this._pitch = 'elite';    break; // ESC M — elite on (12 cpi)
+      case 0x4F: break;                           // ESC O — cancel skip-over-perforation
+      case 0x50: this._pitch = 'pica';     break; // ESC P — elite off → pica
+      case 0x54: this._script = 0;         break; // ESC T — cancel super/subscript
+
+      // ——— Tab stop lists ———
+      case 0x42: this._state = S_VT_LIST; break;  // ESC B n... 0 (vertical tab stops)
+      case 0x44: this._state = S_HT_LIST; break;  // ESC D n... 0 (horizontal tab stops)
+
+      // ——— ESC * generic graphics (mode byte + count lo + count hi + data) ———
+      case 0x2A:
+        this._imgCount = 0;
+        this._state    = S_IMG_MODE;
+        break;
+
+      // ——— Standard graphics commands (count lo + count hi + data) ———
+      case 0x4B:
+        this._imgDotW = IMG_W_K; this._imgCount = 0; this._state = S_IMG_LO; break;
+      case 0x4C:
+        this._imgDotW = IMG_W_L; this._imgCount = 0; this._state = S_IMG_LO; break;
+      case 0x59:                                  // high-speed: same density as L
+        this._imgDotW = IMG_W_L; this._imgCount = 0; this._state = S_IMG_LO; break;
+      case 0x5A:
+        this._imgDotW = IMG_W_Z; this._imgCount = 0; this._state = S_IMG_LO; break;
+
+      // ——— Nine-pin graphics (density + count lo + count hi + pairs of data) ———
+      case 0x5E:
+        this._imgCount = 0; this._state = S_IMG9_D; break;
+
+      // ——— User-defined character loading ———
+      case 0x26: this._state = S_AMP1; break;     // ESC &
+
+      // ——— Single-parameter commands ———
+      case 0x21: // ESC ! n — Master Select
+      case 0x2D: // ESC - n — underline toggle (0=off, 1=on)
+      case 0x2F: // ESC / n — vertical tab channel (ignore)
+      case 0x33: // ESC 3 n — n/216" line spacing
+      case 0x41: // ESC A n — n/72" line spacing
+      case 0x43: // ESC C n — form length in lines (0 → next byte = inches)
+      case 0x49: // ESC I n — print control chars toggle (ignore)
+      case 0x4A: // ESC J n — immediate n/216" line feed
+      case 0x4E: // ESC N n — skip-over-perforation lines (ignore)
+      case 0x51: // ESC Q n — right margin (ignore)
+      case 0x52: // ESC R n — international charset (ignore)
+      case 0x53: // ESC S n — super/subscript (0=super, 1=sub)
+      case 0x55: // ESC U n — unidirectional mode (ignore)
+      case 0x57: // ESC W n — continuous expanded (0=off, 1=on)
+      case 0x62: // ESC b n — vertical tab channel select (ignore)
+      case 0x69: // ESC i n — immediate mode FX-80 (ignore)
+      case 0x6A: // ESC j n — reverse feed n/216" (FX-80 only)
+      case 0x6C: // ESC l n — left margin (ignore)
+      case 0x70: // ESC p n — proportional mode (ignore)
+      case 0x73: // ESC s n — half-speed mode (ignore)
+        this._paramCmd = ch;
+        this._state    = S_PARAM1;
+        break;
+
+      // ——— Two-parameter commands ———
+      case 0x25: // ESC % n1 n2 — select char set (ignore)
+      case 0x3F: // ESC ? s n — reassign graphics code s to density n (ignore)
+        this._paramCmd = ch;
+        this._state    = S_PARAM1;
+        break;
+
+      // ——— Three-parameter commands ———
+      case 0x3A: // ESC : 0 0 0 — copy ROM to RAM (ignore)
+        this._paramCmd = ch;
+        this._state    = S_PARAM1;
+        break;
+    }
+  }
+
+  _param1(ch) {
+    switch (this._paramCmd) {
+      case 0x21: { // ESC ! n — Master Select
+        // Bit layout per Vol 1 Ch.5 (p.76 Quick Reference Chart):
+        // bit 0=elite, bit 1=proportional, bit 2=condensed, bit 3=bold(emph),
+        // bit 4=double-strike, bit 5=expanded, bit 6=italic, bit 7=underline
+        this._pitch      = (ch & 0x04) ? 'compressed' : (ch & 0x01) ? 'elite' : 'pica';
+        this._emphasized = !!(ch & 0x08);
+        this._dblStrike  = !!(ch & 0x10);
+        this._expanded   = !!(ch & 0x20);
+        this._italic     = !!(ch & 0x40);
+        this._underline  = !!(ch & 0x80);
+        this._state = S_NORMAL;
+        break;
+      }
+      case 0x2D: // ESC - n
+        this._underline = (ch !== 0);
+        this._state = S_NORMAL;
+        break;
+      case 0x2F: // ESC / n — ignore
+        this._state = S_NORMAL;
+        break;
+      case 0x33: // ESC 3 n — n/216"
+        this._lineHeight = ch * UNIT_216;
+        this._state = S_NORMAL;
+        break;
+      case 0x3A: // ESC : first param → need second
+        this._state = S_PARAM2;
+        break;
+      case 0x3F: // ESC ? s → need n
+        this._param1Val = ch;
+        this._state = S_PARAM2;
+        break;
+      case 0x41: // ESC A n — n/72" (n=0-85; >85 treated as 85)
+        this._lineHeight = Math.min(ch, 85) * (DPI / 72);
+        this._state = S_NORMAL;
+        break;
+      case 0x43: // ESC C n — form length
+        this._state = (ch === 0) ? S_ESC_C2 : S_NORMAL;
+        break;
+      case 0x25: // ESC % n1 → need n2
+        this._state = S_PARAM2;
+        break;
+      case 0x49: // ESC I n — ignore
+        this._state = S_NORMAL;
+        break;
+      case 0x4A: // ESC J n — immediate LF
+        this._yDot += ch * UNIT_216;
+        this._state = S_NORMAL;
+        break;
+      case 0x4E: // ESC N n — ignore
+        this._state = S_NORMAL;
+        break;
+      case 0x51: // ESC Q n — ignore
+        this._state = S_NORMAL;
+        break;
+      case 0x52: // ESC R n — ignore
+        this._state = S_NORMAL;
+        break;
+      case 0x53: // ESC S n
+        this._script = (ch === 0) ? 1 : 2;
+        this._state  = S_NORMAL;
+        break;
+      case 0x55: // ESC U n — ignore
+        this._state = S_NORMAL;
+        break;
+      case 0x57: // ESC W n
+        this._expanded = (ch !== 0);
+        this._state    = S_NORMAL;
+        break;
+      case 0x62: // ESC b n — ignore
+        this._state = S_NORMAL;
+        break;
+      case 0x69: // ESC i n — ignore
+        this._state = S_NORMAL;
+        break;
+      case 0x6A: // ESC j n — reverse feed
+        this._yDot  = Math.max(0, this._yDot - ch * UNIT_216);
+        this._state = S_NORMAL;
+        break;
+      case 0x6C: // ESC l n — ignore
+        this._state = S_NORMAL;
+        break;
+      case 0x70: // ESC p n — ignore
+        this._state = S_NORMAL;
+        break;
+      case 0x73: // ESC s n — ignore
+        this._state = S_NORMAL;
+        break;
+      default:
+        this._state = S_NORMAL;
+        break;
+    }
+  }
+
+  _param2(ch) {
+    // ESC : needs a third byte; everything else is done after second
+    this._state = (this._paramCmd === 0x3A) ? S_PARAM3 : S_NORMAL;
+  }
+
+  _charAdvance() {
+    const base = DPI / CPI[this._pitch];
+    return Math.round(this._expanded ? base * 2 : base);
+  }
+
+  _emitChar(code) {
+    const cols = this._customChars.get(code) ?? this._romChar(code);
+    if (!cols) return;
+
+    this.emit('printChar', {
+      cols,
+      xDot:      this._xDot,
+      yDot:      this._yDot,
+      dotW:      DOT_W,
+      dotH:      DOT_V,
+      color:     'black',
+      bold:      this._emphasized || this._dblStrike,
+      underline: this._underline,
+    });
+    this.emit('text', String.fromCharCode(code));
+    this._xDot += this._charAdvance();
+  }
+
+  _romChar(code) {
+    return DRAFT_ROM[code] ?? null;
+  }
+
+  static get DPI()   { return DPI; }
+  static get DOT_W() { return DOT_W; }
+  static get DOT_V() { return DOT_V; }
+
+  getName() { return "Epson FX-80"; }
+  getId()   { return "epson-fx80"; }
+}

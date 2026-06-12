@@ -1303,6 +1303,24 @@ void setSerialTxCallback() {
   });
 }
 
+EMSCRIPTEN_KEEPALIVE
+bool isParallelCardInstalled() {
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->isParallelCardInstalled();
+}
+
+EMSCRIPTEN_KEEPALIVE
+void setPrinterCallback() {
+  REQUIRE_EMULATOR();
+  g_emulator->setPrinterCallback([](uint8_t byte) {
+    EM_ASM({
+      if (window.emulator && window.emulator.printer) {
+        window.emulator.printer.receiveByte($0);
+      }
+    }, byte);
+  });
+}
+
 // ============================================================================
 // Expansion Slot Management
 // ============================================================================

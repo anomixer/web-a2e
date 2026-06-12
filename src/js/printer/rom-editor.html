@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>ImageWriter II ROM Editor</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: monospace; background: #1a1a1a; color: #e0e0e0; padding: 16px;
+       height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+h1 { font-size: 12px; color: #555; margin-bottom: 8px; flex-shrink: 0; }
+
+.mode-bar { display: flex; gap: 3px; margin-bottom: 12px; flex-shrink: 0; flex-wrap: wrap; }
+.mode-btn { padding: 3px 8px; background: #222; border: 1px solid #444; color: #888;
+            cursor: pointer; border-radius: 3px; font-family: monospace; font-size: 11px; }
+.mode-btn:hover { background: #2a2a2a; color: #ccc; }
+.mode-btn.active { background: #152a15; border-color: #61BB46; color: #61BB46; }
+.mode-detail { font-size: 9px; opacity: 0.7; }
+
+.editor { display: flex; gap: 24px; align-items: flex-start; flex-shrink: 0; }
+.sidebar { display: flex; flex-direction: column; gap: 8px; width: 110px; flex-shrink: 0; }
+.char-glyph { font-size: 20px; color: #888; min-height: 24px; }
+.char-dec   { font-size: 11px; color: #555; }
+
+.btn { padding: 5px 10px; background: #2a2a2a; border: 1px solid #444; color: #ccc;
+       cursor: pointer; border-radius: 3px; font-family: monospace; font-size: 12px;
+       width: 100%; text-align: left; }
+.btn:hover { background: #333; color: #fff; }
+.btn:disabled { opacity: 0.35; cursor: default; pointer-events: none; }
+.btn-green  { background: #152a15; border-color: #61BB46; color: #61BB46; }
+.btn-green:hover  { background: #1e3a1e; }
+.btn-blue   { background: #0f1e2e; border-color: #009DDC; color: #009DDC; }
+.btn-blue:hover   { background: #162a3a; }
+.btn-red    { background: #2a1515; border-color: #c04040; color: #c04040; }
+.btn-red:hover    { background: #3a1a1a; }
+.btn-yellow { background: #2a2200; border-color: #FDB827; color: #FDB827; }
+.btn-yellow:hover { background: #3a3000; }
+
+input[type=text] { width: 100%; padding: 4px 6px; background: #222; border: 1px solid #444;
+                   color: #e0e0e0; font-family: monospace; font-size: 12px; border-radius: 3px; }
+input[type=text]:focus { outline: none; border-color: #61BB46; }
+.sep { height: 1px; background: #333; margin: 4px 0; }
+
+.locale-bar { display: flex; gap: 4px; flex-wrap: wrap; }
+.locale-btn { flex: 1; min-width: 28px; padding: 3px 4px; background: #222; border: 1px solid #444;
+              color: #888; cursor: pointer; border-radius: 3px; font-family: monospace;
+              font-size: 11px; text-align: center; }
+.locale-btn:hover { background: #2a2a2a; color: #ccc; }
+.locale-btn.active { background: #0f1e2e; border-color: #009DDC; color: #009DDC; }
+.locale-btn.add-btn { color: #555; border-style: dashed; }
+.locale-indicator { font-size: 10px; color: #009DDC; min-height: 14px; text-align: center; }
+
+.grid-area { display: flex; flex-direction: column; }
+.grid-table { display: grid; gap: 1px; background: #2a2a2a; border: 1px solid #2a2a2a; width: fit-content; }
+.col-hdr { text-align: center; font-size: 11px; color: #444; background: #111; display: flex;
+           align-items: center; justify-content: center;
+           transition: color 0.05s, background 0.05s; }
+.col-hdr.hdr-active { color: #0a1a0a; background: #61BB46; font-weight: bold; }
+.row-hdr { display: flex; align-items: center; justify-content: flex-end;
+           padding-right: 4px; font-size: 11px; color: #444; background: #111;
+           transition: color 0.05s, background 0.05s; }
+.row-hdr.hdr-active { color: #0a1a0a; background: #61BB46; font-weight: bold; padding-right: 4px; }
+.cell { background: #111; cursor: pointer; display: flex; align-items: center;
+        justify-content: center; position: relative; flex-shrink: 0; }
+.cell:hover { background: #1e1e1e; }
+.cell.on { background: #0d1f0d; }
+.cell.violation { background: #2a0a0a; }
+.dot { border-radius: 50%; background: transparent; pointer-events: none; }
+.cell.on .dot { background: #61BB46; }
+.cell.violation.on .dot { background: #e03a3e; }
+.cell:hover:not(.on) .dot { background: #2a3a2a; }
+.cell.violation::after { content: ''; position: absolute; inset: 0;
+                         border: 2px solid #e03a3e; pointer-events: none; }
+
+.output { margin-top: 10px; }
+.bytes-box { background: #111; border: 1px solid #333; border-radius: 3px; padding: 8px 10px;
+             font-size: 11px; color: #FDB827; word-break: break-all; min-height: 36px; }
+.violation-warn { font-size: 11px; color: #e03a3e; margin-top: 4px; min-height: 16px; }
+
+.gallery { margin-top: 16px; flex: 1; min-height: 0; display: flex; flex-direction: column;
+           border: 1px solid #2a2a2a; border-radius: 4px; padding: 12px; background: #161616; }
+.gallery-header { display: flex; justify-content: space-between; align-items: center;
+                  margin-bottom: 10px; flex-shrink: 0; }
+.gallery-header h2 { font-size: 12px; color: #555; }
+.gallery-grid { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-wrap: wrap;
+                gap: 10px; align-content: flex-start; align-items: flex-start; }
+
+.char-card { display: flex; flex-direction: column; align-items: center; gap: 3px;
+             cursor: pointer; padding: 6px; border-radius: 4px; border: 1px solid #2a2a2a; position: relative; }
+.char-card:hover  { border-color: #444; background: #1e1e1e; }
+.char-card.active { border-color: #61BB46; background: #0d1a0d; }
+.char-card.pending { border: 1px dashed #FDB827; background: #1a1600; }
+.char-card.pending:hover { background: #252000; }
+.char-card.locale-override { border-color: #009DDC55; }
+.char-card.locale-override.active { border-color: #009DDC; background: #001a22; }
+.card-locale-badge { position: absolute; top: 2px; right: 2px; font-size: 7px; padding: 0 2px;
+                     border-radius: 2px; background: #009DDC33; color: #009DDC;
+                     border: 1px solid #009DDC44; line-height: 1.4; }
+.mini-grid { display: flex; flex-direction: column; background: #2a2a2a; gap: 0.5px; padding: 0.5px; }
+.mini-row  { display: flex; gap: 0.5px; }
+.mini-cell { background: #111; flex-shrink: 0; }
+.mini-cell.on { background: #61BB46; }
+.char-card.pending .mini-cell.on { background: #FDB827; }
+.char-card.locale-override .mini-cell.on { background: #009DDC; }
+.char-card.locale-override.active .mini-cell.on { background: #009DDC; }
+.char-card-label { font-size: 9px; color: #666; }
+.char-card.pending .char-card-label { color: #8a7020; }
+.char-card.locale-override .char-card-label { color: #1a5a70; }
+
+.export { flex-shrink: 0; overflow: hidden; max-height: 0; transition: max-height 0.15s ease; }
+.export.open { max-height: 140px; margin-top: 8px; }
+textarea { width: 100%; height: 120px; background: #111; border: 1px solid #333; color: #aaa;
+           font-family: monospace; font-size: 11px; padding: 8px; border-radius: 3px; resize: none; }
+</style>
+</head>
+<body>
+<h1>ImageWriter II — ROM Editor</h1>
+
+<div class="mode-bar">
+  <button class="mode-btn active" id="mode-draft"     onclick="switchMode('draft')">Draft <span class="mode-detail">12×9</span></button>
+  <button class="mode-btn"        id="mode-corrFixed"  onclick="switchMode('corrFixed')">Corr <span class="mode-detail">8×9</span></button>
+  <button class="mode-btn"        id="mode-corrProp"   onclick="switchMode('corrProp')">Corr Prop <span class="mode-detail">~×9</span></button>
+  <button class="mode-btn"        id="mode-nlqFixed"   onclick="switchMode('nlqFixed')">NLQ <span class="mode-detail">16×18</span></button>
+  <button class="mode-btn"        id="mode-nlqProp"    onclick="switchMode('nlqProp')">NLQ Prop <span class="mode-detail">~×18</span></button>
+</div>
+
+<div class="editor">
+  <div class="sidebar">
+    <input type="text" id="char-hex" value="$24"
+           style="font-size:26px;font-weight:bold;color:#61BB46;background:transparent;
+                  border:none;border-bottom:1px solid #333;width:100%;padding:0 0 2px;
+                  font-family:monospace;outline:none;" />
+    <div class="char-glyph" id="char-glyph">'$'</div>
+    <div class="char-dec" id="char-dec">36</div>
+    <div class="sep"></div>
+    <div style="font-size:10px;color:#555;margin-bottom:2px">Locale</div>
+    <div class="locale-bar" id="locale-bar"></div>
+    <div class="locale-indicator" id="locale-indicator"></div>
+    <div class="sep"></div>
+    <div id="col-controls" style="display:none;align-items:center;gap:4px">
+      <button class="btn btn-red"   id="btn-col-remove" style="width:auto;padding:3px 10px;font-size:14px;text-align:center" onclick="removeColumn()">−</button>
+      <span id="col-count" style="flex:1;text-align:center;font-size:11px;color:#888">7</span>
+      <button class="btn btn-green" id="btn-col-add"    style="width:auto;padding:3px 10px;font-size:14px;text-align:center" onclick="addColumn()">+</button>
+    </div>
+    <div style="display:flex;gap:4px">
+      <button class="btn" style="flex:1;text-align:center" onclick="navChar(-1)">◀ Prev</button>
+      <button class="btn" style="flex:1;text-align:center" onclick="navChar(1)">Next ▶</button>
+    </div>
+    <button class="btn btn-blue" onclick="nextNew()">⊕ New</button>
+    <div class="sep"></div>
+    <input type="text" id="jump-input" placeholder="$24 or 36" />
+    <button class="btn" onclick="jumpTo()">Go</button>
+    <div class="sep"></div>
+    <div style="display:flex;gap:4px">
+      <button class="btn" style="flex:1;text-align:center" onclick="copyChar()">⎘ Copy</button>
+      <button class="btn" id="btn-paste" style="flex:1;text-align:center" onclick="pasteChar()" disabled>Paste</button>
+    </div>
+    <button class="btn btn-red"   onclick="clearGrid()">Clear</button>
+    <button class="btn btn-green" onclick="acceptChar(event)">✓ Accept</button>
+    <div class="sep"></div>
+    <div style="display:flex;gap:4px">
+      <button class="btn btn-yellow" style="flex:1;text-align:center" onclick="exportAll()">Export</button>
+      <button class="btn"            style="flex:1;text-align:center" onclick="openImport()">Import</button>
+    </div>
+  </div>
+
+  <div class="grid-area">
+    <div class="grid-table" id="grid-table"></div>
+    <div class="output">
+      <div class="bytes-box" id="bytes-out"></div>
+      <div class="violation-warn" id="violation-warn"></div>
+      <div style="display:flex;gap:6px;margin-top:6px">
+        <button class="btn" style="width:auto;padding:4px 10px" onclick="copyBytes()">Copy bytes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="gallery">
+  <div class="gallery-header"><h2 id="gallery-title">Chars</h2></div>
+  <div class="gallery-grid" id="gallery"></div>
+</div>
+
+<div class="export" id="export-section">
+  <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px">
+    <span style="font-size:10px;color:#555;flex:1">Export — paste back via Import JS to restore</span>
+    <button class="btn" style="width:auto;padding:2px 8px;font-size:11px"
+            onclick="document.getElementById('export-section').classList.remove('open')">✕</button>
+  </div>
+  <textarea id="export-out" placeholder="Click 'Export JS' to generate…" readonly></textarea>
+</div>
+
+<div id="import-modal" style="display:none;position:fixed;inset:0;background:#000c;z-index:100;
+     align-items:center;justify-content:center;">
+  <div style="background:#1e1e1e;border:1px solid #444;border-radius:6px;padding:16px;
+              width:640px;max-width:92vw;display:flex;flex-direction:column;gap:10px;">
+    <div style="font-size:12px;color:#555">Paste exported JS — any mode blocks recognized automatically</div>
+    <textarea id="import-area"
+              style="width:100%;height:280px;background:#111;border:1px solid #333;color:#ccc;
+                     font-family:monospace;font-size:11px;padding:8px;border-radius:3px;resize:none;"
+              placeholder="export const DRAFT_ROM = { ... };&#10;export const NLQ_ROM = { ... };"></textarea>
+    <div id="import-error" style="font-size:11px;color:#e03a3e;min-height:16px;"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="btn" onclick="closeImport()">Cancel</button>
+      <button class="btn btn-green" onclick="doImport()">✓ Import</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const MODE_CONFIG = {
+  draft:     { cols: 12, rows: 9,  colMin: 12, colMax: 12, proportional: false, adjacentConstraint: true,  cellSize: 38, miniSize: 5, exportBase: 'DRAFT_ROM',     label: 'Draft',    detail: '12×9'  },
+  corrFixed: { cols: 8,  rows: 9,  colMin: 8,  colMax: 8,  proportional: false, adjacentConstraint: false, cellSize: 38, miniSize: 5, exportBase: 'CORR_ROM',       label: 'Corr',     detail: '8×9'   },
+  corrProp:  { cols: 7,  rows: 9,  colMin: 7,  colMax: 19, proportional: true,  adjacentConstraint: false, cellSize: 38, miniSize: 5, exportBase: 'CORR_PROP_ROM',  label: 'Corr~',    detail: '~×9'   },
+  nlqFixed:  { cols: 16, rows: 18, colMin: 16, colMax: 16, proportional: false, adjacentConstraint: false, cellSize: 24, miniSize: 3, exportBase: 'NLQ_ROM',        label: 'NLQ',      detail: '16×18' },
+  nlqProp:   { cols: 7,  rows: 18, colMin: 7,  colMax: 19, proportional: true,  adjacentConstraint: false, cellSize: 24, miniSize: 3, exportBase: 'NLQ_PROP_ROM',   label: 'NLQ~',     detail: '~×18'  },
+};
+
+let mode = 'draft';
+let COLS = 12, ROWS = 9;
+
+const modeStates = {};
+for (const m of Object.keys(MODE_CONFIG))
+  modeStates[m] = { base: {}, localeData: {}, localeMap: [] };
+
+let locales = ['US'];
+let locale  = 'US';
+let code    = 0x24;
+let grid    = [];
+let isDragging     = false;
+let dragValue      = false;
+let clipboardBytes = null;
+let diagDrag   = false; // shift-drag diagonal mode
+let diagStartR = 0;
+let diagStartC = 0;
+let diagSign   = 0;    // +1 = row increases with col, -1 = decreases, 0 = undetermined
+
+function getBase()       { return modeStates[mode].base; }
+function getLocaleData() { return modeStates[mode].localeData; }
+function getLocaleMap()  { return modeStates[mode].localeMap; }
+
+const SEED = {
+  0x20: [0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00],
+  0x21: [0x00,0x00,0x00,0x00,0x4F,0x00,0x00,0x00,0x00,0x00,0x00,0x00],
+  0x22: [0x00,0x00,0x07,0x00,0x00,0x00,0x07,0x00,0x00,0x00,0x00,0x00],
+  0x23: [0x14,0x00,0x7F,0x00,0x14,0x00,0x7F,0x00,0x14,0x00,0x00,0x00],
+  0x24: [0x24,0x00,0x2a,0x00,0x7f,0x00,0x2a,0x00,0x12,0x00,0x00,0x00],
+  0x25: [0x05,0x40,0x25,0x10,0x08,0x54,0x02,0x51,0x00,0x00,0x00,0x00],
+  0x26: [0x32,0x05,0x48,0x05,0x52,0x00,0x20,0x10,0x48,0x00,0x00,0x00],
+  0x27: [0x00,0x00,0x00,0x04,0x02,0x01,0x00,0x00,0x00,0x00,0x00,0x00],
+  0x28: [0x00,0x00,0x00,0x00,0x1c,0x22,0x41,0x00,0x00,0x00,0x00,0x00],
+  0x29: [0x00,0x00,0x41,0x22,0x1c,0x00,0x00,0x00,0x00,0x00,0x00,0x00],
+};
+
+function getEffectiveBytes(c) {
+  const ld = getLocaleData();
+  if (locale !== 'US' && ld[locale]?.[c]) return ld[locale][c];
+  return getBase()[c] || null;
+}
+
+function hasLocaleOverride(loc, c) {
+  return !!(getLocaleData()[loc]?.[c]);
+}
+
+// ── Grid DOM ──────────────────────────────────────────────────────────────────
+
+function buildGrid() {
+  const cfg = MODE_CONFIG[mode];
+  ROWS = cfg.rows;
+  const cs = cfg.cellSize;
+  const ds = Math.round(cs * 0.58);
+
+  const gt = document.getElementById('grid-table');
+  gt.innerHTML = '';
+  gt.style.gridTemplateColumns = `24px repeat(${COLS}, ${cs}px)`;
+
+  // Header row: corner + col headers
+  const corner = document.createElement('div');
+  corner.style.cssText = `width:24px;height:${cs}px;background:#111;`;
+  gt.appendChild(corner);
+  for (let c = 0; c < COLS; c++) {
+    const d = document.createElement('div');
+    d.className = 'col-hdr';
+    d.style.cssText = `width:${cs}px;height:${cs}px;`;
+    d.dataset.col = c;
+    d.textContent = (c + 1) % 10;
+    gt.appendChild(d);
+  }
+
+  // Data rows: row header + cells
+  for (let r = 0; r < ROWS; r++) {
+    const rh = document.createElement('div');
+    rh.className = 'row-hdr';
+    rh.style.cssText = `width:24px;height:${cs}px;`;
+    rh.dataset.row = r;
+    rh.textContent = r + 1;
+    gt.appendChild(rh);
+
+    for (let c = 0; c < COLS; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell';
+      cell.style.cssText = `width:${cs}px;height:${cs}px;`;
+      cell.dataset.r = r; cell.dataset.c = c;
+      const dot = document.createElement('div');
+      dot.className = 'dot';
+      dot.style.cssText = `width:${ds}px;height:${ds}px;`;
+      cell.appendChild(dot);
+      cell.addEventListener('mousedown', e => {
+        e.preventDefault();
+        isDragging = true;
+        dragValue  = !grid[r][c];
+        if (e.shiftKey) {
+          diagDrag   = true;
+          diagStartR = r; diagStartC = c; diagSign = 0;
+        } else {
+          diagDrag   = false;
+        }
+        setCell(r, c, dragValue);
+      });
+      cell.addEventListener('mouseover', e => {
+        document.querySelectorAll('.col-hdr').forEach(h => h.classList.toggle('hdr-active', +h.dataset.col === c));
+        document.querySelectorAll('.row-hdr').forEach(h => h.classList.toggle('hdr-active', +h.dataset.row === r));
+        if (!isDragging) return;
+        if (diagDrag) {
+          const dc = c - diagStartC;
+          if (dc === 0) return;
+          if (diagSign === 0) {
+            if (Math.abs(dc) < 2) return; // wait for clear directional signal
+            const dr = r - diagStartR;
+            diagSign = (dr === 0) ? 1 : Math.sign(dr) * Math.sign(dc);
+            // retroactively paint the skipped first column
+            const dc1 = Math.sign(dc);
+            const nr1 = Math.max(0, Math.min(ROWS - 1, diagStartR + diagSign * dc1));
+            setCell(nr1, diagStartC + dc1, dragValue);
+          }
+          const nr = Math.max(0, Math.min(ROWS - 1, diagStartR + diagSign * dc));
+          setCell(nr, c, dragValue);
+          return;
+        }
+        if (dragValue && MODE_CONFIG[mode].adjacentConstraint &&
+            ((c > 0 && grid[r][c-1]) || (c < COLS-1 && grid[r][c+1]))) return;
+        setCell(r, c, dragValue);
+      });
+      gt.appendChild(cell);
+    }
+  }
+  gt.addEventListener('mouseleave', () => {
+    document.querySelectorAll('.hdr-active').forEach(h => h.classList.remove('hdr-active'));
+  });
+}
+
+function updateColControls() {
+  const cfg = MODE_CONFIG[mode];
+  const el  = document.getElementById('col-controls');
+  el.style.display = cfg.proportional ? 'flex' : 'none';
+  if (cfg.proportional) {
+    document.getElementById('col-count').textContent = `${COLS} cols`;
+    document.getElementById('btn-col-remove').disabled = COLS <= cfg.colMin;
+    document.getElementById('btn-col-add').disabled    = COLS >= cfg.colMax;
+  }
+}
+
+function addColumn() {
+  const cfg = MODE_CONFIG[mode];
+  if (COLS >= cfg.colMax) return;
+  for (let r = 0; r < ROWS; r++) grid[r].push(false);
+  COLS++;
+  buildGrid(); refreshAll(); checkViolations(); updateBytesDisplay(); renderGallery(); updateColControls();
+}
+
+function removeColumn() {
+  const cfg = MODE_CONFIG[mode];
+  if (COLS <= cfg.colMin) return;
+  for (let r = 0; r < ROWS; r++) grid[r].pop();
+  COLS--;
+  buildGrid(); refreshAll(); checkViolations(); updateBytesDisplay(); renderGallery(); updateColControls();
+}
+
+// ── Init / mode switch ────────────────────────────────────────────────────────
+
+const LOCALE_ORDER  = ['US', 'IT', 'UK', 'DE', 'SE', 'FR', 'ES', 'DK'];
+const LOCALE_RENAME = { SW: 'SE', SP: 'ES', DA: 'DK', DN: 'DK' };
+
+function migrateLocales() {
+  let changed = false;
+  for (const [from, to] of Object.entries(LOCALE_RENAME)) {
+    const i = locales.indexOf(from);
+    if (i === -1) continue;
+    locales[i] = to;
+    for (const m of Object.values(modeStates)) {
+      if (m.localeData[from]) { m.localeData[to] = m.localeData[from]; delete m.localeData[from]; }
+      if (m.localeMap) m.localeMap.forEach(e => { if (e.locale === from) e.locale = to; });
+    }
+    changed = true;
+  }
+  const ordered  = LOCALE_ORDER.filter(l => locales.includes(l));
+  const extra    = locales.filter(l => !LOCALE_ORDER.includes(l));
+  const newOrder = [...ordered, ...extra];
+  if (newOrder.join() !== locales.join()) changed = true;
+  locales = newOrder;
+  if (changed) saveState();
+}
+
+function init() {
+  if (!loadState()) {
+    for (const [k, v] of Object.entries(SEED)) modeStates['draft'].base[+k] = v.slice();
+  }
+  migrateLocales();
+  COLS = MODE_CONFIG[mode].cols;
+  ROWS = MODE_CONFIG[mode].rows;
+  buildGrid();
+  renderLocaleBar();
+  updateColControls();
+  loadChar(code);
+}
+
+function switchMode(newMode) {
+  if (mode === newMode) return;
+  mode = newMode;
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('mode-' + newMode).classList.add('active');
+  const cfg = MODE_CONFIG[mode];
+  COLS = cfg.cols;
+  ROWS = cfg.rows;
+  buildGrid();
+  updateColControls();
+  loadChar(code);
+  renderGallery();
+}
+
+// ── Locale ────────────────────────────────────────────────────────────────────
+
+function renderLocaleBar() {
+  const bar = document.getElementById('locale-bar');
+  bar.innerHTML = '';
+  for (const loc of locales) {
+    const btn = document.createElement('button');
+    btn.className = 'locale-btn' + (loc === locale ? ' active' : '');
+    btn.textContent = loc;
+    btn.onclick = () => switchLocale(loc);
+    bar.appendChild(btn);
+  }
+  const add = document.createElement('button');
+  add.className = 'locale-btn add-btn';
+  add.textContent = '+'; add.title = 'Add locale'; add.onclick = addLocale;
+  bar.appendChild(add);
+  document.getElementById('locale-indicator').textContent = locale === 'US' ? '' : `editing ${locale}`;
+}
+
+function switchLocale(loc) {
+  locale = loc; renderLocaleBar(); loadChar(code); renderGallery();
+}
+
+function addLocale() {
+  const name = prompt('Locale name (e.g. UK, DE, FR):');
+  if (!name) return;
+  const key = name.trim().toUpperCase();
+  if (!key || locales.includes(key)) return;
+  locales.push(key);
+  for (const m of Object.keys(modeStates))
+    if (!modeStates[m].localeData[key]) modeStates[m].localeData[key] = {};
+  saveState();
+  switchLocale(key);
+}
+
+// ── Grid data ─────────────────────────────────────────────────────────────────
+
+function emptyGrid() { return Array.from({length:ROWS}, () => Array(COLS).fill(false)); }
+
+// Uses bytes.length as col count so gallery cards render at their own width
+function bytesToGrid(bytes) {
+  const cols = bytes.length;
+  const g = Array.from({length:ROWS}, () => Array(cols).fill(false));
+  for (let c = 0; c < cols; c++)
+    for (let r = 0; r < ROWS; r++)
+      g[r][c] = !!(bytes[c] & (1 << r));
+  return g;
+}
+
+function gridToBytes() {
+  const b = Array(COLS).fill(0);
+  for (let c = 0; c < COLS; c++)
+    for (let r = 0; r < ROWS; r++)
+      if (grid[r][c]) b[c] |= (1 << r);
+  return b;
+}
+
+function setCell(r, c, on) {
+  grid[r][c] = on;
+  refreshCell(r, c);
+  checkViolations();
+  updateBytesDisplay();
+  updateLivePreviewCard();
+}
+
+function refreshCell(r, c) {
+  const el = document.querySelector(`.cell[data-r="${r}"][data-c="${c}"]`);
+  if (el) el.classList.toggle('on', grid[r][c]);
+}
+
+function refreshAll() {
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++)
+      refreshCell(r, c);
+}
+
+function checkViolations() {
+  const v = new Set();
+  if (MODE_CONFIG[mode].adjacentConstraint) {
+    for (let r = 0; r < ROWS; r++)
+      for (let c = 0; c < COLS - 1; c++)
+        if (grid[r][c] && grid[r][c+1]) { v.add(`${r},${c}`); v.add(`${r},${c+1}`); }
+  }
+  document.querySelectorAll('.cell').forEach(el =>
+    el.classList.toggle('violation', v.has(`${el.dataset.r},${el.dataset.c}`))
+  );
+  document.getElementById('violation-warn').textContent = v.size ? '⚠ Adjacent column violation' : '';
+}
+
+function updateBytesDisplay() {
+  document.getElementById('bytes-out').textContent =
+    gridToBytes().map(b => '0x' + b.toString(16).padStart(2,'0')).join(', ');
+}
+
+function updateLivePreviewCard() {
+  const card = document.querySelector(`.char-card[data-code="${code}"]`);
+  if (!card) { renderGallery(); return; }
+  const cells = card.querySelectorAll('.mini-cell');
+  let i = 0;
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++)
+      if (i < cells.length) cells[i++].classList.toggle('on', grid[r][c]);
+}
+
+// ── Char navigation ───────────────────────────────────────────────────────────
+
+function charLabel(c) {
+  if (c >= 0x20 && c < 0x7F) return String.fromCharCode(c);
+  if (c < 0x20)  return `MT${c.toString(16).toUpperCase().padStart(2,'0')}`;
+  return `x${c.toString(16).toUpperCase().padStart(2,'0')}`;
+}
+
+function loadChar(c) {
+  code = Math.max(0x00, Math.min(0xFF, c));
+  document.getElementById('char-hex').value = '$' + code.toString(16).toUpperCase().padStart(2,'0');
+  const lbl = charLabel(code);
+  document.getElementById('char-glyph').textContent = (code >= 0x20 && code < 0x7F) ? `'${lbl}'` : lbl;
+  document.getElementById('char-dec').textContent = code;
+
+  const bytes = getEffectiveBytes(code);
+  const cfg   = MODE_CONFIG[mode];
+
+  if (cfg.proportional) {
+    const newCols = bytes ? bytes.length : cfg.colMin;
+    if (newCols !== COLS) {
+      COLS = newCols;
+      buildGrid();
+      updateColControls();
+    }
+  }
+
+  grid = bytes ? bytesToGrid(bytes) : emptyGrid();
+  refreshAll();
+  checkViolations();
+  updateBytesDisplay();
+  renderGallery();
+}
+
+function navChar(d) { loadChar(code + d); }
+
+function nextNew() {
+  const base = getBase(), ld = getLocaleData();
+  const isNew = c => locale === 'US' ? !base[c] : !ld[locale]?.[c];
+  for (let c = code + 1; c <= 0xFF; c++) if (isNew(c)) { loadChar(c); return; }
+  for (let c = 0x00; c < code; c++)      if (isNew(c)) { loadChar(c); return; }
+}
+
+function jumpTo() {
+  const v = document.getElementById('jump-input').value.trim();
+  let n;
+  if (v.startsWith('$'))    n = parseInt(v.slice(1), 16);
+  else if (/^0x/i.test(v)) n = parseInt(v.slice(2), 16);
+  else                      n = parseInt(v, 10);
+  if (!isNaN(n)) loadChar(n);
+}
+
+function clearGrid() {
+  grid = emptyGrid();
+  refreshAll(); checkViolations(); updateBytesDisplay(); renderGallery();
+}
+
+function copyChar() {
+  clipboardBytes = gridToBytes();
+  document.getElementById('btn-paste').disabled = false;
+}
+
+function pasteChar() {
+  if (!clipboardBytes) return;
+  const cfg = MODE_CONFIG[mode];
+  let bytes = clipboardBytes.slice();
+  if (cfg.proportional) {
+    const newCols = Math.max(cfg.colMin, Math.min(cfg.colMax, bytes.length));
+    bytes = bytes.slice(0, newCols);
+    while (bytes.length < newCols) bytes.push(0);
+    if (newCols !== COLS) { COLS = newCols; buildGrid(); updateColControls(); }
+  } else {
+    bytes = bytes.slice(0, COLS);
+    while (bytes.length < COLS) bytes.push(0);
+  }
+  grid = bytesToGrid(bytes);
+  refreshAll(); checkViolations(); updateBytesDisplay(); renderGallery();
+}
+
+function acceptChar(e) {
+  const bytes = gridToBytes();
+  const st = modeStates[mode];
+  if (locale === 'US') {
+    st.base[code] = bytes;
+  } else {
+    if (!st.localeData[locale]) st.localeData[locale] = {};
+    st.localeData[locale][code] = bytes;
+    if (!st.localeMap.find(m => m.locale === locale && m.code === code))
+      st.localeMap.push({ locale, code });
+  }
+  saveState();
+  renderGallery();
+  if (!(e && e.shiftKey)) nextNew();
+}
+
+// ── Gallery ───────────────────────────────────────────────────────────────────
+
+function renderGallery() {
+  const el  = document.getElementById('gallery');
+  el.innerHTML = '';
+  const base = getBase(), ld = getLocaleData(), cfg = MODE_CONFIG[mode];
+
+  const codeSet = new Set([
+    ...Object.keys(base).map(Number),
+    ...Object.keys(ld[locale] || {}).map(Number),
+    code,
+  ]);
+  const codes = [...codeSet].sort((a,b) => a - b);
+
+  const baseCount   = Object.keys(base).length;
+  const localeCount = locale !== 'US' ? Object.keys(ld[locale] || {}).length : 0;
+  document.getElementById('gallery-title').textContent =
+    locale === 'US'
+      ? `${cfg.label} ${cfg.detail} — ${baseCount} chars`
+      : `${cfg.label} ${cfg.detail} — ${baseCount} base, ${localeCount} ${locale}`;
+
+  for (const c of codes) {
+    const isLocOvr = locale !== 'US' && hasLocaleOverride(locale, c);
+    const isPending = c === code && !(locale === 'US' ? base[c] : ld[locale]?.[c]);
+
+    let displayBytes;
+    if (c === code)    displayBytes = null;
+    else if (isLocOvr) displayBytes = ld[locale][c];
+    else               displayBytes = base[c];
+
+    const cardGrid = c === code ? grid : (displayBytes ? bytesToGrid(displayBytes) : emptyGrid());
+    const cardCols = c === code ? COLS : (displayBytes ? displayBytes.length : cfg.colMin);
+
+    let cls = 'char-card';
+    if (c === code && !isPending) cls += ' active';
+    if (isPending)                cls += ' pending';
+    if (isLocOvr && !isPending)   cls += ' locale-override';
+
+    const card = document.createElement('div');
+    card.className = cls;
+    card.dataset.code = c;
+    card.title = (isPending ? '● editing: ' : '') +
+      '$' + c.toString(16).toUpperCase().padStart(2,'0') + (isLocOvr ? ` [${locale}]` : '');
+    card.addEventListener('click', () => loadChar(c));
+
+    if (isLocOvr) {
+      const badge = document.createElement('div');
+      badge.className = 'card-locale-badge';
+      badge.textContent = locale;
+      card.appendChild(badge);
+    }
+
+    const ms = cfg.miniSize;
+    const mg = document.createElement('div'); mg.className = 'mini-grid';
+    for (let r = 0; r < ROWS; r++) {
+      const row = document.createElement('div'); row.className = 'mini-row';
+      for (let col = 0; col < cardCols; col++) {
+        const mc = document.createElement('div');
+        mc.className = 'mini-cell' + (cardGrid[r]?.[col] ? ' on' : '');
+        mc.style.cssText = `width:${ms}px;height:${ms}px;`;
+        row.appendChild(mc);
+      }
+      mg.appendChild(row);
+    }
+
+    const lbl = document.createElement('div'); lbl.className = 'char-card-label';
+    lbl.textContent = '$' + c.toString(16).toUpperCase().padStart(2,'0') + ' ' + charLabel(c);
+    card.appendChild(mg); card.appendChild(lbl);
+    el.appendChild(card);
+  }
+}
+
+// ── Persistence ───────────────────────────────────────────────────────────────
+
+const STORAGE_KEY = 'iw2-rom-editor-v2';
+
+function saveState() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ modeStates, locales })); } catch(e) {}
+}
+
+function loadState() {
+  try {
+    let raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      // Migrate from v1 format
+      raw = localStorage.getItem('iw2-rom-editor');
+      if (!raw) return false;
+      const old = JSON.parse(raw);
+      if (old.base) for (const [k,v] of Object.entries(old.base)) modeStates['draft'].base[+k] = v;
+      if (old.locales) locales = old.locales;
+      if (old.localeData)
+        for (const [loc,entries] of Object.entries(old.localeData)) {
+          modeStates['draft'].localeData[loc] = {};
+          for (const [k,v] of Object.entries(entries)) modeStates['draft'].localeData[loc][+k] = v;
+        }
+      if (old.localeMap) modeStates['draft'].localeMap = old.localeMap;
+      return true;
+    }
+    const s = JSON.parse(raw);
+    if (s.locales) locales = s.locales;
+    if (s.modeStates)
+      for (const [m, saved] of Object.entries(s.modeStates)) {
+        if (!modeStates[m]) continue;
+        if (saved.base) for (const [k,v] of Object.entries(saved.base)) modeStates[m].base[+k] = v;
+        if (saved.localeMap) modeStates[m].localeMap = saved.localeMap;
+        if (saved.localeData)
+          for (const [loc,entries] of Object.entries(saved.localeData)) {
+            modeStates[m].localeData[loc] = {};
+            for (const [k,v] of Object.entries(entries)) modeStates[m].localeData[loc][+k] = v;
+          }
+      }
+    return true;
+  } catch(e) { return false; }
+}
+
+// ── Import ────────────────────────────────────────────────────────────────────
+
+function openImport() {
+  document.getElementById('import-modal').style.display = 'flex';
+  document.getElementById('import-area').value = '';
+  document.getElementById('import-error').textContent = '';
+  document.getElementById('import-area').focus();
+}
+
+function closeImport() { document.getElementById('import-modal').style.display = 'none'; }
+
+function doImport() {
+  const text  = document.getElementById('import-area').value;
+  const errEl = document.getElementById('import-error');
+  errEl.textContent = '';
+  try {
+    parseImport(text);
+    closeImport();
+    renderLocaleBar(); loadChar(code); renderGallery(); saveState();
+  } catch(e) { errEl.textContent = '⚠ ' + e.message; }
+}
+
+function parseObjInto(str, target) {
+  const re = /0x([0-9a-fA-F]{2})\s*:\s*\[([^\]]+)\]/g;
+  let m;
+  while ((m = re.exec(str)) !== null) {
+    const c = parseInt(m[1], 16);
+    const bytes = m[2].split(',').map(b => {
+      b = b.trim();
+      return (b.startsWith('0x') || b.startsWith('0X')) ? parseInt(b.slice(2), 16) : parseInt(b, 10);
+    }).filter(n => !isNaN(n));
+    if (bytes.length > 0) target[c] = bytes;
+  }
+}
+
+function parseImport(text) {
+  const declRe = /export\s+const\s+(\w+)\s*=/g;
+  let m;
+  const decls = [];
+  while ((m = declRe.exec(text)) !== null) decls.push({ name: m[1], start: m.index + m[0].length });
+  if (!decls.length) throw new Error('No export const declarations found');
+
+  let imported = 0;
+  for (let i = 0; i < decls.length; i++) {
+    const { name, start } = decls[i];
+    const end   = i + 1 < decls.length ? decls[i+1].start : text.length;
+    const chunk = text.slice(start, end);
+
+    let targetMode = null, exportBase = null;
+    for (const [mKey, cfg] of Object.entries(MODE_CONFIG)) {
+      if (name === cfg.exportBase || name === cfg.exportBase + '_LOCALE_MAP' || name.startsWith(cfg.exportBase + '_')) {
+        targetMode = mKey; exportBase = cfg.exportBase; break;
+      }
+    }
+    if (!targetMode) continue;
+
+    const st = modeStates[targetMode];
+
+    if (name === exportBase + '_LOCALE_MAP') {
+      const re = /\[\s*['"]([A-Za-z]+)['"]\s*,\s*(0x[0-9a-fA-F]+|\d+)\s*\]/g;
+      let em;
+      while ((em = re.exec(chunk)) !== null) {
+        const loc = em[1].toUpperCase();
+        const c   = /^0x/i.test(em[2]) ? parseInt(em[2].slice(2), 16) : parseInt(em[2], 10);
+        if (!locales.includes(loc)) locales.push(loc);
+        if (!st.localeData[loc]) st.localeData[loc] = {};
+        if (!st.localeMap.find(lm => lm.locale === loc && lm.code === c))
+          st.localeMap.push({ locale: loc, code: c });
+      }
+      imported++;
+    } else if (name === exportBase) {
+      parseObjInto(chunk, st.base); imported++;
+    } else if (name.startsWith(exportBase + '_')) {
+      const loc = name.slice(exportBase.length + 1);
+      if (!locales.includes(loc)) locales.push(loc);
+      if (!st.localeData[loc]) st.localeData[loc] = {};
+      parseObjInto(chunk, st.localeData[loc]);
+      imported++;
+    }
+  }
+  if (!imported) throw new Error('No recognizable ROM blocks found');
+}
+
+// ── Export ────────────────────────────────────────────────────────────────────
+
+function fmtBytes(bytes) {
+  return bytes.map(b => '0x' + b.toString(16).padStart(2,'0')).join(', ');
+}
+
+function exportAll() {
+  document.getElementById('export-section').classList.add('open');
+  const cfg = MODE_CONFIG[mode], st = modeStates[mode];
+  const parts = [];
+
+  if (st.localeMap.length > 0) {
+    const tuples = st.localeMap.map(m =>
+      `  ['${m.locale}', 0x${m.code.toString(16).padStart(2,'0')}]`
+    ).join(',\n');
+    parts.push(`// Locale config\nexport const ${cfg.exportBase}_LOCALE_MAP = [\n${tuples},\n];`);
+  }
+
+  const baseCodes = Object.keys(st.base).map(Number).sort((a,b) => a-b);
+  const baseLines = baseCodes.map(c => {
+    const chr = c >= 0x20 && c < 0x7F ? ` // ${String.fromCharCode(c)}`
+              : c < 0x20 ? ` // MT${c.toString(16).toUpperCase().padStart(2,'0')}` : '';
+    return `  0x${c.toString(16).padStart(2,'0')}: [${fmtBytes(st.base[c])}],${chr}`;
+  });
+  parts.push(`// Base (US)\nexport const ${cfg.exportBase} = {\n${baseLines.join('\n')}\n};`);
+
+  for (const loc of locales.filter(l => l !== 'US')) {
+    const ld = st.localeData[loc];
+    if (!ld || !Object.keys(ld).length) continue;
+    const lCodes = Object.keys(ld).map(Number).sort((a,b) => a-b);
+    const lLines = lCodes.map(c => {
+      const chr = c >= 0x20 && c < 0x7F ? ` // ${String.fromCharCode(c)}` : '';
+      return `  0x${c.toString(16).padStart(2,'0')}: [${fmtBytes(ld[c])}],${chr}`;
+    });
+    parts.push(`// ${loc} overrides\nexport const ${cfg.exportBase}_${loc} = {\n${lLines.join('\n')}\n};`);
+  }
+
+  document.getElementById('export-out').value = parts.join('\n\n');
+}
+
+function copyBytes() {
+  navigator.clipboard?.writeText(document.getElementById('bytes-out').textContent);
+}
+
+// ── Input handlers ────────────────────────────────────────────────────────────
+
+function parseHexInput(v) {
+  v = v.trim();
+  if (v.startsWith('$'))         return parseInt(v.slice(1), 16);
+  if (/^0x/i.test(v))            return parseInt(v.slice(2), 16);
+  if (/^[0-9a-f]{1,2}$/i.test(v)) return parseInt(v, 16);
+  return parseInt(v, 10);
+}
+
+document.getElementById('char-hex').addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const n = parseHexInput(e.target.value);
+    if (!isNaN(n) && n >= 0x00 && n <= 0xFF) loadChar(n);
+    else e.target.value = '$' + code.toString(16).toUpperCase().padStart(2,'0');
+    e.target.blur(); e.stopPropagation();
+  }
+  if (e.key === 'Escape') {
+    e.target.value = '$' + code.toString(16).toUpperCase().padStart(2,'0');
+    e.target.blur(); e.stopPropagation();
+  }
+});
+document.getElementById('char-hex').addEventListener('blur', e => {
+  const n = parseHexInput(e.target.value);
+  if (!isNaN(n) && n >= 0x00 && n <= 0xFF) loadChar(n);
+  else e.target.value = '$' + code.toString(16).toUpperCase().padStart(2,'0');
+});
+document.getElementById('char-hex').addEventListener('focus', e => e.target.select());
+
+document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.key === 'ArrowRight') navChar(1);
+  if (e.key === 'ArrowLeft')  navChar(-1);
+  if (e.key === 'Enter')      acceptChar(e);
+  if (e.key === 'Escape')     clearGrid();
+  if (e.key === 'n' || e.key === 'N') nextNew();
+});
+document.addEventListener('mouseup', () => { isDragging = false; diagDrag = false; });
+
+init();
+</script>
+</body>
+</html>

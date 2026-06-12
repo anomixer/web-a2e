@@ -996,6 +996,16 @@
     border-color: var(--accent-yellow-border);
 }
 
+.card-color-teal {
+    background: rgba(0, 150, 136, 0.12);
+    border-color: rgba(0, 150, 136, 0.30);
+    color: #26a69a;
+}
+
+.card-color-teal:hover {
+    border-color: rgba(0, 150, 136, 0.60);
+}
+
 /* Dragging state — dim origin card */
 .card-tile.card-dragging {
     opacity: 0.3;

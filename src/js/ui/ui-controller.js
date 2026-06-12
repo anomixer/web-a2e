@@ -508,6 +508,15 @@ export class UIController {
         this.refocusCanvas();
       });
     }
+
+    const printerBtn = document.getElementById("btn-printer");
+    if (printerBtn) {
+      printerBtn.addEventListener("click", () => {
+        this.windowManager.toggleWindow("printer-output");
+        this.closeAllMenus();
+        this.refocusCanvas();
+      });
+    }
   }
 
 

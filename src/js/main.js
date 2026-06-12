@@ -48,6 +48,8 @@ import { ThemeManager } from "./ui/theme-manager.js";
 import { showToast } from "./ui/toast.js";
 import { SlotConfigurationWindow } from "./ui/slot-configuration-window.js";
 import { SerialConnectionWindow } from "./serial/serial-connection-window.js";
+import { PrinterWindow } from "./printer/printer-window.js";
+import { PrinterManager } from "./printer/printer-manager.js";
 import { HayesModem } from "./serial/hayes-modem.js";
 import { WindowSwitcher } from "./ui/window-switcher.js";
 import { StateManager } from "./state/state-manager.js";
@@ -373,6 +375,12 @@ class AppleIIeEmulator {
       const serialConnectionWindow = new SerialConnectionWindow(this.modem);
       serialConnectionWindow.create();
       this.windowManager.register(serialConnectionWindow);
+
+      // Printer window
+      const printerManager = new PrinterManager(this.wasmModule);
+      const printerWindow  = new PrinterWindow(printerManager);
+      printerWindow.create();
+      this.windowManager.register(printerWindow);
 
       // Set up UI controller
       this.uiController = new UIController({
