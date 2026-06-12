@@ -14,23 +14,20 @@
 
 .hd-devices-row {
     display: flex;
+    flex-wrap: wrap;
+    align-items: stretch;
     gap: var(--space-md);
     width: 100%;
     padding: var(--space-sm);
 }
 
 .hd-device {
-    flex: 1;
+    flex: 1 1 250px;
     display: flex;
     flex-direction: column;
     gap: var(--space-xs);
     min-width: 0;
-}
-
-/* Vertical separator between the two drives */
-.hd-device + .hd-device {
-    border-left: 1px solid var(--border-default);
-    padding-left: var(--space-md);
+    box-sizing: border-box;
 }
 
 .hd-header {

@@ -25,7 +25,7 @@ export class ReminderController {
    * @param {string|Element} target - The target element ID or element to position below
    * @param {number} defaultWidth - Fallback width if reminder not yet rendered
    */
-  positionReminderBelowElement(reminderId, target, defaultWidth = 200) {
+  positionReminderBelowElement(reminderId, target) {
     const reminder = document.getElementById(reminderId);
     const targetEl =
       typeof target === "string" ? document.getElementById(target) : target;
@@ -33,9 +33,7 @@ export class ReminderController {
 
     const targetRect = targetEl.getBoundingClientRect();
     const targetCenterX = targetRect.left + targetRect.width / 2;
-
-    const reminderRect = reminder.getBoundingClientRect();
-    const reminderWidth = reminderRect.width || defaultWidth;
+    const reminderWidth = reminder.offsetWidth;
 
     // Position reminder centered below target, clamped to viewport
     let reminderLeft = targetCenterX - reminderWidth / 2;
@@ -51,27 +49,38 @@ export class ReminderController {
     reminder.style.setProperty("--arrow-left", `${arrowLeft}px`);
   }
 
+  /**
+   * Show a reminder, measure it off-screen, then position it correctly.
+   * Uses a delayed reposition to handle layout settling during app init.
+   */
+  _showReminder(reminder, repositionFn, flagName) {
+    this[flagName] = true;
+    // Render off-screen so the browser can compute its real size
+    reminder.style.left = '-9999px';
+    reminder.style.top = '-9999px';
+    reminder.classList.remove("hidden");
+    // Delay positioning to let the full page layout settle after init
+    setTimeout(() => {
+      if (this[flagName]) repositionFn();
+    }, 100);
+  }
+
   // Power reminder methods
 
   repositionPowerReminder() {
-    this.positionReminderBelowElement("power-reminder", "btn-power", 200);
+    this.positionReminderBelowElement("power-reminder", "btn-power");
   }
 
   showPowerReminder(show) {
     const reminder = document.getElementById("power-reminder");
     if (!reminder) return;
 
-    // Check if already dismissed (first visit)
     if (show && localStorage.getItem("a2e-power-reminder-dismissed")) {
       return;
     }
 
     if (show) {
-      this.isPowerReminderVisible = true;
-      reminder.classList.remove("hidden");
-      requestAnimationFrame(() => {
-        this.repositionPowerReminder();
-      });
+      this._showReminder(reminder, () => this.repositionPowerReminder(), 'isPowerReminderVisible');
     } else {
       this.isPowerReminderVisible = false;
       reminder.classList.add("hidden");
@@ -89,17 +98,12 @@ export class ReminderController {
     const reminder = document.getElementById("basic-reminder");
     if (!reminder) return;
 
-    // Check if already dismissed
     if (show && localStorage.getItem("a2e-basic-reminder-dismissed")) {
       return;
     }
 
     if (show) {
-      this.isBasicReminderVisible = true;
-      reminder.classList.remove("hidden");
-      requestAnimationFrame(() => {
-        this.repositionBasicReminder();
-      });
+      this._showReminder(reminder, () => this.repositionBasicReminder(), 'isBasicReminderVisible');
     } else {
       this.isBasicReminderVisible = false;
       reminder.classList.add("hidden");
@@ -107,7 +111,7 @@ export class ReminderController {
   }
 
   repositionBasicReminder() {
-    this.positionReminderBelowElement("basic-reminder", "btn-warm-reset", 220);
+    this.positionReminderBelowElement("basic-reminder", "btn-warm-reset");
   }
 
   dismissBasicReminder() {
@@ -120,10 +124,10 @@ export class ReminderController {
    */
   repositionAll() {
     if (this.isPowerReminderVisible) {
-      requestAnimationFrame(() => this.repositionPowerReminder());
+      this.repositionPowerReminder();
     }
     if (this.isBasicReminderVisible) {
-      requestAnimationFrame(() => this.repositionBasicReminder());
+      this.repositionBasicReminder();
     }
   }
 }

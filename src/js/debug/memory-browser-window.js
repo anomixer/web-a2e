@@ -80,10 +80,8 @@ export class MemoryBrowserWindow extends BaseWindow {
       <div class="mem-browser-header">
         <span class="mem-addr-col">Addr</span>
         <span class="mem-hdr-separator">:</span>
-        <span class="mem-hdr-bytes">${Array.from({ length: 16 }, (_, i) => i.toString(16).toUpperCase().padStart(2, "0")).join(" ")} </span>
-        <span class="mem-ascii-sep">&nbsp;</span>
+        ${Array.from({ length: 16 }, (_, i) => `<span class="mem-hdr-byte">${i.toString(16).toUpperCase().padStart(2, "0")}</span>`).join("")}
         <span class="mem-ascii-hdr">ASCII</span>
-        <span class="mem-ascii-sep">&nbsp;</span>
       </div>
       <div class="mem-browser-scroll-container">
         <div class="mem-browser-content"></div>
@@ -322,8 +320,21 @@ export class MemoryBrowserWindow extends BaseWindow {
     return "Unknown";
   }
 
+  recalcVisibleRows() {
+    if (!this.contentDiv) return;
+    const container = this.contentDiv.parentElement;
+    if (!container) return;
+    const height = container.clientHeight;
+    if (height > 0) {
+      // Each row is ~17px (11px font * 1.4 line-height + 2px padding)
+      const rowHeight = 17;
+      this.visibleRows = Math.max(1, Math.floor(height / rowHeight));
+    }
+  }
+
   async update(wasmModule) {
     if (!this.isVisible || !this.contentDiv) return;
+    this.recalcVisibleRows();
     const isPaused = await wasmModule._isPaused();
     if (!isPaused && !this.forceRefresh) return;
     this.forceRefresh = false;

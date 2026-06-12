@@ -62,6 +62,20 @@ export class DiskDrivesWindow extends BaseWindow {
 
   renderContent() {
     return `
+      <div class="disk-drives-toolbar">
+        <button class="drive-toolbar-btn drive-graphics-btn active" title="Toggle disk graphics">
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+            <path d="M8 3C4.5 3 1.6 5.3.6 8c1 2.7 3.9 5 7.4 5s6.4-2.3 7.4-5c-1-2.7-3.9-5-7.4-5zm0 8.5A3.5 3.5 0 1 1 8 4.5a3.5 3.5 0 0 1 0 7zm0-5.5a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/>
+          </svg>
+          <span>Surface</span>
+        </button>
+        <button class="drive-toolbar-btn drive-detail-btn" title="Toggle details">
+          <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+            <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 2.5a1 1 0 1 1 0 2 1 1 0 0 1 0-2zM6.5 7h1.75v4.5H10v1H6v-1h1.25V8H6.5V7z"/>
+          </svg>
+          <span>Details</span>
+        </button>
+      </div>
       <div class="disk-drives-row">
         ${this._driveHTML(1)}
         ${this._driveHTML(2)}
@@ -70,32 +84,10 @@ export class DiskDrivesWindow extends BaseWindow {
   }
 
   onContentRendered() {
-    const closeBtn = this.headerElement.querySelector(
-      `.${this.cssClasses.close}`,
-    );
-
-    this._graphicsBtn = document.createElement("button");
-    this._graphicsBtn.className = "drive-graphics-btn active";
-    this._graphicsBtn.title = "Toggle disk graphics";
-    this._graphicsBtn.innerHTML = `
-      <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
-        <path d="M8 3C4.5 3 1.6 5.3.6 8c1 2.7 3.9 5 7.4 5s6.4-2.3 7.4-5c-1-2.7-3.9-5-7.4-5zm0 8.5A3.5 3.5 0 1 1 8 4.5a3.5 3.5 0 0 1 0 7zm0-5.5a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/>
-      </svg>
-    `;
-    this.headerElement.insertBefore(this._graphicsBtn, closeBtn);
-    this._graphicsBtn.addEventListener("mousedown", (e) => e.stopPropagation());
+    this._graphicsBtn = this.contentElement.querySelector(".drive-graphics-btn");
     this._graphicsBtn.addEventListener("click", () => this._toggleGraphics());
 
-    this._detailBtn = document.createElement("button");
-    this._detailBtn.className = "drive-detail-btn";
-    this._detailBtn.title = "Toggle details";
-    this._detailBtn.innerHTML = `
-      <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
-        <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 2.5a1 1 0 1 1 0 2 1 1 0 0 1 0-2zM6.5 7h1.75v4.5H10v1H6v-1h1.25V8H6.5V7z"/>
-      </svg>
-    `;
-    this.headerElement.insertBefore(this._detailBtn, closeBtn);
-    this._detailBtn.addEventListener("mousedown", (e) => e.stopPropagation());
+    this._detailBtn = this.contentElement.querySelector(".drive-detail-btn");
     this._detailBtn.addEventListener("click", () => this._toggleDetails());
 
     // Set initial size from content so defaultHeight doesn't need to be kept in sync
@@ -128,7 +120,7 @@ export class DiskDrivesWindow extends BaseWindow {
   }
 
   _fitToContent() {
-    if (!this.element) return;
+    if (!this.element || this._isPaneled) return;
     // Temporarily set auto height to measure natural size
     this.element.style.height = "auto";
     const newHeight = this.element.offsetHeight;
