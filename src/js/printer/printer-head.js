@@ -13,6 +13,7 @@
  * the head genuinely travels left->right then right->left on alternate lines.
  *
  * Written by
+ *  Mike Daley <michael_daley@icloud.com>
  *  Shawn Bullock <shawn@agenticexpert.ai>
  */
 

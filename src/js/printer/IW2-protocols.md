@@ -194,25 +194,29 @@ bits, `CR` + 1/144 LF, print odd bits. `ESC n` + `ESC T16` gives a uniform 72×7
 
 ## 8. Color Printing (Table A-18 / 8-6)
 
-Four-band ribbon: yellow, cyan, magenta, black. Orange/green/purple made by
-**overprinting** (CR with no LF, reprint in second color).
+Four-band ribbon: **black, yellow, red, blue** (the real ImageWriter II cartridge).
+Orange/green/purple are made by **overprinting** (CR with no LF, reprint in a second
+band).
 
 | Cmd | Hex | Color |
 |---|---|---|
 | `ESC K 0` | 1B 4B 30 | Black (default) |
 | `ESC K 1` | 1B 4B 31 | Yellow |
-| `ESC K 2` | 1B 4B 32 | Magenta |
-| `ESC K 3` | 1B 4B 33 | Cyan |
-| `ESC K 4` | 1B 4B 34 | Orange (Yellow + Magenta) |
-| `ESC K 5` | 1B 4B 35 | Green (Yellow + Cyan) |
-| `ESC K 6` | 1B 4B 36 | Purple (Magenta + Cyan) |
+| `ESC K 2` | 1B 4B 32 | Red |
+| `ESC K 3` | 1B 4B 33 | Blue |
+| `ESC K 4` | 1B 4B 34 | Orange (Yellow + Red) |
+| `ESC K 5` | 1B 4B 35 | Green (Yellow + Blue) |
+| `ESC K 6` | 1B 4B 36 | Purple (Red + Blue) |
 
 Print yellow **first** when combining to avoid band contamination. Color option auto-on
-when a color ribbon is "installed". Composite colors via 4-dot dither patterns are
-common (e.g. light blue = alternating cyan/white).
+when a color ribbon is "installed". Colour overprint runs at **half speed** (extra pass).
 
-> Emulation: track current ribbon color; on CR-without-LF the next pass overprints the
-> same row → blend (multiply/subtractive). Default ribbon = black.
+> Emulation (implemented): `COLORS[0-6]` resolves all seven indices; the renderer
+> paints with `globalCompositeOperation = 'multiply'`, so K4-6 print directly AND a
+> genuine CR-without-LF overprint of two bands subtracts toward the secondary. Colour
+> only reaches the paper when the colour ribbon cartridge is installed (`VirtualRibbon`).
+> `getCharsPerSecond()` halves while a non-black colour (or bold) is active. Default
+> ribbon = black.
 
 ---
 
@@ -395,10 +399,16 @@ every effective-quality change so faster fonts genuinely print quicker.
 - ✅ Underline / bold / half-height / super / subscript / double-width render.
 - ✅ Native `ESC G/S/g` graphics with ASCII-decimal counts + pitch density.
 - ✅ `ESC Y` freed for stop-underline (no graphics collision).
+- ✅ Colour `ESC K 0-6` incl. secondaries + multiply overprint; bold/colour half-speed.
+- ✅ Custom downloaded chars: `ESC I` load + `ESC '`/`ESC *` select + `ESC $` off, rendered.
+- ✅ Line spacing fixed to IW-II: `ESC A` 6 lpi / `ESC B` 8 lpi / `ESC T nn` n/144".
+- ✅ Page length `ESC H`, left margin `ESC L`, head place `ESC F`, repeats `ESC R`/`ESC V`.
+- ✅ Selectable **form length** (11" / 12" / 14" / A4) via window + `ESC H`. Width is
+  fixed at 8" printable — the IW-II has no paper-size concept, only form length.
+- ✅ Removed Epson-isms (`ESC C` form-length, `ESC A n` n/144 spacing) — IW-II opcodes only.
 - ⬜ Proportional ROM not plumbed — `ESC p/P` flag-only, renders fixed-width.
 - ⬜ NLQ font ROM not transcribed — falls back to correspondence shapes.
-- ⬜ Color ribbon overprint (`ESC K`) not modelled.
-- ⬜ Custom downloaded chars (`ESC I`/`ESC '`) not wired.
-- ⬜ Tabs, margins, page length, line-pitch (`ESC T`), reverse feed not modelled.
+- ⬜ Horizontal tabs (`ESC ( / ) / u`, CTRL-I) and reverse feed (`ESC r`) not modelled.
+- ⬜ `ESC D/Z` software-switch family (slash-zero, 8th-bit, language sets) not modelled.
 - ⬜ 144-dpi two-pass vertical graphics not modelled.
-- ⬜ `ESC V` dot-column repeat, `ESC F` head placement, `ESC R` repeat not wired.
+- ⬜ Extended/semicondensed pitches (`ESC n` / `ESC e`) not modelled.

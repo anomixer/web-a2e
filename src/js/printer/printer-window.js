@@ -8,6 +8,7 @@
 
 import { BaseWindow } from "../windows/base-window.js";
 import { PRINTER_MODELS, RIBBONS } from "./printer-manager.js";
+import { makeZipStore } from "./zip-store.js";
 
 // 1 display pixel per dot (canvas scrolls horizontally if wider than paper area)
 const DOT_PX     = 1;
@@ -18,10 +19,58 @@ const CANVAS_W   = 960;   // 80 chars × 12 dots each = 8" printable at 120 dpi
 // sit wider apart than columns (1/120").
 const VSTRETCH   = 120 / 72;     // 5/3
 const DOT_H_PX   = 2;            // painted height of one stretched wire dot
-const PAGE_H_PX  = Math.round(792 * VSTRETCH); // 1320 — 66 lines, stretched
+const PAGE_H_PX  = Math.round(792 * VSTRETCH); // 1320 — 66 lines @ 11", default form
 const VDOT_INTERNAL = 480 / 72;  // internal vertical dot pitch (matches printers' dotH)
 const PAPER_BG   = '#ffffff';
-const DOT_COLORS = { black: '#1a1a1a', red: '#cc2222', blue: '#1a44cc', yellow: '#ccaa00' };
+// Four ribbon bands plus the three overprint secondaries (ESC K 4-6). Orange,
+// green and purple are what the real ribbon makes by laying two bands on the
+// same dot.
+const DOT_COLORS = {
+  black:  '#1a1a1a',
+  yellow: '#ccaa00',
+  red:    '#cc2222',
+  blue:   '#1a44cc',
+  orange: '#e07a1f',
+  green:  '#2e9e3f',
+  purple: '#7a3d97',
+};
+
+// Ribbon bands as a bitmask. A single strike paints its colour at full strength
+// (readable); when the head overstrikes a dot with a different band, the ink
+// mixes subtractively — yellow+blue = green, red+blue = purple, etc. — exactly
+// as the real four-band ribbon does on a LF-back-and-reprint. We model that by
+// accumulating the bands struck at each dot, not by making ink translucent.
+const BAND = { Y: 1, R: 2, B: 4, K: 8 };
+
+// Which band(s) each selectable colour lays down. The direct secondaries
+// (ESC K 4-6) deposit both constituent bands, so a further overstrike keeps
+// mixing correctly.
+const COLOR_BANDS = {
+  black:  BAND.K,
+  yellow: BAND.Y,
+  red:    BAND.R,
+  blue:   BAND.B,
+  orange: BAND.Y | BAND.R,
+  green:  BAND.Y | BAND.B,
+  purple: BAND.R | BAND.B,
+};
+
+// Resolve an accumulated band mask to a paint colour. Any black band → black;
+// two chromatic bands → the secondary; all three → muddy near-black, as real
+// overstruck ink goes.
+function mixInk(mask) {
+  if (mask & BAND.K) return DOT_COLORS.black;
+  switch (mask & (BAND.Y | BAND.R | BAND.B)) {
+    case BAND.Y:                   return DOT_COLORS.yellow;
+    case BAND.R:                   return DOT_COLORS.red;
+    case BAND.B:                   return DOT_COLORS.blue;
+    case BAND.Y | BAND.R:          return DOT_COLORS.orange;
+    case BAND.Y | BAND.B:          return DOT_COLORS.green;
+    case BAND.R | BAND.B:          return DOT_COLORS.purple;
+    case BAND.Y | BAND.R | BAND.B: return '#3a2a14'; // all three → dark brown
+    default:                       return DOT_COLORS.black;
+  }
+}
 
 // Printer models that render dot-matrix to the canvas
 const CANVAS_MODELS = new Set(['imagewriter-ii', 'imagewriter-i', 'epson-fx80']);
@@ -67,6 +116,7 @@ export class PrinterWindow extends BaseWindow {
           <select id="pr-ribbon" class="pr-select" title="Ribbon cartridge">
             ${ribbonOptions}
           </select>
+          <select id="pr-page" class="pr-select" title="Form length (8&quot; printable width is fixed)"></select>
           <div class="pr-sep"></div>
           <button id="pr-download-txt" class="pr-btn" title="Download as plain text">TXT</button>
           <button id="pr-download-png" class="pr-btn" title="Export as PNG image">PNG</button>
@@ -187,6 +237,7 @@ export class PrinterWindow extends BaseWindow {
       feedBg:      el.querySelector("#pr-feed-bg"),
       model:       el.querySelector("#pr-model"),
       ribbon:      el.querySelector("#pr-ribbon"),
+      page:        el.querySelector("#pr-page"),
       downloadTxt: el.querySelector("#pr-download-txt"),
       downloadPng: el.querySelector("#pr-download-png"),
       downloadPdf: el.querySelector("#pr-download-pdf"),
@@ -202,10 +253,22 @@ export class PrinterWindow extends BaseWindow {
     this._applyFit();
   }
 
+  // Canvas height of one page, derived from the active printer's form length
+  // (page-size select / ESC H) — not a constant — so changing the form size
+  // moves the perforations and resizes the sheet. Real ImageWriter II "page
+  // size" is exactly this form length; paper width never changes.
+  _pageHeightPx() {
+    const p = this.printerManager.getActivePrinter();
+    const formDots = p?.paper?.formDots || (480 * 11);
+    return Math.max(40, Math.round(formDots / VDOT_INTERNAL * VSTRETCH));
+  }
+
   _initCanvas() {
     const cv  = this.elements.canvas;
     cv.width  = CANVAS_W;
-    cv.height = PAGE_H_PX * 2;
+    // Start with a single sheet; _ensureCanvasHeight adds pages only as the
+    // output actually overflows onto them.
+    cv.height = this._pageHeightPx();
     const ctx = this.elements.ctx;
     ctx.fillStyle = PAPER_BG;
     ctx.fillRect(0, 0, cv.width, cv.height);
@@ -231,9 +294,10 @@ export class PrinterWindow extends BaseWindow {
   _drawPageBreaks() {
     const cv  = this.elements.canvas;
     const ctx = this.elements.ctx;
+    const pageH = this._pageHeightPx();
     ctx.save();
     ctx.setLineDash([7, 5]);
-    for (let y = PAGE_H_PX; y < cv.height; y += PAGE_H_PX) {
+    for (let y = pageH; y < cv.height; y += pageH) {
       const yy = Math.floor(y) + 0.5;
       // faint shadow band so the fold reads even on white
       ctx.fillStyle = "rgba(0,0,0,0.04)";
@@ -251,7 +315,7 @@ export class PrinterWindow extends BaseWindow {
   _ensureCanvasHeight(neededPx) {
     const cv = this.elements.canvas;
     if (neededPx <= cv.height) return;
-    const newH = neededPx + PAGE_H_PX;
+    const newH = neededPx + this._pageHeightPx();
     const tmp  = document.createElement("canvas");
     tmp.width  = cv.width;
     tmp.height = cv.height;
@@ -279,6 +343,7 @@ export class PrinterWindow extends BaseWindow {
     // Reflect current model + ribbon in the selects.
     el.model.value  = this.printerManager.getActivePrinter().getId();
     el.ribbon.value = this.printerManager.getRibbon();
+    this._refreshPageSizes();
 
     el.model.addEventListener("change", () => {
       const modelDef = PRINTER_MODELS.find((m) => m.id === el.model.value);
@@ -287,6 +352,13 @@ export class PrinterWindow extends BaseWindow {
 
     el.ribbon.addEventListener("change", () => {
       this.printerManager.setRibbon(el.ribbon.value);
+    });
+
+    el.page.addEventListener("change", () => {
+      this.printerManager.getActivePrinter().setPageSize?.(el.page.value);
+      // Form length changed → re-lay the sheet (clears paper, like reloading
+      // stock of a different size).
+      if (this._canvasMode) { this._initCanvas(); this._applyFit(); }
     });
 
     el.downloadTxt.addEventListener("click", () => this._downloadTxt());
@@ -310,7 +382,21 @@ export class PrinterWindow extends BaseWindow {
     this.printerManager.onPrinterChange((p) => {
       this._updateViewMode(p);
       this._attachPrinterListeners(p);
+      this._refreshPageSizes();
     });
+  }
+
+  // Populate the page-size select from the active model (models without
+  // selectable forms, e.g. the Epson, hide the control).
+  _refreshPageSizes() {
+    const el = this.elements?.page;
+    if (!el) return;
+    const printer = this.printerManager.getActivePrinter();
+    const sizes   = printer.constructor?.PAGE_SIZES ?? [];
+    if (!sizes.length) { el.style.display = "none"; return; }
+    el.style.display = "";
+    el.innerHTML = sizes.map((s) => `<option value="${s.id}">${s.name}</option>`).join("");
+    el.value = printer.getPageSize?.() ?? sizes[0].id;
   }
 
   _updateViewMode(printer) {
@@ -391,6 +477,26 @@ export class PrinterWindow extends BaseWindow {
 
   // ===== Canvas dot-matrix rendering =====
 
+  // Paint one ink dot, mixing with whatever bands already struck this exact
+  // pixel. Black (and B/W ribbon) paints straight through with no bookkeeping;
+  // a coloured dot accumulates its ribbon band(s) at the pixel and repaints the
+  // resolved colour, so a second colour overstruck on the same dot subtracts to
+  // the real secondary instead of just covering it.
+  _inkDot(ctx, px, py, w, h, color) {
+    if (!color || color === 'black') {
+      ctx.fillStyle = DOT_COLORS.black;
+      ctx.fillRect(px, py, w, h);
+      return;
+    }
+    if (!this._ink) this._ink = new Map();
+    if (this._ink.size > 80000) this._ink.clear();   // bound memory on long runs
+    const key  = px + ',' + py;
+    const mask = (this._ink.get(key) || 0) | (COLOR_BANDS[color] ?? BAND.K);
+    this._ink.set(key, mask);
+    ctx.fillStyle = mixInk(mask);
+    ctx.fillRect(px, py, w, h);
+  }
+
   _renderChar({ cols, xDot, yDot, dotW, dotH, color, bold, underline, halfHeight, script, doubleWidth }) {
     if (!cols || !this.elements?.ctx) return;
     const ctx   = this.elements.ctx;
@@ -411,7 +517,6 @@ export class PrinterWindow extends BaseWindow {
     const rowY   = r => cy + yOff + Math.round(r * VSTRETCH * vScale);
 
     this._ensureCanvasHeight(cy + glyphH + DOT_PX);
-    ctx.fillStyle = DOT_COLORS[color] ?? DOT_COLORS.black;
 
     const paint = (shift) => {
       for (let c = 0; c < cols.length; c++) {
@@ -419,7 +524,7 @@ export class PrinterWindow extends BaseWindow {
         if (!colVal) continue;
         const px = cx + (c * xs + shift) * DOT_PX;
         for (let r = 0; r < nRows; r++) {
-          if (colVal & (1 << r)) ctx.fillRect(px, rowY(r), DOT_PX * xs, dotHpx);
+          if (colVal & (1 << r)) this._inkDot(ctx, px, rowY(r), DOT_PX * xs, dotHpx, color);
         }
       }
     };
@@ -429,6 +534,7 @@ export class PrinterWindow extends BaseWindow {
 
     if (underline) {
       // Wire 9 (row index 8) is the underline wire — full glyph cell width
+      ctx.fillStyle = DOT_COLORS[color] ?? DOT_COLORS.black;
       ctx.fillRect(cx, cy + Math.round(8 * VSTRETCH), cols.length * xs * DOT_PX, DOT_H_PX);
     }
 
@@ -445,10 +551,9 @@ export class PrinterWindow extends BaseWindow {
     const glyphH = Math.round(9 * VSTRETCH);
 
     this._ensureCanvasHeight(py + glyphH + DOT_PX);
-    ctx.fillStyle = DOT_COLORS[color] ?? DOT_COLORS.black;
 
     for (let r = 0; r < 9; r++) {
-      if (colByte & (1 << r)) ctx.fillRect(px, py + Math.round(r * VSTRETCH), dW, DOT_H_PX);
+      if (colByte & (1 << r)) this._inkDot(ctx, px, py + Math.round(r * VSTRETCH), dW, DOT_H_PX, color);
     }
 
     this._markHead(px, py, Math.max(2, dW), glyphH);
@@ -469,7 +574,7 @@ export class PrinterWindow extends BaseWindow {
   // Alpha curve: full for the first HOLD ms, then step down FADE_STEP each
   // FADE_EVERY ms until zero.
   _headAlpha(age) {
-    const HOLD = 80, FADE_EVERY = 10, FADE_STEP = 0.08;
+    const HOLD = 200, FADE_EVERY = 20, FADE_STEP = 0.10;
     if (age < HOLD) return 1;
     const steps = Math.floor((age - HOLD) / FADE_EVERY) + 1;
     return Math.max(0, 1 - FADE_STEP * steps);
@@ -566,6 +671,14 @@ export class PrinterWindow extends BaseWindow {
     return true;
   }
 
+  // Select the page / form size by id (see ImageWriterII.PAGE_SIZES).
+  setPageSize(id) {
+    const ok = this.printerManager.getActivePrinter().setPageSize?.(id);
+    if (ok && this.elements?.page) this.elements.page.value = id;
+    if (ok && this._canvasMode) { this._initCanvas(); this._applyFit(); }
+    return !!ok;
+  }
+
   // Snapshot of printer/paper status.
   getState() {
     const p = this.printerManager.getActivePrinter();
@@ -574,6 +687,7 @@ export class PrinterWindow extends BaseWindow {
       modelName:    p.getName(),
       online:       this.online,
       ribbon:       this.printerManager.getRibbon(),
+      pageSize:     p.getPageSize?.() ?? null,
       canvasMode:   this._canvasMode,
       textLength:   this.text.length,
       paperHeightPx: this._canvasMode && this.elements ? this.elements.canvas.height : 0,
@@ -614,6 +728,7 @@ export class PrinterWindow extends BaseWindow {
     this.text = "";
     this.printerManager.getActivePrinter().reset();
     this._heads = [];
+    this._ink?.clear();   // forget accumulated ribbon-band coverage
     if (this._headRAF) { cancelAnimationFrame(this._headRAF); this._headRAF = null; }
     if (this.elements) {
       this.elements.output.textContent = "";
@@ -633,14 +748,16 @@ export class PrinterWindow extends BaseWindow {
 
   _downloadPng() {
     if (this._canvasMode) {
-      this.elements.canvas.toBlob((blob) => {
-        const url  = URL.createObjectURL(blob);
-        const a    = document.createElement("a");
-        a.href     = url;
-        a.download = "printer.png";
-        a.click();
-        URL.revokeObjectURL(url);
-      }, "image/png");
+      const cv    = this.elements.canvas;
+      const pageH = this._pageHeightPx();
+      const pages = this._usedPageCount(pageH);
+      // One sheet → a plain PNG. Multiple sheets (e.g. a banner) → a ZIP with
+      // one PNG per page plus a full-strip PNG of everything joined.
+      if (pages <= 1) {
+        cv.toBlob((blob) => this._saveBlob(blob, "printer.png"), "image/png");
+      } else {
+        this._exportPagesZip(cv, pageH, pages);
+      }
       return;
     }
 
@@ -660,14 +777,51 @@ export class PrinterWindow extends BaseWindow {
     ctx.font         = `${fontSize}px 'Courier New', monospace`;
     ctx.textBaseline = "top";
     lines.forEach((line, i) => ctx.fillText(line, padding, padding + i * lineHeight));
-    canvas.toBlob((blob) => {
-      const url  = URL.createObjectURL(blob);
-      const a    = document.createElement("a");
-      a.href     = url;
-      a.download = "printer.png";
-      a.click();
-      URL.revokeObjectURL(url);
-    }, "image/png");
+    canvas.toBlob((blob) => this._saveBlob(blob, "printer.png"), "image/png");
+  }
+
+  // How many pages the current output actually occupies, from the print head's
+  // furthest vertical position (not the canvas height, which over-allocates).
+  _usedPageCount(pageH) {
+    const p      = this.printerManager.getActivePrinter();
+    const yDot   = p?._yDot | 0;
+    const bottom = this._yToCanvas(Math.round(yDot / VDOT_INTERNAL)) + Math.round(9 * VSTRETCH);
+    return Math.max(1, Math.ceil(bottom / pageH));
+  }
+
+  // Slice the paper into one PNG per page + a full-strip PNG, zip, and download.
+  async _exportPagesZip(cv, pageH, pages) {
+    const pad   = (n) => String(n).padStart(2, "0");
+    const files = [];
+    for (let i = 0; i < pages; i++) {
+      const slice = document.createElement("canvas");
+      slice.width  = cv.width;
+      slice.height = pageH;
+      const sctx = slice.getContext("2d");
+      sctx.fillStyle = PAPER_BG;
+      sctx.fillRect(0, 0, slice.width, pageH);
+      sctx.drawImage(cv, 0, -i * pageH);   // copy this page's band
+      files.push({ name: `page-${pad(i + 1)}.png`, data: await this._canvasBytes(slice) });
+    }
+    // Whole run joined — for printshop/banner output spanning pages.
+    files.push({ name: "full.png", data: await this._canvasBytes(cv) });
+    this._saveBlob(makeZipStore(files), "printer-pages.zip");
+  }
+
+  // PNG bytes of a canvas as a Uint8Array (via toBlob → arrayBuffer).
+  _canvasBytes(canvas) {
+    return new Promise((resolve) => {
+      canvas.toBlob(async (blob) => resolve(new Uint8Array(await blob.arrayBuffer())), "image/png");
+    });
+  }
+
+  _saveBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a   = document.createElement("a");
+    a.href     = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   _downloadPdf() {

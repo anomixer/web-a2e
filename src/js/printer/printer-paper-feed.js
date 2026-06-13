@@ -20,6 +20,7 @@
  * the paper already sits at top-of-form.
  *
  * Written by
+ *  Mike Daley <michael_daley@icloud.com>
  *  Shawn Bullock <shawn@agenticexpert.ai>
  */
 
@@ -42,6 +43,10 @@ export class VirtualPaperFeed {
   // Latch a cursor position as top-of-form (operator pressed SET/TOF, or
   // power-on with paper loaded at the tear-off).
   setTopOfForm(y) { this.topOfForm = y; }
+
+  // Set the form length (page height, top-of-form to top-of-form) in internal
+  // dots. Driven by ESC H or a host-side page-size selection.
+  setFormDots(dots) { if (dots > 0) this.formDots = dots; }
 
   // The next page boundary at or below cursor `y`.
   nextFormTop(y) {

@@ -6,6 +6,7 @@
  * capture of the printed paper.
  *
  * Written by
+ *  Mike Daley <michael_daley@icloud.com>
  *  Shawn Bullock <shawn@agenticexpert.ai>
  */
 
@@ -85,6 +86,19 @@ export const printerTools = {
     const ok = getPrinterWindow().setModel(model);
     if (!ok) throw new Error(`Unknown printer model: ${model}`);
     return { success: true, model, message: `Printer model set to ${model}` };
+  },
+
+  /**
+   * Select the form length. The ImageWriter II is continuous-feed with a fixed
+   * 8" printable width, so this sets form length only — not a paper size.
+   * Parameters: { size: "form11" | "form12" | "legal" | "a4" }.
+   */
+  printerSetPageSize: async (params = {}) => {
+    const { size } = params;
+    if (!size) throw new Error("size parameter is required");
+    const ok = getPrinterWindow().setPageSize(size);
+    if (!ok) throw new Error(`Unknown or unsupported form length: ${size}`);
+    return { success: true, size, message: `Form length set to ${size}` };
   },
 
   /**
