@@ -9,6 +9,7 @@
 import { BaseWindow } from "../windows/base-window.js";
 import { PRINTER_MODELS, RIBBONS } from "./printer-manager.js";
 import { makeZipStore } from "./zip-store.js";
+import { buildScreenDump, SCREEN_W, SCREEN_H } from "./screen-dump.js";
 
 // 1 display pixel per dot (canvas scrolls horizontally if wider than paper area)
 const DOT_PX     = 1;
@@ -21,38 +22,42 @@ const VSTRETCH   = 120 / 72;     // 5/3
 const DOT_H_PX   = 2;            // painted height of one stretched wire dot
 const PAGE_H_PX  = Math.round(792 * VSTRETCH); // 1320 — 66 lines @ 11", default form
 const VDOT_INTERNAL = 480 / 72;  // internal vertical dot pitch (matches printers' dotH)
+const HDOT_INTERNAL = 480 / 120; // internal horizontal dot pitch — the canvas is a
+                                 // fixed 120-dpi raster, so map internal dots to it
+                                 // at 480/120 = 4 regardless of the graphics density.
 const PAPER_BG   = '#ffffff';
 // Four ribbon bands plus the three overprint secondaries (ESC K 4-6). Orange,
 // green and purple are what the real ribbon makes by laying two bands on the
 // same dot.
 const DOT_COLORS = {
-  black:  '#1a1a1a',
-  yellow: '#ccaa00',
-  red:    '#cc2222',
-  blue:   '#1a44cc',
-  orange: '#e07a1f',
-  green:  '#2e9e3f',
-  purple: '#7a3d97',
+  black:   '#1a1a1a',
+  yellow:  '#ccaa00',
+  magenta: '#c0268a',   // purplish-red band (Table 8-6), not pure red
+  cyan:    '#0093b0',   // greenish-blue band, not pure blue
+  orange:  '#e07a1f',   // yellow + magenta
+  green:   '#2e9e3f',   // yellow + cyan
+  purple:  '#7a3d97',   // magenta + cyan
 };
 
 // Ribbon bands as a bitmask. A single strike paints its colour at full strength
 // (readable); when the head overstrikes a dot with a different band, the ink
-// mixes subtractively — yellow+blue = green, red+blue = purple, etc. — exactly
-// as the real four-band ribbon does on a LF-back-and-reprint. We model that by
-// accumulating the bands struck at each dot, not by making ink translucent.
-const BAND = { Y: 1, R: 2, B: 4, K: 8 };
+// mixes subtractively — yellow+cyan = green, magenta+cyan = purple, etc. —
+// exactly as the real four-band ribbon does on a LF-back-and-reprint. We model
+// that by accumulating the bands struck at each dot, not by making ink
+// translucent.
+const BAND = { Y: 1, M: 2, C: 4, K: 8 };
 
 // Which band(s) each selectable colour lays down. The direct secondaries
 // (ESC K 4-6) deposit both constituent bands, so a further overstrike keeps
 // mixing correctly.
 const COLOR_BANDS = {
-  black:  BAND.K,
-  yellow: BAND.Y,
-  red:    BAND.R,
-  blue:   BAND.B,
-  orange: BAND.Y | BAND.R,
-  green:  BAND.Y | BAND.B,
-  purple: BAND.R | BAND.B,
+  black:   BAND.K,
+  yellow:  BAND.Y,
+  magenta: BAND.M,
+  cyan:    BAND.C,
+  orange:  BAND.Y | BAND.M,
+  green:   BAND.Y | BAND.C,
+  purple:  BAND.M | BAND.C,
 };
 
 // Resolve an accumulated band mask to a paint colour. Any black band → black;
@@ -60,14 +65,14 @@ const COLOR_BANDS = {
 // overstruck ink goes.
 function mixInk(mask) {
   if (mask & BAND.K) return DOT_COLORS.black;
-  switch (mask & (BAND.Y | BAND.R | BAND.B)) {
+  switch (mask & (BAND.Y | BAND.M | BAND.C)) {
     case BAND.Y:                   return DOT_COLORS.yellow;
-    case BAND.R:                   return DOT_COLORS.red;
-    case BAND.B:                   return DOT_COLORS.blue;
-    case BAND.Y | BAND.R:          return DOT_COLORS.orange;
-    case BAND.Y | BAND.B:          return DOT_COLORS.green;
-    case BAND.R | BAND.B:          return DOT_COLORS.purple;
-    case BAND.Y | BAND.R | BAND.B: return '#3a2a14'; // all three → dark brown
+    case BAND.M:                   return DOT_COLORS.magenta;
+    case BAND.C:                   return DOT_COLORS.cyan;
+    case BAND.Y | BAND.M:          return DOT_COLORS.orange;
+    case BAND.Y | BAND.C:          return DOT_COLORS.green;
+    case BAND.M | BAND.C:          return DOT_COLORS.purple;
+    case BAND.Y | BAND.M | BAND.C: return '#3a2a14'; // all three → dark brown
     default:                       return DOT_COLORS.black;
   }
 }
@@ -121,6 +126,8 @@ export class PrinterWindow extends BaseWindow {
           <button id="pr-download-txt" class="pr-btn" title="Download as plain text">TXT</button>
           <button id="pr-download-png" class="pr-btn" title="Export as PNG image">PNG</button>
           <button id="pr-download-pdf" class="pr-btn" title="Print / save as PDF">PDF</button>
+          <div class="pr-sep"></div>
+          <button id="pr-dump" class="pr-btn" title="Print the current //e screen as graphics (ESC G bit-image dump)">Dump Screen</button>
           <div class="pr-sep"></div>
           <button id="pr-clear" class="pr-btn pr-btn-dim" title="Clear output">Clear</button>
           <div class="pr-sep"></div>
@@ -241,6 +248,7 @@ export class PrinterWindow extends BaseWindow {
       downloadTxt: el.querySelector("#pr-download-txt"),
       downloadPng: el.querySelector("#pr-download-png"),
       downloadPdf: el.querySelector("#pr-download-pdf"),
+      dump:        el.querySelector("#pr-dump"),
       clear:       el.querySelector("#pr-clear"),
       fit:         el.querySelector("#pr-fit"),
       lfUp:        el.querySelector("#pr-lf-up"),
@@ -364,6 +372,7 @@ export class PrinterWindow extends BaseWindow {
     el.downloadTxt.addEventListener("click", () => this._downloadTxt());
     el.downloadPng.addEventListener("click", () => this._downloadPng());
     el.downloadPdf.addEventListener("click", () => this._downloadPdf());
+    el.dump.addEventListener("click",        () => this.dumpScreen());
     el.clear.addEventListener("click",       () => this._clear());
     el.fit.addEventListener("click",         () => this._toggleFit());
     el.lfUp.addEventListener("click",        () => this._panelFeed("up"));
@@ -545,15 +554,26 @@ export class PrinterWindow extends BaseWindow {
   _renderDots({ byte: colByte, xDot, yDot, dotW, dotH, color }) {
     if (!this.elements?.ctx) return;
     const ctx = this.elements.ctx;
-    const px  = Math.round(xDot / dotW) * DOT_PX;
-    const py  = this._yToCanvas(Math.round(yDot / dotH) * DOT_PX);
-    const dW  = DOT_PX;
-    const glyphH = Math.round(9 * VSTRETCH);
+    // Map the printer's internal dot grid (480/inch) onto the canvas the SAME
+    // way text does: horizontally ÷(480/120) and vertically ÷(480/72)×VSTRETCH,
+    // a fixed 120-dpi raster. The graphics density (dotW/dotH) only governs how
+    // far the cursor steps per emitted dot — it must NOT change the canvas px
+    // scale. So a 560-dot 72-dpi screen dump spans 560/72 = 7.78" and fills the
+    // page width, exactly like a real ImageWriter, rather than 1px-per-dot
+    // (which collapsed every density to the same too-small size). Each dot's
+    // canvas footprint is its physical pitch, so neighbouring dots butt/overlap
+    // into solid ink with no gaps.
+    const px      = Math.round(xDot / HDOT_INTERNAL) * DOT_PX;
+    const py      = this._yToCanvas(yDot / VDOT_INTERNAL);
+    const rowStep = (dotH / VDOT_INTERNAL) * VSTRETCH;                 // canvas px between data rows
+    const dW      = Math.max(DOT_PX, Math.round((dotW / HDOT_INTERNAL) * DOT_PX));
+    const dH      = Math.max(DOT_H_PX, Math.round(rowStep) + 1);
+    const glyphH  = Math.round(8 * rowStep);
 
-    this._ensureCanvasHeight(py + glyphH + DOT_PX);
+    this._ensureCanvasHeight(py + glyphH + dH);
 
-    for (let r = 0; r < 9; r++) {
-      if (colByte & (1 << r)) this._inkDot(ctx, px, py + Math.round(r * VSTRETCH), dW, DOT_H_PX, color);
+    for (let r = 0; r < 8; r++) {
+      if (colByte & (1 << r)) this._inkDot(ctx, px, py + Math.round(r * rowStep), dW, dH, color);
     }
 
     this._markHead(px, py, Math.max(2, dW), glyphH);
@@ -662,6 +682,24 @@ export class PrinterWindow extends BaseWindow {
   // Panel feed: 'up' | 'down' (one line) or 'ff' (form feed to next page).
   feed(kind) { this._panelFeed(kind); }
 
+  // Swap the ribbon cartridge ('bw' | 'color'). Future ink lands in the new
+  // colour; ink already on the paper is unchanged.
+  setRibbon(id) {
+    this.printerManager.setRibbon(id);
+    const r = this.printerManager.getRibbon();
+    if (this.elements?.ribbon) this.elements.ribbon.value = r;
+    return r;
+  }
+
+  // Mains switch. Off ignores incoming bytes and forces the panel offline; on
+  // brings the printer back online (paper is preserved either way).
+  setPower(on) {
+    const state = this.printerManager.setPower(on);
+    if (!state) this.setOnline(false);
+    else        this.setOnline(true);
+    return state;
+  }
+
   // Switch active printer model by id (e.g. 'imagewriter-ii', 'epson-fx80').
   setModel(id) {
     const def = PRINTER_MODELS.find((m) => m.id === id);
@@ -679,12 +717,32 @@ export class PrinterWindow extends BaseWindow {
     return !!ok;
   }
 
+  // Dump the current //e screen to the printer as an ESC G bit-image stream.
+  // Reads the live RGBA framebuffer, thresholds it to 1-bit ink, and feeds a
+  // faithful graphics stream through the parser — the same path a real
+  // screen-dump utility drives. `fb`/`width`/`height` can be supplied for an
+  // arbitrary bitmap; default to the //e screen. Returns a status object.
+  dumpScreen(fb = null, width = SCREEN_W, height = SCREEN_H, opts = {}) {
+    const printer = this.printerManager.getActivePrinter();
+    const id = printer.getId();
+    if (id !== "imagewriter-ii" && id !== "imagewriter-i") {
+      return { success: false, message: `Screen dump needs an ImageWriter model (active: ${id})` };
+    }
+    const pixels = fb || window.emulator?._lastFramebuffer;
+    if (!pixels) return { success: false, message: "No framebuffer available — is the emulator running?" };
+
+    const bytes = buildScreenDump(pixels, width, height, opts);
+    this.printerManager.feedBytes(bytes);
+    return { success: true, width, height, bytes: bytes.length, message: `Dumped ${width}×${height} screen to printer` };
+  }
+
   // Snapshot of printer/paper status.
   getState() {
     const p = this.printerManager.getActivePrinter();
     return {
       model:        p.getId(),
       modelName:    p.getName(),
+      power:        this.printerManager.getPower(),
       online:       this.online,
       ribbon:       this.printerManager.getRibbon(),
       pageSize:     p.getPageSize?.() ?? null,
@@ -719,6 +777,10 @@ export class PrinterWindow extends BaseWindow {
 
   // Capture the paper as a PNG. Returns { imageBase64 (no data: prefix), width, height }.
   capturePaper() {
+    // Headless agents capture with the tab backgrounded, where the paced rAF
+    // scheduler is frozen and the canvas would be blank/stale. Force the full
+    // backlog onto the paper first so the snapshot reflects every byte sent.
+    this.printerManager.drainNow();
     const cv  = this._paperCanvas();
     const url = cv.toDataURL("image/png");
     return { imageBase64: url.split(",")[1], width: cv.width, height: cv.height };

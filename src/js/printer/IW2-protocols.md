@@ -83,7 +83,11 @@ Each pitch sets both the text advance **and** the graphics horizontal density.
 Default pitch = DIP SW1-6/1-7 (power-on). Pica is the common default.
 
 > **Graphics density follows the active pitch** (Table 8-2). `_gfxDotW = DPI / density`.
-> Currently modelled: pica 80 / elite 96 / condensed 120 / ultra 136 (extend with the rest).
+> All eight modelled: extended 72 / pica 80 / elite 96 / semicondensed 107 /
+> condensed 120 / ultra 136 / prop-pica 144 / prop-elite 160. `ESC F` dot-column
+> placement counts in these same per-pitch units. Proportional pitches (`ESC p/P`)
+> use the correct 144/160 graphics density but fall back to fixed-width text advance
+> (10/12 cpi) until the proportional ROM is plumbed.
 
 ---
 
@@ -397,7 +401,9 @@ every effective-quality change so faster fonts genuinely print quicker.
 
 - ✅ Font select + draft-incompatibility rule + per-quality cps carriage timing.
 - ✅ Underline / bold / half-height / super / subscript / double-width render.
-- ✅ Native `ESC G/S/g` graphics with ASCII-decimal counts + pitch density.
+- ✅ Native `ESC G/S/g/V` graphics with ASCII-decimal counts; bit 7 = bottom dot
+  (Fig 8-1). All eight pitch densities (`ESC n/N/E/e/q/Q/p/P`, 72–160 dpi) +
+  `ESC F` dot-column head placement counted in the active pitch's density.
 - ✅ `ESC Y` freed for stop-underline (no graphics collision).
 - ✅ Colour `ESC K 0-6` incl. secondaries + multiply overprint; bold/colour half-speed.
 - ✅ Custom downloaded chars: `ESC I` load + `ESC '`/`ESC *` select + `ESC $` off, rendered.
@@ -411,4 +417,5 @@ every effective-quality change so faster fonts genuinely print quicker.
 - ⬜ Horizontal tabs (`ESC ( / ) / u`, CTRL-I) and reverse feed (`ESC r`) not modelled.
 - ⬜ `ESC D/Z` software-switch family (slash-zero, 8th-bit, language sets) not modelled.
 - ⬜ 144-dpi two-pass vertical graphics not modelled.
-- ⬜ Extended/semicondensed pitches (`ESC n` / `ESC e`) not modelled.
+- ✅ All eight pitches incl. extended/semicondensed (`ESC n` / `ESC e`) — text
+  advance + graphics density. (Proportional ROM widths still pending, above.)

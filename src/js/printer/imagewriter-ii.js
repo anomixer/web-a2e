@@ -27,21 +27,35 @@ const DPI          = 480;
 const DOT_W        = DPI / 120;   // 4 px — draft char dot column width (120 dpi horiz)
 const DOT_V        = DPI / 72;    // ~6.667 px — vertical dot pitch (72 dpi vert)
 
-// Characters per inch → char advance width in canvas px
-const CPI = { pica: 10, elite: 12, condensed: 15, ultra: 17 };
+// The eight horizontal pitches (Table 8-2). Each sets BOTH the text advance
+// (cpi — proportional pitches fall back to their fixed base while the
+// proportional ROM is unplumbed) AND the graphics dot density used by every
+// ESC G/S/g/V/F command. Keeping the two in one table guarantees graphics
+// density always tracks the pitch, exactly as the manual requires.
+const CPI = {
+  extended: 9, pica: 10, elite: 12, semicond: 13.4,
+  condensed: 15, ultra: 17, propPica: 10, propElite: 12,
+};
 
-// ESC G/S/g graphics: horizontal dot density (dots/inch) by the pitch in force
-// (Table 8-1). Each graphics data byte is one 8-dot-high column at this density.
-const GFX_DENSITY = { pica: 80, elite: 96, condensed: 120, ultra: 136 };
+// ESC G/S/g/V graphics: horizontal dot density (dots/inch) by the pitch in
+// force (Table 8-2). Each graphics data byte is one 8-dot-high column at this
+// density; ESC F head placement counts dot columns in these same units.
+const GFX_DENSITY = {
+  extended: 72, pica: 80, elite: 96, semicond: 107,
+  condensed: 120, ultra: 136, propPica: 144, propElite: 160,
+};
 
 // Printable carriage width: 8 inches. Head auto-wraps (CR+LF) at this margin,
 // just like real hardware — the paper never grows wider.
 const PLATEN_DOTS = DPI * 8;
 
-// ESC K colour index → ribbon colour (Table A-18). 0-3 are the four ribbon
-// bands; 4-6 are the secondary colours the real printer makes by overprinting
-// two bands (orange = yellow+red, green = yellow+blue, purple = red+blue).
-const COLORS = ['black', 'yellow', 'red', 'blue', 'orange', 'green', 'purple'];
+// ESC K colour index → ribbon band (Table 8-6). The colour ribbon's four
+// physical bands are black, yellow, magenta (purplish-red) and cyan
+// (greenish-blue); 4-6 are the secondaries the printer makes AUTOMATICALLY by
+// overprinting two bands (orange = yellow+magenta, green = yellow+cyan,
+// purple = magenta+cyan). Other printer manuals colloquially call magenta
+// "red" and the magenta+cyan purple "blue" — the manual flags this itself.
+const COLORS = ['black', 'yellow', 'magenta', 'cyan', 'orange', 'green', 'purple'];
 
 export class ImageWriterII extends PrinterBase {
   constructor() {
@@ -149,12 +163,14 @@ export class ImageWriterII extends PrinterBase {
         switch (ch) {
           // Character pitch. ESC p/P are the proportional pitches; selecting one
           // forces the correspondence font (proportional isn't a draft/NLQ feature).
-          case 0x4E: this._pitch = 'pica';  this._proportional = false; break;  // ESC N — pica (10 cpi)
-          case 0x45: this._pitch = 'elite'; this._proportional = false; break;  // ESC E — elite (12 cpi)
-          case 0x71: this._pitch = 'condensed'; this._proportional = false; break;  // ESC q — condensed (15 cpi)
-          case 0x51: this._pitch = 'ultra';     this._proportional = false; break;  // ESC Q — ultracondensed (17 cpi)
-          case 0x70: this._pitch = 'pica';  this._proportional = true; this._applyHeadSpeed(); break;  // ESC p — proportional (pica base)
-          case 0x50: this._pitch = 'elite'; this._proportional = true; this._applyHeadSpeed(); break;  // ESC P — proportional (elite base)
+          case 0x6E: this._pitch = 'extended';  this._proportional = false; break;  // ESC n — extended (9 cpi, 72 dpi gfx)
+          case 0x4E: this._pitch = 'pica';      this._proportional = false; break;  // ESC N — pica (10 cpi, 80 dpi gfx)
+          case 0x45: this._pitch = 'elite';     this._proportional = false; break;  // ESC E — elite (12 cpi, 96 dpi gfx)
+          case 0x65: this._pitch = 'semicond';  this._proportional = false; break;  // ESC e — semicondensed (13.4 cpi, 107 dpi gfx)
+          case 0x71: this._pitch = 'condensed'; this._proportional = false; break;  // ESC q — condensed (15 cpi, 120 dpi gfx)
+          case 0x51: this._pitch = 'ultra';     this._proportional = false; break;  // ESC Q — ultracondensed (17 cpi, 136 dpi gfx)
+          case 0x70: this._pitch = 'propPica';  this._proportional = true; this._applyHeadSpeed(); break;  // ESC p — proportional-pica (144 dpi gfx)
+          case 0x50: this._pitch = 'propElite'; this._proportional = true; this._applyHeadSpeed(); break;  // ESC P — proportional-elite (160 dpi gfx)
 
           // Print quality (Table 4-1). ESC m/ESC M are Apple Scribe aliases.
           case 0x6D: this._quality = 'corr'; this._applyHeadSpeed(); break;  // ESC m — correspondence font
@@ -370,8 +386,10 @@ export class ImageWriterII extends PrinterBase {
         if (this._xDot < this._leftMargin) this._xDot = this._leftMargin;
         this._state = S_NORMAL;
         break;
-      case 0x46: // ESC F — head to dot column n from the left margin (160 dpi units)
-        this._xDot = this._leftMargin + Math.round(n * (DPI / 160));
+      case 0x46: // ESC F — head to dot column n from the left margin. Dot columns
+                 // are counted at the active pitch's graphics density (Table 8-2),
+                 // not a fixed unit, so placement tracks the pitch like graphics.
+        this._xDot = this._leftMargin + Math.round(n * this._gfxDotW());
         this._state = S_NORMAL;
         break;
       case 0x52: this._state = S_REPEAT_CHAR; break;  // ESC R — char byte follows

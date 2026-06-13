@@ -3,7 +3,7 @@
  *
  * The fabric ribbon loaded in the carriage. A black ribbon prints everything
  * black no matter what colour the data selects; the four-band colour ribbon
- * (black / yellow / red / blue on the ImageWriter II) honours ESC K colour
+ * (black / yellow / magenta / cyan on the ImageWriter II) honours ESC K colour
  * selection. Swapping the cart is a physical act — future ink lands in the new
  * colour; ink already on the paper is unchanged.
  *

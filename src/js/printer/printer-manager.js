@@ -36,6 +36,7 @@ export class PrinterManager {
     this.sound              = new PrinterSound(getSharedAudioContext);
     this._callbackInstalled = false;
     this._onPrinterChange   = null;
+    this._powered           = true;   // mains switch; off = head dead, bytes ignored
 
     // Installed ribbon cartridge (applies to whichever model is active).
     this._ribbon = this._loadRibbon();
@@ -105,6 +106,23 @@ export class PrinterManager {
     requestAnimationFrame(loop);
   }
 
+  // Force every queued event out NOW, ignoring wall-clock pacing. The normal
+  // scheduler releases events on requestAnimationFrame, which a backgrounded tab
+  // throttles to a near-halt — so an agent capturing the paper headless would
+  // see a blank/stale canvas. drainNow() flushes the parser's partial line and
+  // fires the whole backlog synchronously so the canvas reflects every byte
+  // received. Use before a capture; playback sound/timing is irrelevant here.
+  drainNow() {
+    if (this._flushTimer) { clearTimeout(this._flushTimer); this._flushTimer = null; }
+    this.activePrinter.flushLine?.();        // commit partial line → enqueues events
+    let guard = 1_000_000;
+    while (this._sched.length && guard-- > 0) {
+      const evt = this._sched.shift();
+      this.activePrinter._fire(evt.name, evt.data);
+    }
+    this._pumping = false;
+  }
+
   async init() {
     if (this._callbackInstalled) return;
     if (!this.wasmProxy || !this.wasmProxy._setParallelTxCallback) return;
@@ -122,7 +140,19 @@ export class PrinterManager {
   // and the scheduler paces the output. Arm an idle flush so a trailing line
   // with no terminating CR still prints.
   receiveByte(byte) {
+    if (!this._powered) return;                       // unplugged: byte hits nothing
     this.activePrinter.receiveByte(byte);
+    if (this._flushTimer) clearTimeout(this._flushTimer);
+    this._flushTimer = setTimeout(() => this.activePrinter.flushLine?.(), 120);
+  }
+
+  // Feed a whole block of bytes (e.g. a host-built screen dump) straight to the
+  // parser, arming a single trailing flush instead of one per byte. The head
+  // model still buffers each line and the scheduler paces playback, so the dump
+  // prints out at hardware speed exactly like a host-sent graphics stream.
+  feedBytes(bytes) {
+    if (!this._powered) return;                       // unplugged: nothing prints
+    for (let i = 0; i < bytes.length; i++) this.activePrinter.receiveByte(bytes[i]);
     if (this._flushTimer) clearTimeout(this._flushTimer);
     this._flushTimer = setTimeout(() => this.activePrinter.flushLine?.(), 120);
   }
@@ -144,6 +174,27 @@ export class PrinterManager {
   }
 
   getRibbon() { return this._ribbon; }
+
+  // ===== Power =====
+
+  // Mains switch. Powering off drops any queued motion (the head stops mid-page)
+  // but leaves printed paper untouched — same as flipping the switch on real
+  // hardware. Powering back on resumes from a quiet, idle head.
+  setPower(on) {
+    const next = !!on;
+    if (next === this._powered) return this._powered;
+    this._powered = next;
+    if (!next) {
+      this._sched.length = 0;
+      this._pumping      = false;
+      if (this._flushTimer) { clearTimeout(this._flushTimer); this._flushTimer = null; }
+    } else {
+      this._cursor = now();
+    }
+    return this._powered;
+  }
+
+  getPower() { return this._powered; }
 
   // ===== Model switching =====
 
