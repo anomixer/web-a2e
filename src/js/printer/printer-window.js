@@ -536,13 +536,78 @@ export class PrinterWindow extends BaseWindow {
 
   // ===== Toolbar =====
 
-  _toggleOnline() {
-    this.online = !this.online;
-    if (this.elements.online) {
+  _toggleOnline() { this.setOnline(!this.online); }
+
+  // ===== Public API (agent-controllable) =====
+
+  // Set printer online/offline.
+  setOnline(on) {
+    this.online = !!on;
+    if (this.elements?.online) {
       this.elements.online.className = this.online
         ? "pr-toggle pr-toggle-on"
         : "pr-toggle pr-toggle-off";
     }
+    return this.online;
+  }
+
+  // Clear the paper (reset glyph state + canvas/text buffer).
+  clearPaper() { this._clear(); }
+
+  // Panel feed: 'up' | 'down' (one line) or 'ff' (form feed to next page).
+  feed(kind) { this._panelFeed(kind); }
+
+  // Switch active printer model by id (e.g. 'imagewriter-ii', 'epson-fx80').
+  setModel(id) {
+    const def = PRINTER_MODELS.find((m) => m.id === id);
+    if (!def) return false;
+    this.printerManager.setActivePrinter(def.create());
+    if (this.elements?.model) this.elements.model.value = id;
+    return true;
+  }
+
+  // Snapshot of printer/paper status.
+  getState() {
+    const p = this.printerManager.getActivePrinter();
+    return {
+      model:        p.getId(),
+      modelName:    p.getName(),
+      online:       this.online,
+      ribbon:       this.printerManager.getRibbon(),
+      canvasMode:   this._canvasMode,
+      textLength:   this.text.length,
+      paperHeightPx: this._canvasMode && this.elements ? this.elements.canvas.height : 0,
+    };
+  }
+
+  // Render the current paper to a standalone canvas (dot-matrix models use the
+  // live paper canvas; text models are typeset onto a fresh one).
+  _paperCanvas() {
+    if (this._canvasMode && this.elements) return this.elements.canvas;
+    const lines      = this.text.split("\n");
+    const fontSize   = 13;
+    const lineHeight = Math.round(fontSize * 1.45);
+    const padding    = 20;
+    const width      = 640;
+    const height     = Math.max(200, lines.length * lineHeight + padding * 2);
+    const canvas     = document.createElement("canvas");
+    canvas.width  = width;
+    canvas.height = height;
+    const ctx     = canvas.getContext("2d");
+    ctx.fillStyle = PAPER_BG;
+    ctx.fillRect(0, 0, width, height);
+    ctx.fillStyle    = "#1a1a1a";
+    ctx.font         = `${fontSize}px 'Courier New', monospace`;
+    ctx.textBaseline = "top";
+    lines.forEach((line, i) => ctx.fillText(line, padding, padding + i * lineHeight));
+    return canvas;
+  }
+
+  // Capture the paper as a PNG. Returns { imageBase64 (no data: prefix), width, height }.
+  capturePaper() {
+    const cv  = this._paperCanvas();
+    const url = cv.toDataURL("image/png");
+    return { imageBase64: url.split(",")[1], width: cv.width, height: cv.height };
   }
 
   _clear() {

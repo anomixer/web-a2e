@@ -13,6 +13,7 @@ import { mainTools } from "./main-tools.js";
 import { diskTools } from "./disk-tools.js";
 import { smartportTools } from "./smartport-tools.js";
 import { slotTools } from "./slot-tools.js";
+import { printerTools } from "./printer-tools.js";
 import { agentVersionTools } from "./agent-version-tools.js";
 
 /**
@@ -29,6 +30,7 @@ const AGENT_TOOLS = {
   ...diskTools,
   ...smartportTools,
   ...slotTools,
+  ...printerTools,
   ...agentVersionTools,
   /**
    * Generic command wrapper (from MCP server)
