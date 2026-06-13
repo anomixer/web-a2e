@@ -58,8 +58,8 @@ async function persistSlotConfig(wasmModule) {
   // Refresh the slot configuration window UI if it exists
   const slotWindow = window.emulator?.windowManager?.getWindow("slot-configuration");
   if (slotWindow) {
-    slotWindow.loadSettings();
-    slotWindow.updateDisabledOptions();
+    if (typeof slotWindow.loadSettings === "function") slotWindow.loadSettings();
+    if (typeof slotWindow.updateDisabledOptions === "function") slotWindow.updateDisabledOptions();
   }
 }
 

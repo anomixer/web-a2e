@@ -359,11 +359,31 @@ function updateColControls() {
   }
 }
 
+// Width is a per-glyph, per-locale property: it lives in the length of THIS
+// (locale, code) byte array, nothing else. Commit the column change straight to
+// the active locale's own storage so it never rides on the shared base width.
+// On a non-US locale this forks an override (seeded from what's displayed); on
+// US it edits the base. Without this, +/- only touched the transient edit buffer
+// and a locale inheriting the base glyph appeared to share its width globally.
+function persistWidthEdit() {
+  const st = modeStates[mode];
+  if (locale === 'US') {
+    st.base[code] = gridToBytes();
+  } else {
+    if (!st.localeData[locale]) st.localeData[locale] = {};
+    st.localeData[locale][code] = gridToBytes();
+    if (!st.localeMap.find(m => m.locale === locale && m.code === code))
+      st.localeMap.push({ locale, code });
+  }
+  saveState();
+}
+
 function addColumn() {
   const cfg = MODE_CONFIG[mode];
   if (COLS >= cfg.colMax) return;
   for (let r = 0; r < ROWS; r++) grid[r].push(false);
   COLS++;
+  persistWidthEdit();
   buildGrid(); refreshAll(); checkViolations(); updateBytesDisplay(); renderGallery(); updateColControls();
 }
 
@@ -372,6 +392,7 @@ function removeColumn() {
   if (COLS <= cfg.colMin) return;
   for (let r = 0; r < ROWS; r++) grid[r].pop();
   COLS--;
+  persistWidthEdit();
   buildGrid(); refreshAll(); checkViolations(); updateBytesDisplay(); renderGallery(); updateColControls();
 }
 

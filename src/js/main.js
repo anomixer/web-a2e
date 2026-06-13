@@ -109,9 +109,12 @@ class AppleIIeEmulator {
     this.showLoading(true);
 
     try {
-      // Load WASM module in a Web Worker via proxy
+      // Load WASM module in a Web Worker via proxy.
+      // Cache-bust the loader AND the .wasm fetch: in dev use a per-load token
+      // so rebuilds are always picked up; in prod key off the app version.
       this.wasmModule = new WasmProxy();
-      await this.wasmModule.init('/a2e.js');
+      const wasmBust = import.meta.env.DEV ? Date.now() : VERSION;
+      await this.wasmModule.init(`/a2e.js?v=${wasmBust}`);
 
       // Set up renderer
       const canvas = document.getElementById("screen");
@@ -381,10 +384,19 @@ class AppleIIeEmulator {
       this.windowManager.register(serialConnectionWindow);
 
       // Printer window
-      const printerManager = new PrinterManager(this.wasmModule);
+      const printerManager = new PrinterManager(
+        this.wasmModule,
+        () => this.audioDriver?.audioContext || null,
+      );
       const printerWindow  = new PrinterWindow(printerManager);
       printerWindow.create();
       this.windowManager.register(printerWindow);
+      this.printerManager = printerManager;
+      this.printerWindow  = printerWindow;
+      // Install the printer output callback at startup so PR#n capture works
+      // even when the Printer window is closed. The worker WASM is already
+      // ready here (wasmModule.init() was awaited earlier), so the RPC lands.
+      printerManager.init().catch((e) => console.warn("printer init failed:", e));
 
       // Set up UI controller
       this.uiController = new UIController({

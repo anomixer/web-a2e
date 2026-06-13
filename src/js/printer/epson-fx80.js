@@ -103,10 +103,11 @@ export class EpsonFX80 extends PrinterBase {
     this._script     = 0;      // 0=none, 1=superscript, 2=subscript
     this._lineHeight = DEFAULT_LINE_HEIGHT;
     this._xDot       = 0;
-    this._yDot       = 0;
+    this._yDot       = this._homeYDot();   // power-on head rest, a hair below sheet top
   }
 
   reset() {
+    super.reset();             // carriage/head kinematics back to home
     this._resetParserState();
     this._resetRenderState();
   }
@@ -230,6 +231,11 @@ export class EpsonFX80 extends PrinterBase {
   }
 
   _normal(ch) {
+    // Apple/SSC end each line with CR+LF; coalesce an LF that arrives right after
+    // a CR so the paper feeds once (no blank line between rows). Standalone LF
+    // still feeds normally.
+    const wasCR = this._lastCR;
+    this._lastCR = false;
     switch (ch) {
       case 0x07: break;                           // BEL — ignore
       case 0x08:                                  // BS — backspace
@@ -237,17 +243,19 @@ export class EpsonFX80 extends PrinterBase {
         break;
       case 0x09: break;                           // HT — horizontal tab (not impl)
       case 0x0A:                                  // LF — line feed
-        this._yDot += this._lineHeight;
-        this.emit('linefeed');
+        if (!wasCR) {                             // LF paired with CR is swallowed
+          this._yDot += this._lineHeight;
+          this.emit('linefeed');
+        }
         break;
       case 0x0B: break;                           // VT — vertical tab (not impl)
       case 0x0C:                                  // FF — form feed
-        this._xDot = 0; this._yDot = 0;
-        this.emit('formfeed');
+        this.formFeed();   // slew to next top-of-form (shared with panel)
         break;
       case 0x0D:                                  // CR — carriage return + implicit LF
         this._xDot  = 0;
         this._yDot += this._lineHeight;
+        this._lastCR = true;                      // arm CR+LF coalescing
         this.emit('newline');
         break;
       case 0x0E:                                  // SO — one-line expanded on
@@ -505,6 +513,7 @@ export class EpsonFX80 extends PrinterBase {
   static get DOT_W() { return DOT_W; }
   static get DOT_V() { return DOT_V; }
 
+  getCharsPerSecond() { return 160; } // FX-80 draft
   getName() { return "Epson FX-80"; }
   getId()   { return "epson-fx80"; }
 }

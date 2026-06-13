@@ -551,7 +551,7 @@ export class SlotConfigurationWindow extends BaseWindow {
 
   async applyInitialSettings() {
     const saved = this.loadSettingsFromStorage();
-    const config = saved || { 5: "smartport", 7: "thunderclock" };
+    const config = saved || { 1: "parallel", 5: "smartport", 7: "thunderclock" };
     if (this.wasmModule && this.wasmModule._setSlotCard) {
       for (const [slot, cardId] of Object.entries(config)) {
         const slotNum = parseInt(slot, 10);

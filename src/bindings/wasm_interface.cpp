@@ -1293,11 +1293,17 @@ EMSCRIPTEN_KEEPALIVE
 void setSerialTxCallback() {
   REQUIRE_EMULATOR();
   g_emulator->setSerialTxCallback([](uint8_t byte) {
+    // Runs inside the Worker: the global is `self`, not `window`. Fan the byte
+    // to whichever device shim is attached to the serial port. A printer wired
+    // to the SSC (the historical ImageWriter path) consumes it via the same
+    // shim the parallel port uses — one device, two possible buses.
     EM_ASM({
-      if (window.emulator && window.emulator.modem) {
-        window.emulator.modem.processTxByte($0);
-      } else if (window.emulator && window.emulator.serialManager) {
-        window.emulator.serialManager.sendByte($0);
+      if (self.emulator && self.emulator.modem) {
+        self.emulator.modem.processTxByte($0);
+      } else if (self.emulator && self.emulator.serialManager) {
+        self.emulator.serialManager.sendByte($0);
+      } else if (self.emulator && self.emulator.printer) {
+        self.emulator.printer.receiveByte($0);
       }
     }, byte);
   });
@@ -1310,12 +1316,12 @@ bool isParallelCardInstalled() {
 }
 
 EMSCRIPTEN_KEEPALIVE
-void setPrinterCallback() {
+void setParallelTxCallback() {
   REQUIRE_EMULATOR();
-  g_emulator->setPrinterCallback([](uint8_t byte) {
+  g_emulator->setParallelTxCallback([](uint8_t byte) {
     EM_ASM({
-      if (window.emulator && window.emulator.printer) {
-        window.emulator.printer.receiveByte($0);
+      if (self.emulator && self.emulator.printer) {
+        self.emulator.printer.receiveByte($0);
       }
     }, byte);
   });

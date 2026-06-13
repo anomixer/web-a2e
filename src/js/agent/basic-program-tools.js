@@ -147,6 +147,7 @@ export const basicProgramTools = {
     writePtr(0xaf, endAddr); // PRGEND - end of program
     writePtr(0xb8, txttab - 1); // TXTPTR - interpreter text pointer
     wasmModule._writeMemory(0x76, 0xff); // CURLIN+1 = $FF (direct mode)
+    wasmModule._writeMemory(0xf2, 0x00); // TRCFLG - clear stale trace flag (#NN spam)
 
     return {
       success: true,
@@ -233,6 +234,7 @@ export const basicProgramTools = {
     writePtr(0xaf, txttab); // PRGEND - end of program
     writePtr(0xb8, txttab - 1); // TXTPTR - interpreter text pointer
     wasmModule._writeMemory(0x76, 0xff); // CURLIN+1 = $FF (direct mode)
+    wasmModule._writeMemory(0xf2, 0x00); // TRCFLG - clear stale trace flag
 
     return {
       success: true,
