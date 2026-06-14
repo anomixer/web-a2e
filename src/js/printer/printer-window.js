@@ -155,7 +155,7 @@ export class PrinterWindow extends BaseWindow {
             <div class="pr-panel-body">
               <button id="pr-fit" class="pr-pbtn" title="Toggle fit-to-width / actual size">Fit</button>
               <div class="pr-pdiv"></div>
-              <button id="pr-set-tof" class="pr-pbtn" title="Set the current position as top of form">Set TOF</button>
+              <button id="pr-set-tof" class="pr-pbtn" title="Reseat the head at the top of the first page">TOP</button>
               <button id="pr-form-feed" class="pr-pbtn" title="Form feed to next page top">FF</button>
               <button id="pr-lf-up" class="pr-pbtn" title="Line feed up (reverse one line)">LF&#9650;</button>
               <button id="pr-lf-down" class="pr-pbtn" title="Line feed down (advance one line)">LF&#9660;</button>
@@ -362,9 +362,10 @@ export class PrinterWindow extends BaseWindow {
   _initCanvas() {
     const cv  = this.elements.canvas;
     cv.width  = CANVAS_W;
-    // Start with a single sheet; _ensureCanvasHeight adds pages only as the
-    // output actually overflows onto them.
-    cv.height = this._pageHeightPx();
+    // Start with the first sheet plus two blank feed pages ahead (display-only;
+    // cropped from saved PNGs). _ensureCanvasHeight keeps the 2-page lead as
+    // printing advances.
+    cv.height = this._pageHeightPx() * 3;
     const ctx = this.elements.ctx;
     ctx.fillStyle = PAPER_BG;
     ctx.fillRect(0, 0, cv.width, cv.height);
@@ -410,8 +411,12 @@ export class PrinterWindow extends BaseWindow {
 
   _ensureCanvasHeight(neededPx) {
     const cv = this.elements.canvas;
-    if (neededPx <= cv.height) return;
-    const newH = neededPx + this._pageHeightPx();
+    // Always keep two blank fan-fold pages visible past the last used page, so
+    // the paper reads as continuous feed. These trailing pages are display-only
+    // — _usedCanvas() crops them out of any saved PNG.
+    const pageH = this._pageHeightPx();
+    const newH  = Math.ceil(Math.max(1, neededPx) / pageH) * pageH + 2 * pageH;
+    if (newH <= cv.height) return;
     const tmp  = document.createElement("canvas");
     tmp.width  = cv.width;
     tmp.height = cv.height;
@@ -464,7 +469,7 @@ export class PrinterWindow extends BaseWindow {
     el.fit.addEventListener("click",         () => this._toggleFit());
     el.lfUp.addEventListener("click",        () => this._panelFeed("up"));
     el.lfDown.addEventListener("click",      () => this._panelFeed("down"));
-    el.setTof.addEventListener("click",      () => this.printerManager.getActivePrinter().setTopOfForm());
+    el.setTof.addEventListener("click",      () => this._headToTop());
     el.formFeed.addEventListener("click",    () => this._panelFeed("ff"));
     el.autolf.addEventListener("click",      () => this.setAutoLineFeed(!this.printerManager.getAutoLineFeed()));
     el.power.addEventListener("click",       () => this.setPower(!this.printerManager.getPower()));
@@ -677,7 +682,7 @@ export class PrinterWindow extends BaseWindow {
 
     this._markHead(cx, cy, (cols.length || 6) * xs * DOT_PX, glyphH);
     this._updateHeadMarker(cy + glyphH / 2);
-    this._scrollToBottom(cy + glyphH);
+    this._followHead(cy + glyphH / 2);
   }
 
   _renderDots({ byte: colByte, xDot, yDot, dotW, dotH, color }) {
@@ -707,6 +712,7 @@ export class PrinterWindow extends BaseWindow {
 
     this._markHead(px, py, Math.max(2, dW), glyphH);
     this._updateHeadMarker(py + glyphH / 2);
+    this._followHead(py + glyphH / 2);
   }
 
   // ===== Print-head impact cue =====
@@ -826,12 +832,28 @@ export class PrinterWindow extends BaseWindow {
     });
   }
 
-  _scrollToBottom(py) {
+  // Keep the print head vertically centred in the viewport as it advances.
+  // The paper sits still while the head is in the top half of the first page
+  // (the top clamp at scrollTop 0); once the head crosses centre it stays
+  // pinned to centre and the paper feeds continuously past it — no bottom-page
+  // special case. canvasY is the head row in unscaled canvas px.
+  _followHead(canvasY) {
     if (!this.elements) return;
     const feedBg = this.elements.feedBg;
-    const absY   = this.elements.paper.offsetTop + 16 + py;
-    if (absY > feedBg.scrollTop + feedBg.clientHeight - 40)
-      feedBg.scrollTop = absY - feedBg.clientHeight + 60;
+    const cv     = this.elements.canvas;
+    if (!feedBg || !cv) return;
+    // No artificial bottom pad: the two trailing blank pages already give the
+    // head room to centre, and the scroll clamps to the real paper bottom so
+    // you can't scroll past the last page.
+    const scale = cv.height ? cv.clientHeight / cv.height : 1;
+    // Head Y in feedBg's scroll-content coordinates (account for the sheet's
+    // offset within the scroller and the canvas's display scale).
+    const cvTop = cv.getBoundingClientRect().top
+                - feedBg.getBoundingClientRect().top + feedBg.scrollTop;
+    const headAbsY  = cvTop + canvasY * scale;
+    const target    = headAbsY - feedBg.clientHeight / 2;
+    const maxScroll = Math.max(0, feedBg.scrollHeight - feedBg.clientHeight);
+    feedBg.scrollTop = Math.max(0, Math.min(maxScroll, target));
   }
 
   // Operator-panel paper motion: drive the printer's vertical cursor, then
@@ -846,7 +868,21 @@ export class PrinterWindow extends BaseWindow {
       const cy = this._yToCanvas(Math.round((p._yDot | 0) / VDOT_INTERNAL) * DOT_PX);
       this._ensureCanvasHeight(cy + Math.round(12 * VSTRETCH));
       this._updateHeadMarker(cy);
-      this._scrollToBottom(cy);
+      this._followHead(cy);
+    }
+  }
+
+  // TOP button: reseat the head at the very top of the first page (yDot 0) and
+  // scroll the view there.
+  _headToTop() {
+    const p = this.printerManager.getActivePrinter();
+    if (!p) return;
+    p._yDot = 0;
+    p._xDot = 0;
+    if (this._canvasMode) {
+      const cy = this._yToCanvas(0);
+      this._updateHeadMarker(cy);
+      this._followHead(cy);
     }
   }
 
@@ -1022,7 +1058,9 @@ export class PrinterWindow extends BaseWindow {
     // scheduler is frozen and the canvas would be blank/stale. Force the full
     // backlog onto the paper first so the snapshot reflects every byte sent.
     this.printerManager.drainNow();
-    const cv  = this._paperCanvas();
+    // Canvas models: crop to used pages so the trailing blank feed pages don't
+    // appear in the capture. Text models typeset their own exact-height canvas.
+    const cv  = this._canvasMode ? (this._usedCanvas() || this._paperCanvas()) : this._paperCanvas();
     const url = cv.toDataURL("image/png");
     return { imageBase64: url.split(",")[1], width: cv.width, height: cv.height };
   }
@@ -1048,7 +1086,7 @@ export class PrinterWindow extends BaseWindow {
       // One sheet → a plain PNG. Multiple sheets (e.g. a banner) → a ZIP with
       // one PNG per page plus a full-strip PNG of everything joined.
       if (pages <= 1) {
-        cv.toBlob((blob) => this._saveBlob(blob, "printer.png"), "image/png");
+        this._usedCanvas().toBlob((blob) => this._saveBlob(blob, "printer.png"), "image/png");
       } else {
         this._exportPagesZip(cv, pageH, pages);
       }
@@ -1083,6 +1121,24 @@ export class PrinterWindow extends BaseWindow {
     return Math.max(1, Math.ceil(bottom / pageH));
   }
 
+  // The paper canvas cropped to just the used pages — drops the trailing blank
+  // feed pages so they never land in a saved/captured PNG.
+  _usedCanvas() {
+    const cv = this.elements?.canvas;
+    if (!cv) return cv;
+    const pageH = this._pageHeightPx();
+    const usedH = this._usedPageCount(pageH) * pageH;
+    if (usedH >= cv.height) return cv;
+    const out = document.createElement("canvas");
+    out.width  = cv.width;
+    out.height = usedH;
+    const o = out.getContext("2d");
+    o.fillStyle = PAPER_BG;
+    o.fillRect(0, 0, out.width, usedH);
+    o.drawImage(cv, 0, 0);
+    return out;
+  }
+
   // Slice the paper into one PNG per page + a full-strip PNG, zip, and download.
   async _exportPagesZip(cv, pageH, pages) {
     const pad   = (n) => String(n).padStart(2, "0");
@@ -1097,8 +1153,9 @@ export class PrinterWindow extends BaseWindow {
       sctx.drawImage(cv, 0, -i * pageH);   // copy this page's band
       files.push({ name: `page-${pad(i + 1)}.png`, data: await this._canvasBytes(slice) });
     }
-    // Whole run joined — for printshop/banner output spanning pages.
-    files.push({ name: "full.png", data: await this._canvasBytes(cv) });
+    // Whole run joined — for printshop/banner output spanning pages. Used pages
+    // only, no trailing blank feed pages.
+    files.push({ name: "full.png", data: await this._canvasBytes(this._usedCanvas()) });
     this._saveBlob(makeZipStore(files), "printer-pages.zip");
   }
 
