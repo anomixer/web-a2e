@@ -293,7 +293,7 @@ let diagStartC = 0;
 let diagSign   = 0;    // +1 = row increases with col, -1 = decreases, 0 = undetermined
 let pressTimer = null; // long-press timer: holding a cell still arms diagonal mode
 let pressR = 0, pressC = 0;
-const LONGPRESS_MS = 300;
+const LONGPRESS_MS = 600;
 
 function getBase()       { return modeStates[mode].base; }
 function getLocaleData() { return modeStates[mode].localeData; }
