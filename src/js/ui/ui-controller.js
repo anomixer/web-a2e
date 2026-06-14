@@ -1072,6 +1072,17 @@ export class UIController {
       });
     }
 
+    // Printer sounds toggle. PrinterSound reads a2e-printer-sounds live from
+    // localStorage (same pattern as the main volume/mute keys), so this toggle
+    // only has to persist the flag — no object to plumb through.
+    const printerSoundsToggle = document.getElementById("printer-sounds-toggle");
+    if (printerSoundsToggle) {
+      printerSoundsToggle.checked = localStorage.getItem("a2e-printer-sounds") !== "false";
+      printerSoundsToggle.addEventListener("change", (e) => {
+        localStorage.setItem("a2e-printer-sounds", e.target.checked);
+      });
+    }
+
     // Character set toggle (UK/US) - screen window header
     const screenWindowCharsetToggle = document.getElementById("screen-window-charset-toggle");
 

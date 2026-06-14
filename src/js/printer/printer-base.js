@@ -84,6 +84,7 @@ export class PrinterBase {
         return;
       case 'newline':
       case 'linefeed':
+      case 'carriagereturn':
         this._fire(event, data);     // text-view listeners (no-op in canvas mode)
         this._commitLine(event, data);
         return;
@@ -111,6 +112,16 @@ export class PrinterBase {
   }
 
   _commitFeed(kind, data) {
+    if (kind === 'carriagereturn') {
+      // CR with Auto-LF off: the head slews back to the left margin, but the
+      // paper does NOT advance — the next pass overprints this same band. Charge
+      // only the return travel; no paper-feed time, no line ratchet.
+      const returnMs = this.head.returnMs();
+      this._timed('feed', { sound: 'return', dist: this.head.x }, returnMs);
+      this.head.home();
+      return;
+    }
+
     if (kind === 'formfeed') {
       // The model has already slewed the cursor; `dist` is how far it moved.
       const ejectMs  = this.paper.feedMs(data?.dist | 0);

@@ -174,6 +174,9 @@ export const slotTools = {
     await setSlotCardWasm(wasmModule, slot, card);
     await persistSlotConfig(wasmModule);
     wasmModule._reset();
+    // Slot config drives mouse-capture enable; re-arm it like the Slot Config
+    // UI does, or ⌥-click stays gated off after an agent install/remove/move.
+    try { await window.emulator?.updateMouseHandlerState?.(); } catch (e) { /* non-fatal */ }
 
     const displaced = currentCard !== "empty" ? currentCard : null;
     let message = `${card} installed in slot ${slot}. Emulator reset.`;
@@ -228,6 +231,9 @@ export const slotTools = {
     await setSlotCardWasm(wasmModule, slot, "empty");
     await persistSlotConfig(wasmModule);
     wasmModule._reset();
+    // Slot config drives mouse-capture enable; re-arm it like the Slot Config
+    // UI does, or ⌥-click stays gated off after an agent install/remove/move.
+    try { await window.emulator?.updateMouseHandlerState?.(); } catch (e) { /* non-fatal */ }
 
     return {
       success: true,
@@ -293,6 +299,9 @@ export const slotTools = {
     await setSlotCardWasm(wasmModule, toSlot, card);
     await persistSlotConfig(wasmModule);
     wasmModule._reset();
+    // Slot config drives mouse-capture enable; re-arm it like the Slot Config
+    // UI does, or ⌥-click stays gated off after an agent install/remove/move.
+    try { await window.emulator?.updateMouseHandlerState?.(); } catch (e) { /* non-fatal */ }
 
     return {
       success: true,

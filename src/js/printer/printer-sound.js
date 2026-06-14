@@ -61,6 +61,9 @@ export class PrinterSound {
       const v = localStorage.getItem("a2e-volume");
       if (v !== null) vol = Math.max(0, Math.min(1, parseFloat(v)));
       muted = localStorage.getItem("a2e-muted") === "true";
+      // Per-source toggle in the main sound popup. Default on; off silences the
+      // printer while leaving speaker/disk/mockingboard untouched.
+      if (localStorage.getItem("a2e-printer-sounds") === "false") muted = true;
     } catch (e) { /* defaults */ }
     return muted ? 0 : vol * BASE_GAIN;
   }
@@ -79,10 +82,17 @@ export class PrinterSound {
     const ctx     = this._ctx;
     const now     = ctx.currentTime;
     const isLine  = kind === "line";
-    const dur     = isLine ? 0.045 : 0.013;
-    const freq    = isLine ? 720   : 2100;
-    const q       = isLine ? 4     : 7;
-    const peak    = (isLine ? 0.9  : 0.55) * amp;
+
+    // Real dot-matrix impact = a short broadband NOISE click, not a tone.
+    // Spectral measurements (Backes et al; JSPE noise studies) show the print
+    // head energy dominates near the basic printing frequency (~900-1000 Hz)
+    // with a broad skirt to ~5 kHz, no clean fundamental. So: noise only,
+    // bandpass centred low with a wide Q. No oscillator — oscillators have a
+    // pitch, which is what made it sing "pew".
+    const dur     = isLine ? 0.040 : 0.011;
+    const freq    = isLine ? 950   : 1500; // head/platen vs pin-strike clack
+    const q       = isLine ? 1.4   : 0.9;  // wide = broadband click, not a beep
+    const peak    = (isLine ? 0.85 : 0.7) * amp;
     const spacing = isLine ? 0.022 : 0.005; // grain-to-grain on the timeline
 
     // Schedule on the audio timeline so a synchronous burst of chars spreads
@@ -92,45 +102,35 @@ export class PrinterSound {
     this._nextTime = start + spacing;
     const stop = start + dur;
 
-    // --- Noise body: the mechanical buzz ---
+    // Sample a random window of the noise buffer per grain so successive
+    // clicks differ — a fixed start would make every impact identical.
     const src = ctx.createBufferSource();
     src.buffer = this._noiseBuf;
     src.loop   = true;
 
     const bp = ctx.createBiquadFilter();
     bp.type            = "bandpass";
-    bp.frequency.value = freq;
+    bp.frequency.value = freq + (Math.random() * 2 - 1) * (isLine ? 80 : 220);
     bp.Q.value         = q;
 
+    // A touch of high-shelf to keep the sharp "tick" transient without it
+    // turning into a pitched ring.
+    const hp = ctx.createBiquadFilter();
+    hp.type            = "highpass";
+    hp.frequency.value = isLine ? 300 : 600;
+
     const ng = ctx.createGain();
+    // Near-instant attack (impact), fast decay = a click.
     ng.gain.setValueAtTime(0.0001, start);
-    ng.gain.exponentialRampToValueAtTime(peak, start + 0.001);
+    ng.gain.exponentialRampToValueAtTime(peak, start + 0.0008);
     ng.gain.exponentialRampToValueAtTime(0.0001, stop);
 
     src.connect(bp);
-    bp.connect(ng);
+    bp.connect(hp);
+    hp.connect(ng);
     ng.connect(this._busGain);
     src.start(start);
     src.stop(stop + 0.005);
-
-    // --- Piezo tone: the high-pitched whine of the print pins firing ---
-    // Square wave with a little per-grain jitter so it shimmers like the real
-    // head rather than a steady test tone.
-    const osc = ctx.createOscillator();
-    osc.type = "square";
-    const jitter = (Math.random() * 2 - 1) * (isLine ? 60 : 260);
-    osc.frequency.value = (isLine ? 1100 : 3400) + jitter;
-
-    const og = ctx.createGain();
-    const oPeak = (isLine ? 0.18 : 0.32) * amp;
-    og.gain.setValueAtTime(0.0001, start);
-    og.gain.exponentialRampToValueAtTime(oPeak, start + 0.001);
-    og.gain.exponentialRampToValueAtTime(0.0001, stop);
-
-    osc.connect(og);
-    og.connect(this._busGain);
-    osc.start(start);
-    osc.stop(stop + 0.005);
   }
 
   // Carriage return: a sustained downward "zzzip" as the head slews back to
@@ -151,15 +151,18 @@ export class PrinterSound {
     const stop = start + dur;
     const pk   = 0.55 * Math.max(0.2, Math.min(1, intensity));
 
-    // Noise body, bandpass sweeping downward as the carriage decelerates
+    // Carriage slew = the stepping-motor whir + belt rumble, a broadband
+    // noise band that drops in pitch as the head decelerates into the margin.
+    // Lower centre + wider Q than before so it reads as a mechanical "zzzt"
+    // rather than a sawtooth laser-zip.
     const src = ctx.createBufferSource();
     src.buffer = this._noiseBuf;
     src.loop   = true;
     const bp = ctx.createBiquadFilter();
     bp.type      = "bandpass";
-    bp.Q.value   = 6;
-    bp.frequency.setValueAtTime(2600, start);
-    bp.frequency.exponentialRampToValueAtTime(900, stop);
+    bp.Q.value   = 2.2;
+    bp.frequency.setValueAtTime(1500, start);
+    bp.frequency.exponentialRampToValueAtTime(550, stop);
     const ng = ctx.createGain();
     ng.gain.setValueAtTime(0.0001, start);
     ng.gain.exponentialRampToValueAtTime(pk, start + 0.012);
@@ -168,17 +171,20 @@ export class PrinterSound {
     src.connect(bp); bp.connect(ng); ng.connect(this._busGain);
     src.start(start); src.stop(stop + 0.01);
 
-    // High sawtooth glide riding on top
-    const osc = ctx.createOscillator();
-    osc.type = "sawtooth";
-    osc.frequency.setValueAtTime(3200, start);
-    osc.frequency.exponentialRampToValueAtTime(1400, stop);
-    const og = ctx.createGain();
-    og.gain.setValueAtTime(0.0001, start);
-    og.gain.exponentialRampToValueAtTime(pk * 0.5, start + 0.012);
-    og.gain.exponentialRampToValueAtTime(0.0001, stop);
-    osc.connect(og); og.connect(this._busGain);
-    osc.start(start); osc.stop(stop + 0.01);
+    // Faint low rumble under it = the belt/frame. Noise, lowpassed. No
+    // oscillator — keeps the whole event tonal-free.
+    const rsrc = ctx.createBufferSource();
+    rsrc.buffer = this._noiseBuf;
+    rsrc.loop   = true;
+    const lp = ctx.createBiquadFilter();
+    lp.type      = "lowpass";
+    lp.frequency.value = 320;
+    const rg = ctx.createGain();
+    rg.gain.setValueAtTime(0.0001, start);
+    rg.gain.exponentialRampToValueAtTime(pk * 0.6, start + 0.012);
+    rg.gain.exponentialRampToValueAtTime(0.0001, stop);
+    rsrc.connect(lp); lp.connect(rg); rg.connect(this._busGain);
+    rsrc.start(start); rsrc.stop(stop + 0.01);
   }
 
   // Nothing sustained to stop (grains self-terminate); kept for symmetry.

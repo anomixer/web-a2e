@@ -41,6 +41,10 @@ export class PrinterManager {
     // Installed ribbon cartridge (applies to whichever model is active).
     this._ribbon = this._loadRibbon();
 
+    // Automatic Line Feed DIP (SW2-1), persisted. Default ON: CR feeds, as plain
+    // text expects. Off makes colour graphics overprint register (DazzleDraw).
+    this._autoLF = this._loadAutoLF();
+
     // Wall-clock scheduler. The head model emits timed events in bursts (a whole
     // line at once); we spread them onto the printer's own timeline (_cursor)
     // and release each as real time catches up, so paper feeds out at hardware
@@ -57,6 +61,7 @@ export class PrinterManager {
   // Wire the head model to this manager: impacts → sound, timed events → clock.
   _install(printer) {
     printer.setRibbon(this._ribbon);
+    printer.setAutoLineFeed?.(this._autoLF);
     printer.onImpact((dots, kind, xDot) => this._onImpact(dots, kind, xDot));
     printer.setEventSink((evt) => this._enqueue(evt));
   }
@@ -174,6 +179,25 @@ export class PrinterManager {
   }
 
   getRibbon() { return this._ribbon; }
+
+  // ===== Automatic Line Feed DIP (SW2-1) =====
+
+  _loadAutoLF() {
+    try {
+      const v = localStorage.getItem("a2e-printer-autolf");
+      return v === null ? true : v !== "false";   // default ON
+    } catch (e) { return true; }
+  }
+
+  setAutoLineFeed(on) {
+    this._autoLF = !!on;
+    try { localStorage.setItem("a2e-printer-autolf", String(this._autoLF)); }
+    catch (e) { /* non-fatal */ }
+    this.activePrinter.setAutoLineFeed?.(this._autoLF);
+    return this._autoLF;
+  }
+
+  getAutoLineFeed() { return this._autoLF; }
 
   // ===== Power =====
 

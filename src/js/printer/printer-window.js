@@ -85,7 +85,7 @@ export class PrinterWindow extends BaseWindow {
     super({
       id: "printer-output",
       title: "Printer",
-      minWidth: 420,
+      minWidth: 150,   // collapsed toolbar (power + PNG + PDF) bottoms out ~132px
       minHeight: 300,
       defaultWidth: 580,
       defaultHeight: 480,
@@ -97,11 +97,17 @@ export class PrinterWindow extends BaseWindow {
     this.elements       = null;
     this._canvasMode    = false;
     this._fitMode       = this._loadFitMode(); // true = scale to width
+    this._panelPinned   = this._loadPin();     // operator panel docked in-flow
   }
 
   _loadFitMode() {
     try { return localStorage.getItem("a2e-printer-fit") !== "false"; }
     catch (e) { return true; }
+  }
+
+  _loadPin() {
+    try { return localStorage.getItem("a2e-printer-panel-pinned") === "true"; }
+    catch (e) { return false; }
   }
 
   renderContent() {
@@ -115,6 +121,8 @@ export class PrinterWindow extends BaseWindow {
     return `
       <div class="pr-root">
         <div class="pr-toolbar">
+          <button id="pr-power" class="pr-toggle pr-toggle-on" title="Printer mains power. Off ignores incoming bytes and parks the head; printed paper is kept.">&#9211;</button>
+          <div class="pr-sep"></div>
           <select id="pr-model" class="pr-select" title="Printer model">
             ${modelOptions}
           </select>
@@ -122,36 +130,41 @@ export class PrinterWindow extends BaseWindow {
             ${ribbonOptions}
           </select>
           <select id="pr-page" class="pr-select" title="Form length (8&quot; printable width is fixed)"></select>
-          <div class="pr-sep"></div>
-          <button id="pr-download-txt" class="pr-btn" title="Download as plain text">TXT</button>
+          <div class="pr-spacer"></div>
           <button id="pr-download-png" class="pr-btn" title="Export as PNG image">PNG</button>
           <button id="pr-download-pdf" class="pr-btn" title="Print / save as PDF">PDF</button>
-          <div class="pr-sep"></div>
-          <button id="pr-dump" class="pr-btn" title="Print the current //e screen as graphics (ESC G bit-image dump)">Dump Screen</button>
-          <div class="pr-sep"></div>
-          <button id="pr-clear" class="pr-btn pr-btn-dim" title="Clear output">Clear</button>
-          <div class="pr-sep"></div>
-          <button id="pr-fit" class="pr-btn" title="Toggle fit-to-width / actual size">Fit</button>
-          <div class="pr-sep"></div>
-          <button id="pr-lf-up" class="pr-btn" title="Line feed up (reverse one line)">LF&#9650;</button>
-          <button id="pr-lf-down" class="pr-btn" title="Line feed down (advance one line)">LF&#9660;</button>
-          <button id="pr-set-tof" class="pr-btn" title="Set the current position as top of form">Set TOF</button>
-          <button id="pr-form-feed" class="pr-btn" title="Form feed to next page top">FF</button>
-          <div class="pr-spacer"></div>
-          <span class="pr-label">Online</span>
-          <button id="pr-online" class="pr-toggle pr-toggle-on" title="Toggle printer online state">●</button>
         </div>
-        <div class="pr-feed-bg" id="pr-feed-bg">
-          <div class="pr-sheet">
-            <div class="pr-strip"></div>
-            <div class="pr-paper" id="pr-paper">
-              <pre id="pr-output" class="pr-output"></pre>
-              <div class="pr-canvas-wrap" id="pr-canvas-wrap">
-                <canvas id="pr-canvas" class="pr-canvas"></canvas>
-                <canvas id="pr-head" class="pr-head"></canvas>
+        <div class="pr-stage">
+          <div class="pr-feed-bg" id="pr-feed-bg">
+            <div class="pr-sheet">
+              <div class="pr-strip pr-strip-left">
+                <div class="pr-headmark" id="pr-headmark" title="Print head — drag to move the paper (snaps to line spacing)"></div>
               </div>
+              <div class="pr-paper" id="pr-paper">
+                <pre id="pr-output" class="pr-output"></pre>
+                <div class="pr-canvas-wrap" id="pr-canvas-wrap">
+                  <canvas id="pr-canvas" class="pr-canvas"></canvas>
+                  <canvas id="pr-head" class="pr-head"></canvas>
+                </div>
+              </div>
+              <div class="pr-strip"></div>
             </div>
-            <div class="pr-strip"></div>
+          </div>
+          <div class="pr-panel" id="pr-panel">
+            <div class="pr-panel-tab" title="Operator panel">&#9776;</div>
+            <div class="pr-panel-body">
+              <button id="pr-fit" class="pr-pbtn" title="Toggle fit-to-width / actual size">Fit</button>
+              <div class="pr-pdiv"></div>
+              <button id="pr-set-tof" class="pr-pbtn" title="Set the current position as top of form">Set TOF</button>
+              <button id="pr-form-feed" class="pr-pbtn" title="Form feed to next page top">FF</button>
+              <button id="pr-lf-up" class="pr-pbtn" title="Line feed up (reverse one line)">LF&#9650;</button>
+              <button id="pr-lf-down" class="pr-pbtn" title="Line feed down (advance one line)">LF&#9660;</button>
+              <div class="pr-pdiv"></div>
+              <button id="pr-autolf" class="pr-pbtn" title="DIP SW2-1 — Automatic Line Feed. ON: a CR feeds paper one line (plain text / Applesoft, which sends CR only). OFF: a CR returns the head without feeding, so colour graphics overprint passes register on the same band (DazzleDraw, Print Shop colour).">Auto LF</button>
+              <div class="pr-pdiv"></div>
+              <button id="pr-dump" class="pr-pbtn" title="Print the current //e screen as graphics (ESC G bit-image dump)">Dump Screen</button>
+              <button id="pr-clear" class="pr-pbtn pr-pbtn-dim" title="Clear output">Clear</button>
+            </div>
           </div>
         </div>
       </div>
@@ -161,26 +174,51 @@ export class PrinterWindow extends BaseWindow {
 
   _renderStyles() {
     return `<style>
-      .pr-root      { display: flex; flex-direction: column; height: 100%; }
-      .pr-toolbar   { display: flex; align-items: center; gap: 4px; padding: 4px 8px; background: var(--input-bg-dark); border-bottom: 1px solid var(--border-default); flex-shrink: 0; }
+      .pr-root      { display: flex; flex-direction: column; height: 100%; min-width: 0; }
+      .pr-toolbar   { display: flex; align-items: center; gap: 4px; padding: 4px 8px; background: var(--input-bg-dark); border-bottom: 1px solid var(--border-default); flex-shrink: 0; flex-wrap: nowrap; overflow: hidden; min-width: 132px; }
       .pr-select    { padding: 2px 4px; font-size: 11px; border: 1px solid var(--border-default); border-radius: 3px; background: var(--badge-dim-bg); color: var(--text-secondary); font-family: 'Monaco', 'Menlo', monospace; cursor: pointer; }
-      .pr-btn       { padding: 2px 8px; font-size: 11px; border: 1px solid var(--border-default); border-radius: 3px; background: var(--badge-dim-bg); color: var(--text-secondary); cursor: pointer; font-family: 'Monaco', 'Menlo', monospace; }
+      .pr-btn       { padding: 2px 8px; font-size: 11px; border: 1px solid var(--border-default); border-radius: 3px; background: var(--badge-dim-bg); color: var(--text-secondary); cursor: pointer; font-family: 'Monaco', 'Menlo', monospace; flex-shrink: 0; }
       .pr-btn:hover, .pr-select:hover { background: var(--input-bg-hover); color: var(--text-primary); }
       .pr-btn-dim   { color: var(--text-muted); }
       .pr-btn-fit-on { background: var(--accent-green-bg-stronger); color: var(--accent-green); border-color: var(--accent-green); }
       .pr-sep       { width: 1px; height: 16px; background: var(--border-default); margin: 0 2px; }
       .pr-spacer    { flex: 1; }
       .pr-label     { font-size: 11px; color: var(--text-muted); font-family: 'Monaco', 'Menlo', monospace; }
-      .pr-toggle    { padding: 2px 8px; font-size: 11px; border: 1px solid var(--border-default); border-radius: 3px; cursor: pointer; font-family: 'Monaco', 'Menlo', monospace; }
+      .pr-toggle    { padding: 2px 8px; font-size: 11px; border: 1px solid var(--border-default); border-radius: 3px; cursor: pointer; font-family: 'Monaco', 'Menlo', monospace; flex-shrink: 0; }
       .pr-toggle-on  { background: var(--accent-green-bg-stronger); color: var(--accent-green); border-color: var(--accent-green); }
       .pr-toggle-off { background: var(--badge-dim-bg); color: var(--text-muted); }
 
-      .pr-feed-bg { flex: 1; overflow-y: auto; background: #444; padding: 12px 8px; }
+      /* Stage holds the scrolling paper plus the slide-out operator panel. */
+      .pr-stage   { flex: 1; position: relative; display: flex; min-height: 0; min-width: 0; overflow: hidden; }
+      .pr-feed-bg { flex: 1; min-width: 0; overflow: auto; background: #444; padding: 12px 8px; }
       .pr-sheet   { display: flex; flex-direction: row; min-height: 100%; }
+
+      /* Operator panel: by default parked off the right edge with a grab-tab
+         poking out; hover (or focus-within) glides the button column in over the
+         paper. Click the tab to PIN — the panel docks in-flow as a flex child so
+         the paper shrinks to fit beside it; click again to unpin (auto-hide). */
+      /* Collapsed = fully transparent; only the 18px tab column overlaps the
+         paper as an invisible hover hotspot. Hover (or pin) slides the column in
+         and paints the tab + body. */
+      .pr-panel       { position: absolute; top: 0; right: 0; height: 100%; display: flex; flex-direction: row; align-items: stretch; transform: translateX(calc(100% - 18px)); transition: transform 0.18s ease; z-index: 5; }
+      .pr-panel:hover, .pr-panel:focus-within { transform: translateX(0); }
+      .pr-panel.pinned { position: relative; transform: none; }
+      .pr-panel-tab   { width: 18px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: transparent; color: transparent; border-left: 1px solid transparent; font-size: 13px; cursor: pointer; writing-mode: vertical-rl; transition: color 0.12s ease; }
+      .pr-panel:hover .pr-panel-tab, .pr-panel:focus-within .pr-panel-tab, .pr-panel.pinned .pr-panel-tab { background: var(--bg-panel); border-left-color: var(--border-default); color: var(--text-muted); }
+      .pr-panel:hover .pr-panel-tab:hover { color: var(--text-primary); }
+      .pr-panel.pinned .pr-panel-tab { color: var(--accent-green); }
+      .pr-panel-body  { width: 108px; display: flex; flex-direction: column; gap: 4px; padding: 8px 6px; background: var(--bg-panel); border-left: 1px solid var(--border-default); box-shadow: -4px 0 10px rgba(0,0,0,0.28); overflow-y: auto; }
+      .pr-panel.pinned .pr-panel-body { box-shadow: none; }
+      .pr-pbtn        { padding: 5px 6px; font-size: 11px; border: 1px solid var(--border-default); border-radius: 3px; background: var(--badge-dim-bg); color: var(--text-secondary); cursor: pointer; font-family: 'Monaco', 'Menlo', monospace; text-align: center; white-space: nowrap; }
+      .pr-pbtn:hover  { background: var(--input-bg-hover); color: var(--text-primary); }
+      .pr-pbtn-on     { background: var(--accent-green-bg-stronger); color: var(--accent-green); border-color: var(--accent-green); }
+      .pr-pbtn-dim    { color: var(--text-muted); }
+      .pr-pdiv        { height: 1px; background: var(--border-default); margin: 2px 0; }
 
       .pr-strip {
         width: 22px;
         flex-shrink: 0;
+        position: relative;
         background-color: #b8b8b8;
         background-image: radial-gradient(circle at center, #ffffff 5px, transparent 5px);
         background-size: 22px 22px;
@@ -188,7 +226,53 @@ export class PrinterWindow extends BaseWindow {
         background-position: center 5px;
       }
 
-      .pr-paper { flex: 1; background: ${PAPER_BG}; position: relative; overflow: auto; padding: 0; }
+      /* Print-head row indicator riding the left tractor strip — a little
+         impact-head carriage with pin slots and a red strike point that tracks
+         the head's current paper row. Drag it to move the paper; it snaps to
+         whole line-feed intervals (see _initHeadDrag). */
+      .pr-headmark {
+        position: absolute;
+        left: 3px;
+        top: 0;
+        width: 14px;
+        height: 11px;
+        border-radius: 2px;
+        background: linear-gradient(#646e7b 0%, #3a414b 55%, #232930 100%);
+        border: 1px solid #14181d;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,0.28), 0 1px 2px rgba(0,0,0,0.5);
+        transform: translateY(-6px);
+        transition: top 0.08s linear, transform 0.1s ease;
+        display: none;
+        cursor: grab;
+        user-select: none;
+        -webkit-user-select: none;
+        z-index: 3;
+      }
+      /* vertical column of pin slots facing the paper */
+      .pr-headmark::before {
+        content: '';
+        position: absolute;
+        right: 2px; top: 2px; bottom: 2px;
+        width: 2px;
+        border-radius: 1px;
+        background: repeating-linear-gradient(#cfd5dc 0 1px, transparent 1px 2px);
+      }
+      /* red strike point — the dot the pins actually hit on the paper */
+      .pr-headmark::after {
+        content: '';
+        position: absolute;
+        right: -4px; top: 50%;
+        width: 0; height: 0;
+        border-top: 3px solid transparent;
+        border-bottom: 3px solid transparent;
+        border-left: 4px solid var(--accent-red, #e03a3e);
+        transform: translateY(-50%);
+      }
+      .pr-headmark:hover    { transform: translateY(-6px) scale(1.22); }
+      .pr-headmark.dragging { cursor: grabbing; transition: transform 0.1s ease; }
+      .pr-headmark.dragging:hover { transform: translateY(-6px) scale(1.28); }
+
+      .pr-paper { flex: 1; min-width: 0; background: ${PAPER_BG}; position: relative; overflow: auto; padding: 0; }
 
       .pr-paper::after {
         content: '';
@@ -234,6 +318,7 @@ export class PrinterWindow extends BaseWindow {
     const canvas = el.querySelector("#pr-canvas");
     const head   = el.querySelector("#pr-head");
     this.elements = {
+      toolbar:     el.querySelector(".pr-toolbar"),
       output:      el.querySelector("#pr-output"),
       paper:       el.querySelector("#pr-paper"),
       canvasWrap:  el.querySelector("#pr-canvas-wrap"),
@@ -242,10 +327,12 @@ export class PrinterWindow extends BaseWindow {
       head,
       headCtx:     head.getContext("2d"),
       feedBg:      el.querySelector("#pr-feed-bg"),
+      panel:       el.querySelector("#pr-panel"),
+      panelTab:    el.querySelector(".pr-panel-tab"),
       model:       el.querySelector("#pr-model"),
       ribbon:      el.querySelector("#pr-ribbon"),
       page:        el.querySelector("#pr-page"),
-      downloadTxt: el.querySelector("#pr-download-txt"),
+      power:       el.querySelector("#pr-power"),
       downloadPng: el.querySelector("#pr-download-png"),
       downloadPdf: el.querySelector("#pr-download-pdf"),
       dump:        el.querySelector("#pr-dump"),
@@ -255,7 +342,8 @@ export class PrinterWindow extends BaseWindow {
       lfDown:      el.querySelector("#pr-lf-down"),
       setTof:      el.querySelector("#pr-set-tof"),
       formFeed:    el.querySelector("#pr-form-feed"),
-      online:      el.querySelector("#pr-online"),
+      autolf:      el.querySelector("#pr-autolf"),
+      headMark:    el.querySelector("#pr-headmark"),
     };
     this._initCanvas();
     this._applyFit();
@@ -369,7 +457,6 @@ export class PrinterWindow extends BaseWindow {
       if (this._canvasMode) { this._initCanvas(); this._applyFit(); }
     });
 
-    el.downloadTxt.addEventListener("click", () => this._downloadTxt());
     el.downloadPng.addEventListener("click", () => this._downloadPng());
     el.downloadPdf.addEventListener("click", () => this._downloadPdf());
     el.dump.addEventListener("click",        () => this.dumpScreen());
@@ -379,7 +466,14 @@ export class PrinterWindow extends BaseWindow {
     el.lfDown.addEventListener("click",      () => this._panelFeed("down"));
     el.setTof.addEventListener("click",      () => this.printerManager.getActivePrinter().setTopOfForm());
     el.formFeed.addEventListener("click",    () => this._panelFeed("ff"));
-    el.online.addEventListener("click",      () => this._toggleOnline());
+    el.autolf.addEventListener("click",      () => this.setAutoLineFeed(!this.printerManager.getAutoLineFeed()));
+    el.power.addEventListener("click",       () => this.setPower(!this.printerManager.getPower()));
+    el.panelTab.addEventListener("click",    () => this._togglePin());
+    this._initHeadDrag();
+
+    this._refreshAutoLF();
+    this._refreshPower();
+    this._applyPin();
 
     this.contentElement.addEventListener("keydown", (e) => e.stopPropagation());
     this.contentElement.addEventListener("keyup",   (e) => e.stopPropagation());
@@ -393,6 +487,37 @@ export class PrinterWindow extends BaseWindow {
       this._attachPrinterListeners(p);
       this._refreshPageSizes();
     });
+
+    // Collapse the toolbar as the window narrows so nothing clips off-screen:
+    // page select drops first, then ribbon, then model — power + exports stay.
+    this._resizeObs = new ResizeObserver(() => this._fitToolbar());
+    this._resizeObs.observe(this.elements.toolbar);
+    this._fitToolbar();
+
+    // Keep the head on its real print row as the paper's display scale changes
+    // (panel pin/resize, fit toggle, window resize all alter canvas clientHeight).
+    this._headResizeObs = new ResizeObserver(() => {
+      if (this._canvasMode && this._headCanvasY != null)
+        this._updateHeadMarker(this._headCanvasY);
+    });
+    this._headResizeObs.observe(this.elements.canvas);
+  }
+
+  // Hide toolbar selects in priority order until the row stops overflowing.
+  // Page form-length goes first, then ribbon, then printer model. The page
+  // select is only ever shown when the active model actually has form sizes.
+  _fitToolbar() {
+    const tb = this.elements?.toolbar;
+    if (!tb) return;
+    // Reset to each control's natural visibility before re-measuring.
+    if (this.elements.page)   this.elements.page.style.display   = this._pageAvailable ? "" : "none";
+    if (this.elements.ribbon) this.elements.ribbon.style.display = "";
+    if (this.elements.model)  this.elements.model.style.display  = "";
+    const order = [this.elements.page, this.elements.ribbon, this.elements.model];
+    for (const elx of order) {
+      if (tb.scrollWidth <= tb.clientWidth + 1) break;   // fits now → stop hiding
+      if (elx && elx.style.display !== "none") elx.style.display = "none";
+    }
   }
 
   // Populate the page-size select from the active model (models without
@@ -402,10 +527,12 @@ export class PrinterWindow extends BaseWindow {
     if (!el) return;
     const printer = this.printerManager.getActivePrinter();
     const sizes   = printer.constructor?.PAGE_SIZES ?? [];
+    this._pageAvailable = sizes.length > 0;
     if (!sizes.length) { el.style.display = "none"; return; }
     el.style.display = "";
     el.innerHTML = sizes.map((s) => `<option value="${s.id}">${s.name}</option>`).join("");
     el.value = printer.getPageSize?.() ?? sizes[0].id;
+    this._fitToolbar();
   }
 
   _updateViewMode(printer) {
@@ -413,6 +540,7 @@ export class PrinterWindow extends BaseWindow {
     if (this.elements) {
       this.elements.output.style.display     = this._canvasMode ? "none"  : "";
       this.elements.canvasWrap.style.display = this._canvasMode ? "block" : "none";
+      if (!this._canvasMode && this.elements.headMark) this.elements.headMark.style.display = "none";
       this._applyFit();
     }
   }
@@ -440,7 +568,7 @@ export class PrinterWindow extends BaseWindow {
     }
     if (btn) {
       btn.textContent = this._fitMode ? "Fit" : "1:1";
-      btn.className   = this._fitMode ? "pr-btn pr-btn-fit-on" : "pr-btn";
+      btn.className   = this._fitMode ? "pr-pbtn pr-pbtn-on" : "pr-pbtn";
     }
   }
 
@@ -548,6 +676,7 @@ export class PrinterWindow extends BaseWindow {
     }
 
     this._markHead(cx, cy, (cols.length || 6) * xs * DOT_PX, glyphH);
+    this._updateHeadMarker(cy + glyphH / 2);
     this._scrollToBottom(cy + glyphH);
   }
 
@@ -577,6 +706,7 @@ export class PrinterWindow extends BaseWindow {
     }
 
     this._markHead(px, py, Math.max(2, dW), glyphH);
+    this._updateHeadMarker(py + glyphH / 2);
   }
 
   // ===== Print-head impact cue =====
@@ -629,6 +759,73 @@ export class PrinterWindow extends BaseWindow {
     }
   }
 
+  // Park the left-gutter head wedge at the given canvas row. Canvas Y is in
+  // unscaled paper px; the gutter renders at the canvas's displayed scale, so
+  // multiply by clientHeight/height to land the wedge on the right fan-fold row
+  // whether the paper is fit-to-width or shown 1:1.
+  _updateHeadMarker(canvasY) {
+    const m  = this.elements?.headMark;
+    const cv = this.elements?.canvas;
+    if (!m || !cv) return;
+    if (!this._canvasMode) { m.style.display = "none"; return; }
+    // Remember the row in unscaled canvas px so we can re-place the head when
+    // the paper's display scale changes (panel pin/resize, fit toggle, window
+    // resize) — otherwise the head drifts off the real print row.
+    this._headCanvasY = canvasY;
+    const scale = cv.height ? cv.clientHeight / cv.height : 1;
+    m.style.top = Math.round(canvasY * scale) + "px";
+    m.style.display = "block";
+  }
+
+  // Make the gutter print-head bug draggable. The head can only rest on whole
+  // line-feed boundaries, so the drag snaps to the active printer's current
+  // line spacing (6 lpi / 8 lpi / ESC T n/144"): the bug jumps row-by-row.
+  _initHeadDrag() {
+    const m = this.elements?.headMark;
+    if (!m) return;
+    let dragging = false, startMouseY = 0, startYDot = 0, dotsPerLine = 80;
+
+    const onMove = (e) => {
+      if (!dragging) return;
+      const cv    = this.elements.canvas;
+      const scale = cv.height ? cv.clientHeight / cv.height : 1;
+      // displayed gutter px → canvas px → base px → internal dot units
+      const baseDelta = (e.clientY - startMouseY) / (scale || 1) / VSTRETCH;
+      const dotDelta  = baseDelta * VDOT_INTERNAL;
+      const lines     = Math.round(dotDelta / dotsPerLine);   // snap to whole LFs
+      const newYDot   = Math.max(0, startYDot + lines * dotsPerLine);
+      const p = this.printerManager.getActivePrinter();
+      if (p) p._yDot = newYDot;
+      const cy = this._yToCanvas(Math.round(newYDot / VDOT_INTERNAL) * DOT_PX);
+      this._ensureCanvasHeight(cy + Math.round(12 * VSTRETCH));
+      this._updateHeadMarker(cy);
+    };
+
+    const onUp = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      m.classList.remove("dragging");
+      try { m.releasePointerCapture(e.pointerId); } catch (_) {}
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+
+    m.addEventListener("pointerdown", (e) => {
+      if (!this._canvasMode) return;
+      e.preventDefault();
+      e.stopPropagation();                // don't start a window-drag
+      const p = this.printerManager.getActivePrinter();
+      dragging    = true;
+      startMouseY = e.clientY;
+      startYDot   = p ? (p._yDot | 0) : 0;
+      dotsPerLine = (p && p._lineFeedDots) ? p._lineFeedDots() : 80;
+      m.classList.add("dragging");
+      try { m.setPointerCapture(e.pointerId); } catch (_) {}
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
+    });
+  }
+
   _scrollToBottom(py) {
     if (!this.elements) return;
     const feedBg = this.elements.feedBg;
@@ -648,6 +845,7 @@ export class PrinterWindow extends BaseWindow {
     if (this._canvasMode) {
       const cy = this._yToCanvas(Math.round((p._yDot | 0) / VDOT_INTERNAL) * DOT_PX);
       this._ensureCanvasHeight(cy + Math.round(12 * VSTRETCH));
+      this._updateHeadMarker(cy);
       this._scrollToBottom(cy);
     }
   }
@@ -669,9 +867,7 @@ export class PrinterWindow extends BaseWindow {
   setOnline(on) {
     this.online = !!on;
     if (this.elements?.online) {
-      this.elements.online.className = this.online
-        ? "pr-toggle pr-toggle-on"
-        : "pr-toggle pr-toggle-off";
+      this.elements.online.className = this.online ? "pr-pbtn pr-pbtn-on" : "pr-pbtn";
     }
     return this.online;
   }
@@ -691,12 +887,57 @@ export class PrinterWindow extends BaseWindow {
     return r;
   }
 
+  // DIP SW2-1 Automatic Line Feed. On: CR feeds paper (plain text). Off: CR
+  // returns the head without feeding, so colour graphics overprint passes
+  // register on the same band (DazzleDraw, Print Shop colour).
+  setAutoLineFeed(on) {
+    const state = this.printerManager.setAutoLineFeed(on);
+    this._refreshAutoLF();
+    return state;
+  }
+
+  getAutoLineFeed() { return this.printerManager.getAutoLineFeed(); }
+
+  _refreshAutoLF() {
+    const el = this.elements?.autolf;
+    if (!el) return;
+    const on = this.printerManager.getAutoLineFeed();
+    el.className   = on ? "pr-pbtn pr-pbtn-on" : "pr-pbtn";
+    el.textContent = on ? "Auto LF ▣" : "Auto LF □";
+  }
+
+  _refreshPower() {
+    const el = this.elements?.power;
+    if (!el) return;
+    el.className = this.printerManager.getPower() ? "pr-toggle pr-toggle-on" : "pr-toggle pr-toggle-off";
+  }
+
+  // Operator panel pin: pinned docks it in-flow (paper shrinks beside it);
+  // unpinned auto-hides it off the right edge (hover to peek).
+  _togglePin() {
+    this._panelPinned = !this._panelPinned;
+    try { localStorage.setItem("a2e-printer-panel-pinned", String(this._panelPinned)); }
+    catch (e) { /* non-fatal */ }
+    this._applyPin();
+  }
+
+  _applyPin() {
+    const el = this.elements?.panel;
+    if (!el) return;
+    el.classList.toggle("pinned", this._panelPinned);
+    if (this.elements.panelTab)
+      this.elements.panelTab.title = this._panelPinned ? "Unpin operator panel (auto-hide)" : "Pin operator panel";
+    // Fit mode scales the canvas to the (now narrower/wider) paper column.
+    this._applyFit();
+  }
+
   // Mains switch. Off ignores incoming bytes and forces the panel offline; on
   // brings the printer back online (paper is preserved either way).
   setPower(on) {
     const state = this.printerManager.setPower(on);
     if (!state) this.setOnline(false);
     else        this.setOnline(true);
+    this._refreshPower();
     return state;
   }
 
@@ -795,17 +1036,8 @@ export class PrinterWindow extends BaseWindow {
     if (this.elements) {
       this.elements.output.textContent = "";
       this._initCanvas();
+      if (this.elements.headMark) this._updateHeadMarker(0);
     }
-  }
-
-  _downloadTxt() {
-    const blob = new Blob([this.text], { type: "text/plain" });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href     = url;
-    a.download = "printer.txt";
-    a.click();
-    URL.revokeObjectURL(url);
   }
 
   _downloadPng() {

@@ -62,9 +62,21 @@ export class ImageWriterII extends PrinterBase {
     super();
     this._customMaxWidth = 8;
     this._customChars    = new Map();
+    // Automatic Line Feed DIP (SW2-1). A hardware switch, so it survives a
+    // software reset (ESC c) — set once, kept until the operator flips it.
+    this._autoLF         = true;
     this._resetRenderState();
     this._resetParserState();
   }
+
+  // Automatic Line Feed (DIP SW2-1). ON: a CR also advances the paper one line
+  // (and a following LF is swallowed) — the way Applesoft, which emits CR only,
+  // expects to print readable text. OFF: a CR returns the head WITHOUT feeding,
+  // so multi-pass colour graphics overprint on the same band register correctly;
+  // the paper advances only on an explicit LF (how DazzleDraw / Print Shop drive
+  // colour). Default ON.
+  setAutoLineFeed(on) { this._autoLF = !!on; }
+  getAutoLineFeed()   { return this._autoLF; }
 
   _resetParserState() {
     this._state          = S_NORMAL;
@@ -139,12 +151,21 @@ export class ImageWriterII extends PrinterBase {
         } else if (ch === 0x0C) {
           this.formFeed();   // slew to next top-of-form (shared with panel)
         } else if (ch === 0x0D) {
+          // CR returns the head to the left margin. Whether it also feeds paper
+          // is the Automatic Line Feed DIP (SW2-1). Auto-LF ON: feed one line
+          // and arm CR+LF coalescing (a trailing LF is swallowed) — what plain
+          // text (Applesoft sends CR only) needs. Auto-LF OFF: return only, no
+          // feed, so colour overprint passes stack on the same band.
           this._xDot = this._leftMargin;
-          this._yDot += this._lineHeight;
-          this._lastCR = true;   // arm CR+LF coalescing
-          this.emit('newline');
+          if (this._autoLF) {
+            this._yDot += this._lineHeight;
+            this._lastCR = true;   // arm CR+LF coalescing
+            this.emit('newline');
+          } else {
+            this.emit('carriagereturn');   // head home, no paper feed
+          }
         } else if (ch === 0x0A) {
-          if (!wasCR) {          // standalone LF feeds; LF paired with CR is swallowed
+          if (!(this._autoLF && wasCR)) {  // LF paired with an auto-LF CR is swallowed; otherwise it feeds
             this._yDot += this._lineHeight;
             this.emit('linefeed');
           }
