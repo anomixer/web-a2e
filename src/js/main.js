@@ -310,7 +310,11 @@ class AppleIIeEmulator {
           }
         },
       );
-      slotConfigWindow.create();
+      // Awaited: create() restores the saved slot cards into WASM via
+      // applyInitialSettings(). updateMouseHandlerState() below reads those slots
+      // to arm ⌥-click capture — if we don't wait, it races the restore, sees an
+      // empty slot 4, and leaves mouse capture disabled until the next slot edit.
+      await slotConfigWindow.create();
       this.windowManager.register(slotConfigWindow);
 
       // Release notes window
