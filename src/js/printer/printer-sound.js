@@ -96,10 +96,15 @@ export class PrinterSound {
     const spacing = isLine ? 0.022 : 0.005; // grain-to-grain on the timeline
 
     // Schedule on the audio timeline so a synchronous burst of chars spreads
-    // into a continuous buzz instead of collapsing onto one instant.
+    // into a continuous buzz instead of collapsing onto one instant. The grain
+    // cursor is capped to MAX_AHEAD of the clock: a dense burst (e.g. a colour
+    // screen dump inking a full black field) just thins — grains past the
+    // window are skipped — but the cursor can't run away and leave the printer
+    // silent for seconds afterwards.
+    const MAX_AHEAD = 0.20;
     let start = Math.max(now, this._nextTime);
-    if (start > now + 0.25) return; // backlog too deep — drop this grain
-    this._nextTime = start + spacing;
+    if (start > now + MAX_AHEAD) return;
+    this._nextTime = Math.min(start + spacing, now + MAX_AHEAD);
     const stop = start + dur;
 
     // Sample a random window of the noise buffer per grain so successive
@@ -147,7 +152,7 @@ export class PrinterSound {
     let start   = Math.max(now, this._nextTime);
     if (start > now + 0.3) return;
     dur = Math.max(0.03, Math.min(0.5, dur));
-    this._nextTime = start + dur * 0.6;
+    this._nextTime = Math.min(start + dur * 0.6, now + 0.3);
     const stop = start + dur;
     const pk   = 0.55 * Math.max(0.2, Math.min(1, intensity));
 

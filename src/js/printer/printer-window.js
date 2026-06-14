@@ -9,7 +9,7 @@
 import { BaseWindow } from "../windows/base-window.js";
 import { PRINTER_MODELS, RIBBONS } from "./printer-manager.js";
 import { makeZipStore } from "./zip-store.js";
-import { buildScreenDump, SCREEN_W, SCREEN_H } from "./screen-dump.js";
+import { buildScreenDump, buildScreenDumpColor, SCREEN_W, SCREEN_H } from "./screen-dump.js";
 
 // 1 display pixel per dot (canvas scrolls horizontally if wider than paper area)
 const DOT_PX     = 1;
@@ -213,6 +213,7 @@ export class PrinterWindow extends BaseWindow {
       .pr-pbtn:hover  { background: var(--input-bg-hover); color: var(--text-primary); }
       .pr-pbtn-on     { background: var(--accent-green-bg-stronger); color: var(--accent-green); border-color: var(--accent-green); }
       .pr-pbtn-dim    { color: var(--text-muted); }
+      .pr-pbtn.pr-holding { background: var(--accent-orange-bg-stronger, var(--input-bg-hover)); color: var(--accent-orange, var(--text-primary)); border-color: var(--accent-orange, var(--border-default)); transition: background 0.45s linear; }
       .pr-pdiv        { height: 1px; background: var(--border-default); margin: 2px 0; }
 
       .pr-strip {
@@ -464,7 +465,7 @@ export class PrinterWindow extends BaseWindow {
 
     el.downloadPng.addEventListener("click", () => this._downloadPng());
     el.downloadPdf.addEventListener("click", () => this._downloadPdf());
-    el.dump.addEventListener("click",        () => this.dumpScreen());
+    this._initDumpButton(el.dump);
     el.clear.addEventListener("click",       () => this._clear());
     el.fit.addEventListener("click",         () => this._toggleFit());
     el.lfUp.addEventListener("click",        () => this._panelFeed("up"));
@@ -999,6 +1000,33 @@ export class PrinterWindow extends BaseWindow {
   // faithful graphics stream through the parser — the same path a real
   // screen-dump utility drives. `fb`/`width`/`height` can be supplied for an
   // arbitrary bitmap; default to the //e screen. Returns a status object.
+  // Dump Screen button: a normal click auto-picks polarity by lit density; a
+  // long hold (>= 500 ms) forces the inverted "white is black" dump.
+  _initDumpButton(btn) {
+    if (!btn) return;
+    let timer = null, fired = false;
+    const LONG_MS = 500;
+    const start = (e) => {
+      if (e.button != null && e.button !== 0) return;
+      fired = false;
+      btn.classList.add("pr-holding");
+      timer = setTimeout(() => {
+        fired = true;
+        btn.classList.remove("pr-holding");
+        this.dumpScreen(null, SCREEN_W, SCREEN_H, { invert: true });
+      }, LONG_MS);
+    };
+    const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } btn.classList.remove("pr-holding"); };
+    btn.addEventListener("pointerdown", start);
+    btn.addEventListener("pointerup", () => {
+      if (timer) { clearTimeout(timer); timer = null; }
+      btn.classList.remove("pr-holding");
+      if (!fired) this.dumpScreen();   // short click → auto
+    });
+    btn.addEventListener("pointerleave", cancel);
+    btn.addEventListener("pointercancel", cancel);
+  }
+
   dumpScreen(fb = null, width = SCREEN_W, height = SCREEN_H, opts = {}) {
     const printer = this.printerManager.getActivePrinter();
     const id = printer.getId();
@@ -1008,9 +1036,25 @@ export class PrinterWindow extends BaseWindow {
     const pixels = fb || window.emulator?._lastFramebuffer;
     if (!pixels) return { success: false, message: "No framebuffer available — is the emulator running?" };
 
-    const bytes = buildScreenDump(pixels, width, height, opts);
-    this.printerManager.feedBytes(bytes);
-    return { success: true, width, height, bytes: bytes.length, message: `Dumped ${width}×${height} screen to printer` };
+    // Colour ribbon → a dithered colour dump (one overprint pass per ribbon
+    // band); B/W ribbon → the 1-bit threshold dump. The colour dump returns the
+    // head between passes with bare CRs, so Auto-LF must be off while it feeds
+    // (otherwise each CR would also advance the paper and the bands would smear).
+    const colour = this.printerManager.getRibbon() === "color";
+    let bytes;
+    if (colour) {
+      // opts.invert (set by a long-hold on Dump Screen) forces the greyscale
+      // polarity; omitted, the dump auto-picks by lit density.
+      bytes = buildScreenDumpColor(pixels, width, height, { invert: opts.invert });
+      const prevAutoLF = printer._autoLF;
+      printer._autoLF = false;
+      this.printerManager.feedBytes(bytes);   // parsed synchronously
+      printer._autoLF = prevAutoLF;           // restore the DIP
+    } else {
+      bytes = buildScreenDump(pixels, width, height, opts);
+      this.printerManager.feedBytes(bytes);
+    }
+    return { success: true, colour, width, height, bytes: bytes.length, message: `Dumped ${width}×${height} screen to printer${colour ? " (colour)" : ""}` };
   }
 
   // Snapshot of printer/paper status.
@@ -1176,6 +1220,7 @@ export class PrinterWindow extends BaseWindow {
   }
 
   _downloadPdf() {
+    if (this._canvasMode) { this._downloadPdfCanvas(); return; }
     const win = window.open("", "_blank");
     if (!win) return;
     win.document.write(
@@ -1191,6 +1236,69 @@ export class PrinterWindow extends BaseWindow {
     win.document.close();
     win.focus();
     win.print();
+  }
+
+  // Dot-matrix PDF: one full-bleed page image per used page, perforation-free,
+  // at the printer's true dimensions. The canvas is a 120-dpi raster both axes
+  // (960px = 8" across; pageH px = formInches × 120 down), so canvas px ÷ 120 =
+  // inches. Printing the page image full-bleed onto a page of that exact size
+  // reproduces the printer's aspect; any upscale by the print pipeline keeps it
+  // since the image and the @page share one aspect.
+  _downloadPdfCanvas() {
+    const pageH = this._pageHeightPx();
+    const pages = this._usedPageCount(pageH);
+    const clean = this._cleanUsedCanvas();      // used pages, perforations erased
+    if (!clean) return;
+    const wIn = clean.width / 120;              // 960 / 120 = 8in
+    const hIn = pageH / 120;                    // form length in inches
+
+    const imgs = [];
+    for (let i = 0; i < pages; i++) {
+      const slice = document.createElement("canvas");
+      slice.width  = clean.width;
+      slice.height = pageH;
+      const s = slice.getContext("2d");
+      s.fillStyle = PAPER_BG;
+      s.fillRect(0, 0, slice.width, pageH);
+      s.drawImage(clean, 0, -i * pageH);        // this page's band
+      imgs.push(slice.toDataURL("image/png"));
+    }
+
+    const win = window.open("", "_blank");
+    if (!win) return;
+    const body = imgs.map((src) => `<img class="page" src="${src}"/>`).join("");
+    win.document.write(
+      `<!DOCTYPE html><html><head><title>Printer Output</title><style>` +
+      `@page { size: ${wIn}in ${hIn}in; margin: 0; }` +
+      `html,body { margin:0; padding:0; background:#fff; }` +
+      // full bleed: image fills the whole page, one page per image
+      `img.page { display:block; width:${wIn}in; height:${hIn}in; page-break-after: always; }` +
+      `img.page:last-child { page-break-after: auto; }` +
+      `</style></head><body>${body}</body></html>`
+    );
+    win.document.close();
+    win.focus();
+    // Wait for the page images to decode before invoking the print dialog,
+    // otherwise the preview can come up blank.
+    win.onload = () => { try { win.print(); } catch (_) {} };
+  }
+
+  // A perforation-free copy of the used pages for clean full-bleed output. The
+  // page-break marks are painted onto the live canvas at each boundary; here we
+  // copy and overpaint a thin paper band over every interior boundary (the page
+  // break always falls in the blank inter-page gap, so no ink is lost).
+  _cleanUsedCanvas() {
+    const used = this._usedCanvas();
+    if (!used) return used;
+    const out = document.createElement("canvas");
+    out.width  = used.width;
+    out.height = used.height;
+    const o = out.getContext("2d");
+    o.drawImage(used, 0, 0);
+    const pageH = this._pageHeightPx();
+    o.fillStyle = PAPER_BG;
+    for (let y = pageH; y < out.height; y += pageH) o.fillRect(0, y - 4, out.width, 8);
+    return out;
   }
 
   _escapeHtml(str) {

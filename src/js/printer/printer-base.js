@@ -113,12 +113,19 @@ export class PrinterBase {
 
   _commitFeed(kind, data) {
     if (kind === 'carriagereturn') {
-      // CR with Auto-LF off: the head slews back to the left margin, but the
-      // paper does NOT advance — the next pass overprints this same band. Charge
-      // only the return travel; no paper-feed time, no line ratchet.
-      const returnMs = this.head.returnMs();
-      this._timed('feed', { sound: 'return', dist: this.head.x }, returnMs);
-      this.head.home();
+      // CR with Auto-LF off: the paper does NOT advance — the next pass
+      // overprints this same band. In UNIDIRECTIONAL mode the head slews back
+      // to the left margin (charge the return travel, no paper feed). In the
+      // power-on BIDIRECTIONAL default the head stays put and just flips travel,
+      // so the overprint pass sweeps back the other way with no wasted return
+      // slew — genuine back-and-forth, the way a colour dump actually prints.
+      if (this.isUnidirectional()) {
+        const returnMs = this.head.returnMs();
+        this._timed('feed', { sound: 'return', dist: this.head.x }, returnMs);
+        this.head.home();
+      } else {
+        this.head.flip();
+      }
       return;
     }
 
