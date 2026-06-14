@@ -11,7 +11,11 @@
 
 import { PrinterBase } from "./printer-base.js";
 import { DRAFT_ROM } from "./imagewriter-rom-draft.js";
-import { EPSON_FX_ROM, EPSON_FX_ITALIC_ROM } from "./epson-fx80-rom.js";
+import {
+  EPSON_FX_ROM, EPSON_FX_ROM_LOCALES,
+  EPSON_FX_ITALIC_ROM, EPSON_FX_ITALIC_ROM_LOCALES,
+  EPSON_FX_PROP_ROM,
+} from "./epson-fx80-rom.js";
 
 // Parser states
 const S_NORMAL    = 0;
@@ -65,6 +69,11 @@ const STAR_WIDTHS = [
 // Character pitch → characters per inch
 const CPI = { pica: 10, elite: 12, compressed: 137 / 8 };
 
+// ESC R n — international charset index → editor locale key (FX Vol 2 App C).
+// Sets the editor has no glyphs for yet (8=Japan, 9=Norway, 10=Denmark II, …)
+// fall through to USA until they are transcribed in rom-editor.html.
+const EPSON_INTL = ['US', 'FR', 'DE', 'UK', 'DK', 'SE', 'IT', 'ES'];
+
 // Default line spacing: 1/6" = 12/72" (12-dot rows)
 const DEFAULT_LINE_HEIGHT = DPI / 6;
 
@@ -103,6 +112,8 @@ export class EpsonFX80 extends PrinterBase {
     this._dblStrike  = false;
     this._underline  = false;
     this._italic     = false;
+    this._proportional = false;            // ESC p / Master Select bit 1
+    this._intlSet    = 'US';               // ESC R international charset (editor key)
     this._script     = 0;      // 0=none, 1=superscript, 2=subscript
     this._lineHeight = DEFAULT_LINE_HEIGHT;
     this._autoLF     = true;               // DIP SW2-1 default ON; manager overrides
@@ -387,7 +398,7 @@ export class EpsonFX80 extends PrinterBase {
       case 0x4A: // ESC J n — immediate n/216" line feed
       case 0x4E: // ESC N n — skip-over-perforation lines
       case 0x51: // ESC Q n — right margin
-      case 0x52: // ESC R n — international charset (ignore)
+      case 0x52: // ESC R n — international charset
       case 0x53: // ESC S n — super/subscript (0=super, 1=sub)
       case 0x55: // ESC U n — unidirectional mode (ignore)
       case 0x57: // ESC W n — continuous expanded (0=off, 1=on)
@@ -395,7 +406,7 @@ export class EpsonFX80 extends PrinterBase {
       case 0x69: // ESC i n — immediate mode FX-80 (ignore)
       case 0x6A: // ESC j n — reverse feed n/216" (FX-80 only)
       case 0x6C: // ESC l n — left margin
-      case 0x70: // ESC p n — proportional mode (ignore)
+      case 0x70: // ESC p n — proportional mode
       case 0x73: // ESC s n — half-speed mode (ignore)
         this._paramCmd = ch;
         this._state    = S_PARAM1;
@@ -422,7 +433,8 @@ export class EpsonFX80 extends PrinterBase {
         // Bit layout per Vol 1 Ch.5 (p.76 Quick Reference Chart):
         // bit 0=elite, bit 1=proportional, bit 2=condensed, bit 3=bold(emph),
         // bit 4=double-strike, bit 5=expanded, bit 6=italic, bit 7=underline
-        this._pitch      = (ch & 0x04) ? 'compressed' : (ch & 0x01) ? 'elite' : 'pica';
+        this._pitch       = (ch & 0x04) ? 'compressed' : (ch & 0x01) ? 'elite' : 'pica';
+        this._proportional = !!(ch & 0x02);
         this._emphasized = !!(ch & 0x08);
         this._dblStrike  = !!(ch & 0x10);
         this._expanded   = !!(ch & 0x20);
@@ -481,7 +493,8 @@ export class EpsonFX80 extends PrinterBase {
         this._state = S_NORMAL;
         break;
       }
-      case 0x52: // ESC R n — ignore
+      case 0x52: // ESC R n — international charset (USA for sets not yet authored)
+        this._intlSet = EPSON_INTL[ch] ?? 'US';
         this._state = S_NORMAL;
         break;
       case 0x53: // ESC S n
@@ -510,7 +523,8 @@ export class EpsonFX80 extends PrinterBase {
         if (this._xDot < this._leftMargin) this._xDot = this._leftMargin;
         this._state = S_NORMAL;
         break;
-      case 0x70: // ESC p n — ignore
+      case 0x70: // ESC p n — proportional spacing (0=off, 1=on)
+        this._proportional = (ch !== 0);
         this._state = S_NORMAL;
         break;
       case 0x73: // ESC s n — ignore
@@ -581,14 +595,29 @@ export class EpsonFX80 extends PrinterBase {
   }
 
   _emitChar(code) {
-    const cols = this._customChars.get(code) ?? this._romChar(code);
+    // Proportional spacing (ESC p / Master Select bit 1) draws each glyph from
+    // the variable-width bank and advances by its own width plus one blank
+    // intercharacter column. A code not yet authored in that bank — or fixed
+    // mode — falls back to the fixed-pitch Roman/Italic glyph and pitch advance.
+    let cols, advance;
+    const custom = this._customChars.get(code);
+    const prop   = this._proportional ? EPSON_FX_PROP_ROM[code] : null;
+    if (custom) {
+      cols = custom;          advance = this._charAdvance();
+    } else if (prop) {
+      cols = prop;
+      const w = (prop.length + 1) * DOT_W;
+      advance = Math.round(this._expanded ? w * 2 : w);
+    } else {
+      cols = this._romChar(code); advance = this._charAdvance();
+    }
     if (!cols) return;
 
     // Auto-wrap: a glyph that would cross the right margin starts a fresh line
     // first (a hardware CR+LF, independent of the Auto-LF DIP). The leftMargin
     // guard guarantees forward progress so a too-narrow margin can't loop.
     if (this._xDot > this._leftMargin &&
-        this._xDot + this._charAdvance() > this._rightMargin) {
+        this._xDot + advance > this._rightMargin) {
       this._xDot   = this._leftMargin;
       this._yDot  += this._lineHeight;
       this._lastCR = false;
@@ -607,16 +636,22 @@ export class EpsonFX80 extends PrinterBase {
       underline: this._underline,
     });
     this.emit('text', String.fromCharCode(code));
-    this._xDot += this._charAdvance();
+    this._xDot += advance;
   }
 
   // Render from the FX-80's own font ROM: the Italic bank when italic is active
-  // (ESC 4 / Master Select bit 6), otherwise Roman. Either falls back to the
-  // ImageWriter II draft ROM for any code not yet transcribed, so the printer
+  // (ESC 4 / Master Select bit 6), otherwise Roman. A non-USA international set
+  // (ESC R) overrides the dozen national code points first. Anything not yet
+  // transcribed falls back to the ImageWriter II draft ROM, so the printer
   // stays usable while the Epson font is authored in rom-editor.html.
-  // (International charsets — ESC R — are deferred to Phase 6.)
   _romChar(code) {
-    const rom = this._italic ? EPSON_FX_ITALIC_ROM : EPSON_FX_ROM;
+    const italic = this._italic;
+    if (this._intlSet !== 'US') {
+      const loc = italic ? EPSON_FX_ITALIC_ROM_LOCALES : EPSON_FX_ROM_LOCALES;
+      const override = loc[this._intlSet]?.[code];
+      if (override) return override;
+    }
+    const rom = italic ? EPSON_FX_ITALIC_ROM : EPSON_FX_ROM;
     return rom[code] ?? DRAFT_ROM[code] ?? null;
   }
 
