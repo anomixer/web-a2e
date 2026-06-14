@@ -18,6 +18,7 @@
  */
 
 import { ImageWriterII } from "./imagewriter-ii.js";
+import { IW1_ROM, IW1_ROM_LOCALES } from "./imagewriter-i-rom.js";
 
 // ESC bytes the IW-II understands but the IW-I has no hardware for. Consumed
 // (so a stray parameter never prints as text) and otherwise ignored.
@@ -54,6 +55,20 @@ export class ImageWriterI extends ImageWriterII {
   // columns, rightmost blank) — unlike the II draft ROM's 12 columns. Forcing a
   // single quality also makes the swallowed ESC a/m/M font-select commands inert.
   _effectiveQuality() { return 'corr'; }
+
+  // Render from the IW-I's own 7×8 character ROM when a glyph has been authored
+  // (rom-editor.html → IW1_ROM). The model forces 'corr' quality, so getGlyph
+  // routes here; any code not yet transcribed falls back to the IW-II
+  // correspondence ROM so the printer stays usable while the font is built.
+  getCorrChar(code, locale = 'US') {
+    if (locale !== 'US') {
+      const override = IW1_ROM_LOCALES[locale]?.[code];
+      if (override) return override;
+    }
+    const glyph = IW1_ROM[code];
+    if (glyph) return glyph;
+    return super.getCorrChar(code, locale);
+  }
 
   // Single mechanical speed: 120 cps at 10 cpi (manual Appendix E), 72 lpm.
   // No quality tiers and no colour, so neither slows it; boldface still costs a

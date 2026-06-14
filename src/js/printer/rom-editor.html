@@ -9,14 +9,21 @@ body { font-family: monospace; background: #1a1a1a; color: #e0e0e0; padding: 16p
        height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
 h1 { font-size: 12px; color: #555; margin-bottom: 8px; flex-shrink: 0; }
 
-.mode-bar { display: flex; gap: 3px; margin-bottom: 12px; flex-shrink: 0; flex-wrap: wrap; }
+.mode-bar { display: flex; gap: 14px; margin-bottom: 12px; flex-shrink: 0; flex-wrap: wrap; align-items: stretch; }
+.printer-group { display: flex; flex-direction: column; gap: 3px; padding: 4px 8px 5px;
+                 border: 1px solid #2a2a2a; border-radius: 4px; background: #141414; }
+.printer-group.active-group { border-color: #333; }
+.printer-label { font-size: 9px; color: #555; text-transform: uppercase; letter-spacing: 0.5px; }
+.printer-group.active-group .printer-label { color: #777; }
+.printer-modes { display: flex; gap: 3px; flex-wrap: wrap; }
 .mode-btn { padding: 3px 8px; background: #222; border: 1px solid #444; color: #888;
             cursor: pointer; border-radius: 3px; font-family: monospace; font-size: 11px; }
 .mode-btn:hover { background: #2a2a2a; color: #ccc; }
 .mode-btn.active { background: #152a15; border-color: #61BB46; color: #61BB46; }
 .mode-detail { font-size: 9px; opacity: 0.7; }
 
-.editor { display: flex; gap: 24px; align-items: flex-start; flex-shrink: 0; }
+.editor { display: flex; gap: 24px; align-items: stretch; flex: 1; min-height: 0; }
+.main-col { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
 .sidebar { display: flex; flex-direction: column; gap: 8px; width: 110px; flex-shrink: 0; }
 .char-glyph { font-size: 20px; color: #888; min-height: 24px; }
 .char-dec   { font-size: 11px; color: #555; }
@@ -26,6 +33,8 @@ h1 { font-size: 12px; color: #555; margin-bottom: 8px; flex-shrink: 0; }
        width: 100%; text-align: left; }
 .btn:hover { background: #333; color: #fff; }
 .btn:disabled { opacity: 0.35; cursor: default; pointer-events: none; }
+.btn.active { background: #2a1f0f; border-color: #FDB827; color: #FDB827; }
+.grid-table.move-mode .cell { cursor: move; }
 .btn-green  { background: #152a15; border-color: #61BB46; color: #61BB46; }
 .btn-green:hover  { background: #1e3a1e; }
 .btn-blue   { background: #0f1e2e; border-color: #009DDC; color: #009DDC; }
@@ -49,7 +58,7 @@ input[type=text]:focus { outline: none; border-color: #61BB46; }
 .locale-btn.add-btn { color: #555; border-style: dashed; }
 .locale-indicator { font-size: 10px; color: #009DDC; min-height: 14px; text-align: center; }
 
-.grid-area { display: flex; flex-direction: column; }
+.grid-area { display: flex; flex-direction: column; flex: 0 0 auto; }
 .grid-table { display: grid; gap: 1px; background: #2a2a2a; border: 1px solid #2a2a2a; width: fit-content; }
 .col-hdr { text-align: center; font-size: 11px; color: #444; background: #111; display: flex;
            align-items: center; justify-content: center;
@@ -76,8 +85,9 @@ input[type=text]:focus { outline: none; border-color: #61BB46; }
              font-size: 11px; color: #FDB827; word-break: break-all; min-height: 36px; }
 .violation-warn { font-size: 11px; color: #e03a3e; margin-top: 4px; min-height: 16px; }
 
-.gallery { margin-top: 16px; flex: 1; min-height: 0; display: flex; flex-direction: column;
-           border: 1px solid #2a2a2a; border-radius: 4px; padding: 12px; background: #161616; }
+.gallery { margin-top: 12px; flex: 1 1 0; min-height: 0; display: flex; flex-direction: column;
+           border: 1px solid #2a2a2a; border-radius: 4px; padding: 12px; background: #161616;
+           overflow: hidden; }
 .gallery-header { display: flex; justify-content: space-between; align-items: center;
                   margin-bottom: 10px; flex-shrink: 0; }
 .gallery-header h2 { font-size: 12px; color: #555; }
@@ -113,15 +123,9 @@ textarea { width: 100%; height: 120px; background: #111; border: 1px solid #333;
 </style>
 </head>
 <body>
-<h1>ImageWriter II — ROM Editor</h1>
+<h1 id="editor-title">Printer ROM Editor</h1>
 
-<div class="mode-bar">
-  <button class="mode-btn active" id="mode-draft"     onclick="switchMode('draft')">Draft <span class="mode-detail">12×9</span></button>
-  <button class="mode-btn"        id="mode-corrFixed"  onclick="switchMode('corrFixed')">Corr <span class="mode-detail">8×9</span></button>
-  <button class="mode-btn"        id="mode-corrProp"   onclick="switchMode('corrProp')">Corr Prop <span class="mode-detail">~×9</span></button>
-  <button class="mode-btn"        id="mode-nlqFixed"   onclick="switchMode('nlqFixed')">NLQ <span class="mode-detail">16×18</span></button>
-  <button class="mode-btn"        id="mode-nlqProp"    onclick="switchMode('nlqProp')">NLQ Prop <span class="mode-detail">~×18</span></button>
-</div>
+<div class="mode-bar" id="mode-bar"></div>
 
 <div class="editor">
   <div class="sidebar">
@@ -154,6 +158,8 @@ textarea { width: 100%; height: 120px; background: #111; border: 1px solid #333;
       <button class="btn" style="flex:1;text-align:center" onclick="copyChar()">⎘ Copy</button>
       <button class="btn" id="btn-paste" style="flex:1;text-align:center" onclick="pasteChar()" disabled>Paste</button>
     </div>
+    <button class="btn" onclick="openCopyFrom()">⮈ Copy from…</button>
+    <button class="btn" id="btn-move" onclick="toggleMove()">✥ Move <span style="color:#555;font-size:10px">(drag / arrows)</span></button>
     <button class="btn btn-red"   onclick="clearGrid()">Clear</button>
     <button class="btn btn-green" onclick="acceptChar(event)">✓ Accept</button>
     <div class="sep"></div>
@@ -163,21 +169,23 @@ textarea { width: 100%; height: 120px; background: #111; border: 1px solid #333;
     </div>
   </div>
 
-  <div class="grid-area">
-    <div class="grid-table" id="grid-table"></div>
-    <div class="output">
-      <div class="bytes-box" id="bytes-out"></div>
-      <div class="violation-warn" id="violation-warn"></div>
-      <div style="display:flex;gap:6px;margin-top:6px">
-        <button class="btn" style="width:auto;padding:4px 10px" onclick="copyBytes()">Copy bytes</button>
+  <div class="main-col">
+    <div class="grid-area">
+      <div class="grid-table" id="grid-table"></div>
+      <div class="output">
+        <div class="bytes-box" id="bytes-out"></div>
+        <div class="violation-warn" id="violation-warn"></div>
+        <div style="display:flex;gap:6px;margin-top:6px">
+          <button class="btn" style="width:auto;padding:4px 10px" onclick="copyBytes()">Copy bytes</button>
+        </div>
       </div>
     </div>
-  </div>
-</div>
 
-<div class="gallery">
-  <div class="gallery-header"><h2 id="gallery-title">Chars</h2></div>
-  <div class="gallery-grid" id="gallery"></div>
+    <div class="gallery">
+      <div class="gallery-header"><h2 id="gallery-title">Chars</h2></div>
+      <div class="gallery-grid" id="gallery"></div>
+    </div>
+  </div>
 </div>
 
 <div class="export" id="export-section">
@@ -206,14 +214,64 @@ textarea { width: 100%; height: 120px; background: #111; border: 1px solid #333;
   </div>
 </div>
 
+<div id="copyfrom-modal" style="display:none;position:fixed;inset:0;background:#000c;z-index:100;
+     align-items:center;justify-content:center;">
+  <div style="background:#1e1e1e;border:1px solid #444;border-radius:6px;padding:16px;
+              width:420px;max-width:92vw;display:flex;flex-direction:column;gap:10px;">
+    <div style="font-size:12px;color:#777">Copy a glyph from another printer / charset into the current grid</div>
+    <label style="font-size:11px;color:#888">Source charset
+      <select id="cf-mode" onchange="cfRefreshLocales()"
+              style="width:100%;margin-top:3px;background:#111;border:1px solid #333;color:#ccc;
+                     font-family:monospace;font-size:12px;padding:5px;border-radius:3px;"></select>
+    </label>
+    <div style="display:flex;gap:8px">
+      <label style="font-size:11px;color:#888;flex:1">Locale
+        <select id="cf-locale" onchange="cfPreview()"
+                style="width:100%;margin-top:3px;background:#111;border:1px solid #333;color:#ccc;
+                       font-family:monospace;font-size:12px;padding:5px;border-radius:3px;"></select>
+      </label>
+      <label style="font-size:11px;color:#888;width:120px">Char ($hex)
+        <input id="cf-char" oninput="cfPreview()" placeholder="$41"
+               style="width:100%;margin-top:3px;background:#111;border:1px solid #333;color:#ccc;
+                      font-family:monospace;font-size:12px;padding:5px;border-radius:3px;" />
+      </label>
+    </div>
+    <pre id="cf-preview" style="margin:0;background:#111;border:1px solid #333;color:#61BB46;
+         font-family:monospace;font-size:11px;line-height:11px;padding:8px;border-radius:3px;
+         min-height:60px;overflow:auto;"></pre>
+    <div style="font-size:10px;color:#555">Columns fit to the current grid; use Move (✥) to reposition vertically.</div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;">
+      <button class="btn" onclick="closeCopyFrom()">Cancel</button>
+      <button class="btn btn-green" onclick="applyCopyFrom()">⮈ Copy into grid</button>
+    </div>
+  </div>
+</div>
+
 <script>
+// Each mode tagged with its `printer` so the mode bar groups by machine. The
+// five IW2 banks keep their original keys / exportBase / persisted data intact
+// (hours of hand-authored glyphs live under them) — new printers add NEW keys
+// only, never rename or reuse the IW2 ones.
 const MODE_CONFIG = {
-  draft:     { cols: 12, rows: 9,  colMin: 12, colMax: 12, proportional: false, adjacentConstraint: true,  cellSize: 38, miniSize: 5, exportBase: 'DRAFT_ROM',     label: 'Draft',    detail: '12×9'  },
-  corrFixed: { cols: 8,  rows: 9,  colMin: 8,  colMax: 8,  proportional: false, adjacentConstraint: false, cellSize: 38, miniSize: 5, exportBase: 'CORR_ROM',       label: 'Corr',     detail: '8×9'   },
-  corrProp:  { cols: 7,  rows: 9,  colMin: 7,  colMax: 19, proportional: true,  adjacentConstraint: false, cellSize: 38, miniSize: 5, exportBase: 'CORR_PROP_ROM',  label: 'Corr~',    detail: '~×9'   },
-  nlqFixed:  { cols: 16, rows: 18, colMin: 16, colMax: 16, proportional: false, adjacentConstraint: false, cellSize: 24, miniSize: 3, exportBase: 'NLQ_ROM',        label: 'NLQ',      detail: '16×18' },
-  nlqProp:   { cols: 7,  rows: 18, colMin: 7,  colMax: 19, proportional: true,  adjacentConstraint: false, cellSize: 24, miniSize: 3, exportBase: 'NLQ_PROP_ROM',   label: 'NLQ~',     detail: '~×18'  },
+  // ── ImageWriter II (existing — DO NOT rename keys/exportBase) ──
+  draft:     { printer: 'IW2', cols: 12, rows: 9,  colMin: 12, colMax: 12, proportional: false, adjacentConstraint: true,  cellSize: 38, miniSize: 5, exportBase: 'DRAFT_ROM',     label: 'Draft',    detail: '12×9'  },
+  corrFixed: { printer: 'IW2', cols: 8,  rows: 9,  colMin: 8,  colMax: 8,  proportional: false, adjacentConstraint: false, cellSize: 38, miniSize: 5, exportBase: 'CORR_ROM',       label: 'Corr',     detail: '8×9'   },
+  corrProp:  { printer: 'IW2', cols: 7,  rows: 9,  colMin: 7,  colMax: 19, proportional: true,  adjacentConstraint: false, cellSize: 38, miniSize: 5, exportBase: 'CORR_PROP_ROM',  label: 'Corr~',    detail: '~×9'   },
+  nlqFixed:  { printer: 'IW2', cols: 16, rows: 18, colMin: 16, colMax: 16, proportional: false, adjacentConstraint: false, cellSize: 24, miniSize: 3, exportBase: 'NLQ_ROM',        label: 'NLQ',      detail: '16×18' },
+  nlqProp:   { printer: 'IW2', cols: 7,  rows: 18, colMin: 7,  colMax: 19, proportional: true,  adjacentConstraint: false, cellSize: 24, miniSize: 3, exportBase: 'NLQ_PROP_ROM',   label: 'NLQ~',     detail: '~×18'  },
+
+  // ── ImageWriter I (App E: standard 7×8, custom downloaded up to 16×8) ──
+  iw1Std:    { printer: 'IW1', cols: 7,  rows: 8,  colMin: 7,  colMax: 7,  proportional: false, adjacentConstraint: false, cellSize: 38, miniSize: 5, exportBase: 'IW1_ROM',        label: 'Std',      detail: '7×8'   },
+  iw1Custom: { printer: 'IW1', cols: 7,  rows: 8,  colMin: 1,  colMax: 16, colDefault: 7, proportional: true,  adjacentConstraint: false, cellSize: 38, miniSize: 5, exportBase: 'IW1_CUSTOM_ROM', label: 'Custom',   detail: '~×8'   },
+
+  // ── Epson FX-80 (FX Vol 2 App A: 12×9 9-pin; prop width 5–12; Roman + Italic) ──
+  epsonDraft:  { printer: 'EPSON', cols: 12, rows: 9, colMin: 12, colMax: 12, proportional: false, adjacentConstraint: false, cellSize: 38, miniSize: 5, exportBase: 'EPSON_FX_ROM',        label: 'Roman',    detail: '12×9' },
+  epsonProp:   { printer: 'EPSON', cols: 12, rows: 9, colMin: 5,  colMax: 12, proportional: true,  adjacentConstraint: false, cellSize: 38, miniSize: 5, exportBase: 'EPSON_FX_PROP_ROM',   label: 'Roman~',   detail: '~×9'  },
+  epsonItalic: { printer: 'EPSON', cols: 12, rows: 9, colMin: 12, colMax: 12, proportional: false, adjacentConstraint: false, cellSize: 38, miniSize: 5, exportBase: 'EPSON_FX_ITALIC_ROM', label: 'Italic',   detail: '12×9' },
 };
+
+// Display name per printer group, shown as a label in the mode bar.
+const PRINTER_LABELS = { IW2: 'ImageWriter II', IW1: 'ImageWriter I', EPSON: 'Epson FX-80' };
 
 let mode = 'draft';
 let COLS = 12, ROWS = 9;
@@ -229,10 +287,13 @@ let grid    = [];
 let isDragging     = false;
 let dragValue      = false;
 let clipboardBytes = null;
-let diagDrag   = false; // shift-drag diagonal mode
+let diagDrag   = false; // long-press diagonal mode (armed by holding still)
 let diagStartR = 0;
 let diagStartC = 0;
 let diagSign   = 0;    // +1 = row increases with col, -1 = decreases, 0 = undetermined
+let pressTimer = null; // long-press timer: holding a cell still arms diagonal mode
+let pressR = 0, pressC = 0;
+const LONGPRESS_MS = 300;
 
 function getBase()       { return modeStates[mode].base; }
 function getLocaleData() { return modeStates[mode].localeData; }
@@ -307,19 +368,39 @@ function buildGrid() {
       cell.addEventListener('mousedown', e => {
         e.preventDefault();
         isDragging = true;
-        dragValue  = !grid[r][c];
-        if (e.shiftKey) {
-          diagDrag   = true;
-          diagStartR = r; diagStartC = c; diagSign = 0;
-        } else {
-          diagDrag   = false;
+        if (moveMode) {
+          moveAnchorR = r; moveAnchorC = c;
+          moveSnapshot = grid.map(row => row.slice());
+          return;
         }
+        dragValue  = !grid[r][c];
+        diagDrag   = false;
+        // Long-press to arm diagonal mode: hold the cell still ~300ms. A quick
+        // drag out of the cell cancels the timer and stays orthogonal paint.
+        pressR = r; pressC = c;
+        if (pressTimer) clearTimeout(pressTimer);
+        pressTimer = setTimeout(() => {
+          pressTimer = null;
+          if (!isDragging) return;
+          diagDrag   = true;
+          diagStartR = pressR; diagStartC = pressC; diagSign = 0;
+        }, LONGPRESS_MS);
         setCell(r, c, dragValue);
       });
       cell.addEventListener('mouseover', e => {
         document.querySelectorAll('.col-hdr').forEach(h => h.classList.toggle('hdr-active', +h.dataset.col === c));
         document.querySelectorAll('.row-hdr').forEach(h => h.classList.toggle('hdr-active', +h.dataset.row === r));
+        if (moveMode) {
+          if (isDragging && moveSnapshot)
+            commitGrid(translateGrid(moveSnapshot, r - moveAnchorR, c - moveAnchorC));
+          return;
+        }
         if (!isDragging) return;
+        // Moved off the press cell before the long-press fired → quick drag,
+        // keep painting orthogonally.
+        if (pressTimer && (r !== pressR || c !== pressC)) {
+          clearTimeout(pressTimer); pressTimer = null;
+        }
         if (diagDrag) {
           const dc = c - diagStartC;
           if (dc === 0) return;
@@ -428,17 +509,57 @@ function init() {
   migrateLocales();
   COLS = MODE_CONFIG[mode].cols;
   ROWS = MODE_CONFIG[mode].rows;
+  renderModeBar();
+  updateTitle();
   buildGrid();
   renderLocaleBar();
   updateColControls();
   loadChar(code);
 }
 
+// Build the mode bar grouped by printer (IW2 / IW1 / Epson). Buttons keep the
+// id `mode-<key>` the rest of the code expects, and the active mode is marked
+// from the current `mode` so no manual class toggling is needed.
+function renderModeBar() {
+  const bar = document.getElementById('mode-bar');
+  bar.innerHTML = '';
+  const groups = {};
+  for (const [key, cfg] of Object.entries(MODE_CONFIG)) {
+    (groups[cfg.printer] ||= []).push([key, cfg]);
+  }
+  const activePrinter = MODE_CONFIG[mode].printer;
+  for (const [printer, entries] of Object.entries(groups)) {
+    const g = document.createElement('div');
+    g.className = 'printer-group' + (printer === activePrinter ? ' active-group' : '');
+    const lbl = document.createElement('div');
+    lbl.className = 'printer-label';
+    lbl.textContent = PRINTER_LABELS[printer] || printer;
+    g.appendChild(lbl);
+    const row = document.createElement('div');
+    row.className = 'printer-modes';
+    for (const [key, cfg] of entries) {
+      const btn = document.createElement('button');
+      btn.className = 'mode-btn' + (key === mode ? ' active' : '');
+      btn.id = 'mode-' + key;
+      btn.onclick = () => switchMode(key);
+      btn.innerHTML = `${cfg.label} <span class="mode-detail">${cfg.detail}</span>`;
+      row.appendChild(btn);
+    }
+    g.appendChild(row);
+    bar.appendChild(g);
+  }
+}
+
+function updateTitle() {
+  document.getElementById('editor-title').textContent =
+    `${PRINTER_LABELS[MODE_CONFIG[mode].printer] || ''} — ROM Editor`;
+}
+
 function switchMode(newMode) {
   if (mode === newMode) return;
   mode = newMode;
-  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('mode-' + newMode).classList.add('active');
+  renderModeBar();
+  updateTitle();
   const cfg = MODE_CONFIG[mode];
   COLS = cfg.cols;
   ROWS = cfg.rows;
@@ -571,7 +692,7 @@ function loadChar(c) {
   const cfg   = MODE_CONFIG[mode];
 
   if (cfg.proportional) {
-    const newCols = bytes ? bytes.length : cfg.colMin;
+    const newCols = bytes ? bytes.length : (cfg.colDefault ?? cfg.colMin);
     if (newCols !== COLS) {
       COLS = newCols;
       buildGrid();
@@ -609,15 +730,57 @@ function clearGrid() {
   refreshAll(); checkViolations(); updateBytesDisplay(); renderGallery();
 }
 
+// ── Move / nudge ──────────────────────────────────────────────────────────────
+// Reposition the whole glyph within the grid — the mechanism for migrating an
+// IW2 glyph into IW1's smaller cell, or aligning Epson descenders. Translation
+// is clamped to the glyph's bounding box so no set dot is ever pushed off-grid.
+let moveMode     = false;
+let moveAnchorR  = 0, moveAnchorC = 0;
+let moveSnapshot = null; // grid snapshot taken at drag start
+
+function translateGrid(src, dr, dc) {
+  let minR = ROWS, maxR = -1, minC = COLS, maxC = -1;
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < src[r].length; c++)
+      if (src[r][c]) {
+        if (r < minR) minR = r; if (r > maxR) maxR = r;
+        if (c < minC) minC = c; if (c > maxC) maxC = c;
+      }
+  const g = emptyGrid();
+  if (maxR < 0) return g; // empty glyph
+  dr = Math.max(-minR, Math.min(ROWS - 1 - maxR, dr));
+  dc = Math.max(-minC, Math.min(COLS - 1 - maxC, dc));
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < src[r].length; c++)
+      if (src[r][c]) g[r + dr][c + dc] = true;
+  return g;
+}
+
+function commitGrid(g) {
+  grid = g;
+  refreshAll(); checkViolations(); updateBytesDisplay(); updateLivePreviewCard();
+}
+
+function nudge(dr, dc) { commitGrid(translateGrid(grid, dr, dc)); }
+
+function toggleMove() {
+  moveMode = !moveMode;
+  document.getElementById('btn-move').classList.toggle('active', moveMode);
+  document.getElementById('grid-table').classList.toggle('move-mode', moveMode);
+}
+
 function copyChar() {
   clipboardBytes = gridToBytes();
   document.getElementById('btn-paste').disabled = false;
 }
 
-function pasteChar() {
-  if (!clipboardBytes) return;
+// Fit arbitrary source bytes into the current grid: clamp/pad columns to this
+// mode's limits (proportional resizes the grid; fixed truncates/pads). Rows
+// beyond this mode's height are naturally dropped by bytesToGrid — use Move (✥)
+// to reposition. Shared by Paste and Copy-from.
+function applySourceBytes(srcBytes) {
   const cfg = MODE_CONFIG[mode];
-  let bytes = clipboardBytes.slice();
+  let bytes = srcBytes.slice();
   if (cfg.proportional) {
     const newCols = Math.max(cfg.colMin, Math.min(cfg.colMax, bytes.length));
     bytes = bytes.slice(0, newCols);
@@ -629,6 +792,72 @@ function pasteChar() {
   }
   grid = bytesToGrid(bytes);
   refreshAll(); checkViolations(); updateBytesDisplay(); renderGallery();
+}
+
+function pasteChar() {
+  if (!clipboardBytes) return;
+  applySourceBytes(clipboardBytes);
+}
+
+// ── Copy from another printer / charset ───────────────────────────────────────
+function openCopyFrom() {
+  const sel = document.getElementById('cf-mode');
+  sel.innerHTML = '';
+  for (const [key, cfg] of Object.entries(MODE_CONFIG)) {
+    const o = document.createElement('option');
+    o.value = key;
+    o.textContent = `${PRINTER_LABELS[cfg.printer] || cfg.printer} — ${cfg.label} (${cfg.detail})`;
+    if (key === mode) o.selected = true;
+    sel.appendChild(o);
+  }
+  document.getElementById('cf-char').value = '$' + code.toString(16).toUpperCase().padStart(2,'0');
+  cfRefreshLocales();
+  document.getElementById('copyfrom-modal').style.display = 'flex';
+}
+
+function closeCopyFrom() { document.getElementById('copyfrom-modal').style.display = 'none'; }
+
+function cfRefreshLocales() {
+  const m   = document.getElementById('cf-mode').value;
+  const sel = document.getElementById('cf-locale');
+  const prev = sel.value;
+  const locs = ['US', ...Object.keys(modeStates[m]?.localeData || {})];
+  sel.innerHTML = '';
+  for (const l of locs) {
+    const o = document.createElement('option'); o.value = l; o.textContent = l;
+    if (l === prev) o.selected = true;
+    sel.appendChild(o);
+  }
+  cfPreview();
+}
+
+function cfSourceBytes() {
+  const m   = document.getElementById('cf-mode').value;
+  const loc = document.getElementById('cf-locale').value;
+  const c   = parseHexInput(document.getElementById('cf-char').value);
+  if (isNaN(c)) return null;
+  const st = modeStates[m];
+  if (!st) return null;
+  if (loc !== 'US' && st.localeData[loc]?.[c]) return st.localeData[loc][c];
+  return st.base[c] || null;
+}
+
+function cfPreview() {
+  const out   = document.getElementById('cf-preview');
+  const bytes = cfSourceBytes();
+  if (!bytes) { out.textContent = '(empty — nothing to copy at that code)'; return; }
+  const rows = MODE_CONFIG[document.getElementById('cf-mode').value].rows;
+  let s = '';
+  for (let r = 0; r < rows; r++)
+    s += bytes.map(b => (b & (1 << r)) ? '●' : '·').join('') + '\n';
+  out.textContent = s;
+}
+
+function applyCopyFrom() {
+  const bytes = cfSourceBytes();
+  if (!bytes) return;
+  applySourceBytes(bytes);
+  closeCopyFrom();
 }
 
 function acceptChar(e) {
@@ -920,13 +1149,24 @@ document.getElementById('char-hex').addEventListener('focus', e => e.target.sele
 
 document.addEventListener('keydown', e => {
   if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (moveMode && /^Arrow(Up|Down|Left|Right)$/.test(e.key)) {
+    e.preventDefault();
+    if (e.key === 'ArrowUp')    nudge(-1,  0);
+    if (e.key === 'ArrowDown')  nudge( 1,  0);
+    if (e.key === 'ArrowLeft')  nudge( 0, -1);
+    if (e.key === 'ArrowRight') nudge( 0,  1);
+    return;
+  }
   if (e.key === 'ArrowRight') navChar(1);
   if (e.key === 'ArrowLeft')  navChar(-1);
   if (e.key === 'Enter')      acceptChar(e);
   if (e.key === 'Escape')     clearGrid();
   if (e.key === 'n' || e.key === 'N') nextNew();
 });
-document.addEventListener('mouseup', () => { isDragging = false; diagDrag = false; });
+document.addEventListener('mouseup', () => {
+  isDragging = false; diagDrag = false; moveSnapshot = null;
+  if (pressTimer) { clearTimeout(pressTimer); pressTimer = null; }
+});
 
 init();
 </script>

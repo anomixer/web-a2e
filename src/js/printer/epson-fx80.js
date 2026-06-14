@@ -11,6 +11,7 @@
 
 import { PrinterBase } from "./printer-base.js";
 import { DRAFT_ROM } from "./imagewriter-rom-draft.js";
+import { EPSON_FX_ROM, EPSON_FX_ITALIC_ROM } from "./epson-fx80-rom.js";
 
 // Parser states
 const S_NORMAL    = 0;
@@ -91,6 +92,8 @@ export class EpsonFX80 extends PrinterBase {
     this._ampCur      = 0;
     this._ampColsLeft = 0;
     this._ampBuf      = [];
+    this._htabPend    = []; // ESC D bytes accumulating until the 0 terminator
+    this._vtabPend    = []; // ESC B bytes accumulating until the 0 terminator
   }
 
   _resetRenderState() {
@@ -102,8 +105,15 @@ export class EpsonFX80 extends PrinterBase {
     this._italic     = false;
     this._script     = 0;      // 0=none, 1=superscript, 2=subscript
     this._lineHeight = DEFAULT_LINE_HEIGHT;
+    this._autoLF     = true;               // DIP SW2-1 default ON; manager overrides
+    this._leftMargin = 0;                  // ESC l — internal dots
+    this._rightMargin = this._printWidthDots(); // ESC Q — defaults to full 8" carriage
+    this._htabCols   = [];                 // ESC D stops (columns); empty = every 8
+    this._vtabLines  = [];                 // ESC B stops (lines); empty = single LF
+    this._skipPerf   = 0;                  // ESC N — lines skipped at each page bottom
     this._xDot       = 0;
     this._yDot       = this._homeYDot();   // power-on head rest, a hair below sheet top
+    if (this.paper) this.paper.setFormDots(DPI * 11); // ESC C resets to 11" default
   }
 
   reset() {
@@ -182,15 +192,26 @@ export class EpsonFX80 extends PrinterBase {
       }
 
       case S_VT_LIST:
-        if (ch === 0) this._state = S_NORMAL;
+        if (ch === 0) {
+          this._vtabLines = this._vtabPend.slice().sort((a, b) => a - b);
+          this._state = S_NORMAL;
+        } else {
+          this._vtabPend.push(ch);
+        }
         break;
 
       case S_HT_LIST:
-        if (ch === 0) this._state = S_NORMAL;
+        if (ch === 0) {
+          this._htabCols = this._htabPend.slice().sort((a, b) => a - b);
+          this._state = S_NORMAL;
+        } else {
+          this._htabPend.push(ch);
+        }
         break;
 
       case S_ESC_C2:
-        this._state = S_NORMAL; // form length in inches — ignore
+        if (ch > 0) this.paper.setFormDots(ch * DPI); // ESC C 0 n — form length in inches
+        this._state = S_NORMAL;
         break;
 
       case S_AMP1:
@@ -239,24 +260,37 @@ export class EpsonFX80 extends PrinterBase {
     switch (ch) {
       case 0x07: break;                           // BEL — ignore
       case 0x08:                                  // BS — backspace
-        this._xDot = Math.max(0, this._xDot - this._charAdvance());
+        this._xDot = Math.max(this._leftMargin, this._xDot - this._charAdvance());
         break;
-      case 0x09: break;                           // HT — horizontal tab (not impl)
+      case 0x09:                                  // HT — horizontal tab
+        this._horizontalTab();
+        break;
       case 0x0A:                                  // LF — line feed
-        if (!wasCR) {                             // LF paired with CR is swallowed
+        if (!(this._autoLF && wasCR)) {           // LF paired with an auto-LF CR is swallowed
           this._yDot += this._lineHeight;
           this.emit('linefeed');
+          this._checkSkipPerf();
         }
         break;
-      case 0x0B: break;                           // VT — vertical tab (not impl)
+      case 0x0B:                                  // VT — vertical tab
+        this._verticalTab();
+        break;
       case 0x0C:                                  // FF — form feed
         this.formFeed();   // slew to next top-of-form (shared with panel)
         break;
-      case 0x0D:                                  // CR — carriage return + implicit LF
-        this._xDot  = 0;
-        this._yDot += this._lineHeight;
-        this._lastCR = true;                      // arm CR+LF coalescing
-        this.emit('newline');
+      case 0x0D:                                  // CR — carriage return
+        // Whether CR also feeds is the Auto-LF DIP (SW2-1). ON: feed one line and
+        // arm CR+LF coalescing (plain text / Applesoft sends CR only). OFF: return
+        // the head only, so overprint passes register on the same band.
+        this._xDot = this._leftMargin;
+        if (this._autoLF) {
+          this._yDot += this._lineHeight;
+          this._lastCR = true;                    // arm CR+LF coalescing
+          this.emit('newline');
+          this._checkSkipPerf();
+        } else {
+          this.emit('carriagereturn');            // head home, no paper feed
+        }
         break;
       case 0x0E:                                  // SO — one-line expanded on
         this._expanded = true;
@@ -311,13 +345,13 @@ export class EpsonFX80 extends PrinterBase {
       case 0x47: this._dblStrike  = true;  break; // ESC G — double-strike on
       case 0x48: this._dblStrike  = false; break; // ESC H — double-strike off
       case 0x4D: this._pitch = 'elite';    break; // ESC M — elite on (12 cpi)
-      case 0x4F: break;                           // ESC O — cancel skip-over-perforation
+      case 0x4F: this._skipPerf = 0;       break; // ESC O — cancel skip-over-perforation
       case 0x50: this._pitch = 'pica';     break; // ESC P — elite off → pica
       case 0x54: this._script = 0;         break; // ESC T — cancel super/subscript
 
       // ——— Tab stop lists ———
-      case 0x42: this._state = S_VT_LIST; break;  // ESC B n... 0 (vertical tab stops)
-      case 0x44: this._state = S_HT_LIST; break;  // ESC D n... 0 (horizontal tab stops)
+      case 0x42: this._vtabPend = []; this._state = S_VT_LIST; break;  // ESC B n... 0 (vertical tab stops)
+      case 0x44: this._htabPend = []; this._state = S_HT_LIST; break;  // ESC D n... 0 (horizontal tab stops)
 
       // ——— ESC * generic graphics (mode byte + count lo + count hi + data) ———
       case 0x2A:
@@ -351,8 +385,8 @@ export class EpsonFX80 extends PrinterBase {
       case 0x43: // ESC C n — form length in lines (0 → next byte = inches)
       case 0x49: // ESC I n — print control chars toggle (ignore)
       case 0x4A: // ESC J n — immediate n/216" line feed
-      case 0x4E: // ESC N n — skip-over-perforation lines (ignore)
-      case 0x51: // ESC Q n — right margin (ignore)
+      case 0x4E: // ESC N n — skip-over-perforation lines
+      case 0x51: // ESC Q n — right margin
       case 0x52: // ESC R n — international charset (ignore)
       case 0x53: // ESC S n — super/subscript (0=super, 1=sub)
       case 0x55: // ESC U n — unidirectional mode (ignore)
@@ -360,7 +394,7 @@ export class EpsonFX80 extends PrinterBase {
       case 0x62: // ESC b n — vertical tab channel select (ignore)
       case 0x69: // ESC i n — immediate mode FX-80 (ignore)
       case 0x6A: // ESC j n — reverse feed n/216" (FX-80 only)
-      case 0x6C: // ESC l n — left margin (ignore)
+      case 0x6C: // ESC l n — left margin
       case 0x70: // ESC p n — proportional mode (ignore)
       case 0x73: // ESC s n — half-speed mode (ignore)
         this._paramCmd = ch;
@@ -419,8 +453,13 @@ export class EpsonFX80 extends PrinterBase {
         this._lineHeight = Math.min(ch, 85) * (DPI / 72);
         this._state = S_NORMAL;
         break;
-      case 0x43: // ESC C n — form length
-        this._state = (ch === 0) ? S_ESC_C2 : S_NORMAL;
+      case 0x43: // ESC C n — form length in lines (n=0 → next byte = inches)
+        if (ch === 0) {
+          this._state = S_ESC_C2;
+        } else {
+          this.paper.setFormDots(Math.round(ch * this._lineHeight));
+          this._state = S_NORMAL;
+        }
         break;
       case 0x25: // ESC % n1 → need n2
         this._state = S_PARAM2;
@@ -432,12 +471,16 @@ export class EpsonFX80 extends PrinterBase {
         this._yDot += ch * UNIT_216;
         this._state = S_NORMAL;
         break;
-      case 0x4E: // ESC N n — ignore
+      case 0x4E: // ESC N n — skip-over-perforation: skip n lines at each page bottom
+        this._skipPerf = ch;
         this._state = S_NORMAL;
         break;
-      case 0x51: // ESC Q n — ignore
+      case 0x51: { // ESC Q n — right margin at column n (current pitch)
+        const r = Math.round(ch * this._colDots());
+        if (r > this._leftMargin) this._rightMargin = Math.min(r, this._printWidthDots());
         this._state = S_NORMAL;
         break;
+      }
       case 0x52: // ESC R n — ignore
         this._state = S_NORMAL;
         break;
@@ -462,7 +505,9 @@ export class EpsonFX80 extends PrinterBase {
         this._yDot  = Math.max(0, this._yDot - ch * UNIT_216);
         this._state = S_NORMAL;
         break;
-      case 0x6C: // ESC l n — ignore
+      case 0x6C: // ESC l n — left margin at column n (current pitch)
+        this._leftMargin = Math.round(ch * this._colDots());
+        if (this._xDot < this._leftMargin) this._xDot = this._leftMargin;
         this._state = S_NORMAL;
         break;
       case 0x70: // ESC p n — ignore
@@ -482,6 +527,54 @@ export class EpsonFX80 extends PrinterBase {
     this._state = (this._paramCmd === 0x3A) ? S_PARAM3 : S_NORMAL;
   }
 
+  // DIP SW2-1 Automatic Line Feed, driven by the printer manager (shared toggle).
+  setAutoLineFeed(on) { this._autoLF = !!on; }
+  getAutoLineFeed()   { return this._autoLF; }
+
+  // Printable carriage width (8") and one character column at the current pitch.
+  _printWidthDots() { return DPI * 8; }
+  _colDots()        { return DPI / CPI[this._pitch]; }
+
+  // HT — advance to the next horizontal tab stop. Explicit stops (ESC D) are
+  // columns from the left margin; with none set the default is every 8 columns.
+  // A stop at or past the right margin is ignored (the head stays put).
+  _horizontalTab() {
+    const col = this._colDots();
+    let next = null;
+    if (this._htabCols.length) {
+      for (const c of this._htabCols) {
+        const x = this._leftMargin + Math.round(c * col);
+        if (x > this._xDot + 0.5) { next = x; break; }
+      }
+    } else {
+      const curCol = Math.round((this._xDot - this._leftMargin) / col);
+      next = this._leftMargin + Math.round((Math.floor(curCol / 8) + 1) * 8 * col);
+    }
+    if (next != null && next <= this._rightMargin) this._xDot = next;
+  }
+
+  // VT — advance to the next vertical tab stop (ESC B, lines from top-of-form).
+  // With no stop below the cursor it acts as a single line feed.
+  _verticalTab() {
+    if (this._vtabLines.length) {
+      for (const ln of this._vtabLines) {
+        const y = this.paper.topOfForm + Math.round(ln * this._lineHeight);
+        if (y > this._yDot + 0.5) {
+          this._yDot = y; this.emit('linefeed'); this._checkSkipPerf(); return;
+        }
+      }
+    }
+    this._yDot += this._lineHeight; this.emit('linefeed'); this._checkSkipPerf();
+  }
+
+  // Skip-over-perforation (ESC N): once the cursor reaches the last n lines of a
+  // page, slew straight to the next page top so nothing prints across the fold.
+  _checkSkipPerf() {
+    if (this._skipPerf <= 0) return;
+    const bottom = this.paper.nextFormTop(this._yDot);
+    if (this._yDot > bottom - this._skipPerf * this._lineHeight) this.formFeed();
+  }
+
   _charAdvance() {
     const base = DPI / CPI[this._pitch];
     return Math.round(this._expanded ? base * 2 : base);
@@ -490,6 +583,18 @@ export class EpsonFX80 extends PrinterBase {
   _emitChar(code) {
     const cols = this._customChars.get(code) ?? this._romChar(code);
     if (!cols) return;
+
+    // Auto-wrap: a glyph that would cross the right margin starts a fresh line
+    // first (a hardware CR+LF, independent of the Auto-LF DIP). The leftMargin
+    // guard guarantees forward progress so a too-narrow margin can't loop.
+    if (this._xDot > this._leftMargin &&
+        this._xDot + this._charAdvance() > this._rightMargin) {
+      this._xDot   = this._leftMargin;
+      this._yDot  += this._lineHeight;
+      this._lastCR = false;
+      this.emit('newline');
+      this._checkSkipPerf();
+    }
 
     this.emit('printChar', {
       cols,
@@ -505,8 +610,14 @@ export class EpsonFX80 extends PrinterBase {
     this._xDot += this._charAdvance();
   }
 
+  // Render from the FX-80's own font ROM: the Italic bank when italic is active
+  // (ESC 4 / Master Select bit 6), otherwise Roman. Either falls back to the
+  // ImageWriter II draft ROM for any code not yet transcribed, so the printer
+  // stays usable while the Epson font is authored in rom-editor.html.
+  // (International charsets — ESC R — are deferred to Phase 6.)
   _romChar(code) {
-    return DRAFT_ROM[code] ?? null;
+    const rom = this._italic ? EPSON_FX_ITALIC_ROM : EPSON_FX_ROM;
+    return rom[code] ?? DRAFT_ROM[code] ?? null;
   }
 
   static get DPI()   { return DPI; }
