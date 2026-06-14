@@ -1236,9 +1236,7 @@ export class PrinterWindow extends BaseWindow {
 
   _downloadPdf() {
     if (this._canvasMode) { this._downloadPdfCanvas(); return; }
-    const win = window.open("", "_blank");
-    if (!win) return;
-    win.document.write(
+    this._printViaIframe(
       `<!DOCTYPE html>` +
       `<html><head><title>Printer Output</title>` +
       `<style>` +
@@ -1248,9 +1246,40 @@ export class PrinterWindow extends BaseWindow {
       `</style></head>` +
       `<body><pre>${this._escapeHtml(this.text)}</pre></body></html>`
     );
-    win.document.close();
-    win.focus();
-    win.print();
+  }
+
+  // Print HTML through a throwaway hidden iframe instead of a popup tab (no
+  // visible window, and popup blockers never fire). The iframe holds a whole
+  // document — and, for the dot-matrix path, a base64 PNG per page — so it MUST
+  // be torn down or it leaks. onafterprint removes it when the dialog closes;
+  // a fallback timer covers browsers that never fire it, and the `done` guard
+  // makes cleanup idempotent regardless of which path wins the race.
+  _printViaIframe(html) {
+    const frame = document.createElement("iframe");
+    frame.setAttribute("aria-hidden", "true");
+    // Off-screen but at a real rendered size: a 0x0 or visibility:hidden frame
+    // prints blank in some engines. `srcdoc` (vs document.write) fires a proper
+    // load event AFTER the page images decode, so the dot-matrix preview isn't
+    // captured blank.
+    frame.style.cssText =
+      "position:fixed;left:-10000px;top:0;width:8.5in;height:11in;border:0;";
+    frame.srcdoc = html;
+    document.body.appendChild(frame);
+
+    let done = false;
+    const cleanup = () => {
+      if (done) return;
+      done = true;
+      frame.remove();            // detach node → its doc + PNG data URLs become GC-able
+    };
+
+    frame.addEventListener("load", () => {
+      const fwin = frame.contentWindow;
+      fwin.onafterprint = cleanup;                // primary: print dialog dismissed
+      try { fwin.focus(); fwin.print(); }
+      catch (_) { cleanup(); return; }            // print threw → don't leak the frame
+      setTimeout(cleanup, 60000);                 // fallback if onafterprint never fires
+    }, { once: true });
   }
 
   // Dot-matrix PDF: one full-bleed page image per used page, perforation-free,
@@ -1279,10 +1308,8 @@ export class PrinterWindow extends BaseWindow {
       imgs.push(slice.toDataURL("image/png"));
     }
 
-    const win = window.open("", "_blank");
-    if (!win) return;
     const body = imgs.map((src) => `<img class="page" src="${src}"/>`).join("");
-    win.document.write(
+    this._printViaIframe(
       `<!DOCTYPE html><html><head><title>Printer Output</title><style>` +
       `@page { size: ${wIn}in ${hIn}in; margin: 0; }` +
       `html,body { margin:0; padding:0; background:#fff; }` +
@@ -1291,11 +1318,6 @@ export class PrinterWindow extends BaseWindow {
       `img.page:last-child { page-break-after: auto; }` +
       `</style></head><body>${body}</body></html>`
     );
-    win.document.close();
-    win.focus();
-    // Wait for the page images to decode before invoking the print dialog,
-    // otherwise the preview can come up blank.
-    win.onload = () => { try { win.print(); } catch (_) {} };
   }
 
   // A perforation-free copy of the used pages for clean full-bleed output. The
