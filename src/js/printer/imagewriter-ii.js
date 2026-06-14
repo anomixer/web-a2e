@@ -181,96 +181,7 @@ export class ImageWriterII extends PrinterBase {
 
       case S_ESC:
         this._state = S_NORMAL;
-        switch (ch) {
-          // Character pitch. ESC p/P are the proportional pitches; selecting one
-          // forces the correspondence font (proportional isn't a draft/NLQ feature).
-          case 0x6E: this._pitch = 'extended';  this._proportional = false; break;  // ESC n — extended (9 cpi, 72 dpi gfx)
-          case 0x4E: this._pitch = 'pica';      this._proportional = false; break;  // ESC N — pica (10 cpi, 80 dpi gfx)
-          case 0x45: this._pitch = 'elite';     this._proportional = false; break;  // ESC E — elite (12 cpi, 96 dpi gfx)
-          case 0x65: this._pitch = 'semicond';  this._proportional = false; break;  // ESC e — semicondensed (13.4 cpi, 107 dpi gfx)
-          case 0x71: this._pitch = 'condensed'; this._proportional = false; break;  // ESC q — condensed (15 cpi, 120 dpi gfx)
-          case 0x51: this._pitch = 'ultra';     this._proportional = false; break;  // ESC Q — ultracondensed (17 cpi, 136 dpi gfx)
-          case 0x70: this._pitch = 'propPica';  this._proportional = true; this._applyHeadSpeed(); break;  // ESC p — proportional-pica (144 dpi gfx)
-          case 0x50: this._pitch = 'propElite'; this._proportional = true; this._applyHeadSpeed(); break;  // ESC P — proportional-elite (160 dpi gfx)
-
-          // Print quality (Table 4-1). ESC m/ESC M are Apple Scribe aliases.
-          case 0x6D: this._quality = 'corr'; this._applyHeadSpeed(); break;  // ESC m — correspondence font
-          case 0x4D: this._quality = 'nlq';  this._applyHeadSpeed(); break;  // ESC M — NLQ font
-
-          // Print style. Bold/half-height/super/subscript are draft-incompatible
-          // (Tables 4-1/4-10/4-11): toggling them can shift the effective font and
-          // therefore the carriage speed, so re-arm head speed on each.
-          case 0x21: this._bold      = true;  this._applyHeadSpeed(); break;  // ESC ! — bold on
-          case 0x22: this._bold      = false; this._applyHeadSpeed(); break;  // ESC " — bold off
-          case 0x58: this._underline = true;  break;  // ESC X — start underline
-          case 0x59: this._underline = false; break;  // ESC Y — stop underline (Table 4-8)
-          case 0x77: this._halfHeight = true;  this._applyHeadSpeed(); break;  // ESC w — start half-height
-          case 0x57: this._halfHeight = false; this._applyHeadSpeed(); break;  // ESC W — stop half-height
-          case 0x78: this._script = 'super'; this._applyHeadSpeed(); break;  // ESC x — start superscript
-          case 0x79: this._script = 'sub';   this._applyHeadSpeed(); break;  // ESC y — start subscript
-          case 0x7A: this._script = 'none';  this._applyHeadSpeed(); break;  // ESC z — stop super/subscript
-
-          // Print-head motion (Table 5-5). Persists until cancelled or reset.
-          case 0x3E: this._unidirectional = true;  break;  // ESC > — unidirectional
-          case 0x3C: this._unidirectional = false; break;  // ESC < — bidirectional (default)
-
-          // Character-set selection (Table 4-2). ESC & temporarily maps the 32
-          // MouseText glyphs into low ASCII $40-$5F; ESC $ restores standard
-          // ASCII. (8th-bit ESC Z/D mode is unmodelled — Applesoft sets bit 7 on
-          // every byte, so the manual recommends ESC & for BASIC.)
-          case 0x26: this._mouseText = true;  break;  // ESC & — map MouseText to $40-$5F
-          case 0x24: this._mouseText = false; this._customFont = 'none'; break;  // ESC $ — standard ASCII + normal font (default)
-
-          // Downloaded-character font select (Table A-9). ESC '/* turn on the
-          // custom glyph set (low/high ASCII); ESC $ (above) turns it back off.
-          case 0x27: this._customFont = 'low';  break;  // ESC ' — custom font, low ASCII
-          case 0x2A: this._customFont = 'high'; break;  // ESC * — custom font, high ASCII
-
-          // Line spacing (Table A-15). These are IW-II native: ESC A/B are fixed
-          // 6/8 lpi (no parameter), ESC T takes a 2-digit n/144 inch distance.
-          case 0x41: this._lineHeight = DPI / 6; break;  // ESC A — 6 lpi
-          case 0x42: this._lineHeight = DPI / 8; break;  // ESC B — 8 lpi
-          case 0x54: this._beginNum(0x54, 2); break;     // ESC T nn — n/144 inch
-
-          // Page formatting (Table A-13).
-          case 0x48: this._beginNum(0x48, 4); break;  // ESC H nnnn — page length n/144 inch
-          case 0x4C: this._beginNum(0x4C, 3); break;  // ESC L nnn — left margin at column nnn
-
-          // Head placement / repeat (Tables A-14, A-19, 8-1).
-          case 0x46: this._beginNum(0x46, 4); break;  // ESC F nnnn — head to dot column nnnn
-          case 0x52: this._beginNum(0x52, 3); break;  // ESC R nnn c — repeat char c nnn times
-          case 0x56: this._beginNum(0x56, 4); break;  // ESC V nnnn c — repeat column byte c
-
-          // Commands consuming one parameter byte
-          case 0x61: // ESC a — font select
-          case 0x4B: // ESC K — color select
-            this._paramCmd = ch;
-            this._state    = S_PARAM1;
-            break;
-
-          // Bit-image graphics (Table 8-1). Density follows the current pitch.
-          case 0x47:          // ESC G nnnn — nnnn = 4-digit ASCII byte count
-          case 0x53:          // ESC S nnnn — identical to ESC G
-            this._gfxDigitsLeft = 4; this._gfxCountAcc = 0; this._gfxMul = 1;
-            this._imgDotW = this._gfxDotW();
-            this._state   = S_IMG_COUNT;
-            break;
-          case 0x67:          // ESC g nnn — nnn = 3-digit ASCII count of 8-byte groups
-            this._gfxDigitsLeft = 3; this._gfxCountAcc = 0; this._gfxMul = 8;
-            this._imgDotW = this._gfxDotW();
-            this._state   = S_IMG_COUNT;
-            break;
-
-          // Custom character width / clear
-          case 0x2D: this._customMaxWidth = 8;  this._customChars.clear(); break;  // ESC -
-          case 0x2B: this._customMaxWidth = 16; this._customChars.clear(); break;  // ESC +
-
-          // Custom character load
-          case 0x49: this._state = S_CUSTOM_KEY; break;  // ESC I
-
-          // Software reset (render state resets; custom chars survive)
-          case 0x63: this._resetRenderState(); this._resetParserState(); this._applyHeadSpeed(); break;  // ESC c
-        }
+        this._handleEsc(ch);
         break;
 
       case S_PARAM1:
@@ -385,6 +296,102 @@ export class ImageWriterII extends PrinterBase {
         }
         this._state = S_NORMAL;
         break;
+    }
+  }
+
+  // Dispatch an ESC command byte. Split out from receiveByte so subclasses
+  // (the monochrome ImageWriter I) can override individual codes without
+  // duplicating the whole parser.
+  _handleEsc(ch) {
+    switch (ch) {
+      // Character pitch. ESC p/P are the proportional pitches; selecting one
+      // forces the correspondence font (proportional isn't a draft/NLQ feature).
+      case 0x6E: this._pitch = 'extended';  this._proportional = false; break;  // ESC n — extended (9 cpi, 72 dpi gfx)
+      case 0x4E: this._pitch = 'pica';      this._proportional = false; break;  // ESC N — pica (10 cpi, 80 dpi gfx)
+      case 0x45: this._pitch = 'elite';     this._proportional = false; break;  // ESC E — elite (12 cpi, 96 dpi gfx)
+      case 0x65: this._pitch = 'semicond';  this._proportional = false; break;  // ESC e — semicondensed (13.4 cpi, 107 dpi gfx)
+      case 0x71: this._pitch = 'condensed'; this._proportional = false; break;  // ESC q — condensed (15 cpi, 120 dpi gfx)
+      case 0x51: this._pitch = 'ultra';     this._proportional = false; break;  // ESC Q — ultracondensed (17 cpi, 136 dpi gfx)
+      case 0x70: this._pitch = 'propPica';  this._proportional = true; this._applyHeadSpeed(); break;  // ESC p — proportional-pica (144 dpi gfx)
+      case 0x50: this._pitch = 'propElite'; this._proportional = true; this._applyHeadSpeed(); break;  // ESC P — proportional-elite (160 dpi gfx)
+
+      // Print quality (Table 4-1). ESC m/ESC M are Apple Scribe aliases.
+      case 0x6D: this._quality = 'corr'; this._applyHeadSpeed(); break;  // ESC m — correspondence font
+      case 0x4D: this._quality = 'nlq';  this._applyHeadSpeed(); break;  // ESC M — NLQ font
+
+      // Print style. Bold/half-height/super/subscript are draft-incompatible
+      // (Tables 4-1/4-10/4-11): toggling them can shift the effective font and
+      // therefore the carriage speed, so re-arm head speed on each.
+      case 0x21: this._bold      = true;  this._applyHeadSpeed(); break;  // ESC ! — bold on
+      case 0x22: this._bold      = false; this._applyHeadSpeed(); break;  // ESC " — bold off
+      case 0x58: this._underline = true;  break;  // ESC X — start underline
+      case 0x59: this._underline = false; break;  // ESC Y — stop underline (Table 4-8)
+      case 0x77: this._halfHeight = true;  this._applyHeadSpeed(); break;  // ESC w — start half-height
+      case 0x57: this._halfHeight = false; this._applyHeadSpeed(); break;  // ESC W — stop half-height
+      case 0x78: this._script = 'super'; this._applyHeadSpeed(); break;  // ESC x — start superscript
+      case 0x79: this._script = 'sub';   this._applyHeadSpeed(); break;  // ESC y — start subscript
+      case 0x7A: this._script = 'none';  this._applyHeadSpeed(); break;  // ESC z — stop super/subscript
+
+      // Print-head motion (Table 5-5). Persists until cancelled or reset.
+      case 0x3E: this._unidirectional = true;  break;  // ESC > — unidirectional
+      case 0x3C: this._unidirectional = false; break;  // ESC < — bidirectional (default)
+
+      // Character-set selection (Table 4-2). ESC & temporarily maps the 32
+      // MouseText glyphs into low ASCII $40-$5F; ESC $ restores standard
+      // ASCII. (8th-bit ESC Z/D mode is unmodelled — Applesoft sets bit 7 on
+      // every byte, so the manual recommends ESC & for BASIC.)
+      case 0x26: this._mouseText = true;  break;  // ESC & — map MouseText to $40-$5F
+      case 0x24: this._mouseText = false; this._customFont = 'none'; break;  // ESC $ — standard ASCII + normal font (default)
+
+      // Downloaded-character font select (Table A-9). ESC '/* turn on the
+      // custom glyph set (low/high ASCII); ESC $ (above) turns it back off.
+      case 0x27: this._customFont = 'low';  break;  // ESC ' — custom font, low ASCII
+      case 0x2A: this._customFont = 'high'; break;  // ESC * — custom font, high ASCII
+
+      // Line spacing (Table A-15). These are IW-II native: ESC A/B are fixed
+      // 6/8 lpi (no parameter), ESC T takes a 2-digit n/144 inch distance.
+      case 0x41: this._lineHeight = DPI / 6; break;  // ESC A — 6 lpi
+      case 0x42: this._lineHeight = DPI / 8; break;  // ESC B — 8 lpi
+      case 0x54: this._beginNum(0x54, 2); break;     // ESC T nn — n/144 inch
+
+      // Page formatting (Table A-13).
+      case 0x48: this._beginNum(0x48, 4); break;  // ESC H nnnn — page length n/144 inch
+      case 0x4C: this._beginNum(0x4C, 3); break;  // ESC L nnn — left margin at column nnn
+
+      // Head placement / repeat (Tables A-14, A-19, 8-1).
+      case 0x46: this._beginNum(0x46, 4); break;  // ESC F nnnn — head to dot column nnnn
+      case 0x52: this._beginNum(0x52, 3); break;  // ESC R nnn c — repeat char c nnn times
+      case 0x56: this._beginNum(0x56, 4); break;  // ESC V nnnn c — repeat column byte c
+
+      // Commands consuming one parameter byte
+      case 0x61: // ESC a — font select
+      case 0x4B: // ESC K — color select
+        this._paramCmd = ch;
+        this._state    = S_PARAM1;
+        break;
+
+      // Bit-image graphics (Table 8-1). Density follows the current pitch.
+      case 0x47:          // ESC G nnnn — nnnn = 4-digit ASCII byte count
+      case 0x53:          // ESC S nnnn — identical to ESC G
+        this._gfxDigitsLeft = 4; this._gfxCountAcc = 0; this._gfxMul = 1;
+        this._imgDotW = this._gfxDotW();
+        this._state   = S_IMG_COUNT;
+        break;
+      case 0x67:          // ESC g nnn — nnn = 3-digit ASCII count of 8-byte groups
+        this._gfxDigitsLeft = 3; this._gfxCountAcc = 0; this._gfxMul = 8;
+        this._imgDotW = this._gfxDotW();
+        this._state   = S_IMG_COUNT;
+        break;
+
+      // Custom character width / clear
+      case 0x2D: this._customMaxWidth = 8;  this._customChars.clear(); break;  // ESC -
+      case 0x2B: this._customMaxWidth = 16; this._customChars.clear(); break;  // ESC +
+
+      // Custom character load
+      case 0x49: this._state = S_CUSTOM_KEY; break;  // ESC I
+
+      // Software reset (render state resets; custom chars survive)
+      case 0x63: this._resetRenderState(); this._resetParserState(); this._applyHeadSpeed(); break;  // ESC c
     }
   }
 
@@ -551,6 +558,9 @@ export class ImageWriterII extends PrinterBase {
 
   // True only after ESC > ; default (and after ESC < / reset) is bidirectional.
   isUnidirectional() { return this._unidirectional; }
+
+  // The ImageWriter II is the only model that took a four-band colour ribbon.
+  supportsColorRibbon() { return true; }
 
   // Selectable FORM LENGTHS, not paper sizes. The ImageWriter II is a
   // continuous-feed printer with a fixed 8" printable width — it has no concept

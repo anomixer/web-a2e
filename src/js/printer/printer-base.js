@@ -67,6 +67,11 @@ export class PrinterBase {
   // ---- Ribbon cartridge ----
   setRibbon(kind)  { this.ribbon.setType(kind); }
   getRibbon()      { return this.ribbon.type; }
+
+  // Whether a colour ribbon cartridge can be loaded. Only the ImageWriter II
+  // ever shipped a four-band colour ribbon; the IW-I and Epson FX-80 are
+  // black-only. The UI hides the colour option for models that return false.
+  supportsColorRibbon() { return false; }
   _inkColor(color) { return this.ribbon.ink(color); }
 
   // ---- Carriage spec (overridable per model) ----

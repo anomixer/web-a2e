@@ -60,6 +60,12 @@ export class PrinterManager {
 
   // Wire the head model to this manager: impacts → sound, timed events → clock.
   _install(printer) {
+    // A black-only model (IW-I, Epson) can't hold a colour cart — drop any
+    // persisted colour ribbon to B/W when such a printer becomes active.
+    if (this._ribbon === "color" && printer.supportsColorRibbon?.() === false) {
+      this._ribbon = "bw";
+      try { localStorage.setItem("a2e-printer-ribbon", "bw"); } catch (e) { /* non-fatal */ }
+    }
     printer.setRibbon(this._ribbon);
     printer.setAutoLineFeed?.(this._autoLF);
     printer.onImpact((dots, kind, xDot) => this._onImpact(dots, kind, xDot));
@@ -172,7 +178,8 @@ export class PrinterManager {
   }
 
   setRibbon(kind) {
-    this._ribbon = kind === "color" ? "color" : "bw";
+    const wantColor = kind === "color" && this.activePrinter.supportsColorRibbon?.() !== false;
+    this._ribbon = wantColor ? "color" : "bw";
     try { localStorage.setItem("a2e-printer-ribbon", this._ribbon); }
     catch (e) { /* non-fatal */ }
     this.activePrinter.setRibbon(this._ribbon);

@@ -547,8 +547,23 @@ export class PrinterWindow extends BaseWindow {
       this.elements.output.style.display     = this._canvasMode ? "none"  : "";
       this.elements.canvasWrap.style.display = this._canvasMode ? "block" : "none";
       if (!this._canvasMode && this.elements.headMark) this.elements.headMark.style.display = "none";
+      this._refreshRibbonOptions(printer);
       this._applyFit();
     }
+  }
+
+  // Grey out the Color Ribbon option for models that can't hold one (IW-I,
+  // Epson) and reflect the manager's (possibly coerced) ribbon in the select.
+  _refreshRibbonOptions(printer) {
+    const sel = this.elements?.ribbon;
+    if (!sel) return;
+    const colorOk = printer.supportsColorRibbon?.() !== false;
+    const opt = sel.querySelector('option[value="color"]');
+    if (opt) {
+      opt.disabled = !colorOk;
+      opt.title    = colorOk ? "" : `${printer.getName()} is black-ribbon only`;
+    }
+    sel.value = this.printerManager.getRibbon();
   }
 
   _toggleFit() {
