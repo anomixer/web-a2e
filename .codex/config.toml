@@ -1,9 +1,0 @@
-[mcp_servers.appleii-agent]
-command = "bunx"
-args = [
-    "-y",
-    "@retrotech71/appleii-agent",
-]
-
-[mcp_servers.appleii-agent.env]
-APPLEII_AGENT_SANDBOX = "~/.appleii/sandbox.config"
