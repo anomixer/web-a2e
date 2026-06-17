@@ -103,19 +103,29 @@ const BAND_PASSES = [
   { bit: bK, esc: 0 }, // black
 ];
 
-// The six saturated colours, each given as the //e SCREEN colour it looks like
-// (so we quantise the framebuffer against it) paired with the ribbon bands that
-// overlay to print it. RGB values are the canonical Apple // 16-colour palette
-// entries (NTSC-derived), the actual source a dump quantises. The two greyscale
-// poles (black, white) are added by gamut() below, because which pole inks
-// depends on the dump mode.
+// Quantisation anchors = the //e's actual 16-colour palette (video.cpp:445,
+// 0xAARRGGBB), each tagged with the ribbon band(s) that overlay to print it.
+// Anchoring on the *whole* palette — not just the six saturated hues — is what
+// keeps solid regions solid: the //e's dark and pastel colours (dark blue,
+// olive, light blue …) each land on their OWN anchor instead of being scattered
+// by the Bayer jog between three far-apart saturated points (the crosshatch
+// artefact). The ribbon can't make blue or any dark colour, so those map to the
+// nearest achievable ink: every "blue" → M+C (purple), the only blue it has.
+// The greyscale poles (black idx0/10-grey, white idx15) are added by gamut()
+// below — grey is intentionally omitted so it falls to a black/white dither.
 const COLOUR_POINTS = [
-  { rgb: [208, 221, 89 ], bands: bY         }, // yellow        → yellow
   { rgb: [227, 30,  96 ], bands: bM         }, // red / magenta → magenta
-  { rgb: [20,  207, 253], bands: bC         }, // medium blue   → cyan
+  { rgb: [96,  114, 3  ], bands: bY | bC    }, // dark olive    → Y + C (green)
   { rgb: [255, 106, 60 ], bands: bY | bM    }, // orange        → Y + M
+  { rgb: [0,   163, 96 ], bands: bY | bC    }, // dark green    → Y + C
   { rgb: [20,  245, 60 ], bands: bY | bC    }, // green         → Y + C
+  { rgb: [208, 221, 141], bands: bY         }, // yellow        → yellow
+  { rgb: [96,  78,  189], bands: bM | bC    }, // dark blue     → M + C (purple)
   { rgb: [255, 68,  253], bands: bM | bC    }, // violet/purple → M + C
+  { rgb: [255, 160, 208], bands: bM         }, // pink          → magenta
+  { rgb: [20,  207, 253], bands: bC         }, // medium blue   → cyan
+  { rgb: [208, 195, 255], bands: bC         }, // light blue    → cyan
+  { rgb: [114, 255, 208], bands: bC         }, // aqua          → cyan
 ];
 
 // Build the 8-entry quantisation gamut. Saturated colours always print as their
@@ -156,7 +166,10 @@ const BAYER4 = [
   [3,  11, 1,  9 ],
   [15, 7,  13, 5 ],
 ];
-const DITHER_AMP = 60; // luminance jog applied before quantising; tune for grain
+const DITHER_AMP = 36; // luminance jog before quantising. Low: the full-palette
+                       // anchors already resolve solid colours exactly, so the
+                       // jog only needs to break up off-palette/fringe pixels
+                       // and dither greys toward the black/white poles.
 
 // Ordered-dither the framebuffer onto GAMUT. Returns a Uint8Array band mask per
 // pixel (bY|bM|bC|bK bits); 0 = bare paper. Greys/pastels fall between gamut

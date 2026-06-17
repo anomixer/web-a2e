@@ -190,14 +190,38 @@ export const printerTools = {
    * Dump the current //e screen to the printer as an ImageWriter II bit-image
    * graphics stream (the classic "screen dump"). Works for whatever is on
    * screen — HGR, DHGR, LORES, or text. Requires an ImageWriter model active.
-   * Optional { threshold } (0-255) tunes which pixels count as ink.
+   * Parameters:
+   *   { threshold } (0-255) — B/W ribbon: pixels at/above this count as ink.
+   *   { invert }            — greyscale polarity (colour ribbon only):
+   *       false → WYSIWYG: screen black = black ink, screen white = bare paper.
+   *       true  → inverted: screen black = bare paper, screen white = black ink
+   *               (the classic "white-is-black" dump for sparse/light screens).
+   *       omitted → auto-pick by lit density (sparse screens invert).
+   * The colour dump manages the Auto-LF DIP itself for the duration of the pass.
    */
   printerDumpScreen: async (params = {}) => {
     const opts = {};
     if (typeof params.threshold === "number") opts.threshold = params.threshold;
+    if (typeof params.invert === "boolean") opts.invert = params.invert;
     const result = getPrinterWindow().dumpScreen(null, undefined, undefined, opts);
     if (!result.success) throw new Error(result.message);
     return result;
+  },
+
+  /**
+   * Flip the Automatic Line Feed DIP (SW2-1). Parameters: { on: boolean }.
+   *   ON  — a CR also advances the paper one line (plain text / Applesoft, which
+   *         emits CR only); a trailing LF is coalesced.
+   *   OFF — a CR returns the head WITHOUT feeding, so colour graphics overprint
+   *         passes register on the same band (DazzleDraw, Print Shop colour).
+   */
+  printerSetAutoLineFeed: async (params = {}) => {
+    const { on } = params;
+    if (typeof on !== "boolean") {
+      throw new Error("on parameter (boolean) is required");
+    }
+    const state = getPrinterWindow().setAutoLineFeed(on);
+    return { success: true, autoLineFeed: state, message: `Auto Line Feed ${state ? "on" : "off"}` };
   },
 
   /**
