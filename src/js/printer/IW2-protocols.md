@@ -8,7 +8,7 @@ timing, and behaviour needed to emulate the printer faithfully. Sourced from the
 > (extract with `pdftotext -layout`). All hex/decimal codes below are verbatim from Appendix A.
 
 Implementation lives in `imagewriter-ii.js` (parser/state), `printer-head.js`
-(carriage model), `printer-window.js` (renderer), `imagewriter-rom-*.js` (glyph ROMs).
+(carriage model), `printer-window.js` (renderer), `imagewriter-ii-rom-*.js` (glyph ROMs).
 
 ---
 
@@ -86,8 +86,10 @@ Default pitch = DIP SW1-6/1-7 (power-on). Pica is the common default.
 > All eight modelled: extended 72 / pica 80 / elite 96 / semicondensed 107 /
 > condensed 120 / ultra 136 / prop-pica 144 / prop-elite 160. `ESC F` dot-column
 > placement counts in these same per-pitch units. Proportional pitches (`ESC p/P`)
-> use the correct 144/160 graphics density but fall back to fixed-width text advance
-> (10/12 cpi) until the proportional ROM is plumbed.
+> use the 144/160 graphics density for both graphics AND per-glyph text advance:
+> each character advances by its corr-prop ROM width (+ `ESC s` gap) at that
+> density, so `iWi` packs tight and proportional. (NLQ-proportional borrows the
+> corr-prop widths — the NLQ-prop face is not yet transcribed.)
 
 ---
 
@@ -154,8 +156,10 @@ Render geometry:
 
 Each proportional glyph includes one trailing blank column, so spacing 0 = 1 dot gap.
 Glyph widths come from the proportional ROM tables (Appendix C; editor modes
-`corrProp` ~×9, `nlqProp` ~×18). **Not yet plumbed** — `ESC p/P` currently set the
-flag + force correspondence but render fixed-width.
+`corrProp` ~×9, `nlqProp` ~×18). **Plumbed** — `ESC p/P` force correspondence and
+render from `imagewriter-ii-rom-standard-prop.js` (`IW2_STANDARD_PROP`) with per-glyph
+advance at 144/160 dpi; `ESC s n` adds n dot columns on top of each glyph's
+built-in trailing blank. (`ESC <space n>` cumulative-insert not yet modelled.)
 
 ---
 
@@ -412,10 +416,12 @@ every effective-quality change so faster fonts genuinely print quicker.
 - ✅ Selectable **form length** (11" / 12" / 14" / A4) via window + `ESC H`. Width is
   fixed at 8" printable — the IW-II has no paper-size concept, only form length.
 - ✅ Removed Epson-isms (`ESC C` form-length, `ESC A n` n/144 spacing) — IW-II opcodes only.
-- ⬜ Proportional ROM not plumbed — `ESC p/P` flag-only, renders fixed-width.
+- ✅ Proportional plumbed — `ESC p/P` render from `IW2_STANDARD_PROP` with per-glyph
+  advance (144/160 dpi); `ESC s n` inter-char gap. NLQ-prop borrows corr-prop widths.
 - ⬜ NLQ font ROM not transcribed — falls back to correspondence shapes.
 - ⬜ Horizontal tabs (`ESC ( / ) / u`, CTRL-I) and reverse feed (`ESC r`) not modelled.
 - ⬜ `ESC D/Z` software-switch family (slash-zero, 8th-bit, language sets) not modelled.
 - ⬜ 144-dpi two-pass vertical graphics not modelled.
 - ✅ All eight pitches incl. extended/semicondensed (`ESC n` / `ESC e`) — text
-  advance + graphics density. (Proportional ROM widths still pending, above.)
+  advance + graphics density, and the two proportional pitches render true
+  variable-width glyphs (above).

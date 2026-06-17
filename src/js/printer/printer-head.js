@@ -35,6 +35,12 @@ export class VirtualHead {
   // NLQ 45 cps). Velocity follows immediately; in-flight motion is unaffected.
   setCps(cps) { this._cps = cps; }
 
+  // Retune the pica advance when the internal dot scale (DPI) changes, so
+  // carriage velocity = pitchDots × cps tracks the new resolution. The current
+  // column `x` stays put (already in internal dots at the new scale once the
+  // model rescales it); only the per-char travel unit changes.
+  setPitchDots(pitchDots) { if (pitchDots > 0) this._pitchDots = pitchDots; }
+
   // Time (ms) for the head to travel from its current column to x.
   travelMs(x) { return Math.abs(x - this.x) / this.velocity * 1000; }
 

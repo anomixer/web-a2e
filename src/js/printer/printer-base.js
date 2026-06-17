@@ -21,6 +21,7 @@
 import { VirtualHead }      from "./printer-head.js";
 import { VirtualRibbon }    from "./printer-ribbon.js";
 import { VirtualPaperFeed } from "./printer-paper-feed.js";
+import { DEFAULT_DPI, DEFAULT_FEED_DOTS_PER_SEC } from "./printer-units.js";
 
 function popcount(n) {
   let c = 0;
@@ -43,12 +44,51 @@ export class PrinterBase {
     this._onImpact  = null;
     this._eventSink = null;
 
+    // Internal dot scale (DPI) and feed speed — the single knobs every positional
+    // value derives from. A model overrides the defaults via the hooks below;
+    // _recomputeUnits() then derives that model's dot pitches from `this.dpi`.
+    // Set BEFORE the mechanisms, since head pitch and form length read them.
+    this.dpi            = this._defaultDpi();
+    this.feedDotsPerSec = this._defaultFeedDotsPerSec();
+    this._recomputeUnits();
+
     // The three virtual mechanisms.
     this.head   = new VirtualHead(this._carriagePicaDots(), this.getCharsPerSecond());
     this.ribbon = new VirtualRibbon('bw');
-    this.paper  = new VirtualPaperFeed();
+    this.paper  = new VirtualPaperFeed(this.dpi * 11, this.feedDotsPerSec);
 
     this._lineBuf = []; // strikes accumulated for the current line
+  }
+
+  // ---- Internal dot scale (overridable per model, recomputable at runtime) ----
+  // Default working resolution and feed speed. Override in a model that needs a
+  // finer scale (e.g. an LQ printer); everything positional follows automatically.
+  _defaultDpi()            { return DEFAULT_DPI; }
+  _defaultFeedDotsPerSec() { return DEFAULT_FEED_DOTS_PER_SEC; }
+
+  // Derive every DPI-dependent quantity from `this.dpi`. PrinterBase keeps none;
+  // models override to recompute their dot pitches (DOT_W/DOT_V, platen width,
+  // graphics column widths, …). Called once at construction and again on setDpi().
+  _recomputeUnits() {}
+
+  // Change the internal scale at runtime: recompute the model's units, retune the
+  // carriage pica advance and the feed speed, rescale the form length, then reset
+  // render state so margins/line-height/cursor are re-derived at the new scale.
+  setDpi(dpi) {
+    if (!(dpi > 0) || dpi === this.dpi) return;
+    this.dpi = dpi;
+    this._recomputeUnits();
+    this.head?.setPitchDots(this._carriagePicaDots());
+    this.paper?.setFormDots(this.dpi * 11);
+    if (typeof this._resetRenderState === 'function') this._resetRenderState();
+    this._applyHeadSpeed?.();
+  }
+
+  // Retune the feed-motor speed (internal dots/sec) without touching DPI.
+  setFeedDotsPerSec(v) {
+    if (!(v > 0)) return;
+    this.feedDotsPerSec = v;
+    this.paper?.setFeedDotsPerSec(v);
   }
 
   on(event, fn) { this._listeners[event] = fn; }
@@ -75,7 +115,7 @@ export class PrinterBase {
   _inkColor(color) { return this.ribbon.ink(color); }
 
   // ---- Carriage spec (overridable per model) ----
-  _carriagePicaDots() { return 48; }                 // pica advance, internal dots
+  _carriagePicaDots() { return this.dpi / 10; }      // pica advance (1/10"), internal dots
   _carriageVelocity() { return this.head.velocity; } // dots/sec
   isUnidirectional()  { return false; }              // default: bidirectional
 

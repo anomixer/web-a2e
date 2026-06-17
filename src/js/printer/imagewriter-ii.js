@@ -7,8 +7,11 @@
  */
 
 import { PrinterBase } from "./printer-base.js";
-import { DRAFT_ROM, DRAFT_ROM_LOCALES } from "./imagewriter-rom-draft.js";
-import { CORR_ROM, CORR_ROM_LOCALES } from "./imagewriter-rom-corr.js";
+import { IW2_DRAFT_ROM, IW2_DRAFT_ROM_LOCALES } from "./imagewriter-ii-rom-draft.js";
+import { IW2_STANDARD_FIXED, IW2_STANDARD_FIXED_LOCALES } from "./imagewriter-ii-rom-standard-fixed.js";
+import { IW2_STANDARD_PROP, IW2_STANDARD_PROP_LOCALES } from "./imagewriter-ii-rom-standard-prop.js";
+import { IW2_NLQ_FIXED, IW2_NLQ_FIXED_LOCALES } from "./imagewriter-ii-rom-nlq-fixed.js";
+import { IW2_NLQ_PROP_ROM, IW2_NLQ_PROP_ROM_LOCALES } from "./imagewriter-ii-rom-nlq-prop.js";
 
 const S_NORMAL       = 0; // normal character output
 const S_ESC          = 1; // consumed ESC, waiting for command byte
@@ -22,16 +25,18 @@ const S_NUM          = 8; // collecting an ASCII-decimal numeric parameter
 const S_REPEAT_CHAR  = 9; // ESC R: waiting for the char byte to repeat
 const S_VREPEAT      = 10; // ESC V: waiting for the column byte to repeat
 
-// Internal canvas resolution: 480 dpi (LCM of 80, 120, 160)
-const DPI          = 480;
-const DOT_W        = DPI / 120;   // 4 px — draft char dot column width (120 dpi horiz)
-const DOT_V        = DPI / 72;    // ~6.667 px — vertical dot pitch (72 dpi vert)
+// Internal dot scale is owned by PrinterBase (this.dpi, default 480 = LCM of
+// 80/120/160). The DPI-derived dot pitches live on the instance, recomputed from
+// this.dpi in _recomputeUnits(): this._dotW (120-dpi draft column), this._dotV
+// (72-dpi vertical pitch), this._platenDots (8" printable width).
 
 // The eight horizontal pitches (Table 8-2). Each sets BOTH the text advance
-// (cpi — proportional pitches fall back to their fixed base while the
-// proportional ROM is unplumbed) AND the graphics dot density used by every
-// ESC G/S/g/V/F command. Keeping the two in one table guarantees graphics
-// density always tracks the pitch, exactly as the manual requires.
+// (cpi — the fixed pitches advance a constant cell; the two proportional
+// pitches advance per-glyph from the corr-prop ROM widths, see _emitChar) AND
+// the graphics dot density used by every ESC G/S/g/V/F command. Keeping the two
+// in one table guarantees graphics density always tracks the pitch, exactly as
+// the manual requires. propPica/propElite keep a nominal cpi here only for
+// column-addressed commands (ESC L margin).
 const CPI = {
   extended: 9, pica: 10, elite: 12, semicond: 13.4,
   condensed: 15, ultra: 17, propPica: 10, propElite: 12,
@@ -45,9 +50,8 @@ const GFX_DENSITY = {
   condensed: 120, ultra: 136, propPica: 144, propElite: 160,
 };
 
-// Printable carriage width: 8 inches. Head auto-wraps (CR+LF) at this margin,
-// just like real hardware — the paper never grows wider.
-const PLATEN_DOTS = DPI * 8;
+// Printable carriage width: 8 inches → this._platenDots (set in _recomputeUnits).
+// Head auto-wraps (CR+LF) at this margin, just like real hardware.
 
 // ESC K colour index → ribbon band (Table 8-6). The colour ribbon's four
 // physical bands are black, yellow, magenta (purplish-red) and cyan
@@ -81,7 +85,7 @@ export class ImageWriterII extends PrinterBase {
   _resetParserState() {
     this._state          = S_NORMAL;
     this._imgCount       = 0;
-    this._imgDotW        = DPI / 80;
+    this._imgDotW        = this.dpi / 80;
     this._gfxDigitsLeft  = 0;
     this._gfxCountAcc    = 0;
     this._gfxMul         = 1;
@@ -103,10 +107,11 @@ export class ImageWriterII extends PrinterBase {
     this._script         = 'none';    // ESC x/y/z: 'none' | 'super' | 'sub' (Table 4-11)
     this._doubleWidth    = false;     // CTRL-N/CTRL-O (Table 4-7)
     this._proportional   = false;     // ESC p/P — proportional pitch (corr font only)
+    this._propSpacing    = 0;         // ESC s n — extra inter-char dot gap, 0-9 (Table A-11)
     this._color          = 'black';
     this._customFont     = 'none';    // ESC '/* — render downloaded glyphs: 'none' | 'low' | 'high'
     this._leftMargin     = 0;         // ESC L — left margin, internal dots
-    this._lineHeight     = DPI / 6;   // 6 lpi default
+    this._lineHeight     = this.dpi / 6;   // 6 lpi default
     this._quality        = 'draft';   // power-on font (Table 4-1): draft | corr | nlq
     this._xDot           = 0;
     this._yDot           = this._homeYDot();   // power-on head rest, a hair below sheet top
@@ -122,8 +127,17 @@ export class ImageWriterII extends PrinterBase {
     this._applyHeadSpeed();     // back to draft speed
   }
 
-  // 480-dpi head: pica (10 cpi) advances 48 dots → carriage velocity 48 × cps.
-  _carriagePicaDots() { return DPI / 10; }
+  // Derive the DPI-dependent dot pitches from the current internal scale.
+  // dotW = 120-dpi draft column, dotV = 72-dpi vertical pitch, platen = 8" wide.
+  _recomputeUnits() {
+    this._dotW       = this.dpi / 120;
+    this._dotV       = this.dpi / 72;
+    this._platenDots = this.dpi * 8;
+  }
+
+  // Head: pica (10 cpi) advances dpi/10 dots → carriage velocity (dpi/10) × cps
+  // (48 dots at the default 480 dpi).
+  _carriagePicaDots() { return this.dpi / 10; }
 
   receiveByte(byte) {
     const ch = byte & 0x7F; // strip Apple II high bit
@@ -200,6 +214,11 @@ export class ImageWriterII extends PrinterBase {
             this._applyHeadSpeed();
             break;
           }
+          case 0x73: {       // ESC s n — proportional inter-char dot spacing (Table A-11)
+            const n = (ch >= 0x30 && ch <= 0x39) ? ch - 0x30 : (ch & 0x0F);
+            this._propSpacing = Math.max(0, Math.min(9, n));
+            break;
+          }
         }
         this._state = S_NORMAL;
         break;
@@ -223,7 +242,7 @@ export class ImageWriterII extends PrinterBase {
           xDot:  this._xDot,
           yDot:  this._yDot,
           dotW:  this._imgDotW,
-          dotH:  DOT_V,
+          dotH:  this._dotV,
           color: this._inkColor(this._color),
         });
         this._xDot += this._imgDotW;
@@ -289,7 +308,7 @@ export class ImageWriterII extends PrinterBase {
             xDot:  this._xDot,
             yDot:  this._yDot,
             dotW:  this._gfxDotW(),
-            dotH:  DOT_V,
+            dotH:  this._dotV,
             color: this._inkColor(this._color),
           });
           this._xDot += this._gfxDotW();
@@ -350,8 +369,8 @@ export class ImageWriterII extends PrinterBase {
 
       // Line spacing (Table A-15). These are IW-II native: ESC A/B are fixed
       // 6/8 lpi (no parameter), ESC T takes a 2-digit n/144 inch distance.
-      case 0x41: this._lineHeight = DPI / 6; break;  // ESC A — 6 lpi
-      case 0x42: this._lineHeight = DPI / 8; break;  // ESC B — 8 lpi
+      case 0x41: this._lineHeight = this.dpi / 6; break;  // ESC A — 6 lpi
+      case 0x42: this._lineHeight = this.dpi / 8; break;  // ESC B — 8 lpi
       case 0x54: this._beginNum(0x54, 2); break;     // ESC T nn — n/144 inch
 
       // Page formatting (Table A-13).
@@ -366,6 +385,7 @@ export class ImageWriterII extends PrinterBase {
       // Commands consuming one parameter byte
       case 0x61: // ESC a — font select
       case 0x4B: // ESC K — color select
+      case 0x73: // ESC s n — proportional inter-char dot spacing (0-9)
         this._paramCmd = ch;
         this._state    = S_PARAM1;
         break;
@@ -407,10 +427,10 @@ export class ImageWriterII extends PrinterBase {
   _dispatchNum() {
     const n = this._numAcc;
     switch (this._numCmd) {
-      case 0x54: this._lineHeight = (n / 144) * DPI; this._state = S_NORMAL; break;  // ESC T — line distance n/144"
-      case 0x48: this.paper.setFormDots(Math.round((n / 144) * DPI)); this._state = S_NORMAL; break;  // ESC H — page length n/144"
+      case 0x54: this._lineHeight = (n / 144) * this.dpi; this._state = S_NORMAL; break;  // ESC T — line distance n/144"
+      case 0x48: this.paper.setFormDots(Math.round((n / 144) * this.dpi)); this._state = S_NORMAL; break;  // ESC H — page length n/144"
       case 0x4C: // ESC L — left margin at column n (current pitch)
-        this._leftMargin = Math.round(n * (DPI / CPI[this._pitch]));
+        this._leftMargin = Math.round(n * (this.dpi / CPI[this._pitch]));
         if (this._xDot < this._leftMargin) this._xDot = this._leftMargin;
         this._state = S_NORMAL;
         break;
@@ -430,27 +450,79 @@ export class ImageWriterII extends PrinterBase {
   // (CTRL-N) doubles the cell. Used by glyph emit AND backspace step-back so
   // an overstrike lands exactly back on the previous character.
   _charAdvance() {
-    return Math.round(DPI / CPI[this._pitch]) * (this._doubleWidth ? 2 : 1);
+    return Math.round(this.dpi / CPI[this._pitch]) * (this._doubleWidth ? 2 : 1);
   }
 
   _emitChar(code) {
-    const adv = this._charAdvance();
+    // Proportional pitch (ESC p/P) advances per-glyph from the corr-prop ROM
+    // width instead of a fixed cell, and spaces the dot columns at the
+    // proportional density (144/160 dpi). The ROM glyph already carries its own
+    // trailing blank column(s) — the built-in 1-dot gap — and ESC s n adds n
+    // more dot columns of inter-char space (Table A-11). In NLQ quality the
+    // proportional face has its OWN dense bank (18 rows, 160 dpi columns); other
+    // qualities use the correspondence proportional widths. A downloaded custom
+    // font, or a code with no proportional glyph, falls back to the fixed cell.
+    const nlqActive = this._customFont === 'none' && this._effectiveQuality() === 'nlq';
+    let propCols = null, propIsNlq = false;
+    if (this._proportional && this._customFont === 'none') {
+      if (nlqActive) {
+        propCols = this.getNLQPropChar(code);
+        if (propCols) propIsNlq = true;
+        else          propCols = this.getCorrPropChar(code);   // codes the NLQ-prop bank lacks
+      } else {
+        propCols = this.getCorrPropChar(code);
+      }
+    }
+
+    const xs = this._doubleWidth ? 2 : 1;
+    let cols, dotW, adv;
+    if (propCols) {
+      cols = propCols;
+      dotW = this._gfxDotW();   // proportional column pitch (144 dpi pica / 160 elite)
+      // NLQ-prop columns sit at 160 dpi (vs the 120-dpi corr-prop column cell), so
+      // its advance is scaled down to match the tighter column step the renderer
+      // draws for an NLQ cell. Corr-prop keeps the 1:1 factor (no change).
+      const advScale = propIsNlq ? (120 / 160) : 1;
+      adv  = Math.round((cols.length * xs + this._propSpacing) * dotW * advScale);
+    } else {
+      cols = this.getGlyph(code);
+      dotW = this._dotW;
+      adv  = this._charAdvance();
+    }
+
+    // NLQ fixed cell is 16 columns of finer dots in the SAME character cell as
+    // draft/corr — 160 dpi horizontal, 144 dpi vertical (2x the 120/72 dpi draft
+    // grid). Standard-ASCII/alt-language cells are 18 rows tall (bottom 4 =
+    // descenders, Table C-9); MouseText ($C0-$DF) has no descenders and is a
+    // 16x16 cell (Table C-10). Tag the payload so the renderer plots the taller,
+    // denser grid at half pitch. A code the NLQ ROM lacks falls back to a corr
+    // glyph, which keeps the standard 9-row geometry. The NLQ *proportional* face
+    // (propIsNlq) prints on the same dense cell: 18 rows, 160x144 dpi, no MouseText.
+    const nlqCell = !propCols && this._customFont === 'none'
+      && this._effectiveQuality() === 'nlq' && this.getNLQChar(code) != null;
+    const nlqMouse = nlqCell && code >= 0xC0 && code <= 0xDF;
+    const nlqDense = nlqCell || propIsNlq;
+    const rows     = propIsNlq ? 18 : (nlqCell ? (nlqMouse ? 16 : 18) : 9);
+    const hDensity = nlqDense ? 160 : 120;
+    const vDensity = nlqDense ? 144 : 72;
 
     // Auto-wrap at the right platen margin: real ImageWriter issues an
     // automatic CR+LF rather than printing past the edge.
-    if (this._xDot + adv > PLATEN_DOTS) {
+    if (this._xDot + adv > this._platenDots) {
       this._xDot = this._leftMargin;
       this._yDot += this._lineHeight;
       this.emit('newline');
     }
 
-    const cols = this.getGlyph(code);
     this.emit('printChar', {
       cols,
       xDot:        this._xDot,
       yDot:        this._yDot,
-      dotW:        DOT_W,
-      dotH:        DOT_V,
+      dotW,
+      dotH:        this._dotV,
+      rows,                            // dot rows in the cell (9 draft/corr, 18 NLQ)
+      hDensity,                        // column dot density (dpi) — sets canvas col pitch
+      vDensity,                        // row dot density (dpi) — sets canvas row pitch
       color:       this._inkColor(this._color),
       bold:        this._bold,
       underline:   this._underline,
@@ -464,7 +536,7 @@ export class ImageWriterII extends PrinterBase {
   }
 
   // ESC G/S/g column width (internal dots) at the current pitch's graphics density.
-  _gfxDotW() { return DPI / (GFX_DENSITY[this._pitch] ?? 80); }
+  _gfxDotW() { return this.dpi / (GFX_DENSITY[this._pitch] ?? 80); }
 
   // Returns custom char definition or null
   getCustomChar(code) {
@@ -494,17 +566,20 @@ export class ImageWriterII extends PrinterBase {
   _applyHeadSpeed() { this.head?.setCps(this.getCharsPerSecond()); }
 
   // Active-font glyph for the current print quality. A downloaded custom glyph
-  // (ESC '/* font active) overrides the ROM. Otherwise correspondence uses the
-  // 8-column corr ROM; draft uses the 12-column draft ROM. NLQ glyphs are not
-  // yet transcribed, so NLQ falls back to correspondence shapes.
+  // (ESC '/* font active) overrides the ROM. Otherwise draft uses the 12-column
+  // draft ROM, NLQ the 16-column x 16/18-row NLQ ROM, and correspondence the
+  // 8-column corr ROM. NLQ falls back to corr only for codes the NLQ ROM lacks.
+  // The variable-width proportional face is selected in _emitChar (it also drives
+  // the advance), so this returns the fixed-cell glyph used by the non-prop path.
   getGlyph(code, locale = 'US') {
     if (this._customFont !== 'none') {
       const custom = this._customGlyph(code);
       if (custom) return custom;
     }
-    return this._effectiveQuality() === 'draft'
-      ? this.getDraftChar(code, locale)
-      : this.getCorrChar(code, locale);
+    const q = this._effectiveQuality();
+    if (q === 'draft') return this.getDraftChar(code, locale);
+    if (q === 'nlq')   return this.getNLQChar(code, locale) ?? this.getCorrChar(code, locale);
+    return this.getCorrChar(code, locale);
   }
 
   // A downloaded glyph as ROM-format columns (bit 0 = wire 1 … bit 8 = wire 9).
@@ -521,25 +596,54 @@ export class ImageWriterII extends PrinterBase {
   // Returns draft ROM column data (9-bit: bit 0=wire1 … bit 8=wire9), or null
   getDraftChar(code, locale = 'US') {
     if (locale !== 'US') {
-      const override = DRAFT_ROM_LOCALES[locale]?.[code];
+      const override = IW2_DRAFT_ROM_LOCALES[locale]?.[code];
       if (override) return override;
     }
-    return DRAFT_ROM[code] ?? null;
+    return IW2_DRAFT_ROM[code] ?? null;
+  }
+
+  // Returns NLQ ROM column data (16 columns, up to 18-bit each: bit 0=wire 1 …
+  // bit 17=row 18), or null if this code has no NLQ glyph.
+  getNLQChar(code, locale = 'US') {
+    if (locale !== 'US') {
+      const override = IW2_NLQ_FIXED_LOCALES[locale]?.[code];
+      if (override) return override;
+    }
+    return IW2_NLQ_FIXED[code] ?? null;
   }
 
   // Returns correspondence ROM column data (8 columns, 9-bit each), or null
   getCorrChar(code, locale = 'US') {
     if (locale !== 'US') {
-      const override = CORR_ROM_LOCALES[locale]?.[code];
+      const override = IW2_STANDARD_FIXED_LOCALES[locale]?.[code];
       if (override) return override;
     }
-    return CORR_ROM[code] ?? null;
+    return IW2_STANDARD_FIXED[code] ?? null;
   }
 
-  // Canvas resolution constants (px at 480 dpi internal)
-  static get DPI()    { return DPI; }
-  static get DOT_W()  { return DOT_W; }
-  static get DOT_V()  { return DOT_V; }
+  // Returns correspondence *proportional* column data (variable column count,
+  // 9-bit each, trailing blank column(s) built in), or null if this code has no
+  // proportional glyph. Drives both the rendered shape and the per-glyph advance.
+  getCorrPropChar(code, locale = 'US') {
+    if (locale !== 'US') {
+      const override = IW2_STANDARD_PROP_LOCALES[locale]?.[code];
+      if (override) return override;
+    }
+    return IW2_STANDARD_PROP[code] ?? null;
+  }
+
+  // Returns NLQ *proportional* column data (variable column count, up to 18-bit
+  // each: bit 0 = wire 1 … bit 17 = row 18; trailing blank column = the built-in
+  // inter-char spacer), or null if this code has no NLQ proportional glyph. Drives
+  // both the rendered shape and the per-glyph advance, printed on the dense NLQ
+  // cell (18 rows, 160x144 dpi).
+  getNLQPropChar(code, locale = 'US') {
+    if (locale !== 'US') {
+      const override = IW2_NLQ_PROP_ROM_LOCALES[locale]?.[code];
+      if (override) return override;
+    }
+    return IW2_NLQ_PROP_ROM[code] ?? null;
+  }
 
   // Print rate follows the effective font (Table 4-1): draft 250, correspondence
   // 180, NLQ 45 cps. Boldface and colour overprint each add a hammer pass, so
@@ -580,7 +684,7 @@ export class ImageWriterII extends PrinterBase {
     const def = ImageWriterII.PAGE_SIZES.find((p) => p.id === id);
     if (!def) return false;
     this._pageSize = id;
-    this.paper.setFormDots(Math.round(def.inches * DPI));
+    this.paper.setFormDots(Math.round(def.inches * this.dpi));
     return true;
   }
 

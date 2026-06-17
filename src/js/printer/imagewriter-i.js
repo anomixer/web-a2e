@@ -18,7 +18,8 @@
  */
 
 import { ImageWriterII } from "./imagewriter-ii.js";
-import { IW1_ROM, IW1_ROM_LOCALES } from "./imagewriter-i-rom.js";
+import { IW1_STANDARD_FIXED, IW1_STANDARD_FIXED_LOCALES } from "./imagewriter-i-rom-standard-fixed.js";
+import { IW1_STANDARD_PROP, IW1_STANDARD_PROP_LOCALES } from "./imagewriter-i-rom-standard-prop.js";
 
 // ESC bytes the IW-II understands but the IW-I has no hardware for. Consumed
 // (so a stray parameter never prints as text) and otherwise ignored.
@@ -57,17 +58,31 @@ export class ImageWriterI extends ImageWriterII {
   _effectiveQuality() { return 'corr'; }
 
   // Render from the IW-I's own 7×8 character ROM when a glyph has been authored
-  // (rom-editor.html → IW1_ROM). The model forces 'corr' quality, so getGlyph
+  // (rom-editor.html → IW1_STANDARD_FIXED). The model forces 'corr' quality, so getGlyph
   // routes here; any code not yet transcribed falls back to the IW-II
   // correspondence ROM so the printer stays usable while the font is built.
   getCorrChar(code, locale = 'US') {
     if (locale !== 'US') {
-      const override = IW1_ROM_LOCALES[locale]?.[code];
+      const override = IW1_STANDARD_FIXED_LOCALES[locale]?.[code];
       if (override) return override;
     }
-    const glyph = IW1_ROM[code];
+    const glyph = IW1_STANDARD_FIXED[code];
     if (glyph) return glyph;
     return super.getCorrChar(code, locale);
+  }
+
+  // Proportional pitch (ESC p/P) renders from the IW-I's own variable-width
+  // proportional ROM (rom-editor.html → IW1_STANDARD_PROP). Drives both shape and
+  // per-glyph advance via the inherited _emitChar proportional path. Codes not
+  // yet transcribed fall back to the IW-II correspondence-proportional ROM.
+  getCorrPropChar(code, locale = 'US') {
+    if (locale !== 'US') {
+      const override = IW1_STANDARD_PROP_LOCALES[locale]?.[code];
+      if (override) return override;
+    }
+    const glyph = IW1_STANDARD_PROP[code];
+    if (glyph) return glyph;
+    return super.getCorrPropChar(code, locale);
   }
 
   // Single mechanical speed: 120 cps at 10 cpi (manual Appendix E), 72 lpm.

@@ -52,6 +52,7 @@ import { SlotConfigurationWindow } from "./ui/slot-configuration-window.js";
 import { SerialConnectionWindow } from "./serial/serial-connection-window.js";
 import { PrinterWindow } from "./printer/printer-window.js";
 import { PrinterManager } from "./printer/printer-manager.js";
+import { PrintBrowserWindow } from "./printer/print-browser-window.js";
 import { HayesModem } from "./serial/hayes-modem.js";
 import { WindowSwitcher } from "./ui/window-switcher.js";
 import { StateManager } from "./state/state-manager.js";
@@ -401,6 +402,14 @@ class AppleIIeEmulator {
       // even when the Printer window is closed. The worker WASM is already
       // ready here (wasmModule.init() was awaited earlier), so the RPC lands.
       printerManager.init().catch((e) => console.warn("printer init failed:", e));
+
+      // Print Browser — manages the pages auto-captured to IndexedDB by the
+      // printer window. Reads the store; can also send a stored job back to the
+      // printer window's paper (re-preview / extend), hence the window ref.
+      const printBrowserWindow = new PrintBrowserWindow(printerWindow);
+      printBrowserWindow.create();
+      this.windowManager.register(printBrowserWindow);
+      this.printBrowserWindow = printBrowserWindow;
 
       // Set up UI controller
       this.uiController = new UIController({

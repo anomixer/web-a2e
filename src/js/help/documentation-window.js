@@ -135,6 +135,14 @@ export class DocumentationWindow extends BaseWindow {
             </svg>
             Sound
           </button>
+          <button data-section="printer">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="6 9 6 2 18 2 18 9"/>
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+              <rect x="6" y="14" width="12" height="8"/>
+            </svg>
+            Printer
+          </button>
           <button data-section="debug">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="10"/>
@@ -602,6 +610,83 @@ export class DocumentationWindow extends BaseWindow {
 
         <div class="info-box info">
           <p><strong>Note:</strong> Some browsers require a user interaction (click) before audio can play. Click anywhere on the page if you don't hear sound initially.</p>
+        </div>
+      </section>
+
+      <!-- Printer Section -->
+      <section id="doc-printer" class="documentation-section">
+        <h3>Virtual Printer</h3>
+        <p>The emulator includes a faithful dot-matrix printer that catches output from your Apple II programs and renders it to an on-screen sheet of fanfold paper, dot by dot, in true carriage travel order. Open it from <strong>View &gt; Printer...</strong> in the toolbar.</p>
+
+        <h4>Printer Models</h4>
+        <p>Pick a model from the <strong>model</strong> selector in the printer toolbar. Each emulates its real protocol, fonts, and timing.</p>
+        <ul>
+          <li><strong>ImageWriter II:</strong> Apple's colour-capable 9-pin printer. Draft, correspondence, and NLQ fonts, MouseText, and a four-band colour ribbon.</li>
+          <li><strong>ImageWriter I:</strong> The earlier black-only ImageWriter. Single correspondence font.</li>
+          <li><strong>Epson FX-80:</strong> The classic ESC/P 9-pin printer used by countless non-Apple programs. Black-only, Roman and Italic fonts.</li>
+        </ul>
+
+        <h4>Connecting From the Apple II</h4>
+        <p>The printer attaches through an interface card, just like real hardware. Install one in the <strong>Expansion Slots</strong> window:</p>
+        <ul>
+          <li><strong>ImageWriter I / II:</strong> typically a serial card (Super Serial Card).</li>
+          <li><strong>Epson FX-80:</strong> a parallel (Centronics) card.</li>
+        </ul>
+        <p>Then send output to that slot from your program &mdash; for example <code>PR#1</code> from Applesoft (or <code>PRINT CHR$(4)"PR#1"</code> under ProDOS / BASIC.SYSTEM) to route printing to slot&nbsp;1. The cards are generic byte transports; the printer model alone interprets the data stream.</p>
+
+        <h4>Toolbar Controls</h4>
+        <ul>
+          <li><strong>Power:</strong> Printer mains power. When off, incoming bytes are ignored and the head parks &mdash; already-printed paper is kept.</li>
+          <li><strong>Model:</strong> Switch the emulated printer (clears the current sheet).</li>
+          <li><strong>Ribbon:</strong> Choose B/W or Colour. The colour option only appears for the ImageWriter II.</li>
+          <li><strong>Form length:</strong> Page height &mdash; the printable width is a fixed 8&quot;.</li>
+          <li><strong>PNG:</strong> Export the printed output as a PNG image.</li>
+          <li><strong>PDF:</strong> Print or save the output as a PDF (one sheet per page).</li>
+        </ul>
+
+        <h4>Operator Panel</h4>
+        <p>Click the panel tab (&#9776;) on the paper to reveal the operator controls, mirroring a real printer's front panel. You can also <strong>drag the print-head marker</strong> directly to roll the paper (it snaps to line spacing).</p>
+        <table class="key-table">
+          <thead>
+            <tr><th>Button</th><th>Function</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Fit</td><td>Toggle fit-to-width versus actual size</td></tr>
+            <tr><td>TOP</td><td>Reseat the head at the top of the first page</td></tr>
+            <tr><td>FF</td><td>Form feed to the next page top</td></tr>
+            <tr><td>LF&#9650; / LF&#9660;</td><td>Line feed up (reverse) / down (advance) one line</td></tr>
+            <tr><td>Auto LF</td><td>DIP SW2-1 &mdash; automatic line feed on carriage return</td></tr>
+            <tr><td>Dump Screen</td><td>Print the current //e screen as a graphics bit-image dump</td></tr>
+            <tr><td>Clear</td><td>Clear the printed output</td></tr>
+          </tbody>
+        </table>
+
+        <h4>Auto Line Feed</h4>
+        <p>The <strong>Auto LF</strong> toggle decides what a carriage return does, exactly like the real DIP switch:</p>
+        <ul>
+          <li><strong>On:</strong> A CR also feeds the paper one line. Use this for plain text and Applesoft listings, which send CR only.</li>
+          <li><strong>Off:</strong> A CR returns the head without feeding, so colour graphics passes overprint in register on the same band &mdash; needed by titles like DazzleDraw and Print Shop colour.</li>
+        </ul>
+
+        <h4>Form Lengths</h4>
+        <table class="key-table">
+          <thead>
+            <tr><th>Setting</th><th>Height</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>11 in (default)</td><td>Standard fanfold</td></tr>
+            <tr><td>12 in</td><td>Tall fanfold</td></tr>
+            <tr><td>14 in (Legal)</td><td>US legal</td></tr>
+            <tr><td>A4 (11.7 in)</td><td>ISO A4</td></tr>
+          </tbody>
+        </table>
+        <p>Programs can also set the form length themselves via printer control codes; changing it moves the page perforations and resizes the sheet.</p>
+
+        <h4>Saving &amp; Persistence</h4>
+        <p>Printed pages are captured automatically and stored in your browser, so output survives closing the window or reloading the page. The <strong>Print Browser</strong> (<strong>View &gt; Print Browser...</strong>) lists every captured page across sessions for review, re-export, or deletion.</p>
+
+        <div class="info-box info">
+          <p><strong>Tip:</strong> Leave the Printer window closed and output is still captured in the background &mdash; reopen it any time to see what your program printed.</p>
         </div>
       </section>
 

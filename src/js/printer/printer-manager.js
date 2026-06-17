@@ -45,6 +45,14 @@ export class PrinterManager {
     // text expects. Off makes colour graphics overprint register (DazzleDraw).
     this._autoLF = this._loadAutoLF();
 
+    // Playback speed multiplier (1/2/4/8×). Scales the head model's reported
+    // motion time when scheduling, so the paper feeds out faster on screen. The
+    // printed pixels are identical — only the wall-clock pacing changes.
+    this._speed = this._loadSpeed();
+    // Strike-thinning counter: at N× we voice one strike in N so the buzz keeps
+    // its real pitch/tempo instead of speeding up with the paper.
+    this._strikeMod = 0;
+
     // Wall-clock scheduler. The head model emits timed events in bursts (a whole
     // line at once); we spread them onto the printer's own timeline (_cursor)
     // and release each as real time catches up, so paper feeds out at hardware
@@ -73,18 +81,24 @@ export class PrinterManager {
   }
 
   // Sound only — all timing now lives in the head model's reported dt.
+  //
+  // Only an actual pin strike (char/dots) is voiced. The paper-feed ratchet and
+  // the carriage-return slew emitted a tonal descending sweep that read as a
+  // laser "pew" rather than a printer, so they stay silent — the head strikes
+  // alone carry the buzz.
   _onImpact(dots, kind, xDot) {
-    if (kind === "return") {
-      const v   = this.activePrinter._carriageVelocity?.() || 12000;
-      const dur = xDot / v;                          // seconds the slew takes
-      this.sound.tickReturn(dur, Math.min(1, xDot / (v * 0.05)));
-      return;
-    }
-    if (kind === "line") {
-      this.sound.tick("line", 0.35);                 // soft paper-feed ratchet
-      return;
-    }
+    if (kind !== "char" && kind !== "dots") return;  // feed/return: no sound
     if (dots <= 0) return;                            // head moved, no strike (space)
+
+    // At N× playback the head fires N× more strikes per second. Voice only one
+    // in N so the buzz holds its real pitch and tempo instead of compressing
+    // into a chipmunk whine — fewer heads, same cadence. Every strike still
+    // inks the paper; just not every one clicks.
+    if (this._speed > 1) {
+      this._strikeMod = (this._strikeMod + 1) % this._speed;
+      if (this._strikeMod !== 0) return;
+    }
+
     const denom     = kind === "dots" ? 7 : 22;
     const intensity = Math.max(0.18, Math.min(1, dots / denom));
     this.sound.tick("char", intensity);
@@ -96,7 +110,7 @@ export class PrinterManager {
     const t = now();
     if (!this._sched.length && !this._pumping) this._cursor = t;
     if (this._cursor < t) this._cursor = t;          // never schedule in the past
-    this._cursor += evt.dt;                           // advance the printer timeline
+    this._cursor += evt.dt / this._speed;             // advance the printer timeline (Nx faster)
     this._sched.push({ name: evt.name, data: evt.data, at: this._cursor });
     this._pump();
   }
@@ -205,6 +219,42 @@ export class PrinterManager {
   }
 
   getAutoLineFeed() { return this._autoLF; }
+
+  // ===== Print speed (playback pacing) =====
+
+  _loadSpeed() {
+    // The print-speed knob is currently hidden in the window (see the `hidden`
+    // pr-speed button), so there is no UI to change playback. A value persisted
+    // from when the knob was live would otherwise stick forever — and >1× speeds
+    // the playback, thins the strike sound to 1-in-N (quiet), and washes out the
+    // bidirectional sweep so it can't be seen. Pin real 1× while the knob is
+    // hidden and clear the stale key. Restore persistence here when it returns.
+    try { localStorage.removeItem("a2e-printer-speed"); } catch (e) { /* non-fatal */ }
+    return 1;
+  }
+
+  setPrintSpeed(mult) {
+    const next = [1, 2, 4, 8].includes(mult) ? mult : 1;
+    this._rescaleSchedule(this._speed, next);   // re-pace queued backlog live
+    this._speed = next;
+    try { localStorage.setItem("a2e-printer-speed", String(this._speed)); }
+    catch (e) { /* non-fatal */ }
+    return this._speed;
+  }
+
+  getPrintSpeed() { return this._speed; }
+
+  // Speed can change mid-print. A burst the CPU already handed us is sitting in
+  // the scheduler with release times baked at the old speed; rescale the
+  // remaining timeline (relative to now) so the new speed bites at once instead
+  // of only on bytes that arrive afterwards.
+  _rescaleSchedule(oldSpeed, newSpeed) {
+    if (oldSpeed === newSpeed || !this._sched.length) return;
+    const t = now();
+    const k = oldSpeed / newSpeed;              // <1 speeds up, >1 slows the tail
+    for (const e of this._sched) e.at = t + Math.max(0, e.at - t) * k;
+    this._cursor = this._sched[this._sched.length - 1].at;
+  }
 
   // ===== Power =====
 

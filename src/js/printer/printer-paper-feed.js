@@ -24,21 +24,28 @@
  *  Shawn Bullock <shawn@agenticexpert.ai>
  */
 
-// Vertical feed speed, internal dots/sec (line-feed stepper). Tunable estimate.
-const FEED_DOTS_PER_SEC = 3200;
+import { DEFAULT_DPI, DEFAULT_FEED_DOTS_PER_SEC } from "./printer-units.js";
 
-// Form length: physical page height in internal dots. 11" fanfold at 480 dpi.
-const DPI               = 480;
-const DEFAULT_FORM_DOTS = DPI * 11; // 5280 dots = 66 lines at 6 lpi
+// Default form length: physical page height in internal dots. 11" fanfold at the
+// default scale (= 66 lines at 6 lpi). The owning model overrides this on reset.
+const DEFAULT_FORM_DOTS = DEFAULT_DPI * 11;
 
 export class VirtualPaperFeed {
-  constructor(formDots = DEFAULT_FORM_DOTS) {
-    this.topOfForm = 0;        // cursor position latched as the current page top
-    this.formDots  = formDots; // page height (top-of-form to top-of-form)
+  // feedDotsPerSec is the line-feed stepper speed in internal dots/sec; it must
+  // be passed in the SAME dot scale as formDots so feed timing tracks the model's
+  // DPI. Both are overridable/retunable (the model owns the scale).
+  constructor(formDots = DEFAULT_FORM_DOTS, feedDotsPerSec = DEFAULT_FEED_DOTS_PER_SEC) {
+    this.topOfForm      = 0;              // cursor position latched as current page top
+    this.formDots       = formDots;       // page height (top-of-form to top-of-form)
+    this.feedDotsPerSec = feedDotsPerSec; // vertical feed speed, internal dots/sec
   }
 
+  // Retune the feed-motor speed (internal dots/sec) — e.g. when the model's DPI
+  // scale changes, so physical feed timing stays consistent.
+  setFeedDotsPerSec(v) { if (v > 0) this.feedDotsPerSec = v; }
+
   // Wall-clock time for a feed of `dots` (sign-agnostic).
-  feedMs(dots) { return Math.abs(dots) / FEED_DOTS_PER_SEC * 1000; }
+  feedMs(dots) { return Math.abs(dots) / this.feedDotsPerSec * 1000; }
 
   // Latch a cursor position as top-of-form (operator pressed SET/TOF, or
   // power-on with paper loaded at the tear-off).

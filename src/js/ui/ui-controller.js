@@ -578,6 +578,15 @@ export class UIController {
         this.refocusCanvas();
       });
     }
+
+    const printBrowserBtn = document.getElementById("btn-print-browser");
+    if (printBrowserBtn) {
+      printBrowserBtn.addEventListener("click", () => {
+        this.windowManager.toggleWindow("print-browser");
+        this.closeAllMenus();
+        this.refocusCanvas();
+      });
+    }
   }
 
 

@@ -10,7 +10,7 @@
  */
 
 import { PrinterBase } from "./printer-base.js";
-import { DRAFT_ROM } from "./imagewriter-rom-draft.js";
+import { IW2_STANDARD_FIXED } from "./imagewriter-ii-rom-standard-fixed.js";
 import {
   EPSON_FX_ROM, EPSON_FX_ROM_LOCALES,
   EPSON_FX_ITALIC_ROM, EPSON_FX_ITALIC_ROM_LOCALES,
@@ -41,30 +41,14 @@ const S_AMP3      = 19; // ESC & : end character code; starts char loop
 const S_AMP_ATTR  = 20; // ESC & char: attribute byte
 const S_AMP_DATA  = 21; // ESC & char: 11 column data bytes
 
-// Internal canvas resolution: 480 dpi (LCM of 60, 120, 240)
-const DPI = 480;
-
-// Vertical: 72 dpi (9-pin head) → row height in canvas px
-const DOT_V = DPI / 72;  // ~6.667 px
-
-// Horizontal text dot pitch: 120 dpi → column width in canvas px
-const DOT_W = DPI / 120; // 4 px
-
-// Graphics column widths at supported densities
-const IMG_W_K = DPI / 60;   // 8 px  — ESC K single-density  (60 dpi)
-const IMG_W_L = DPI / 120;  // 4 px  — ESC L/Y double-density (120 dpi)
-const IMG_W_Z = DPI / 240;  // 2 px  — ESC Z quad-density   (240 dpi)
-
-// ESC * mode byte → graphics dot-column width
-const STAR_WIDTHS = [
-  DPI / 60,   // mode 0 — 60 dpi
-  DPI / 120,  // mode 1 — 120 dpi
-  DPI / 120,  // mode 2 — 120 dpi (high-speed, no adjacent dots)
-  DPI / 240,  // mode 3 — 240 dpi
-  DPI / 80,   // mode 4 —  80 dpi
-  DPI / 72,   // mode 5 —  72 dpi
-  DPI / 90,   // mode 6 —  90 dpi
-];
+// Internal dot scale is owned by PrinterBase (this.dpi, default 480 = LCM of
+// 60/120/240). Every DPI-derived pitch lives on the instance, recomputed from
+// this.dpi in _recomputeUnits():
+//   this._dotV   — 72-dpi vertical row height (9-pin head)
+//   this._dotW   — 120-dpi horizontal text dot pitch
+//   this._imgWK/L/Z — ESC K/L-Y/Z graphics column widths (60/120/240 dpi)
+//   this._starWidths[] — ESC * mode byte → column width (modes 0-6)
+//   this._defaultLineHeight (1/6") and this._unit216 (n/216" unit)
 
 // Character pitch → characters per inch
 const CPI = { pica: 10, elite: 12, compressed: 137 / 8 };
@@ -74,11 +58,6 @@ const CPI = { pica: 10, elite: 12, compressed: 137 / 8 };
 // fall through to USA until they are transcribed in rom-editor.html.
 const EPSON_INTL = ['US', 'FR', 'DE', 'UK', 'DK', 'SE', 'IT', 'ES'];
 
-// Default line spacing: 1/6" = 12/72" (12-dot rows)
-const DEFAULT_LINE_HEIGHT = DPI / 6;
-
-// n/216" unit (for ESC 3, ESC J, ESC j)
-const UNIT_216 = DPI / 216;
 
 export class EpsonFX80 extends PrinterBase {
   constructor() {
@@ -88,13 +67,35 @@ export class EpsonFX80 extends PrinterBase {
     this._resetRenderState();
   }
 
+  // Derive every DPI-dependent pitch from the current internal scale. Called by
+  // PrinterBase at construction and on setDpi(); changing this.dpi rescales all
+  // text/graphics placement, feeds, and form length through these fields.
+  _recomputeUnits() {
+    this._dotV       = this.dpi / 72;   // 72-dpi vertical row pitch (9-pin head)
+    this._dotW       = this.dpi / 120;  // 120-dpi horizontal text dot pitch
+    this._imgWK      = this.dpi / 60;   // ESC K single-density (60 dpi)
+    this._imgWL      = this.dpi / 120;  // ESC L/Y double-density (120 dpi)
+    this._imgWZ      = this.dpi / 240;  // ESC Z quad-density (240 dpi)
+    this._starWidths = [
+      this.dpi / 60,   // mode 0 — 60 dpi
+      this.dpi / 120,  // mode 1 — 120 dpi
+      this.dpi / 120,  // mode 2 — 120 dpi (high-speed, no adjacent dots)
+      this.dpi / 240,  // mode 3 — 240 dpi
+      this.dpi / 80,   // mode 4 —  80 dpi
+      this.dpi / 72,   // mode 5 —  72 dpi
+      this.dpi / 90,   // mode 6 —  90 dpi
+    ];
+    this._defaultLineHeight = this.dpi / 6;   // 1/6" = 12-dot rows
+    this._unit216           = this.dpi / 216; // n/216" unit (ESC 3, ESC J, ESC j)
+  }
+
   _resetParserState() {
     this._state       = S_NORMAL;
     this._paramCmd    = 0;
     this._param1Val   = 0;
     this._imgCount    = 0;
-    this._imgDotW     = IMG_W_K;
-    this._img9DotW    = IMG_W_K;
+    this._imgDotW     = this._imgWK;
+    this._img9DotW    = this._imgWK;
     this._img9Byte1   = 0;
     this._ampC1       = 0;
     this._ampC2       = 0;
@@ -115,7 +116,7 @@ export class EpsonFX80 extends PrinterBase {
     this._proportional = false;            // ESC p / Master Select bit 1
     this._intlSet    = 'US';               // ESC R international charset (editor key)
     this._script     = 0;      // 0=none, 1=superscript, 2=subscript
-    this._lineHeight = DEFAULT_LINE_HEIGHT;
+    this._lineHeight = this._defaultLineHeight;
     this._autoLF     = true;               // DIP SW2-1 default ON; manager overrides
     this._leftMargin = 0;                  // ESC l — internal dots
     this._rightMargin = this._printWidthDots(); // ESC Q — defaults to full 8" carriage
@@ -124,7 +125,7 @@ export class EpsonFX80 extends PrinterBase {
     this._skipPerf   = 0;                  // ESC N — lines skipped at each page bottom
     this._xDot       = 0;
     this._yDot       = this._homeYDot();   // power-on head rest, a hair below sheet top
-    if (this.paper) this.paper.setFormDots(DPI * 11); // ESC C resets to 11" default
+    if (this.paper) this.paper.setFormDots(this.dpi * 11); // ESC C resets to 11" default
   }
 
   reset() {
@@ -144,7 +145,7 @@ export class EpsonFX80 extends PrinterBase {
       case S_PARAM3:    this._state = S_NORMAL; break; // absorb ESC : third param
 
       case S_IMG_MODE:
-        this._imgDotW  = STAR_WIDTHS[ch & 7] ?? IMG_W_L;
+        this._imgDotW  = this._starWidths[ch & 7] ?? this._imgWL;
         this._imgCount = 0;
         this._state    = S_IMG_LO;
         break;
@@ -162,14 +163,14 @@ export class EpsonFX80 extends PrinterBase {
       case S_IMG_DATA:
         this.emit('printDots', {
           byte: ch, xDot: this._xDot, yDot: this._yDot,
-          dotW: this._imgDotW, dotH: DOT_V, color: 'black',
+          dotW: this._imgDotW, dotH: this._dotV, color: 'black',
         });
         this._xDot += this._imgDotW;
         if (--this._imgCount <= 0) this._state = S_NORMAL;
         break;
 
       case S_IMG9_D:
-        this._img9DotW = ch === 0 ? IMG_W_K : IMG_W_L;
+        this._img9DotW = ch === 0 ? this._imgWK : this._imgWL;
         this._state    = S_IMG9_LO;
         break;
 
@@ -194,7 +195,7 @@ export class EpsonFX80 extends PrinterBase {
         const bits9 = this._img9Byte1 | ((ch & 1) << 8);
         this.emit('printDots', {
           byte: bits9, xDot: this._xDot, yDot: this._yDot,
-          dotW: this._img9DotW, dotH: DOT_V, color: 'black',
+          dotW: this._img9DotW, dotH: this._dotV, color: 'black',
         });
         this._xDot += this._img9DotW;
         if (--this._imgCount <= 0) this._state = S_NORMAL;
@@ -221,7 +222,7 @@ export class EpsonFX80 extends PrinterBase {
         break;
 
       case S_ESC_C2:
-        if (ch > 0) this.paper.setFormDots(ch * DPI); // ESC C 0 n — form length in inches
+        if (ch > 0) this.paper.setFormDots(ch * this.dpi); // ESC C 0 n — form length in inches
         this._state = S_NORMAL;
         break;
 
@@ -334,9 +335,9 @@ export class EpsonFX80 extends PrinterBase {
     switch (ch) {
       // ——— No-parameter commands ———
       case 0x23: break;                           // ESC # — accept 8th bit as-is (ignore)
-      case 0x30: this._lineHeight = DPI / 8;            break; // ESC 0 — 1/8" (9-dot)
-      case 0x31: this._lineHeight = DPI * 7 / 72;       break; // ESC 1 — 7/72" (7-dot)
-      case 0x32: this._lineHeight = DEFAULT_LINE_HEIGHT; break; // ESC 2 — 1/6" (default)
+      case 0x30: this._lineHeight = this.dpi / 8;            break; // ESC 0 — 1/8" (9-dot)
+      case 0x31: this._lineHeight = this.dpi * 7 / 72;       break; // ESC 1 — 7/72" (7-dot)
+      case 0x32: this._lineHeight = this._defaultLineHeight; break; // ESC 2 — 1/6" (default)
       case 0x34: this._italic     = true;               break; // ESC 4 — italic on
       case 0x35: this._italic     = false;              break; // ESC 5 — italic off
       case 0x36: break;                           // ESC 6 — enable chars 128-159 (ignore)
@@ -372,13 +373,13 @@ export class EpsonFX80 extends PrinterBase {
 
       // ——— Standard graphics commands (count lo + count hi + data) ———
       case 0x4B:
-        this._imgDotW = IMG_W_K; this._imgCount = 0; this._state = S_IMG_LO; break;
+        this._imgDotW = this._imgWK; this._imgCount = 0; this._state = S_IMG_LO; break;
       case 0x4C:
-        this._imgDotW = IMG_W_L; this._imgCount = 0; this._state = S_IMG_LO; break;
+        this._imgDotW = this._imgWL; this._imgCount = 0; this._state = S_IMG_LO; break;
       case 0x59:                                  // high-speed: same density as L
-        this._imgDotW = IMG_W_L; this._imgCount = 0; this._state = S_IMG_LO; break;
+        this._imgDotW = this._imgWL; this._imgCount = 0; this._state = S_IMG_LO; break;
       case 0x5A:
-        this._imgDotW = IMG_W_Z; this._imgCount = 0; this._state = S_IMG_LO; break;
+        this._imgDotW = this._imgWZ; this._imgCount = 0; this._state = S_IMG_LO; break;
 
       // ——— Nine-pin graphics (density + count lo + count hi + pairs of data) ———
       case 0x5E:
@@ -451,7 +452,7 @@ export class EpsonFX80 extends PrinterBase {
         this._state = S_NORMAL;
         break;
       case 0x33: // ESC 3 n — n/216"
-        this._lineHeight = ch * UNIT_216;
+        this._lineHeight = ch * this._unit216;
         this._state = S_NORMAL;
         break;
       case 0x3A: // ESC : first param → need second
@@ -462,7 +463,7 @@ export class EpsonFX80 extends PrinterBase {
         this._state = S_PARAM2;
         break;
       case 0x41: // ESC A n — n/72" (n=0-85; >85 treated as 85)
-        this._lineHeight = Math.min(ch, 85) * (DPI / 72);
+        this._lineHeight = Math.min(ch, 85) * (this.dpi / 72);
         this._state = S_NORMAL;
         break;
       case 0x43: // ESC C n — form length in lines (n=0 → next byte = inches)
@@ -480,7 +481,7 @@ export class EpsonFX80 extends PrinterBase {
         this._state = S_NORMAL;
         break;
       case 0x4A: // ESC J n — immediate LF
-        this._yDot += ch * UNIT_216;
+        this._yDot += ch * this._unit216;
         this._state = S_NORMAL;
         break;
       case 0x4E: // ESC N n — skip-over-perforation: skip n lines at each page bottom
@@ -515,7 +516,7 @@ export class EpsonFX80 extends PrinterBase {
         this._state = S_NORMAL;
         break;
       case 0x6A: // ESC j n — reverse feed
-        this._yDot  = Math.max(0, this._yDot - ch * UNIT_216);
+        this._yDot  = Math.max(0, this._yDot - ch * this._unit216);
         this._state = S_NORMAL;
         break;
       case 0x6C: // ESC l n — left margin at column n (current pitch)
@@ -546,8 +547,8 @@ export class EpsonFX80 extends PrinterBase {
   getAutoLineFeed()   { return this._autoLF; }
 
   // Printable carriage width (8") and one character column at the current pitch.
-  _printWidthDots() { return DPI * 8; }
-  _colDots()        { return DPI / CPI[this._pitch]; }
+  _printWidthDots() { return this.dpi * 8; }
+  _colDots()        { return this.dpi / CPI[this._pitch]; }
 
   // HT — advance to the next horizontal tab stop. Explicit stops (ESC D) are
   // columns from the left margin; with none set the default is every 8 columns.
@@ -590,7 +591,7 @@ export class EpsonFX80 extends PrinterBase {
   }
 
   _charAdvance() {
-    const base = DPI / CPI[this._pitch];
+    const base = this.dpi / CPI[this._pitch];
     return Math.round(this._expanded ? base * 2 : base);
   }
 
@@ -606,7 +607,7 @@ export class EpsonFX80 extends PrinterBase {
       cols = custom;          advance = this._charAdvance();
     } else if (prop) {
       cols = prop;
-      const w = (prop.length + 1) * DOT_W;
+      const w = (prop.length + 1) * this._dotW;
       advance = Math.round(this._expanded ? w * 2 : w);
     } else {
       cols = this._romChar(code); advance = this._charAdvance();
@@ -629,8 +630,8 @@ export class EpsonFX80 extends PrinterBase {
       cols,
       xDot:      this._xDot,
       yDot:      this._yDot,
-      dotW:      DOT_W,
-      dotH:      DOT_V,
+      dotW:      this._dotW,
+      dotH:      this._dotV,
       color:     'black',
       bold:      this._emphasized || this._dblStrike,
       underline: this._underline,
@@ -642,8 +643,9 @@ export class EpsonFX80 extends PrinterBase {
   // Render from the FX-80's own font ROM: the Italic bank when italic is active
   // (ESC 4 / Master Select bit 6), otherwise Roman. A non-USA international set
   // (ESC R) overrides the dozen national code points first. Anything not yet
-  // transcribed falls back to the ImageWriter II draft ROM, so the printer
-  // stays usable while the Epson font is authored in rom-editor.html.
+  // transcribed falls back to the ImageWriter II standard-fixed ROM, so the
+  // printer stays usable while the Epson font is authored in rom-editor.html.
+  // (Temporary borrow — drop once the Epson banks are fully populated.)
   _romChar(code) {
     const italic = this._italic;
     if (this._intlSet !== 'US') {
@@ -652,12 +654,8 @@ export class EpsonFX80 extends PrinterBase {
       if (override) return override;
     }
     const rom = italic ? EPSON_FX_ITALIC_ROM : EPSON_FX_ROM;
-    return rom[code] ?? DRAFT_ROM[code] ?? null;
+    return rom[code] ?? IW2_STANDARD_FIXED[code] ?? null;
   }
-
-  static get DPI()   { return DPI; }
-  static get DOT_W() { return DOT_W; }
-  static get DOT_V() { return DOT_V; }
 
   getCharsPerSecond() { return 160; } // FX-80 draft
   getName() { return "Epson FX-80"; }

@@ -7,9 +7,12 @@
  */
 
 import { BaseWindow } from "../windows/base-window.js";
+import { DEFAULT_DPI } from "./printer-units.js";
 import { PRINTER_MODELS, RIBBONS } from "./printer-manager.js";
 import { makeZipStore } from "./zip-store.js";
 import { buildScreenDump, buildScreenDumpColor, SCREEN_W, SCREEN_H } from "./screen-dump.js";
+import { printViaIframe, printPagesViaIframe } from "./print-utils.js";
+import { savePage } from "./printer-page-store.js";
 
 // 1 display pixel per dot (canvas scrolls horizontally if wider than paper area)
 const DOT_PX     = 1;
@@ -21,10 +24,11 @@ const CANVAS_W   = 960;   // 80 chars × 12 dots each = 8" printable at 120 dpi
 const VSTRETCH   = 120 / 72;     // 5/3
 const DOT_H_PX   = 2;            // painted height of one stretched wire dot
 const PAGE_H_PX  = Math.round(792 * VSTRETCH); // 1320 — 66 lines @ 11", default form
-const VDOT_INTERNAL = 480 / 72;  // internal vertical dot pitch (matches printers' dotH)
-const HDOT_INTERNAL = 480 / 120; // internal horizontal dot pitch — the canvas is a
-                                 // fixed 120-dpi raster, so map internal dots to it
-                                 // at 480/120 = 4 regardless of the graphics density.
+// The canvas is a fixed 120-dpi-across / 72-dpi-down raster. Internal dots map
+// onto it by dividing by (printer.dpi / 120) across and (printer.dpi / 72) down,
+// so the mapping tracks whatever internal scale the active printer uses (default
+// 480 → ÷4 / ÷6.667). Sourced live per printer via this._hdotInternal /
+// this._vdotInternal (a model may override its dpi for finer densities).
 const PAPER_BG   = '#ffffff';
 // Four ribbon bands plus the three overprint secondaries (ESC K 4-6). Orange,
 // green and purple are what the real ribbon makes by laying two bands on the
@@ -98,7 +102,20 @@ export class PrinterWindow extends BaseWindow {
     this._canvasMode    = false;
     this._fitMode       = this._loadFitMode(); // true = scale to width
     this._panelPinned   = this._loadPin();     // operator panel docked in-flow
+    this._jobId         = null;                // page-store job id (this sheet run)
+    this._persistTimer  = null;                // debounce for auto-capture
+
+    // Last sheet before the tab unloads is best-effort flushed; the debounced
+    // capture has usually already written it ~1.2s after the final byte.
+    window.addEventListener("pagehide", () => this._flushAndEndJob());
   }
+
+  // Internal dot scale of the active printer, and the internal→canvas divisors
+  // derived from it. The canvas is a fixed 120-dpi-across / 72-dpi-down raster;
+  // a model may override its dpi for finer densities, so these track it live.
+  get _dpi()          { return this.printerManager?.getActivePrinter?.()?.dpi || DEFAULT_DPI; }
+  get _hdotInternal() { return this._dpi / 120; }
+  get _vdotInternal() { return this._dpi / 72; }
 
   _loadFitMode() {
     try { return localStorage.getItem("a2e-printer-fit") !== "false"; }
@@ -154,6 +171,11 @@ export class PrinterWindow extends BaseWindow {
             <div class="pr-panel-tab" title="Operator panel">&#9776;</div>
             <div class="pr-panel-body">
               <button id="pr-fit" class="pr-pbtn" title="Toggle fit-to-width / actual size">Fit</button>
+              <!-- Print-speed knob hidden for now: playback compresses correctly, but live
+                   output is throttled upstream (CPU/ProDOS emission rate), so the button
+                   has no visible effect yet. Wiring kept intact; re-show once the upstream
+                   pacing is understood. -->
+              <button id="pr-speed" class="pr-pbtn" hidden title="Print speed — cycle 1× / 2× / 4× / 8× faster paper feed. Output is identical; only the on-screen playback rate changes.">1&times;</button>
               <div class="pr-pdiv"></div>
               <button id="pr-set-tof" class="pr-pbtn" title="Reseat the head at the top of the first page">TOP</button>
               <button id="pr-form-feed" class="pr-pbtn" title="Form feed to next page top">FF</button>
@@ -339,6 +361,7 @@ export class PrinterWindow extends BaseWindow {
       dump:        el.querySelector("#pr-dump"),
       clear:       el.querySelector("#pr-clear"),
       fit:         el.querySelector("#pr-fit"),
+      speed:       el.querySelector("#pr-speed"),
       lfUp:        el.querySelector("#pr-lf-up"),
       lfDown:      el.querySelector("#pr-lf-down"),
       setTof:      el.querySelector("#pr-set-tof"),
@@ -356,8 +379,8 @@ export class PrinterWindow extends BaseWindow {
   // size" is exactly this form length; paper width never changes.
   _pageHeightPx() {
     const p = this.printerManager.getActivePrinter();
-    const formDots = p?.paper?.formDots || (480 * 11);
-    return Math.max(40, Math.round(formDots / VDOT_INTERNAL * VSTRETCH));
+    const formDots = p?.paper?.formDots || (this._dpi * 11);
+    return Math.max(40, Math.round(formDots / this._vdotInternal * VSTRETCH));
   }
 
   _initCanvas() {
@@ -457,6 +480,7 @@ export class PrinterWindow extends BaseWindow {
     });
 
     el.page.addEventListener("change", () => {
+      this._flushAndEndJob();   // save current sheet before the size change wipes it
       this.printerManager.getActivePrinter().setPageSize?.(el.page.value);
       // Form length changed → re-lay the sheet (clears paper, like reloading
       // stock of a different size).
@@ -468,6 +492,7 @@ export class PrinterWindow extends BaseWindow {
     this._initDumpButton(el.dump);
     el.clear.addEventListener("click",       () => this._clear());
     el.fit.addEventListener("click",         () => this._toggleFit());
+    el.speed.addEventListener("click",       () => this._cycleSpeed());
     el.lfUp.addEventListener("click",        () => this._panelFeed("up"));
     el.lfDown.addEventListener("click",      () => this._panelFeed("down"));
     el.setTof.addEventListener("click",      () => this._headToTop());
@@ -478,6 +503,7 @@ export class PrinterWindow extends BaseWindow {
     this._initHeadDrag();
 
     this._refreshAutoLF();
+    this._refreshSpeed();
     this._refreshPower();
     this._applyPin();
 
@@ -489,6 +515,7 @@ export class PrinterWindow extends BaseWindow {
     this._attachPrinterListeners(printer);
 
     this.printerManager.onPrinterChange((p) => {
+      this._flushAndEndJob();   // outgoing model's sheet goes to the page store
       this._updateViewMode(p);
       this._attachPrinterListeners(p);
       this._refreshPageSizes();
@@ -566,6 +593,24 @@ export class PrinterWindow extends BaseWindow {
     sel.value = this.printerManager.getRibbon();
   }
 
+  // Cycle the playback speed 1× → 2× → 4× → 8× → 1×.
+  _cycleSpeed() {
+    const steps = [1, 2, 4, 8];
+    const cur   = this.printerManager.getPrintSpeed();
+    const next  = steps[(steps.indexOf(cur) + 1) % steps.length];
+    this.printerManager.setPrintSpeed(next);
+    this._refreshSpeed();
+  }
+
+  _refreshSpeed() {
+    const el = this.elements?.speed;
+    if (!el) return;
+    const mult = this.printerManager.getPrintSpeed();
+    el.innerHTML = `${mult}&times;`;
+    // Non-default speed reads as "on" (green), like the Fit/Auto-LF toggles.
+    el.className = mult > 1 ? "pr-pbtn pr-pbtn-on" : "pr-pbtn";
+  }
+
   _toggleFit() {
     this._fitMode = !this._fitMode;
     try { localStorage.setItem("a2e-printer-fit", String(this._fitMode)); }
@@ -598,8 +643,154 @@ export class PrinterWindow extends BaseWindow {
     printer.on("newline",   ()     => this._onNewline());
     printer.on("linefeed",  ()     => this._onLinefeed());
     printer.on("formfeed",  ()     => this._onFormFeed());
-    printer.on("printChar", (data) => this._renderChar(data));
-    printer.on("printDots", (data) => this._renderDots(data));
+    printer.on("printChar", (data) => { this._renderChar(data); this._schedulePersist(); });
+    printer.on("printDots", (data) => { this._renderDots(data); this._schedulePersist(); });
+  }
+
+  // ===== Auto-capture printed pages to the page store =====
+
+  // A job is the run of output between clears/resets; every page of it is stored
+  // under one id, stamped lazily on the first byte onto a fresh sheet.
+  _ensureJobId() {
+    if (this._jobId == null) this._jobId = Date.now();
+    return this._jobId;
+  }
+
+  // Debounced: write the finished paper ~1.2s after printing goes quiet, so a
+  // burst of dots saves once (not per byte). Canvas models only — text models
+  // have no page raster to slice.
+  _schedulePersist() {
+    if (!this._canvasMode) return;
+    this._ensureJobId();
+    clearTimeout(this._persistTimer);
+    this._persistTimer = setTimeout(() => {
+      this._snapshotPages().forEach((rec) => savePage(rec));
+    }, 1200);
+  }
+
+  // Slice the used pages (perforation-free, the same raster the PDF export uses)
+  // into one record per page. Pure/synchronous so a caller can snapshot before
+  // the canvas is wiped; ids are `${jobId}::${index}` so a re-snapshot of a
+  // still-growing job overwrites its pages in place.
+  _snapshotPages() {
+    if (!this._canvasMode || this._jobId == null) return [];
+    const clean = this._cleanUsedCanvas();
+    if (!clean) return [];
+    const pageH   = this._pageHeightPx();
+    const pages   = this._usedPageCount(pageH);
+    const printer = this.printerManager.getActivePrinter();
+    const base = {
+      jobId:      this._jobId,
+      model:      printer.getName(),
+      modelId:    printer.getId(),
+      ribbon:     this.printerManager.getRibbon(),
+      pageSize:   printer.getPageSize?.() ?? null,
+      formInches: pageH / 120,
+      // Where the head sits at capture — restored verbatim when the job is sent
+      // back to the paper, so re-printing resumes exactly where it left off.
+      headXDot:   printer._xDot | 0,
+      headYDot:   printer._yDot | 0,
+      savedAt:    Date.now(),
+    };
+    const recs = [];
+    for (let i = 0; i < pages; i++) {
+      const slice  = document.createElement("canvas");
+      slice.width  = clean.width;
+      slice.height = pageH;
+      const s = slice.getContext("2d");
+      s.fillStyle = PAPER_BG;
+      s.fillRect(0, 0, slice.width, pageH);
+      s.drawImage(clean, 0, -i * pageH);   // this page's band
+      recs.push({
+        ...base,
+        id:         `${this._jobId}::${i}`,
+        pageIndex:  i,
+        pageCount:  pages,
+        width:      slice.width,
+        height:     slice.height,
+        pngDataUrl: slice.toDataURL("image/png"),
+      });
+    }
+    return recs;
+  }
+
+  // Persist the current sheet immediately, then end the job so the next output
+  // starts a fresh one. Called before the canvas is wiped (clear) or the tab
+  // unloads, so the outgoing job's pages aren't lost.
+  _flushAndEndJob() {
+    clearTimeout(this._persistTimer);
+    this._persistTimer = null;
+    const recs = this._snapshotPages();
+    this._jobId = null;
+    recs.forEach((rec) => savePage(rec));
+  }
+
+  // ===== Load a stored job back onto the paper =====
+
+  // Re-load a captured job's pages onto the live paper so it can be re-previewed
+  // or extended. Restores the printer model, ribbon, form length and — crucially
+  // — the print head's row/column where the job stopped, then re-adopts the job's
+  // id so any further printing overwrites that same job in the store. The Print
+  // Browser passes job = { jobId, pages: [record,…] } straight from the store.
+  async loadJobToPaper(job) {
+    if (!job?.pages?.length) return false;
+    const first = job.pages[0];
+
+    // Bank the current sheet before its pixels are overwritten.
+    this._flushAndEndJob();
+
+    // Match the printer the job was made on (model → ribbon → form length) so the
+    // page geometry and colours line up with the captured pixels.
+    if (first.modelId && this.printerManager.getActivePrinter().getId() !== first.modelId)
+      this.setModel(first.modelId);
+    if (first.ribbon) this.setRibbon(first.ribbon);
+    const printer = this.printerManager.getActivePrinter();
+    if (first.pageSize) printer.setPageSize?.(first.pageSize);
+
+    this.show();
+    if (!this._canvasMode || !this.elements) return false;
+
+    // Rebuild the paper: each stored page painted at its page band, plus the two
+    // trailing blank feed pages so it still reads as continuous fan-fold stock.
+    const pageH = this._pageHeightPx();
+    const cv  = this.elements.canvas;
+    cv.width  = CANVAS_W;
+    cv.height = pageH * (job.pages.length + 2);
+    const ctx = this.elements.ctx;
+    ctx.fillStyle = PAPER_BG;
+    ctx.fillRect(0, 0, cv.width, cv.height);
+    for (let i = 0; i < job.pages.length; i++) {
+      const img = await this._loadImage(job.pages[i].pngDataUrl);
+      ctx.drawImage(img, 0, i * pageH, cv.width, pageH);
+    }
+    this._drawPageBreaks();
+    const hc = this.elements.head;
+    hc.width  = cv.width;
+    hc.height = cv.height;
+    this.elements.headCtx.clearRect(0, 0, hc.width, hc.height);
+    this._heads = [];
+    this._ink?.clear();   // captured pixels are already mixed — start band map fresh
+
+    // Restore the head exactly where the job stopped, and re-adopt its id so more
+    // output extends this same job rather than starting a new one.
+    printer._yDot = first.headYDot | 0;
+    printer._xDot = first.headXDot | 0;
+    this._jobId   = job.jobId;
+
+    this._applyFit();
+    const cy = this._yToCanvas(Math.round((printer._yDot | 0) / this._vdotInternal) * DOT_PX);
+    this._updateHeadMarker(cy);
+    this._followHead(cy);
+    return true;
+  }
+
+  _loadImage(src) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload  = () => resolve(img);
+      img.onerror = reject;
+      img.src = src;
+    });
   }
 
   // ===== Text mode =====
@@ -655,13 +846,18 @@ export class PrinterWindow extends BaseWindow {
     ctx.fillRect(px, py, w, h);
   }
 
-  _renderChar({ cols, xDot, yDot, dotW, dotH, color, bold, underline, halfHeight, script, doubleWidth }) {
+  _renderChar({ cols, xDot, yDot, dotW, dotH, rows, hDensity, vDensity, color, bold, underline, halfHeight, script, doubleWidth }) {
     if (!cols || !this.elements?.ctx) return;
     const ctx   = this.elements.ctx;
     const cx    = Math.round(xDot / dotW) * DOT_PX;
     const cy    = this._yToCanvas(Math.round(yDot / dotH) * DOT_PX);
-    const nRows = 9;
-    const glyphH = Math.round(nRows * VSTRETCH);
+    const nRows = rows || 9;
+    // Column/row canvas pitch from the glyph's dot density: draft/corr are 120/72
+    // dpi → 1 px per column, VSTRETCH per row. NLQ is 160/144 dpi → ~0.75 px and
+    // ~0.83 px, so its 16x18 grid lands in the same cell as a 12x9 draft glyph.
+    const colStep = DOT_PX   * (120 / (hDensity || 120));
+    const rowStep = VSTRETCH * ( 72 / (vDensity || 72));
+    const glyphH = Math.round(nRows * rowStep);
 
     // Double-width (CTRL-N): each dot column is twice as wide and twice as far
     // apart. Half-height / super- / subscript (ESC w, ESC x/y) squeeze the glyph
@@ -670,9 +866,14 @@ export class PrinterWindow extends BaseWindow {
     const xs     = doubleWidth ? 2 : 1;
     const half   = halfHeight || (script && script !== 'none');
     const vScale = half ? 0.5 : 1;
-    const yOff   = (half && script !== 'super') ? Math.round(nRows * VSTRETCH * 0.5) : 0;
-    const dotHpx = half ? Math.max(1, Math.round(DOT_H_PX * 0.5)) : DOT_H_PX;
-    const rowY   = r => cy + yOff + Math.round(r * VSTRETCH * vScale);
+    const yOff   = (half && script !== 'super') ? Math.round(glyphH * 0.5) : 0;
+    // Dot footprint follows the row pitch so NLQ's finer grid paints smaller,
+    // denser dots rather than the chunky 2-px draft dot smeared over 18 rows.
+    const baseHpx = Math.max(1, Math.round(rowStep));
+    const dotHpx = half ? Math.max(1, Math.round(baseHpx * 0.5)) : baseHpx;
+    const dotWpx = Math.max(1, Math.round(colStep * xs));
+    const rowY   = r => cy + yOff + Math.round(r * rowStep * vScale);
+    const cellW  = Math.round(cols.length * colStep * xs);
 
     this._ensureCanvasHeight(cy + glyphH + DOT_PX);
 
@@ -680,9 +881,9 @@ export class PrinterWindow extends BaseWindow {
       for (let c = 0; c < cols.length; c++) {
         const colVal = cols[c];
         if (!colVal) continue;
-        const px = cx + (c * xs + shift) * DOT_PX;
+        const px = cx + Math.round(c * xs * colStep) + shift * DOT_PX;
         for (let r = 0; r < nRows; r++) {
-          if (colVal & (1 << r)) this._inkDot(ctx, px, rowY(r), DOT_PX * xs, dotHpx, color);
+          if (colVal & (1 << r)) this._inkDot(ctx, px, rowY(r), dotWpx, dotHpx, color);
         }
       }
     };
@@ -691,12 +892,12 @@ export class PrinterWindow extends BaseWindow {
     if (bold) paint(1);            // double-strike, offset one canvas-dot right
 
     if (underline) {
-      // Wire 9 (row index 8) is the underline wire — full glyph cell width
+      // Underline wire sits at the bottom of the cell — full glyph cell width
       ctx.fillStyle = DOT_COLORS[color] ?? DOT_COLORS.black;
-      ctx.fillRect(cx, cy + Math.round(8 * VSTRETCH), cols.length * xs * DOT_PX, DOT_H_PX);
+      ctx.fillRect(cx, cy + Math.round((nRows - 1) * rowStep), cellW, DOT_H_PX);
     }
 
-    this._markHead(cx, cy, (cols.length || 6) * xs * DOT_PX, glyphH);
+    this._markHead(cx, cy, (cellW || 6), glyphH);
     this._updateHeadMarker(cy + glyphH / 2);
     this._followHead(cy + glyphH / 2);
   }
@@ -713,10 +914,10 @@ export class PrinterWindow extends BaseWindow {
     // (which collapsed every density to the same too-small size). Each dot's
     // canvas footprint is its physical pitch, so neighbouring dots butt/overlap
     // into solid ink with no gaps.
-    const px      = Math.round(xDot / HDOT_INTERNAL) * DOT_PX;
-    const py      = this._yToCanvas(yDot / VDOT_INTERNAL);
-    const rowStep = (dotH / VDOT_INTERNAL) * VSTRETCH;                 // canvas px between data rows
-    const dW      = Math.max(DOT_PX, Math.round((dotW / HDOT_INTERNAL) * DOT_PX));
+    const px      = Math.round(xDot / this._hdotInternal) * DOT_PX;
+    const py      = this._yToCanvas(yDot / this._vdotInternal);
+    const rowStep = (dotH / this._vdotInternal) * VSTRETCH;                 // canvas px between data rows
+    const dW      = Math.max(DOT_PX, Math.round((dotW / this._hdotInternal) * DOT_PX));
     const dH      = Math.max(DOT_H_PX, Math.round(rowStep) + 1);
     const glyphH  = Math.round(8 * rowStep);
 
@@ -805,27 +1006,84 @@ export class PrinterWindow extends BaseWindow {
   _initHeadDrag() {
     const m = this.elements?.headMark;
     if (!m) return;
+    // AUTO_LINES: once the pointer sits this many line-feeds past the head (only
+    // possible in centred-scroll mode, where the marker is pinned to viewport
+    // centre and the finger can outrun it), the paper auto-feeds in that
+    // direction until the finger comes back within range.
+    const AUTO_LINES = 8;
     let dragging = false, startMouseY = 0, startYDot = 0, dotsPerLine = 80;
+    let lastClientY = 0, autoLines = 0, autoDir = 0, autoSpeed = 0, autoRAF = null;
+
+    // Place the head at start + (manual pointer lines + accumulated auto-feed
+    // lines). autoLines is frozen while in manual range, so handing control back
+    // and forth is seamless — no jump when auto-feed stops.
+    const apply = () => {
+      const p     = this.printerManager.getActivePrinter();
+      const cv    = this.elements.canvas;
+      const scale = cv.height ? cv.clientHeight / cv.height : 1;
+      const baseDelta = (lastClientY - startMouseY) / (scale || 1) / VSTRETCH;
+      const lines     = Math.round((baseDelta * this._vdotInternal) / dotsPerLine);
+      const newYDot   = Math.max(0, startYDot + (lines + autoLines) * dotsPerLine);
+      if (p) p._yDot = newYDot;
+      const cy = this._yToCanvas(Math.round(newYDot / this._vdotInternal) * DOT_PX);
+      this._ensureCanvasHeight(cy + Math.round(12 * VSTRETCH));
+      this._updateHeadMarker(cy);
+      // Head is the anchor: feed the paper past it so it stays centred in the
+      // viewport (clamped at the top of the first page), exactly as printing does.
+      this._followHead(cy);
+    };
+
+    // Distance of the pointer from the head marker on screen, in line-feeds →
+    // sets the auto-feed direction (0 = in manual range) and a gentle speed ramp.
+    const evalZone = () => {
+      const cv    = this.elements.canvas;
+      const scale = cv.height ? cv.clientHeight / cv.height : 1;
+      const rect  = m.getBoundingClientRect();
+      const pxPerLine = (dotsPerLine / this._vdotInternal) * VSTRETCH * (scale || 1);
+      const distLines = pxPerLine ? (lastClientY - (rect.top + rect.height / 2)) / pxPerLine : 0;
+      autoDir = distLines > AUTO_LINES ? 1 : distLines < -AUTO_LINES ? -1 : 0;
+      // Spring-loaded: a slow creep right at the threshold, ramping up the further
+      // the finger is pulled past it (lines/frame, fractional → smooth sub-line).
+      const over = Math.abs(distLines) - AUTO_LINES;
+      autoSpeed  = autoDir ? Math.min(12, 0.1 + 0.25 * over) : 0;
+    };
+
+    const loop = () => {
+      if (!dragging) { autoRAF = null; return; }
+      evalZone();
+      if (!autoDir) { autoRAF = null; return; }   // back in manual range → stop
+      const prevY = this.printerManager.getActivePrinter()?._yDot ?? 0;
+      autoLines += autoDir * autoSpeed;
+      apply();
+      // Hit a clamp (top of page) and the head didn't move → don't bank the
+      // accumulation, or the finger would have to unwind it on the way back.
+      if ((this.printerManager.getActivePrinter()?._yDot ?? 0) === prevY)
+        autoLines -= autoDir * autoSpeed;
+      autoRAF = requestAnimationFrame(loop);
+    };
+    const ensureAutoLoop = () => { if (autoDir && !autoRAF) autoRAF = requestAnimationFrame(loop); };
 
     const onMove = (e) => {
       if (!dragging) return;
-      const cv    = this.elements.canvas;
-      const scale = cv.height ? cv.clientHeight / cv.height : 1;
-      // displayed gutter px → canvas px → base px → internal dot units
-      const baseDelta = (e.clientY - startMouseY) / (scale || 1) / VSTRETCH;
-      const dotDelta  = baseDelta * VDOT_INTERNAL;
-      const lines     = Math.round(dotDelta / dotsPerLine);   // snap to whole LFs
-      const newYDot   = Math.max(0, startYDot + lines * dotsPerLine);
-      const p = this.printerManager.getActivePrinter();
-      if (p) p._yDot = newYDot;
-      const cy = this._yToCanvas(Math.round(newYDot / VDOT_INTERNAL) * DOT_PX);
-      this._ensureCanvasHeight(cy + Math.round(12 * VSTRETCH));
-      this._updateHeadMarker(cy);
+      lastClientY = e.clientY;
+      apply();
+      evalZone();
+      ensureAutoLoop();
     };
 
     const onUp = (e) => {
       if (!dragging) return;
       dragging = false;
+      if (autoRAF) { cancelAnimationFrame(autoRAF); autoRAF = null; }
+      // The head rests only on whole line-feed boundaries — snap off any
+      // fractional creep left by the spring auto-feed.
+      const p = this.printerManager.getActivePrinter();
+      if (p) {
+        p._yDot = Math.max(0, Math.round((p._yDot || 0) / dotsPerLine) * dotsPerLine);
+        const cy = this._yToCanvas(Math.round(p._yDot / this._vdotInternal) * DOT_PX);
+        this._updateHeadMarker(cy);
+        this._followHead(cy);
+      }
       m.classList.remove("dragging");
       try { m.releasePointerCapture(e.pointerId); } catch (_) {}
       window.removeEventListener("pointermove", onMove);
@@ -838,9 +1096,10 @@ export class PrinterWindow extends BaseWindow {
       e.stopPropagation();                // don't start a window-drag
       const p = this.printerManager.getActivePrinter();
       dragging    = true;
-      startMouseY = e.clientY;
+      startMouseY = lastClientY = e.clientY;
       startYDot   = p ? (p._yDot | 0) : 0;
       dotsPerLine = (p && p._lineFeedDots) ? p._lineFeedDots() : 80;
+      autoLines   = 0; autoDir = 0; autoSpeed = 0;
       m.classList.add("dragging");
       try { m.setPointerCapture(e.pointerId); } catch (_) {}
       window.addEventListener("pointermove", onMove);
@@ -881,7 +1140,7 @@ export class PrinterWindow extends BaseWindow {
     else if (kind === "down") p.lineFeedDown(1);
     else if (kind === "ff")   p.formFeed();
     if (this._canvasMode) {
-      const cy = this._yToCanvas(Math.round((p._yDot | 0) / VDOT_INTERNAL) * DOT_PX);
+      const cy = this._yToCanvas(Math.round((p._yDot | 0) / this._vdotInternal) * DOT_PX);
       this._ensureCanvasHeight(cy + Math.round(12 * VSTRETCH));
       this._updateHeadMarker(cy);
       this._followHead(cy);
@@ -1125,6 +1384,7 @@ export class PrinterWindow extends BaseWindow {
   }
 
   _clear() {
+    this._flushAndEndJob();   // save the sheet to the page store before wiping it
     this.text = "";
     this.printerManager.getActivePrinter().reset();
     this._heads = [];
@@ -1176,7 +1436,7 @@ export class PrinterWindow extends BaseWindow {
   _usedPageCount(pageH) {
     const p      = this.printerManager.getActivePrinter();
     const yDot   = p?._yDot | 0;
-    const bottom = this._yToCanvas(Math.round(yDot / VDOT_INTERNAL)) + Math.round(9 * VSTRETCH);
+    const bottom = this._yToCanvas(Math.round(yDot / this._vdotInternal)) + Math.round(9 * VSTRETCH);
     return Math.max(1, Math.ceil(bottom / pageH));
   }
 
@@ -1248,38 +1508,10 @@ export class PrinterWindow extends BaseWindow {
     );
   }
 
-  // Print HTML through a throwaway hidden iframe instead of a popup tab (no
-  // visible window, and popup blockers never fire). The iframe holds a whole
-  // document — and, for the dot-matrix path, a base64 PNG per page — so it MUST
-  // be torn down or it leaks. onafterprint removes it when the dialog closes;
-  // a fallback timer covers browsers that never fire it, and the `done` guard
-  // makes cleanup idempotent regardless of which path wins the race.
+  // Print HTML through a throwaway hidden iframe (shared with the Print Browser
+  // window — see print-utils.js for why the iframe must be torn down).
   _printViaIframe(html) {
-    const frame = document.createElement("iframe");
-    frame.setAttribute("aria-hidden", "true");
-    // Off-screen but at a real rendered size: a 0x0 or visibility:hidden frame
-    // prints blank in some engines. `srcdoc` (vs document.write) fires a proper
-    // load event AFTER the page images decode, so the dot-matrix preview isn't
-    // captured blank.
-    frame.style.cssText =
-      "position:fixed;left:-10000px;top:0;width:8.5in;height:11in;border:0;";
-    frame.srcdoc = html;
-    document.body.appendChild(frame);
-
-    let done = false;
-    const cleanup = () => {
-      if (done) return;
-      done = true;
-      frame.remove();            // detach node → its doc + PNG data URLs become GC-able
-    };
-
-    frame.addEventListener("load", () => {
-      const fwin = frame.contentWindow;
-      fwin.onafterprint = cleanup;                // primary: print dialog dismissed
-      try { fwin.focus(); fwin.print(); }
-      catch (_) { cleanup(); return; }            // print threw → don't leak the frame
-      setTimeout(cleanup, 60000);                 // fallback if onafterprint never fires
-    }, { once: true });
+    printViaIframe(html);
   }
 
   // Dot-matrix PDF: one full-bleed page image per used page, perforation-free,
@@ -1308,16 +1540,7 @@ export class PrinterWindow extends BaseWindow {
       imgs.push(slice.toDataURL("image/png"));
     }
 
-    const body = imgs.map((src) => `<img class="page" src="${src}"/>`).join("");
-    this._printViaIframe(
-      `<!DOCTYPE html><html><head><title>Printer Output</title><style>` +
-      `@page { size: ${wIn}in ${hIn}in; margin: 0; }` +
-      `html,body { margin:0; padding:0; background:#fff; }` +
-      // full bleed: image fills the whole page, one page per image
-      `img.page { display:block; width:${wIn}in; height:${hIn}in; page-break-after: always; }` +
-      `img.page:last-child { page-break-after: auto; }` +
-      `</style></head><body>${body}</body></html>`
-    );
+    printPagesViaIframe(imgs, wIn, hIn);
   }
 
   // A perforation-free copy of the used pages for clean full-bleed output. The
