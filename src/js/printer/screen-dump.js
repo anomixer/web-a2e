@@ -1,20 +1,37 @@
 /*
- * screen-dump.js - Host-side screen → ImageWriter II graphics dump
+ * screen-dump.js - Host-side screen → dot-matrix printer graphics dump
  *
  * Converts an RGBA framebuffer (the //e 560×384 HGR/DHGR/LORES/TEXT screen, or
- * any arbitrary bitmap) into a faithful ImageWriter II bit-image stream. The
- * bytes go through the very same ESC G parser path a real screen-dump utility
- * (Grappler ROM, Print Shop, etc.) drives, so the dump is exercised against the
- * exact protocol software depends on — nothing here paints pixels directly.
+ * any arbitrary bitmap) into a faithful bit-image stream for a SPECIFIC dot-matrix
+ * printer family. The bytes go through that printer model's own parser — the exact
+ * graphics protocol period software (Grappler ROM, Print Shop, …) drives — so the
+ * dump exercises the real wire format, never painting pixels directly.
  *
- * Per the ImageWriter II Technical Reference Manual, Chapter 8:
- *  - ESC n         selects 72-dpi horizontal — the canonical square 72×72 grid
- *                  every Mac-Pascal graphics example in the manual uses.
- *  - ESC T 16      sets a 16/144" line feed = exactly 8 wires at 72 dpi, so each
- *                  8-dot band butts seamlessly against the next (Figure 8-5).
- *  - ESC G nnnn    4 ASCII digits = number of data bytes; one 8-dot column each.
- *  - Data byte     bit 0 = top dot, bit 7 = bottom dot (Figure 8-1). All 8 bits
- *                  are significant, so columns are emitted as raw bytes.
+ * --- Architecture: one scanner, explicit per-printer protocols -----------------
+ *
+ * The hard part — walking the framebuffer and packing 8 vertical pixels into a
+ * column byte — is IDENTICAL for every printer (see `scanBandColumns`). What
+ * differs is purely the WIRE FORMAT each printer's head speaks, and those
+ * differences are the real hardware demarcations. Each is captured explicitly in a
+ * frozen PROTOCOL descriptor (see CITOH_BASE / IMAGEWRITER / APPLE_DMP / EPSON_FX),
+ * so adding a printer means adding a descriptor, not editing the scanner.
+ *
+ * The four demarcations that actually differ between these heads:
+ *
+ *   1. Graphics command   C. Itoh: ESC G          Epson: ESC * <mode>
+ *   2. Column count form   C. Itoh: 4 ASCII digits Epson: 2 binary bytes (nL nH)
+ *   3. Top-dot bit         C. Itoh: bit 0 (LSB)    Epson: bit 7 (MSB)
+ *   4. Band line feed      C. Itoh: ESC T 16/144"  Epson: ESC 3 24/216"
+ *
+ * The Apple Dot Matrix Printer and the ImageWriter both descend from the C. Itoh
+ * 8510 command set, so they COMPOSE from one CITOH_BASE descriptor — the DMP is
+ * that base minus the ImageWriter II's four-band colour ribbon. The Epson FX-80 is
+ * a different lineage (ESC/P) and so is its own descriptor.
+ *
+ * Public builders — one per printer head, named so the target is unmistakable:
+ *   buildScreenDumpImageWriter()  72-dpi ESC G, mono or 4-band colour ribbon
+ *   buildScreenDumpAppleDMP()     72-dpi ESC G, mono only (no colour ribbon)
+ *   buildScreenDumpEpson()        72-dpi ESC * 5, mono (FX-80 has no colour ribbon)
  *
  * Written by
  *  Mike Daley <michael_daley@icloud.com>
@@ -28,12 +45,32 @@ const ESC = 0x1B;
 export const SCREEN_W = 560;
 export const SCREEN_H = 384;
 
-// Push an ESC G/ESC F-style 4-digit ASCII count (leading zeros). nnnn must
-// always be four digits (Table 8-1); 560 → "0560".
+// ---- Wire-format primitives (the per-printer demarcations) --------------------
+
+// C. Itoh column count: 4 ASCII digits, leading zeros (Table 8-1); 560 → "0560".
 function pushCount4(out, n) {
   const s = String(Math.max(0, Math.min(9999, n | 0))).padStart(4, "0");
   for (let i = 0; i < 4; i++) out.push(s.charCodeAt(i));
 }
+
+// Epson column count: two binary bytes, low then high (n = nL + nH·256).
+function pushCount2(out, n) {
+  const v = Math.max(0, Math.min(0xFFFF, n | 0));
+  out.push(v & 0xFF, (v >> 8) & 0xFF);
+}
+
+// Bit-reverse an 8-bit column. The scanner always builds columns with bit 0 = top
+// (the natural reading order). C. Itoh heads want exactly that; Epson heads put the
+// top dot in bit 7, so msb-top protocols reverse each column on the way out.
+const REVERSE8 = (() => {
+  const t = new Uint8Array(256);
+  for (let b = 0; b < 256; b++) {
+    let r = 0;
+    for (let i = 0; i < 8; i++) if (b & (1 << i)) r |= 1 << (7 - i);
+    t[b] = r;
+  }
+  return t;
+})();
 
 // A framebuffer pixel is "ink" when it is lit on the dark screen. Testing each
 // channel against the threshold means coloured HGR pixels (green, purple, …)
@@ -42,44 +79,129 @@ function isLit(fb, idx, threshold) {
   return fb[idx] >= threshold || fb[idx + 1] >= threshold || fb[idx + 2] >= threshold;
 }
 
+// ---- Shared scanner (printer-agnostic — the half every head shares) -----------
+//
+// Pack one 8-dot-high band of the framebuffer into `width` column bytes, bit r of
+// each column = framebuffer row y+r, bit 0 = TOP. This is the only place the
+// pixels are read; protocols below decide how the resulting bytes hit the wire.
+function scanBandColumns(fb, width, height, y, bandH, threshold) {
+  const cols = new Array(width);
+  for (let x = 0; x < width; x++) {
+    let col = 0;
+    for (let r = 0; r < bandH; r++) {
+      const yy = y + r;
+      if (yy >= height) break;
+      if (isLit(fb, (yy * width + x) * 4, threshold)) col |= 1 << r; // bit 0 = top
+    }
+    cols[x] = col;
+  }
+  return cols;
+}
+
+// ============================================================================
+// PROTOCOL DESCRIPTORS — one frozen object per printer head. Every field is a
+// hardware demarcation; nothing here reads pixels. `enterGraphics`/`beginRow`/
+// `endRow`/`exitText` push raw protocol bytes, `msbTop` flips the bit order.
+// ============================================================================
+
+// --- C. Itoh 8510 base: shared by the Apple DMP and the ImageWriter family ---
+// ESC n selects 72-dpi horizontal (the square 72×72 grid every IW Tech-Ref
+// graphics example uses); ESC T 16 = 16/144" feed = exactly 8 wires at 72 dpi, so
+// each 8-dot band butts seamlessly against the next. ESC G takes a 4-ASCII-digit
+// column count; data byte bit 0 = top dot (Figure 8-1), all 8 bits significant.
+const CITOH_BASE = {
+  bandHeight: 8,
+  msbTop: false,                                          // bit 0 = top wire
+  enterGraphics(out) {
+    out.push(ESC, 0x6E);                                  // ESC n  — 72 dpi
+    out.push(ESC, 0x54, 0x31, 0x36);                      // ESC T 16 — 16/144" feed
+  },
+  beginRow(out, nCols) { out.push(ESC, 0x47); pushCount4(out, nCols); }, // ESC G nnnn
+  endRow(out)  { out.push(0x0D, 0x0A); },                 // CR+LF — return + 1 band
+  exitText(out) { out.push(ESC, 0x4E); out.push(ESC, 0x41); }, // ESC N pica, ESC A 6 lpi
+};
+
+// Apple ImageWriter / ImageWriter II — C. Itoh base, with the optional four-band
+// colour ribbon (handled by buildImageWriterColor, not the mono path).
+const IMAGEWRITER = { ...CITOH_BASE };
+
+// Apple Dot Matrix Printer — same C. Itoh wire format, but a single black ribbon:
+// no colour passes. Literally the base with no colour ribbon attached.
+const APPLE_DMP = { ...CITOH_BASE };
+
+// --- Epson FX-80: ESC/P lineage, a different head -----------------------------
+// ESC * 5 selects 72-dpi single-density graphics (the FX mode whose dot pitch
+// matches the IW square grid); the count is two binary bytes (nL nH). The vertical
+// pin pitch is 1/72", so ESC 3 24 = 24/216" = exactly 8 pins advances one band.
+// The Epson head puts the TOP pin in bit 7, so columns reverse on the way out.
+const EPSON_FX = {
+  bandHeight: 8,
+  msbTop: true,                                           // bit 7 = top pin
+  enterGraphics(out) { out.push(ESC, 0x33, 24); },        // ESC 3 24 — 24/216" feed
+  beginRow(out, nCols) { out.push(ESC, 0x2A, 0x05); pushCount2(out, nCols); }, // ESC * 5 nL nH
+  endRow(out)  { out.push(0x0D, 0x0A); },                 // CR+LF — return + 1 band
+  exitText(out) { out.push(ESC, 0x32); },                 // ESC 2 — back to 1/6" (6 lpi)
+};
+
+// ---- Generic mono builder: shared scanner + a printer's protocol --------------
+function buildMono(fb, width, height, proto, opts = {}) {
+  const threshold = opts.threshold ?? 0x40;
+  const out = [];
+  proto.enterGraphics(out);
+  for (let y = 0; y < height; y += proto.bandHeight) {
+    const cols = scanBandColumns(fb, width, height, y, proto.bandHeight, threshold);
+    proto.beginRow(out, width);
+    for (let x = 0; x < width; x++) {
+      out.push(proto.msbTop ? REVERSE8[cols[x] & 0xFF] : (cols[x] & 0xFF));
+    }
+    proto.endRow(out);
+  }
+  proto.exitText(out);
+  return out;
+}
+
+// ============================================================================
+// PUBLIC BUILDERS — one per printer head.
+// ============================================================================
+
 /**
- * Build the ImageWriter II byte stream for an RGBA framebuffer.
+ * Apple ImageWriter / ImageWriter II screen dump (C. Itoh ESC G, 72 dpi).
+ * Mono by default; `opts.color` routes to the four-band ribbon separation.
  *
  * @param {Uint8ClampedArray|Uint8Array|number[]} fb  RGBA pixels, row-major.
  * @param {number} width   pixels per row.
  * @param {number} height  rows.
  * @param {object} [opts]
- * @param {number} [opts.threshold=0x40]  per-channel lit threshold (0–255).
- * @returns {number[]}  byte stream ready for PrinterManager.feedBytes().
+ * @param {number}  [opts.threshold=0x40]  per-channel lit threshold (0–255).
+ * @param {boolean} [opts.color]           true → colour ribbon separation (IW II).
+ * @param {boolean} [opts.invert]          colour: force greyscale polarity.
+ * @returns {number[]}  byte stream for PrinterManager.feedBytes().
  */
+export function buildScreenDumpImageWriter(fb, width = SCREEN_W, height = SCREEN_H, opts = {}) {
+  return opts.color
+    ? buildScreenDumpColor(fb, width, height, opts)
+    : buildMono(fb, width, height, IMAGEWRITER, opts);
+}
+
+/**
+ * Apple Dot Matrix Printer screen dump (C. Itoh ESC G, 72 dpi, single black
+ * ribbon — no colour passes). Same wire format as the ImageWriter mono dump.
+ */
+export function buildScreenDumpAppleDMP(fb, width = SCREEN_W, height = SCREEN_H, opts = {}) {
+  return buildMono(fb, width, height, APPLE_DMP, opts);
+}
+
+/**
+ * Epson FX-80 screen dump (ESC/P ESC * 5, 72 dpi, MSB-top columns). Mono — the
+ * FX-80 has no colour ribbon.
+ */
+export function buildScreenDumpEpson(fb, width = SCREEN_W, height = SCREEN_H, opts = {}) {
+  return buildMono(fb, width, height, EPSON_FX, opts);
+}
+
+// Back-compat aliases — the original ImageWriter-only entry points.
 export function buildScreenDump(fb, width = SCREEN_W, height = SCREEN_H, opts = {}) {
-  const threshold = opts.threshold ?? 0x40;
-  const out = [];
-
-  out.push(ESC, 0x6E);              // ESC n  — 72 dpi horizontal (square grid)
-  out.push(ESC, 0x54, 0x31, 0x36); // ESC T 16 — 16/144" feed, bands butt together
-
-  // Each pass prints one 8-dot-high band; bit r of the column byte is row y+r.
-  for (let y = 0; y < height; y += 8) {
-    out.push(ESC, 0x47);           // ESC G
-    pushCount4(out, width);
-    for (let x = 0; x < width; x++) {
-      let col = 0;
-      for (let r = 0; r < 8; r++) {
-        const yy = y + r;
-        if (yy >= height) break;
-        if (isLit(fb, (yy * width + x) * 4, threshold)) col |= 1 << r; // bit 0 = top
-      }
-      out.push(col);               // raw 8-bit column — bit 7 is significant
-    }
-    out.push(0x0D, 0x0A);          // CR+LF — return + one band's worth of feed
-  }
-
-  // Leave the printer in a sane text state for whatever prints next.
-  out.push(ESC, 0x4E);             // ESC N — back to pica
-  out.push(ESC, 0x41);             // ESC A — back to 6 lpi
-
-  return out;
+  return buildMono(fb, width, height, IMAGEWRITER, opts);
 }
 
 // ---- Period-correct ImageWriter II colour model ------------------------------

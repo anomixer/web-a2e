@@ -17,7 +17,7 @@
  *  Shawn Bullock <shawn@agenticexpert.ai>
  */
 
-import { ImageWriterII } from "./imagewriter-ii.js";
+import { CItohPrinter } from "./citoh-printer.js";
 import { IW1_STANDARD_FIXED, IW1_STANDARD_FIXED_LOCALES } from "./imagewriter-i-rom-standard-fixed.js";
 import { IW1_STANDARD_PROP, IW1_STANDARD_PROP_LOCALES } from "./imagewriter-i-rom-standard-prop.js";
 
@@ -30,7 +30,7 @@ import { IW1_STANDARD_PROP, IW1_STANDARD_PROP_LOCALES } from "./imagewriter-i-ro
 // but they have no visual effect (single black font — see the overrides below).
 const IW1_IGNORED_ESC = new Set([0x77, 0x57, 0x78, 0x79, 0x7A, 0x6D, 0x4D, 0x26]);
 
-export class ImageWriterI extends ImageWriterII {
+export class ImageWriterI extends CItohPrinter {
   getName() { return "ImageWriter I"; }
   getId()   { return "imagewriter-i"; }
 
@@ -40,8 +40,13 @@ export class ImageWriterI extends ImageWriterII {
   // Power-on default pitch is Elite (12 cpi), not Pica — DIP SW1-6 closed,
   // SW1-7 open (manual Ch.4). Everything else matches the II's render reset.
   _resetRenderState() {
+    this._defaultPitch ??= 'elite';
     super._resetRenderState();
-    this._pitch = 'elite';
+  }
+
+  // Same operator settings as the II, but the IW-I powers up in Elite (DIP SW1-6/7).
+  static get SETTINGS() {
+    return super.SETTINGS.map((s) => (s.id === 'pitch' ? { ...s, default: 'elite' } : s));
   }
 
   // Drop the IW-II-only style/font ESC codes; defer everything else to the II.

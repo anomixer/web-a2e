@@ -1,11 +1,12 @@
 /*
  * printer-base.js - Abstract base class for printer models
  *
- * Composes the printer out of three virtual mechanisms instead of scattered
+ * Composes the printer out of virtual mechanisms instead of scattered
  * bookkeeping:
  *   - VirtualHead       — the carriage: position, direction, travel timing;
  *   - VirtualRibbon     — the ink cartridge: B/W or colour;
- *   - VirtualPaperFeed  — the vertical stepper: paper position, feed timing.
+ *   - VirtualPaperFeed  — the vertical stepper: paper position, feed timing;
+ *   - PaperGeometry     — horizontal page geometry: paper width + feed mode.
  *
  * A subclass parses the byte stream and reports strikes at absolute columns.
  * The base buffers a line, then lets the head replay those strikes in true
@@ -21,6 +22,8 @@
 import { VirtualHead }      from "./printer-head.js";
 import { VirtualRibbon }    from "./printer-ribbon.js";
 import { VirtualPaperFeed } from "./printer-paper-feed.js";
+import { PaperGeometry, DEFAULT_PAPER_RANGE, DEFAULT_PAPER_WIDTH_INCH,
+         DEFAULT_PAPER_LENGTH_RANGE, DEFAULT_PAPER_LENGTH_INCH } from "./printer-paper-geometry.js";
 import { DEFAULT_DPI, DEFAULT_FEED_DOTS_PER_SEC } from "./printer-units.js";
 
 function popcount(n) {
@@ -52,12 +55,81 @@ export class PrinterBase {
     this.feedDotsPerSec = this._defaultFeedDotsPerSec();
     this._recomputeUnits();
 
-    // The three virtual mechanisms.
-    this.head   = new VirtualHead(this._carriagePicaDots(), this.getCharsPerSecond());
-    this.ribbon = new VirtualRibbon('bw');
-    this.paper  = new VirtualPaperFeed(this.dpi * 11, this.feedDotsPerSec);
+    // The virtual mechanisms. The head is handed a LIVE cps provider (pulled on
+    // every motion) rather than a fixed rate, so quality / bold / colour /
+    // half-speed changes retune the carriage automatically — and so the base
+    // constructor never samples the subclass getCharsPerSecond() before the
+    // subclass state exists (it is only read later, at the first move).
+    this.head    = new VirtualHead(this._carriagePicaDots(), () => this.getCharsPerSecond());
+    this.ribbon  = new VirtualRibbon('bw');
+    // Default form length comes from the paper-length capability (single source);
+    // a model overriding defaultPaperLengthInch() (e.g. FX-80 = 12") gets that form
+    // at power-on. ESC C / ESC H still retune it live. Methods dispatch to the
+    // subclass override even here in the base ctor (defaultPaperLengthInch reads no
+    // subclass field), so this is safe before the subclass body runs.
+    this.paper   = new VirtualPaperFeed(this.dpi * this.defaultPaperLengthInch(), this.feedDotsPerSec);
+    // Horizontal page geometry (paper width + feed mode) is built LAZILY by the
+    // `paperGeo` getter, NOT here: its size comes from the per-model capability
+    // overrides (defaultPaperWidthInch / paperWidthRange), which must read
+    // fully-constructed subclass state. Sizing them from the base constructor —
+    // before the subclass body runs — would read undefined fields. First access
+    // (renderer / persistence, post-construction) builds and sizes it.
+    this._paperGeo = null;
 
     this._lineBuf = []; // strikes accumulated for the current line
+    this._slashedZero = false; // zero-glyph DIP (Epson SW1-2 / DMP SW2-1); a
+                               // hardware switch, so it survives a software reset.
+  }
+
+  // ---- Operator settings (data-driven; rendered in the printer window panel) ----
+  // Each model declares a flat list of friendly settings the operator flips live.
+  // These ARE the hardware DIP switches underneath, but the UI shows the plain
+  // effect instead of a cryptic switch number. `type` is 'toggle' (boolean,
+  // independent) or 'choice' (mutually-exclusive enum with `options`). `target:
+  // 'manager'` routes get/set through the shared PrinterManager (cross-model
+  // sticky, e.g. Auto-LF); otherwise they act on the active printer. A subclass
+  // extends this with `[...super.SETTINGS, …]`.
+  static get SETTINGS() {
+    return [
+      { id: 'autoLF', type: 'toggle', target: 'manager', default: true,
+        label: 'Auto LF on CR',
+        hint: 'A carriage return also advances the paper one line — how plain text / Applesoft (CR only) expects to print. Off: CR returns the head without feeding, so multi-pass colour graphics overprint in register.',
+        get: (m) => m.getAutoLineFeed(),
+        set: (m, v) => m.setAutoLineFeed(v) },
+    ];
+  }
+
+  // Power-on / default character pitch. Survives a software reset because the
+  // model's _resetRenderState re-reads `this._defaultPitch`; the ESC pitch codes
+  // still override it at runtime. Pitch keys are the model's own (`this._pitch`).
+  getDefaultPitch()    { return this._defaultPitch ?? this._pitch; }
+  setDefaultPitch(key) { this._defaultPitch = key; this._pitch = key; }
+
+  // Slashed-zero DIP (Epson SW1-2 / DMP SW2-1): print 0 as Ø. A model that has
+  // the switch calls _slashZeroCols() at its zero glyph (code 0x30) when on.
+  getSlashedZero()    { return this._slashedZero; }
+  setSlashedZero(on)  { this._slashedZero = !!on; }
+
+  // Return a copy of a glyph's column bytes with a forward-slash struck through
+  // it (left-bottom → right-top), adapting to the glyph's own width and vertical
+  // extent. Column-byte convention: one byte per column, bit 0 = top pin. The
+  // source array is never mutated (it's shared ROM data).
+  _slashZeroCols(cols) {
+    const w = cols.length;
+    if (w < 2) return cols;
+    let top = Infinity, bot = -1;
+    for (const b of cols) {
+      for (let r = 0; r < 16; r++) {
+        if (b & (1 << r)) { if (r < top) top = r; if (r > bot) bot = r; }
+      }
+    }
+    if (bot < 0) return cols; // blank glyph — nothing to slash
+    const out = cols.slice();
+    for (let i = 0; i < w; i++) {
+      const r = Math.round(bot + (top - bot) * (i / (w - 1)));
+      out[i] |= (1 << r);
+    }
+    return out;
   }
 
   // ---- Internal dot scale (overridable per model, recomputable at runtime) ----
@@ -81,7 +153,7 @@ export class PrinterBase {
     this.head?.setPitchDots(this._carriagePicaDots());
     this.paper?.setFormDots(this.dpi * 11);
     if (typeof this._resetRenderState === 'function') this._resetRenderState();
-    this._applyHeadSpeed?.();
+    // Carriage cps needs no re-arm: the head pulls it fresh on the next motion.
   }
 
   // Retune the feed-motor speed (internal dots/sec) without touching DPI.
@@ -108,6 +180,14 @@ export class PrinterBase {
   setRibbon(kind)  { this.ribbon.setType(kind); }
   getRibbon()      { return this.ribbon.type; }
 
+  // Per-side tractor-margin width in inches — the holed sprocket strip outside
+  // the paper body. RENDER-ONLY: the print pipeline never reads this; only the
+  // window draws the strips and the outer sheet from it. Encodes the rule that
+  // paper has its outside tractor lines as a given — needed only to render them
+  // on the sides, never to print. Default ½"; a model overrides if its strip
+  // differs. Carried in paperProfile so the view gets it with everything else.
+  tractorMarginInch() { return 0.5; }
+
   // Whether a colour ribbon cartridge can be loaded. Only the ImageWriter II
   // ever shipped a four-band colour ribbon; the IW-I and Epson FX-80 are
   // black-only. The UI hides the colour option for models that return false.
@@ -118,6 +198,102 @@ export class PrinterBase {
   _carriagePicaDots() { return this.dpi / 10; }      // pica advance (1/10"), internal dots
   _carriageVelocity() { return this.head.velocity; } // dots/sec
   isUnidirectional()  { return false; }              // default: bidirectional
+
+  // Fixed carriage print span in inches — the head's hard travel limit and the
+  // ink-clip width (print column 0 .. carriageWidthInch). The C.Itoh family and
+  // the FX-80 are all 8". DISTINCT from paper width: paper is the variable sheet
+  // (paperWidthRange, what the ruler shows); the carriage is this fixed zone the
+  // sheet sits under. Single source: the print pipeline (_platenDots /
+  // _printWidthDots) AND the window/profile both read this — no literal *8.
+  carriageWidthInch() { return 8; }
+
+  // ---- Paper-geometry capability API (per-model truth; numbers from
+  // .claude/agent/printer/paper-sizes.md) ----
+  // The model states its own width limits and anchor habit; the PaperGeometry
+  // unit and the renderer read these. Base supplies the common case (centered,
+  // both sprockets symmetric, universal envelope); each model overrides only what
+  // differs (notably the FX-80, which is left-anchored with a single moving right
+  // tractor and narrower ranges). Feed is always tractor — no feed-mode param.
+
+  // Legal paper BODY width {min,max} in inches — the printable sheet between the
+  // tractor lines (what the ruler shows), strips off. NOT the outer sheet; the
+  // window adds tractorMarginInch()/side when rendering. Single source for the
+  // width-drag bounds and the ruler span.
+  paperWidthRange() { return DEFAULT_PAPER_RANGE; }
+
+  // Power-on paper BODY width (inches), clamped into the active range at boot.
+  defaultPaperWidthInch() { return DEFAULT_PAPER_WIDTH_INCH; }
+
+  // Legal paper LENGTH (form/page height) {min,max} in inches. Continuous tractor
+  // stock is endless; this is the programmable form length the operator sets (DIP
+  // page length, ESC C / ESC H) and the vertical ruler reads. Single source for
+  // the page-height extent.
+  paperLengthRange() { return DEFAULT_PAPER_LENGTH_RANGE; }
+
+  // Power-on form length (inches), clamped into the active length range at boot.
+  defaultPaperLengthInch() { return DEFAULT_PAPER_LENGTH_INCH; }
+
+  // Where the paper sits under the fixed carriage print zone: 'left' (column 1 at
+  // the sheet's left edge — FX-80) or 'center' (paper centered on the zone — C.Itoh
+  // family; the ImageWriter I manual ch.2 step 8 has the operator slide both
+  // sprockets to centre the stock on the 8" line marked by the two red rings).
+  // Consumed by computeLayout() to position the sheet under the zone.
+  paperAnchor() { return 'center'; }
+
+  // How dragging a sprocket strip resizes paper: 'both' (symmetric, paper stays
+  // centered, ΔW = 2×drag — both C.Itoh tractors slide on the square shaft) or
+  // 'right-fixed-left' (left tractor pinned at column 1, right tractor moves,
+  // ΔW = drag — FX-80). Consumed by the window's _initWidthDrag.
+  sprocketSymmetry() { return 'both'; }
+
+  // Whether the model paints dots on the paper canvas (vs. a text-only view).
+  // Every modelled dot-matrix printer does; lets the window decide the canvas UI
+  // from a capability instead of a hardcoded id list.
+  usesPaperCanvas() { return true; }
+
+  // Canvas display raster, pixels per inch — ISOTROPIC (same X and Y): one inch of
+  // paper is this many canvas px in both axes, so page geometry (edges, ruler,
+  // page height) is square. This is the LAYOUT scale only. It is NOT the dot
+  // aspect: a 9-wire dot's 1/72" vertical pitch is stretched to fill the 120-px/in
+  // canvas at paint time (the renderer's VSTRETCH), and horizontal density is the
+  // dot→canvas mapping off this.dpi — both separate from this layout raster.
+  // Printer-owned so a future model with a different display scale adapts.
+  canvasPxPerInch() { return 120; }
+
+  // ---- The printer↔view contract -------------------------------------------
+  // ONE frozen descriptor carrying every dimension the paper/ruler/tractor/head
+  // view needs, assembled from the capability methods above. The window consumes
+  // this once when the printer is set, instead of calling eight getters from many
+  // places (which is how dimensions drifted out of sync). A model can override an
+  // individual method (the normal path) or this whole assembler. NOTE: dpi is NOT
+  // here — internal density stays its own live channel (setDpi/_recomputeUnits).
+  paperProfile() {
+    return Object.freeze({
+      carriageWidthInch: this.carriageWidthInch(),  // fixed ink-clip / head-travel span
+      tractorMarginInch: this.tractorMarginInch(),  // render-only ½"/side sprocket strip
+      widthRange:        this.paperWidthRange(),     // legal paper BODY width {min,max}
+      lengthRange:       this.paperLengthRange(),    // legal form length {min,max}
+      anchor:            this.paperAnchor(),         // 'left' | 'center'
+      sprocketSymmetry:  this.sprocketSymmetry(),    // 'both' | 'right-fixed-left'
+      usesCanvas:        this.usesPaperCanvas(),
+      pxPerInch:         this.canvasPxPerInch(),     // isotropic layout raster (px/in)
+    });
+  }
+
+  // Lazily-built horizontal page geometry. Deferred out of the constructor so the
+  // per-model capability overrides (defaultPaperWidthInch / paperWidthRange) read
+  // fully-initialised subclass state instead of undefined mid-construction. Built
+  // once on first access and sized to this model's power-on width clamped to its
+  // own range; persistence (task 1.5) later loads a saved width over the top.
+  get paperGeo() {
+    if (!this._paperGeo) {
+      const geo = new PaperGeometry();
+      geo.setWidthInch(this.defaultPaperWidthInch(), this.paperWidthRange());
+      geo.setLengthInch(this.defaultPaperLengthInch(), this.paperLengthRange());
+      this._paperGeo = geo;
+    }
+    return this._paperGeo;
+  }
 
   // ===== Input side: subclasses call emit() during parsing =====
   emit(event, data) {

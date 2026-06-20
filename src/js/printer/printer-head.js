@@ -19,21 +19,26 @@
 
 export class VirtualHead {
   // pitchDots: internal dots for one pica (10 cpi) character — the unit of
-  // carriage travel per char-time. cps: the printer's draft characters/sec.
-  // velocity = pitchDots * cps dots/sec (constant; pitch changes spacing, not
-  // carriage speed).
+  // carriage travel per char-time. cps: the printer's draft characters/sec,
+  // EITHER a fixed number OR a provider function pulled fresh on every velocity
+  // read. velocity = pitchDots * cps dots/sec (constant; pitch changes spacing,
+  // not carriage speed).
   constructor(pitchDots = 48, cps = 120) {
     this.x   = 0; // current column, internal dots
     this.dir = 1; // +1 = travelling left->right, -1 = right->left
     this._pitchDots = pitchDots;
-    this._cps       = cps;
+    // Stored as a provider so a quality / bold / colour / half-speed change is
+    // reflected at the next motion with no explicit re-arm; the printer installs
+    // a live `() => getCharsPerSecond()`. A bare number wraps as a constant.
+    this._cps = typeof cps === 'function' ? cps : () => cps;
   }
 
-  get velocity() { return this._pitchDots * this._cps; } // dots/sec
+  get velocity() { return this._pitchDots * this._cps(); } // dots/sec
 
-  // Retune carriage speed when print quality changes (draft 250 / corr 180 /
-  // NLQ 45 cps). Velocity follows immediately; in-flight motion is unaffected.
-  setCps(cps) { this._cps = cps; }
+  // Pin the carriage to a fixed cps (wraps it as a constant provider). The base
+  // printer normally installs a live provider via the constructor instead, so
+  // speed tracks print state automatically; this remains for explicit overrides.
+  setCps(cps) { this._cps = () => cps; }
 
   // Retune the pica advance when the internal dot scale (DPI) changes, so
   // carriage velocity = pitchDots × cps tracks the new resolution. The current

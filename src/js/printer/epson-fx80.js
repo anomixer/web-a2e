@@ -10,12 +10,7 @@
  */
 
 import { PrinterBase } from "./printer-base.js";
-import { IW2_STANDARD_FIXED } from "./imagewriter-ii-rom-standard-fixed.js";
-import {
-  EPSON_FX_ROM, EPSON_FX_ROM_LOCALES,
-  EPSON_FX_ITALIC_ROM, EPSON_FX_ITALIC_ROM_LOCALES,
-  EPSON_FX_PROP_ROM,
-} from "./epson-fx80-rom.js";
+import { EPSON_FX_ROM } from "./epson-fx80-rom.js";
 
 // Parser states
 const S_NORMAL    = 0;
@@ -40,6 +35,21 @@ const S_AMP2      = 18; // ESC & : start character code
 const S_AMP3      = 19; // ESC & : end character code; starts char loop
 const S_AMP_ATTR  = 20; // ESC & char: attribute byte
 const S_AMP_DATA  = 21; // ESC & char: 11 column data bytes
+const S_VFU_CH    = 22; // ESC b : VFU channel-number byte (precedes its stop list)
+
+// Bit-reverse table for graphics columns. The Epson head puts the TOP pin in the
+// MOST significant bit (bit 7 = pin 1), but the renderer plots bit 0 = top dot, so
+// every bit-image column byte is reversed on the way in. This is the wire-format
+// counterpart to screen-dump.js's `msbTop` Epson protocol.
+const REV8 = (() => {
+  const t = new Uint8Array(256);
+  for (let b = 0; b < 256; b++) {
+    let r = 0;
+    for (let i = 0; i < 8; i++) if (b & (1 << i)) r |= 1 << (7 - i);
+    t[b] = r;
+  }
+  return t;
+})();
 
 // Internal dot scale is owned by PrinterBase (this.dpi, default 480 = LCM of
 // 60/120/240). Every DPI-derived pitch lives on the instance, recomputed from
@@ -103,12 +113,14 @@ export class EpsonFX80 extends PrinterBase {
     this._ampColsLeft = 0;
     this._ampBuf      = [];
     this._htabPend    = []; // ESC D bytes accumulating until the 0 terminator
-    this._vtabPend    = []; // ESC B bytes accumulating until the 0 terminator
+    this._vtabPend    = []; // ESC B/b bytes accumulating until the 0 terminator
+    this._vtabTarget  = 0;  // VFU channel the pending stop list is being built for
   }
 
   _resetRenderState() {
-    this._pitch      = 'pica';
-    this._expanded   = false;
+    this._pitch      = this._defaultPitch ?? 'pica';
+    this._expanded   = false;              // ESC W / ESC ! bit5 — continuous enlarged
+    this._expandedOneLine = false;         // SO / ESC SO — enlarged for one line only, auto-cancels at the next line break (CR/LF/wrap) or DC4 (Op manual 3-13)
     this._emphasized = false;
     this._dblStrike  = false;
     this._underline  = false;
@@ -121,8 +133,12 @@ export class EpsonFX80 extends PrinterBase {
     this._leftMargin = 0;                  // ESC l — internal dots
     this._rightMargin = this._printWidthDots(); // ESC Q — defaults to full 8" carriage
     this._htabCols   = [];                 // ESC D stops (columns); empty = every 8
-    this._vtabLines  = [];                 // ESC B stops (lines); empty = single LF
+    this._vfu        = Array.from({ length: 8 }, () => []); // ESC B/b — 8 VFU channels of vertical-tab stops; an empty channel makes VT a single LF
+    this._vtabChannel = 0;                 // ESC / — active VFU channel for VT (channel 0 at power-on)
     this._skipPerf   = 0;                  // ESC N — lines skipped at each page bottom
+    this._halfSpeed  = false;              // ESC s — half-speed (quieter) print, timing only
+    this._ramFont    = false;              // ESC % — false=ROM CG active, true=RAM download set
+    this._gfxMode    = { 0x4B: 0, 0x4C: 1, 0x59: 2, 0x5A: 3 }; // ESC K/L/Y/Z → ESC * density mode (ESC ? remaps)
     this._xDot       = 0;
     this._yDot       = this._homeYDot();   // power-on head rest, a hair below sheet top
     if (this.paper) this.paper.setFormDots(this.dpi * 11); // ESC C resets to 11" default
@@ -142,7 +158,10 @@ export class EpsonFX80 extends PrinterBase {
       case S_ESC:       this._esc(ch);       break;
       case S_PARAM1:    this._param1(ch);    break;
       case S_PARAM2:    this._param2(ch);    break;
-      case S_PARAM3:    this._state = S_NORMAL; break; // absorb ESC : third param
+      case S_PARAM3: // ESC : 0 0 0 — third param absorbed; clone ROM CG into download set
+        this._copyRomToDownload();
+        this._state = S_NORMAL;
+        break;
 
       case S_IMG_MODE:
         this._imgDotW  = this._starWidths[ch & 7] ?? this._imgWL;
@@ -161,8 +180,11 @@ export class EpsonFX80 extends PrinterBase {
         break;
 
       case S_IMG_DATA:
+        // Graphics columns use all 8 bits — feed the RAW byte, never the
+        // high-bit-stripped `ch` used for character codes — and reverse Epson's
+        // MSB=top wire order into the renderer's bit 0 = top convention.
         this.emit('printDots', {
-          byte: ch, xDot: this._xDot, yDot: this._yDot,
+          byte: REV8[byte & 0xFF], xDot: this._xDot, yDot: this._yDot,
           dotW: this._imgDotW, dotH: this._dotV, color: 'black',
         });
         this._xDot += this._imgDotW;
@@ -180,19 +202,24 @@ export class EpsonFX80 extends PrinterBase {
         break;
 
       case S_IMG9_HI:
-        // Nine-pin: n = n1 + 255*n2  (per Vol 2 Appendix B)
-        this._imgCount += ch * 255;
+        // Nine-pin column count n = n1 + 256*n2 — same base as ESC K (Op manual
+        // 3-53 "refer to ESC K"; ESC K example sends n1=D MOD 256, n2=INT(D/256)).
+        this._imgCount += ch * 256;
         this._state = this._imgCount > 0 ? S_IMG9_B1 : S_NORMAL;
         break;
 
       case S_IMG9_B1:
-        this._img9Byte1 = ch;
+        // RAW byte (not high-bit-stripped `ch`): bit 7 carries the TOP wire, same
+        // as the 8-bit graphics path above. Stripping it would drop pin 1.
+        this._img9Byte1 = byte & 0xFF;
         this._state     = S_IMG9_B2;
         break;
 
       case S_IMG9_B2: {
-        // Combine: pins 1-8 from byte1, pin 9 from bit 0 of byte2
-        const bits9 = this._img9Byte1 | ((ch & 1) << 8);
+        // Pins 1-8 from byte1, pin 9 from byte2 bit 7 (≥128) per Vol 2 App B §7.
+        // Reverse byte1 (Epson MSB=top) into the renderer's bit 0 = top order, the
+        // same REV8 the 8-bit path uses; pin 9 lands at bit 8 (bottom wire).
+        const bits9 = REV8[this._img9Byte1] | (((byte >> 7) & 1) << 8);
         this.emit('printDots', {
           byte: bits9, xDot: this._xDot, yDot: this._yDot,
           dotW: this._img9DotW, dotH: this._dotV, color: 'black',
@@ -205,11 +232,19 @@ export class EpsonFX80 extends PrinterBase {
 
       case S_VT_LIST:
         if (ch === 0) {
-          this._vtabLines = this._vtabPend.slice().sort((a, b) => a - b);
+          this._vfu[this._vtabTarget] = this._vtabPend.slice(0, 16).sort((a, b) => a - b);
           this._state = S_NORMAL;
         } else {
-          this._vtabPend.push(ch);
+          this._vtabPend.push(ch);   // up to 16 stops per channel; extras dropped at terminator
         }
+        break;
+
+      case S_VFU_CH:
+        // ESC b n — n picks the VFU channel (0-7) the following stop list fills;
+        // an out-of-range channel is clamped to 0 so the list is never lost.
+        this._vtabTarget = (ch <= 7) ? ch : 0;
+        this._vtabPend   = [];
+        this._state      = S_VT_LIST;
         break;
 
       case S_HT_LIST:
@@ -278,6 +313,7 @@ export class EpsonFX80 extends PrinterBase {
         this._horizontalTab();
         break;
       case 0x0A:                                  // LF — line feed
+        this._expandedOneLine = false;            // SO enlarged spans one line only
         if (!(this._autoLF && wasCR)) {           // LF paired with an auto-LF CR is swallowed
           this._yDot += this._lineHeight;
           this.emit('linefeed');
@@ -295,6 +331,7 @@ export class EpsonFX80 extends PrinterBase {
         // arm CR+LF coalescing (plain text / Applesoft sends CR only). OFF: return
         // the head only, so overprint passes register on the same band.
         this._xDot = this._leftMargin;
+        this._expandedOneLine = false;            // SO enlarged spans one line only
         if (this._autoLF) {
           this._yDot += this._lineHeight;
           this._lastCR = true;                    // arm CR+LF coalescing
@@ -304,8 +341,8 @@ export class EpsonFX80 extends PrinterBase {
           this.emit('carriagereturn');            // head home, no paper feed
         }
         break;
-      case 0x0E:                                  // SO — one-line expanded on
-        this._expanded = true;
+      case 0x0E:                                  // SO — enlarged for one line (auto-cancels at line break)
+        this._expandedOneLine = true;
         break;
       case 0x0F:                                  // SI — compressed on (17.16 cpi)
         this._pitch = 'compressed';
@@ -315,8 +352,8 @@ export class EpsonFX80 extends PrinterBase {
         if (this._pitch === 'compressed') this._pitch = 'pica';
         break;
       case 0x13: break;                           // DC3 — printer off (ignore)
-      case 0x14:                                  // DC4 — one-line expanded off
-        this._expanded = false;
+      case 0x14:                                  // DC4 — cancel one-line (SO) enlarged
+        this._expandedOneLine = false;
         break;
       case 0x18: break;                           // CAN — cancel buffer (ignore)
       case 0x1B:                                  // ESC
@@ -334,6 +371,8 @@ export class EpsonFX80 extends PrinterBase {
 
     switch (ch) {
       // ——— No-parameter commands ———
+      case 0x0E: this._expandedOneLine = true; break; // ESC SO — same as SO (one-line enlarged), escaped path
+      case 0x0F: this._pitch = 'compressed';   break; // ESC SI — same as SI (condensed), escaped path
       case 0x23: break;                           // ESC # — accept 8th bit as-is (ignore)
       case 0x30: this._lineHeight = this.dpi / 8;            break; // ESC 0 — 1/8" (9-dot)
       case 0x31: this._lineHeight = this.dpi * 7 / 72;       break; // ESC 1 — 7/72" (7-dot)
@@ -362,8 +401,9 @@ export class EpsonFX80 extends PrinterBase {
       case 0x54: this._script = 0;         break; // ESC T — cancel super/subscript
 
       // ——— Tab stop lists ———
-      case 0x42: this._vtabPend = []; this._state = S_VT_LIST; break;  // ESC B n... 0 (vertical tab stops)
+      case 0x42: this._vtabPend = []; this._vtabTarget = 0; this._state = S_VT_LIST; break;  // ESC B n... 0 — channel-0 vertical tab stops
       case 0x44: this._htabPend = []; this._state = S_HT_LIST; break;  // ESC D n... 0 (horizontal tab stops)
+      case 0x62: this._state = S_VFU_CH; break;                        // ESC b n m... 0 — set VFU channel n's stops
 
       // ——— ESC * generic graphics (mode byte + count lo + count hi + data) ———
       case 0x2A:
@@ -372,14 +412,14 @@ export class EpsonFX80 extends PrinterBase {
         break;
 
       // ——— Standard graphics commands (count lo + count hi + data) ———
-      case 0x4B:
-        this._imgDotW = this._imgWK; this._imgCount = 0; this._state = S_IMG_LO; break;
-      case 0x4C:
-        this._imgDotW = this._imgWL; this._imgCount = 0; this._state = S_IMG_LO; break;
-      case 0x59:                                  // high-speed: same density as L
-        this._imgDotW = this._imgWL; this._imgCount = 0; this._state = S_IMG_LO; break;
-      case 0x5A:
-        this._imgDotW = this._imgWZ; this._imgCount = 0; this._state = S_IMG_LO; break;
+      case 0x4B:                                  // ESC K — single density (60 dpi default)
+      case 0x4C:                                  // ESC L — double density (120 dpi default)
+      case 0x59:                                  // ESC Y — double density, high-speed
+      case 0x5A:                                  // ESC Z — quad density (240 dpi default)
+        // Density is the _gfxMode entry for this letter, which ESC ? can remap to
+        // any ESC * mode; read through _starWidths so it tracks the current DPI.
+        this._imgDotW = this._starWidths[this._gfxMode[ch]];
+        this._imgCount = 0; this._state = S_IMG_LO; break;
 
       // ——— Nine-pin graphics (density + count lo + count hi + pairs of data) ———
       case 0x5E:
@@ -391,7 +431,7 @@ export class EpsonFX80 extends PrinterBase {
       // ——— Single-parameter commands ———
       case 0x21: // ESC ! n — Master Select
       case 0x2D: // ESC - n — underline toggle (0=off, 1=on)
-      case 0x2F: // ESC / n — vertical tab channel (ignore)
+      case 0x2F: // ESC / n — select active VFU channel for VT
       case 0x33: // ESC 3 n — n/216" line spacing
       case 0x41: // ESC A n — n/72" line spacing
       case 0x43: // ESC C n — form length in lines (0 → next byte = inches)
@@ -403,19 +443,18 @@ export class EpsonFX80 extends PrinterBase {
       case 0x53: // ESC S n — super/subscript (0=super, 1=sub)
       case 0x55: // ESC U n — unidirectional mode (ignore)
       case 0x57: // ESC W n — continuous expanded (0=off, 1=on)
-      case 0x62: // ESC b n — vertical tab channel select (ignore)
       case 0x69: // ESC i n — immediate mode FX-80 (ignore)
       case 0x6A: // ESC j n — reverse feed n/216" (FX-80 only)
       case 0x6C: // ESC l n — left margin
       case 0x70: // ESC p n — proportional mode
-      case 0x73: // ESC s n — half-speed mode (ignore)
+      case 0x73: // ESC s n — half-speed mode
         this._paramCmd = ch;
         this._state    = S_PARAM1;
         break;
 
       // ——— Two-parameter commands ———
-      case 0x25: // ESC % n1 n2 — select char set (ignore)
-      case 0x3F: // ESC ? s n — reassign graphics code s to density n (ignore)
+      case 0x25: // ESC % n1 n2 — select ROM(0)/RAM(1) character set
+      case 0x3F: // ESC ? s n — reassign graphics letter s to ESC * density n
         this._paramCmd = ch;
         this._state    = S_PARAM1;
         break;
@@ -439,6 +478,7 @@ export class EpsonFX80 extends PrinterBase {
         this._emphasized = !!(ch & 0x08);
         this._dblStrike  = !!(ch & 0x10);
         this._expanded   = !!(ch & 0x20);
+        this._expandedOneLine = false;       // Master Select fully defines enlarged state; drop any SO one-line override
         this._italic     = !!(ch & 0x40);
         this._underline  = !!(ch & 0x80);
         this._state = S_NORMAL;
@@ -448,7 +488,8 @@ export class EpsonFX80 extends PrinterBase {
         this._underline = (ch !== 0);
         this._state = S_NORMAL;
         break;
-      case 0x2F: // ESC / n — ignore
+      case 0x2F: // ESC / n — select active VFU channel (0-7) used by VT
+        if (ch <= 7) this._vtabChannel = ch;
         this._state = S_NORMAL;
         break;
       case 0x33: // ESC 3 n — n/216"
@@ -474,7 +515,8 @@ export class EpsonFX80 extends PrinterBase {
           this._state = S_NORMAL;
         }
         break;
-      case 0x25: // ESC % n1 → need n2
+      case 0x25: // ESC % n1 → capture source select, need n2
+        this._param1Val = ch;
         this._state = S_PARAM2;
         break;
       case 0x49: // ESC I n — ignore
@@ -489,8 +531,16 @@ export class EpsonFX80 extends PrinterBase {
         this._state = S_NORMAL;
         break;
       case 0x51: { // ESC Q n — right margin at column n (current pitch)
-        const r = Math.round(ch * this._colDots());
-        if (r > this._leftMargin) this._rightMargin = Math.min(r, this._printWidthDots());
+        // Per-mode column max (Op manual 3-89): n past the max for the active
+        // pitch/size is ignored and the previous margin stays — not clamped. The
+        // max is how many columns fit the 8" line at the current cell width
+        // (pica 80 / elite 96 / condensed 137, halved when enlarged).
+        const eff     = this._colDots() * (this._isExpanded() ? 2 : 1);
+        const maxCols = Math.floor(this._printWidthDots() / eff);
+        if (ch >= 1 && ch <= maxCols) {
+          const r = Math.round(ch * this._colDots());
+          if (r > this._leftMargin) this._rightMargin = r;
+        }
         this._state = S_NORMAL;
         break;
       }
@@ -509,9 +559,6 @@ export class EpsonFX80 extends PrinterBase {
         this._expanded = (ch !== 0);
         this._state    = S_NORMAL;
         break;
-      case 0x62: // ESC b n — ignore
-        this._state = S_NORMAL;
-        break;
       case 0x69: // ESC i n — ignore
         this._state = S_NORMAL;
         break;
@@ -528,7 +575,8 @@ export class EpsonFX80 extends PrinterBase {
         this._proportional = (ch !== 0);
         this._state = S_NORMAL;
         break;
-      case 0x73: // ESC s n — ignore
+      case 0x73: // ESC s n — half speed (1/49=on, 0/48=off); affects print timing only
+        this._halfSpeed = (ch === 1 || ch === 49);
         this._state = S_NORMAL;
         break;
       default:
@@ -538,6 +586,15 @@ export class EpsonFX80 extends PrinterBase {
   }
 
   _param2(ch) {
+    if (this._paramCmd === 0x25) {
+      // ESC % n1 n2 — n1 selects the active CG: 0 = ROM, non-zero = RAM download set.
+      this._ramFont = (this._param1Val !== 0);
+    } else if (this._paramCmd === 0x3F) {
+      // ESC ? s n — point graphics letter s (K/L/Y/Z) at ESC * density mode n (0-6).
+      if (this._gfxMode[this._param1Val] !== undefined && ch <= 6) {
+        this._gfxMode[this._param1Val] = ch;
+      }
+    }
     // ESC : needs a third byte; everything else is done after second
     this._state = (this._paramCmd === 0x3A) ? S_PARAM3 : S_NORMAL;
   }
@@ -546,8 +603,29 @@ export class EpsonFX80 extends PrinterBase {
   setAutoLineFeed(on) { this._autoLF = !!on; }
   getAutoLineFeed()   { return this._autoLF; }
 
+  // Operator panel: Auto-LF (inherited) + power-on pitch. SI/DC2 and ESC M/P
+  // still switch pitch live while printing.
+  static get SETTINGS() {
+    return [
+      ...super.SETTINGS,
+      { id: 'pitch', type: 'choice', default: 'pica', label: 'Default pitch',
+        hint: 'Character pitch the printer powers up in (ESC M elite / ESC P pica / SI compressed still change it at runtime).',
+        options: [
+          { value: 'pica',       label: 'Pica · 10 cpi' },
+          { value: 'elite',      label: 'Elite · 12 cpi' },
+          { value: 'compressed', label: 'Compressed · 17 cpi' },
+        ],
+        get: (p) => p.getDefaultPitch(),
+        set: (p, v) => p.setDefaultPitch(v) },
+      { id: 'slashedZero', type: 'toggle', default: false, label: 'Slashed zero',
+        hint: 'Print 0 as Ø to distinguish it from the letter O (DIP SW1-2).',
+        get: (p) => p.getSlashedZero(),
+        set: (p, v) => p.setSlashedZero(v) },
+    ];
+  }
+
   // Printable carriage width (8") and one character column at the current pitch.
-  _printWidthDots() { return this.dpi * 8; }
+  _printWidthDots() { return this.dpi * this.carriageWidthInch(); }
   _colDots()        { return this.dpi / CPI[this._pitch]; }
 
   // HT — advance to the next horizontal tab stop. Explicit stops (ESC D) are
@@ -568,11 +646,13 @@ export class EpsonFX80 extends PrinterBase {
     if (next != null && next <= this._rightMargin) this._xDot = next;
   }
 
-  // VT — advance to the next vertical tab stop (ESC B, lines from top-of-form).
-  // With no stop below the cursor it acts as a single line feed.
+  // VT — advance to the next vertical tab stop in the active VFU channel (ESC /),
+  // measured in lines from top-of-form. With no stop below the cursor — or an
+  // empty channel — it acts as a single line feed.
   _verticalTab() {
-    if (this._vtabLines.length) {
-      for (const ln of this._vtabLines) {
+    const stops = this._vfu[this._vtabChannel];
+    if (stops.length) {
+      for (const ln of stops) {
         const y = this.paper.topOfForm + Math.round(ln * this._lineHeight);
         if (y > this._yDot + 0.5) {
           this._yDot = y; this.emit('linefeed'); this._checkSkipPerf(); return;
@@ -590,27 +670,41 @@ export class EpsonFX80 extends PrinterBase {
     if (this._yDot > bottom - this._skipPerf * this._lineHeight) this.formFeed();
   }
 
+  // Effective enlarged state = continuous (ESC W / ESC !) OR one-line (SO / ESC SO).
+  _isExpanded() { return this._expanded || this._expandedOneLine; }
+
   _charAdvance() {
     const base = this.dpi / CPI[this._pitch];
-    return Math.round(this._expanded ? base * 2 : base);
+    return Math.round(this._isExpanded() ? base * 2 : base);
+  }
+
+  // Inked width of a glyph = index of its rightmost non-empty column + 1.
+  // Used to advance proportionally; a fully blank glyph (space) reports 1.
+  _inkWidth(cols) {
+    let w = 0;
+    for (let i = 0; i < cols.length; i++) if (cols[i]) w = i + 1;
+    return w || 1;
   }
 
   _emitChar(code) {
-    // Proportional spacing (ESC p / Master Select bit 1) draws each glyph from
-    // the variable-width bank and advances by its own width plus one blank
-    // intercharacter column. A code not yet authored in that bank — or fixed
-    // mode — falls back to the fixed-pitch Roman/Italic glyph and pitch advance.
+    // Same Roman/Italic bitmap in every pitch — proportional is spacing, not a
+    // separate font. Fixed pitch advances by the cell width; ESC p / Master
+    // Select bit 1 instead advance by the glyph's own inked width plus a blank
+    // lead/trail column. A downloaded char (ESC &) overrides the ROM glyph only
+    // while the RAM set is selected (ESC % 1); ESC % 0 reverts to the ROM CG.
     let cols, advance;
-    const custom = this._customChars.get(code);
-    const prop   = this._proportional ? EPSON_FX_PROP_ROM[code] : null;
+    const custom = this._ramFont ? this._customChars.get(code) : undefined;
     if (custom) {
-      cols = custom;          advance = this._charAdvance();
-    } else if (prop) {
-      cols = prop;
-      const w = (prop.length + 1) * this._dotW;
-      advance = Math.round(this._expanded ? w * 2 : w);
+      cols = custom; advance = this._charAdvance();
     } else {
-      cols = this._romChar(code); advance = this._charAdvance();
+      cols = this._romChar(code);
+      if (!cols) return;
+      if (this._proportional) {
+        const w = (this._inkWidth(cols) + 2) * this._dotW;
+        advance = Math.round(this._isExpanded() ? w * 2 : w);
+      } else {
+        advance = this._charAdvance();
+      }
     }
     if (!cols) return;
 
@@ -622,6 +716,7 @@ export class EpsonFX80 extends PrinterBase {
       this._xDot   = this._leftMargin;
       this._yDot  += this._lineHeight;
       this._lastCR = false;
+      this._expandedOneLine = false;              // SO enlarged spans one line only
       this.emit('newline');
       this._checkSkipPerf();
     }
@@ -640,24 +735,50 @@ export class EpsonFX80 extends PrinterBase {
     this._xDot += advance;
   }
 
-  // Render from the FX-80's own font ROM: the Italic bank when italic is active
-  // (ESC 4 / Master Select bit 6), otherwise Roman. A non-USA international set
-  // (ESC R) overrides the dozen national code points first. Anything not yet
-  // transcribed falls back to the ImageWriter II standard-fixed ROM, so the
-  // printer stays usable while the Epson font is authored in rom-editor.html.
-  // (Temporary borrow — drop once the Epson banks are fully populated.)
-  _romChar(code) {
-    const italic = this._italic;
-    if (this._intlSet !== 'US') {
-      const loc = italic ? EPSON_FX_ITALIC_ROM_LOCALES : EPSON_FX_ROM_LOCALES;
-      const override = loc[this._intlSet]?.[code];
-      if (override) return override;
+  // ESC : — clone the ROM character generator into the download set so a program
+  // can redefine a few glyphs (ESC &) yet keep the rest (Op manual 3-59). Printable
+  // Roman range only, keyed by 7-bit code exactly as _emitChar reads it. cols.slice()
+  // keeps a plain int array — ROM columns carry the 9th-pin bit (0x100) a Uint8Array
+  // would truncate.
+  _copyRomToDownload() {
+    for (let code = 0x20; code <= 0x7F; code++) {
+      const cols = EPSON_FX_ROM[code];
+      if (cols) this._customChars.set(code, cols.slice());
     }
-    const rom = italic ? EPSON_FX_ITALIC_ROM : EPSON_FX_ROM;
-    return rom[code] ?? IW2_STANDARD_FIXED[code] ?? null;
   }
 
-  getCharsPerSecond() { return 160; } // FX-80 draft
+  // The FX-80 has a single 256-glyph CG ROM: $00–$7F Roman, $80–$FF Italic.
+  // ESC 4 / Master Select bit 6 select italic by setting the high bit (ESC 5
+  // clears it). receiveByte() has already masked incoming data to 7 bits, so
+  // `code` is 0x00–0x7F here and the high bit is ours to add.
+  // (International sets — ESC R — are deferred; _intlSet is tracked but every
+  // set currently renders from USA until the national glyphs are authored.)
+  _romChar(code) {
+    const cols = EPSON_FX_ROM[this._italic ? (code | 0x80) : code];
+    if (cols && this._slashedZero && code === 0x30) return this._slashZeroCols(cols);
+    return cols;
+  }
+
+  getCharsPerSecond() { return this._halfSpeed ? 80 : 160; } // FX-80 draft; ESC s halves it
+
+  // ---- Paper-geometry capability (paper-sizes.md §Epson FX-80) ----
+  // The FX-80 is the only modelled printer that is LEFT-referenced: the head
+  // homes at the paper's left edge, so widening adds paper to the right only and
+  // a single right-hand tractor sets the width.
+  paperAnchor()      { return 'left'; }
+  sprocketSymmetry() { return 'right-fixed-left'; }
+
+  // Body range (strips off), tractor feed. One range spanning both tractor units
+  // the FX-80 accepts: the optional narrow tractor floors at 3.0" body (overall
+  // 4.0"), the built-in wide tractor tops at 9.0" body (overall 10"). We don't
+  // emulate swapping the accessory — the printer simply feeds 3.0"–9.0" body.
+  paperWidthRange() { return { min: 3.0, max: 9.0 }; }
+
+  // Form length: continuous stock 1"–22" via ESC C 0 n; factory default 12"
+  // (FX Op manual §1.7, ESC C). 1" forms are real on pin-feed label/card stock.
+  paperLengthRange()      { return { min: 1, max: 22 }; }
+  defaultPaperLengthInch() { return 12; }
+
   getName() { return "Epson FX-80"; }
   getId()   { return "epson-fx80"; }
 }

@@ -15,12 +15,14 @@
 import { ImageWriterII } from "./imagewriter-ii.js";
 import { ImageWriterI }  from "./imagewriter-i.js";
 import { EpsonFX80 }     from "./epson-fx80.js";
+import { AppleDMP }      from "./apple-dmp.js";
 import { PrinterSound }  from "./printer-sound.js";
 
 export const PRINTER_MODELS = [
   { id: "imagewriter-ii", name: "ImageWriter II", create: () => new ImageWriterII() },
   { id: "imagewriter-i",  name: "ImageWriter I",  create: () => new ImageWriterI() },
   { id: "epson-fx80",     name: "Epson FX-80",    create: () => new EpsonFX80() },
+  { id: "apple-dmp",      name: "Apple DMP",      create: () => new AppleDMP() },
 ];
 
 export const RIBBONS = [
