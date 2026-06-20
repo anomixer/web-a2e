@@ -41,6 +41,7 @@
 - joystick
 - display-settings
 - [slot-configuration](/docs/llms/llm-slot-configuration.txt) Expansion slot configuration and operations for listing, installing, and managing expansion cards
+- [printer](/docs/llms/llm-printer.txt) Virtual dot-matrix printer (ImageWriter I/II, Apple DMP, Epson FX-80) — model/ribbon/feed/screen dump/PNG export
 - mockingboard-debug
 - mouse-card-debug
 
