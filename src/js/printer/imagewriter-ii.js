@@ -38,8 +38,8 @@ export class ImageWriterII extends CItohPrinter {
   paperLengthRange() { return { min: 1, max: 69 }; }
 
   // Returns draft ROM column data (9-bit: bit 0=wire1 … bit 8=wire9), or null
-  getDraftChar(code, locale = 'US') {
-    if (locale !== 'US') {
+  getDraftChar(code, locale = "US") {
+    if (locale !== "US") {
       const override = IW2_DRAFT_ROM_LOCALES[locale]?.[code];
       if (override) return override;
     }
@@ -48,8 +48,8 @@ export class ImageWriterII extends CItohPrinter {
 
   // Returns NLQ ROM column data (16 columns, up to 18-bit each: bit 0=wire 1 …
   // bit 17=row 18), or null if this code has no NLQ glyph.
-  getNLQChar(code, locale = 'US') {
-    if (locale !== 'US') {
+  getNLQChar(code, locale = "US") {
+    if (locale !== "US") {
       const override = IW2_NLQ_FIXED_LOCALES[locale]?.[code];
       if (override) return override;
     }
@@ -61,8 +61,8 @@ export class ImageWriterII extends CItohPrinter {
   // inter-char spacer), or null if this code has no NLQ proportional glyph. Drives
   // both the rendered shape and the per-glyph advance, printed on the dense NLQ
   // cell (18 rows, 160x144 dpi).
-  getNLQPropChar(code, locale = 'US') {
-    if (locale !== 'US') {
+  getNLQPropChar(code, locale = "US") {
+    if (locale !== "US") {
       const override = IW2_NLQ_PROP_ROM_LOCALES[locale]?.[code];
       if (override) return override;
     }
@@ -75,10 +75,10 @@ export class ImageWriterII extends CItohPrinter {
   // sets any length via ESC H). These are honest form lengths, all 8" wide.
   static get PAGE_SIZES() {
     return [
-      { id: 'form11', name: '11 in (default)', inches: 11 },     // DIP SW1-4 = 11"
-      { id: 'form12', name: '12 in',           inches: 12 },     // DIP SW1-4 = 12"
-      { id: 'legal',  name: '14 in (Legal)',   inches: 14 },     // via ESC H
-      { id: 'a4',     name: 'A4 (11.7 in)',    inches: 11.69 },  // via ESC H
+      { id: "form11", name: "11 in (default)", inches: 11 },     // DIP SW1-4 = 11"
+      { id: "form12", name: "12 in",           inches: 12 },     // DIP SW1-4 = 12"
+      { id: "legal",  name: "14 in (Legal)",   inches: 14 },     // via ESC H
+      { id: "a4",     name: "A4 (11.7 in)",    inches: 11.69 },  // via ESC H
     ];
   }
 
@@ -91,5 +91,5 @@ export class ImageWriterII extends CItohPrinter {
     return true;
   }
 
-  getPageSize() { return this._pageSize ?? 'form11'; }
+  getPageSize() { return this._pageSize ?? "form11"; }
 }

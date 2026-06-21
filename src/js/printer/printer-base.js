@@ -57,7 +57,7 @@ export class PrinterBase {
     // constructor never samples the subclass getCharsPerSecond() before the
     // subclass state exists (it is only read later, at the first move).
     this.head    = new VirtualHead(this._carriagePicaDots(), () => this.getCharsPerSecond());
-    this.ribbon  = new VirtualRibbon('bw');
+    this.ribbon  = new VirtualRibbon("bw");
     // Default form length comes from the paper-length capability (single source);
     // a model overriding defaultPaperLengthInch() (e.g. FX-80 = 12") gets that form
     // at power-on. ESC C / ESC H still retune it live. Methods dispatch to the
@@ -87,9 +87,9 @@ export class PrinterBase {
   // extends this with `[...super.SETTINGS, …]`.
   static get SETTINGS() {
     return [
-      { id: 'autoLF', type: 'toggle', target: 'manager', default: true,
-        label: 'Auto LF on CR',
-        hint: 'A carriage return also advances the paper one line — how plain text / Applesoft (CR only) expects to print. Off: CR returns the head without feeding, so multi-pass colour graphics overprint in register.',
+      { id: "autoLF", type: "toggle", target: "manager", default: true,
+        label: "Auto LF on CR",
+        hint: "A carriage return also advances the paper one line — how plain text / Applesoft (CR only) expects to print. Off: CR returns the head without feeding, so multi-pass colour graphics overprint in register.",
         get: (m) => m.getAutoLineFeed(),
         set: (m, v) => m.setAutoLineFeed(v) },
     ];
@@ -148,7 +148,7 @@ export class PrinterBase {
     this._recomputeUnits();
     this.head?.setPitchDots(this._carriagePicaDots());
     this.paper?.setFormDots(Math.round(this.defaultPaperLengthInch() * this.dpi));
-    if (typeof this._resetRenderState === 'function') this._resetRenderState();
+    if (typeof this._resetRenderState === "function") this._resetRenderState();
     // Carriage cps needs no re-arm: the head pulls it fresh on the next motion.
   }
 
@@ -234,13 +234,13 @@ export class PrinterBase {
   // family; the ImageWriter I manual ch.2 step 8 has the operator slide both
   // sprockets to centre the stock on the 8" line marked by the two red rings).
   // Consumed by computeLayout() to position the sheet under the zone.
-  paperAnchor() { return 'center'; }
+  paperAnchor() { return "center"; }
 
   // How dragging a sprocket strip resizes paper: 'both' (symmetric, paper stays
   // centered, ΔW = 2×drag — both C.Itoh tractors slide on the square shaft) or
   // 'right-fixed-left' (left tractor pinned at column 1, right tractor moves,
   // ΔW = drag — FX-80). Consumed by the window's _initWidthDrag.
-  sprocketSymmetry() { return 'both'; }
+  sprocketSymmetry() { return "both"; }
 
   // Whether the model paints dots on the paper canvas (vs. a text-only view).
   // Every modelled dot-matrix printer does; lets the window decide the canvas UI
@@ -294,20 +294,20 @@ export class PrinterBase {
   // ===== Input side: subclasses call emit() during parsing =====
   emit(event, data) {
     switch (event) {
-      case 'printChar':
-      case 'printDots':
+      case "printChar":
+      case "printDots":
         // Buffer the strike at its absolute column; the head decides the order.
         this._lineBuf.push({ event, data, xDot: data?.xDot | 0 });
         return;
-      case 'newline':
-      case 'linefeed':
-      case 'carriagereturn':
+      case "newline":
+      case "linefeed":
+      case "carriagereturn":
         this._fire(event, data);     // text-view listeners (no-op in canvas mode)
         this._commitLine(event, data);
         return;
-      case 'formfeed':
+      case "formfeed":
         this._fire(event, data);
-        this._commitLine('formfeed', data);
+        this._commitLine("formfeed", data);
         return;
       default:
         this._fire(event, data);     // 'text' and any other passthrough
@@ -324,12 +324,12 @@ export class PrinterBase {
       this._timed(s.event, s.data, dt);
     }
 
-    if (kind === 'flush') return; // partial line (idle flush): no paper feed yet
+    if (kind === "flush") return; // partial line (idle flush): no paper feed yet
     this._commitFeed(kind, data);
   }
 
   _commitFeed(kind, data) {
-    if (kind === 'carriagereturn') {
+    if (kind === "carriagereturn") {
       // CR with Auto-LF off: the paper does NOT advance — the next pass
       // overprints this same band. In UNIDIRECTIONAL mode the head slews back
       // to the left margin (charge the return travel, no paper feed). In the
@@ -338,7 +338,7 @@ export class PrinterBase {
       // slew — genuine back-and-forth, the way a colour dump actually prints.
       if (this.isUnidirectional()) {
         const returnMs = this.head.returnMs();
-        this._timed('feed', { sound: 'return', dist: this.head.x }, returnMs);
+        this._timed("feed", { sound: "return", dist: this.head.x }, returnMs);
         this.head.home();
       } else {
         this.head.flip();
@@ -346,20 +346,20 @@ export class PrinterBase {
       return;
     }
 
-    if (kind === 'formfeed') {
+    if (kind === "formfeed") {
       // The model has already slewed the cursor; `dist` is how far it moved.
       const ejectMs  = this.paper.feedMs(data?.dist | 0);
       const returnMs = this.head.returnMs();
-      this._timed('feed', { sound: 'return', dist: this.head.x }, ejectMs + returnMs);
+      this._timed("feed", { sound: "return", dist: this.head.x }, ejectMs + returnMs);
       this.head.home();
       return;
     }
 
     const feedMs = this.paper.feedMs(this._lineFeedDots());
 
-    if (kind === 'linefeed') {
+    if (kind === "linefeed") {
       // LF: paper down only. Head neither returns nor reverses.
-      this._timed('feed', { sound: 'line', dist: this.head.x }, feedMs);
+      this._timed("feed", { sound: "line", dist: this.head.x }, feedMs);
       return;
     }
 
@@ -368,16 +368,16 @@ export class PrinterBase {
     // next line back the other way).
     if (this.isUnidirectional()) {
       const returnMs = this.head.returnMs();
-      this._timed('feed', { sound: 'return', dist: this.head.x }, feedMs + returnMs);
+      this._timed("feed", { sound: "return", dist: this.head.x }, feedMs + returnMs);
       this.head.home();
     } else {
-      this._timed('feed', { sound: 'line', dist: this.head.x }, feedMs);
+      this._timed("feed", { sound: "line", dist: this.head.x }, feedMs);
       this.head.flip();
     }
   }
 
   // Vertical dots advanced per line feed. Subclasses with a line height track it.
-  _lineFeedDots() { return (typeof this._lineHeight === 'number') ? this._lineHeight : 80; }
+  _lineFeedDots() { return (typeof this._lineHeight === "number") ? this._lineHeight : 80; }
 
   // Print-head home: where the head rests vertically at power-on (internal dots).
   _homeYDot() { return POWER_ON_HEAD_DOTS; }
@@ -390,14 +390,14 @@ export class PrinterBase {
   lineFeedDown(lines = 1) {
     const dots = lines * this._lineFeedDots();
     this._yDot = (this._yDot | 0) + dots;
-    this._timed('feed', { sound: 'line', dist: this.head.x }, this.paper.feedMs(dots));
+    this._timed("feed", { sound: "line", dist: this.head.x }, this.paper.feedMs(dots));
   }
 
   // Reverse-feed the paper `lines` line-heights (platen knob backward).
   lineFeedUp(lines = 1) {
     const dots = lines * this._lineFeedDots();
     this._yDot = Math.max(0, (this._yDot | 0) - dots);
-    this._timed('feed', { sound: 'line', dist: this.head.x }, this.paper.feedMs(dots));
+    this._timed("feed", { sound: "line", dist: this.head.x }, this.paper.feedMs(dots));
   }
 
   // Latch the current paper position as top-of-form (SET/TOF button).
@@ -409,11 +409,11 @@ export class PrinterBase {
     const fromY = this._yDot | 0;
     this._xDot = 0;
     this._yDot = this.paper.nextFormTop(fromY);
-    this.emit('formfeed', { dist: this._yDot - fromY });
+    this.emit("formfeed", { dist: this._yDot - fromY });
   }
 
   // Commit any partial (un-terminated) line so trailing output still prints.
-  flushLine() { if (this._lineBuf.length) this._commitLine('flush'); }
+  flushLine() { if (this._lineBuf.length) this._commitLine("flush"); }
 
   // ===== Output side: a timed event, deferred to the sink or fired now =====
   _timed(name, data, dt) {
@@ -425,12 +425,12 @@ export class PrinterBase {
   // the event's release time.
   _fire(event, data) {
     if (this._onImpact) {
-      if (event === 'printChar') {
-        this._onImpact(this._countCharDots(data), 'char', data?.xDot | 0);
-      } else if (event === 'printDots') {
-        this._onImpact(popcount(data?.byte | 0), 'dots', data?.xDot | 0);
-      } else if (event === 'feed') {
-        this._onImpact(0, data?.sound === 'return' ? 'return' : 'line', data?.dist | 0);
+      if (event === "printChar") {
+        this._onImpact(this._countCharDots(data), "char", data?.xDot | 0);
+      } else if (event === "printDots") {
+        this._onImpact(popcount(data?.byte | 0), "dots", data?.xDot | 0);
+      } else if (event === "feed") {
+        this._onImpact(0, data?.sound === "return" ? "return" : "line", data?.dist | 0);
       }
     }
     if (this._listeners[event]) this._listeners[event](data);

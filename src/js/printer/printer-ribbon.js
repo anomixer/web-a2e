@@ -13,12 +13,12 @@
  */
 
 export class VirtualRibbon {
-  constructor(type = 'bw') { this.type = type === 'color' ? 'color' : 'bw'; }
+  constructor(type = "bw") { this.type = type === "color" ? "color" : "bw"; }
 
-  setType(type) { this.type = type === 'color' ? 'color' : 'bw'; }
+  setType(type) { this.type = type === "color" ? "color" : "bw"; }
 
   // Map a requested colour to the ink the loaded cart can actually deliver.
-  ink(color) { return this.type === 'color' ? (color || 'black') : 'black'; }
+  ink(color) { return this.type === "color" ? (color || "black") : "black"; }
 
-  isColor() { return this.type === 'color'; }
+  isColor() { return this.type === "color"; }
 }

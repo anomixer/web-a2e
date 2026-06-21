@@ -31,7 +31,7 @@ export class VirtualHead {
     // Stored as a provider so a quality / bold / colour / half-speed change is
     // reflected at the next motion with no explicit re-arm; the printer installs
     // a live `() => getCharsPerSecond()`. A bare number wraps as a constant.
-    this._cps = typeof cps === 'function' ? cps : () => cps;
+    this._cps = typeof cps === "function" ? cps : () => cps;
   }
 
   get velocity() { return this._pitchDots * this._cps(); } // dots/sec

@@ -38,7 +38,13 @@ export class PrinterManager {
     this.sound              = new PrinterSound(getSharedAudioContext);
     this._callbackInstalled = false;
     this._onPrinterChange   = null;
+    this._onInterfaceChange = null;
     this._powered           = true;   // mains switch; off = head dead, bytes ignored
+    // Interface availability: tracked per bus. Both start true so bytes aren't
+    // dropped before the first slot sync. updateSlots() corrects them immediately.
+    this._hasParallel       = true;   // Centronics parallel card present
+    this._hasSerial         = true;   // SSC (serial) card present
+    this._hasInterface      = true;   // either bus present
 
     // Installed ribbon cartridge (applies to whichever model is active).
     this._ribbon = this._loadRibbon();
@@ -167,7 +173,7 @@ export class PrinterManager {
   // and the scheduler paces the output. Arm an idle flush so a trailing line
   // with no terminating CR still prints.
   receiveByte(byte) {
-    if (!this._powered) return;                       // unplugged: byte hits nothing
+    if (!this._powered || !this._hasInterface) return;
     this.activePrinter.receiveByte(byte);
     if (this._flushTimer) clearTimeout(this._flushTimer);
     this._flushTimer = setTimeout(() => this.activePrinter.flushLine?.(), 120);
@@ -178,8 +184,8 @@ export class PrinterManager {
   // model still buffers each line and the scheduler paces playback, so the dump
   // prints out at hardware speed exactly like a host-sent graphics stream.
   feedBytes(bytes) {
-    if (!this._powered) return;                       // unplugged: nothing prints
-    for (let i = 0; i < bytes.length; i++) this.activePrinter.receiveByte(bytes[i]);
+    if (!this._powered || !this._hasInterface) return;
+    bytes.forEach((byte) => this.activePrinter.receiveByte(byte));
     if (this._flushTimer) clearTimeout(this._flushTimer);
     this._flushTimer = setTimeout(() => this.activePrinter.flushLine?.(), 120);
   }
@@ -278,6 +284,35 @@ export class PrinterManager {
   }
 
   getPower() { return this._powered; }
+
+  // ===== Interface card availability =====
+
+  // Called whenever the slot configuration changes. Scans assigned cards for a
+  // Parallel or SSC card (the two buses that can drive a printer). If neither is
+  // present the printer gates all incoming bytes and notifies the window.
+  updateSlots(assignments) {
+    const vals        = Object.values(assignments);
+    const hasParallel = vals.includes("parallel");
+    const hasSerial   = vals.includes("ssc");
+    if (hasParallel === this._hasParallel && hasSerial === this._hasSerial) return;
+    this._hasParallel  = hasParallel;
+    this._hasSerial    = hasSerial;
+    this._hasInterface = hasParallel || hasSerial;
+    if (this._onInterfaceChange) this._onInterfaceChange(this._hasInterface);
+  }
+
+  // Returns the Set of model IDs reachable via currently installed cards.
+  // Parallel (Centronics) drives the Epson FX-80 and Apple DMP.
+  // SSC (serial) drives the ImageWriter I and ImageWriter II.
+  availableModelIds() {
+    const ids = new Set();
+    if (this._hasParallel) { ids.add("epson-fx80"); ids.add("apple-dmp"); }
+    if (this._hasSerial)   { ids.add("imagewriter-i"); ids.add("imagewriter-ii"); }
+    return ids;
+  }
+
+  hasInterface()          { return this._hasInterface; }
+  onInterfaceChange(fn)   { this._onInterfaceChange = fn; }
 
   // ===== Model switching =====
 

@@ -67,7 +67,7 @@ const GFX_DENSITY = {
 // overprinting two bands (orange = yellow+magenta, green = yellow+cyan,
 // purple = magenta+cyan). Other printer manuals colloquially call magenta
 // "red" and the magenta+cyan purple "blue" — the manual flags this itself.
-const COLORS = ['black', 'yellow', 'magenta', 'cyan', 'orange', 'green', 'purple'];
+const COLORS = ["black", "yellow", "magenta", "cyan", "orange", "green", "purple"];
 
 export class CItohPrinter extends PrinterBase {
   constructor() {
@@ -139,23 +139,23 @@ export class CItohPrinter extends PrinterBase {
   }
 
   _resetRenderState() {
-    this._pitch          = this._defaultPitch ?? 'pica';
+    this._pitch          = this._defaultPitch ?? "pica";
     this._bold           = false;
     this._underline      = false;
     this._halfHeight     = false;     // ESC w/W (Table 4-10)
-    this._script         = 'none';    // ESC x/y/z: 'none' | 'super' | 'sub' (Table 4-11)
+    this._script         = "none";    // ESC x/y/z: 'none' | 'super' | 'sub' (Table 4-11)
     this._doubleWidth    = false;     // CTRL-N/CTRL-O (Table 4-7)
     this._proportional   = false;     // ESC p/P — proportional pitch (corr font only)
     this._propSpacing    = 0;         // ESC s n — extra inter-char dot gap, 0-9 (Table A-11)
     this._pendingDotSpace = 0;        // ESC 1-6 — one-shot dot spaces before next char (Table 4-6)
     this._crBeforeLF     = true;      // ESC l — insert CR before LF/FF (Table A-16, default on)
     this._feedDir        = 1;         // ESC f/r — paper feed direction: +1 forward (default), -1 reverse (Table 5-11)
-    this._color          = 'black';
-    this._customFont     = 'none';    // ESC '/* — render downloaded glyphs: 'none' | 'low' | 'high'
+    this._color          = "black";
+    this._customFont     = "none";    // ESC '/* — render downloaded glyphs: 'none' | 'low' | 'high'
     this._leftMargin     = 0;         // ESC L — left margin, internal dots
     this.head.leftMargin = 0;
     this._lineHeight     = this.dpi / 6;   // 6 lpi default
-    this._quality        = 'draft';   // power-on font (Table 4-1): draft | corr | nlq
+    this._quality        = "draft";   // power-on font (Table 4-1): draft | corr | nlq
     this._xDot           = 0;
     this._yDot           = this._homeYDot();   // power-on head rest, a hair below sheet top
     this._unidirectional = false;     // power-on default is bidirectional (ESC <)
@@ -214,7 +214,7 @@ export class CItohPrinter extends PrinterBase {
           // Clamped at the left margin. Reprinting here overstrikes the prior
           // glyph (how period software drew strikethrough — no native opcode).
           this._xDot = Math.max(this._leftMargin, this._xDot - this._charAdvance());
-          this.emit('backspace');
+          this.emit("backspace");
         } else if (ch === 0x09) {
           this._horizontalTab();   // CTRL-I / HT — advance to next tab stop
         } else if (ch === 0x0C) {
@@ -229,9 +229,9 @@ export class CItohPrinter extends PrinterBase {
           if (this._autoLF) {
             this._yDot += this._feedDir * this._lineHeight;
             this._lastCR = true;   // arm CR+LF coalescing
-            this.emit('newline');
+            this.emit("newline");
           } else {
-            this.emit('carriagereturn');   // head home, no paper feed
+            this.emit("carriagereturn");   // head home, no paper feed
           }
         } else if (ch === 0x0A) {
           if (!(this._autoLF && wasCR)) {  // LF paired with an auto-LF CR is swallowed; otherwise it feeds
@@ -239,7 +239,7 @@ export class CItohPrinter extends PrinterBase {
             // head to the left margin. ESC l 1 suppresses it (LF feeds only).
             if (this._crBeforeLF) this._xDot = this._leftMargin;
             this._yDot += this._feedDir * this._lineHeight;
-            this.emit('linefeed');
+            this.emit("linefeed");
           }
         } else if (ch === 0x18) {
           // CTRL-X — erase the current line from the print buffer (Table A-19):
@@ -278,14 +278,14 @@ export class CItohPrinter extends PrinterBase {
         switch (this._paramCmd) {
           case 0x4B: {       // ESC K n — color select (Table A-18), n = ASCII '0'-'6'
             const k = (ch >= 0x30 && ch <= 0x36) ? ch - 0x30 : (ch & 0x07);
-            this._color = COLORS[k] ?? 'black';   // non-black halves carriage speed (pulled at next move)
+            this._color = COLORS[k] ?? "black";   // non-black halves carriage speed (pulled at next move)
             break;
           }
           case 0x61: {       // ESC a n — font select (Table 4-1): 0=corr 1=draft 2=NLQ
             const sel = ch & 0x0F;  // tolerate ASCII '0'/'1'/'2' or raw 0/1/2
-            if      (sel === 0) this._quality = 'corr';
-            else if (sel === 1) this._quality = 'draft';
-            else if (sel === 2) this._quality = 'nlq';
+            if      (sel === 0) this._quality = "corr";
+            else if (sel === 1) this._quality = "draft";
+            else if (sel === 2) this._quality = "nlq";
             break;
           }
           case 0x73: {       // ESC s n — proportional inter-char dot spacing (Table A-11)
@@ -301,7 +301,7 @@ export class CItohPrinter extends PrinterBase {
               const lines = ch - 0x30;
               if (this._crBeforeLF) this._xDot = this._leftMargin;
               this._yDot += this._feedDir * lines * this._lineHeight;
-              this.emit('linefeed');
+              this.emit("linefeed");
             } else {
               this._verticalFormTab(ch);        // CTRL-_ A-F → EVFU drop (DMP); no-op in the base
             }
@@ -324,7 +324,7 @@ export class CItohPrinter extends PrinterBase {
       case S_IMG_DATA:
         // Graphics column data uses all 8 bits (bit 7 = bottom dot), so feed the
         // raw byte — NOT the high-bit-stripped `ch` used for character codes.
-        this.emit('printDots', {
+        this.emit("printDots", {
           byte:  byte,
           xDot:  this._xDot,
           yDot:  this._yDot,
@@ -390,7 +390,7 @@ export class CItohPrinter extends PrinterBase {
       case S_VREPEAT:
         // ESC V nnnn c — print column byte c (8-bit) as _numAcc graphics columns.
         for (let i = 0; i < this._numAcc; i++) {
-          this.emit('printDots', {
+          this.emit("printDots", {
             byte:  byte,
             xDot:  this._xDot,
             yDot:  this._yDot,
@@ -445,18 +445,18 @@ export class CItohPrinter extends PrinterBase {
     switch (ch) {
       // Character pitch. ESC p/P are the proportional pitches; selecting one
       // forces the correspondence font (proportional isn't a draft/NLQ feature).
-      case 0x6E: this._pitch = 'extended';  this._proportional = false; break;  // ESC n — extended (9 cpi, 72 dpi gfx)
-      case 0x4E: this._pitch = 'pica';      this._proportional = false; break;  // ESC N — pica (10 cpi, 80 dpi gfx)
-      case 0x45: this._pitch = 'elite';     this._proportional = false; break;  // ESC E — elite (12 cpi, 96 dpi gfx)
-      case 0x65: this._pitch = 'semicond';  this._proportional = false; break;  // ESC e — semicondensed (13.4 cpi, 107 dpi gfx)
-      case 0x71: this._pitch = 'condensed'; this._proportional = false; break;  // ESC q — condensed (15 cpi, 120 dpi gfx)
-      case 0x51: this._pitch = 'ultra';     this._proportional = false; break;  // ESC Q — ultracondensed (17 cpi, 136 dpi gfx)
-      case 0x70: this._pitch = 'propPica';  this._proportional = true; break;  // ESC p — proportional-pica (144 dpi gfx)
-      case 0x50: this._pitch = 'propElite'; this._proportional = true; break;  // ESC P — proportional-elite (160 dpi gfx)
+      case 0x6E: this._pitch = "extended";  this._proportional = false; break;  // ESC n — extended (9 cpi, 72 dpi gfx)
+      case 0x4E: this._pitch = "pica";      this._proportional = false; break;  // ESC N — pica (10 cpi, 80 dpi gfx)
+      case 0x45: this._pitch = "elite";     this._proportional = false; break;  // ESC E — elite (12 cpi, 96 dpi gfx)
+      case 0x65: this._pitch = "semicond";  this._proportional = false; break;  // ESC e — semicondensed (13.4 cpi, 107 dpi gfx)
+      case 0x71: this._pitch = "condensed"; this._proportional = false; break;  // ESC q — condensed (15 cpi, 120 dpi gfx)
+      case 0x51: this._pitch = "ultra";     this._proportional = false; break;  // ESC Q — ultracondensed (17 cpi, 136 dpi gfx)
+      case 0x70: this._pitch = "propPica";  this._proportional = true; break;  // ESC p — proportional-pica (144 dpi gfx)
+      case 0x50: this._pitch = "propElite"; this._proportional = true; break;  // ESC P — proportional-elite (160 dpi gfx)
 
       // Print quality (Table 4-1). ESC m/ESC M are Apple Scribe aliases.
-      case 0x6D: this._quality = 'corr'; break;  // ESC m — correspondence font
-      case 0x4D: this._quality = 'nlq';  break;  // ESC M — NLQ font
+      case 0x6D: this._quality = "corr"; break;  // ESC m — correspondence font
+      case 0x4D: this._quality = "nlq";  break;  // ESC M — NLQ font
 
       // Print style. Bold/half-height/super/subscript are draft-incompatible
       // (Tables 4-1/4-10/4-11): toggling them can shift the effective font and
@@ -468,9 +468,9 @@ export class CItohPrinter extends PrinterBase {
       case 0x59: this._underline = false; break;  // ESC Y — stop underline (Table 4-8)
       case 0x77: this._halfHeight = true;  break;  // ESC w — start half-height
       case 0x57: this._halfHeight = false; break;  // ESC W — stop half-height
-      case 0x78: this._script = 'super'; break;  // ESC x — start superscript
-      case 0x79: this._script = 'sub';   break;  // ESC y — start subscript
-      case 0x7A: this._script = 'none';  break;  // ESC z — stop super/subscript
+      case 0x78: this._script = "super"; break;  // ESC x — start superscript
+      case 0x79: this._script = "sub";   break;  // ESC y — start subscript
+      case 0x7A: this._script = "none";  break;  // ESC z — stop super/subscript
 
       // Print-head motion (Table 5-5). Persists until cancelled or reset.
       case 0x3E: this._unidirectional = true;  break;  // ESC > — unidirectional
@@ -481,12 +481,12 @@ export class CItohPrinter extends PrinterBase {
       // ASCII. (8th-bit ESC Z/D mode is unmodelled — Applesoft sets bit 7 on
       // every byte, so the manual recommends ESC & for BASIC.)
       case 0x26: this._mouseText = true;  break;  // ESC & — map MouseText to $40-$5F
-      case 0x24: this._mouseText = false; this._customFont = 'none'; break;  // ESC $ — standard ASCII + normal font (default)
+      case 0x24: this._mouseText = false; this._customFont = "none"; break;  // ESC $ — standard ASCII + normal font (default)
 
       // Downloaded-character font select (Table A-9). ESC '/* turn on the
       // custom glyph set (low/high ASCII); ESC $ (above) turns it back off.
-      case 0x27: this._customFont = 'low';  break;  // ESC ' — custom font, low ASCII
-      case 0x2A: this._customFont = 'high'; break;  // ESC * — custom font, high ASCII
+      case 0x27: this._customFont = "low";  break;  // ESC ' — custom font, low ASCII
+      case 0x2A: this._customFont = "high"; break;  // ESC * — custom font, high ASCII
 
       // Line spacing (Table A-15). These are IW-II native: ESC A/B are fixed
       // 6/8 lpi (no parameter), ESC T takes a 2-digit n/144 inch distance.
@@ -689,9 +689,9 @@ export class CItohPrinter extends PrinterBase {
     // proportional face has its OWN dense bank (18 rows, 160 dpi columns); other
     // qualities use the correspondence proportional widths. A downloaded custom
     // font, or a code with no proportional glyph, falls back to the fixed cell.
-    const nlqActive = this._customFont === 'none' && this._effectiveQuality() === 'nlq';
+    const nlqActive = this._customFont === "none" && this._effectiveQuality() === "nlq";
     let propCols = null, propIsNlq = false;
-    if (this._proportional && this._customFont === 'none') {
+    if (this._proportional && this._customFont === "none") {
       if (nlqActive) {
         propCols = this.getNLQPropChar(code);
         if (propCols) propIsNlq = true;
@@ -725,8 +725,8 @@ export class CItohPrinter extends PrinterBase {
     // denser grid at half pitch. A code the NLQ ROM lacks falls back to a corr
     // glyph, which keeps the standard 9-row geometry. The NLQ *proportional* face
     // (propIsNlq) prints on the same dense cell: 18 rows, 160x144 dpi, no MouseText.
-    const nlqCell = !propCols && this._customFont === 'none'
-      && this._effectiveQuality() === 'nlq' && this.getNLQChar(code) != null;
+    const nlqCell = !propCols && this._customFont === "none"
+      && this._effectiveQuality() === "nlq" && this.getNLQChar(code) != null;
     const nlqMouse = nlqCell && code >= 0xC0 && code <= 0xDF;
     const nlqDense = nlqCell || propIsNlq;
     const rows     = propIsNlq ? 18 : (nlqCell ? (nlqMouse ? 16 : 18) : 9);
@@ -738,10 +738,10 @@ export class CItohPrinter extends PrinterBase {
     if (this._xDot + adv > this._platenDots) {
       this._xDot = this._leftMargin;
       this._yDot += this._lineHeight;
-      this.emit('newline');
+      this.emit("newline");
     }
 
-    this.emit('printChar', {
+    this.emit("printChar", {
       cols,
       xDot:        this._xDot,
       yDot:        this._yDot,
@@ -758,7 +758,7 @@ export class CItohPrinter extends PrinterBase {
       doubleWidth: this._doubleWidth,
     });
     // Plain-text event for text-mode listeners
-    this.emit('text', String.fromCharCode(code));
+    this.emit("text", String.fromCharCode(code));
     this._xDot += adv;
   }
 
@@ -782,9 +782,9 @@ export class CItohPrinter extends PrinterBase {
   // `_quality` is what the host selected (ESC a/m/M); this is what fires.
   _effectiveQuality() {
     // Super/subscript (Table 4-11) force correspondence from draft OR NLQ.
-    if (this._script !== 'none' && (this._quality === 'draft' || this._quality === 'nlq'))
-      return 'corr';
-    if (this._quality === 'draft' && this._draftIncompatibleActive()) return 'corr';
+    if (this._script !== "none" && (this._quality === "draft" || this._quality === "nlq"))
+      return "corr";
+    if (this._quality === "draft" && this._draftIncompatibleActive()) return "corr";
     return this._quality;
   }
 
@@ -794,15 +794,15 @@ export class CItohPrinter extends PrinterBase {
   // 8-column corr ROM. NLQ falls back to corr only for codes the NLQ ROM lacks.
   // The variable-width proportional face is selected in _emitChar (it also drives
   // the advance), so this returns the fixed-cell glyph used by the non-prop path.
-  getGlyph(code, locale = 'US') {
-    if (this._customFont !== 'none') {
+  getGlyph(code, locale = "US") {
+    if (this._customFont !== "none") {
       const custom = this._customGlyph(code);
       if (custom) return custom;
     }
     const q = this._effectiveQuality();
     let cols;
-    if      (q === 'draft') cols = this.getDraftChar(code, locale);
-    else if (q === 'nlq')   cols = this.getNLQChar(code, locale) ?? this.getCorrChar(code, locale);
+    if      (q === "draft") cols = this.getDraftChar(code, locale);
+    else if (q === "nlq")   cols = this.getNLQChar(code, locale) ?? this.getCorrChar(code, locale);
     else                    cols = this.getCorrChar(code, locale);
     // Slashed-zero switch (ESC D/Z, Group B): strike a slash through the '0'
     // glyph. Reuses the base helper; the shared ROM array is never mutated.
@@ -823,20 +823,20 @@ export class CItohPrinter extends PrinterBase {
 
   // Draft ROM hook (9-bit columns). Null in the 8510 base — only the
   // ImageWriter II adds a draft tier; the I and DMP print one corr face.
-  getDraftChar(code, locale = 'US') {
+  getDraftChar(code, locale = "US") {
     return null;
   }
 
   // NLQ ROM hook (16 columns, up to 18-bit each). Null in the 8510 base —
   // only the ImageWriter II adds an NLQ tier.
-  getNLQChar(code, locale = 'US') {
+  getNLQChar(code, locale = "US") {
     return null;
   }
 
   // Correspondence ROM column data (8 columns, 9-bit each) — the 8510 base
   // face shared by every model. Returns null for an unauthored code.
-  getCorrChar(code, locale = 'US') {
-    if (locale !== 'US') {
+  getCorrChar(code, locale = "US") {
+    if (locale !== "US") {
       const override = IW2_STANDARD_FIXED_LOCALES[locale]?.[code];
       if (override) return override;
     }
@@ -846,8 +846,8 @@ export class CItohPrinter extends PrinterBase {
   // Correspondence *proportional* column data (variable column count, 9-bit
   // each, trailing blank column(s) built in) — the 8510 base proportional
   // face. Drives both the rendered shape and the per-glyph advance.
-  getCorrPropChar(code, locale = 'US') {
-    if (locale !== 'US') {
+  getCorrPropChar(code, locale = "US") {
+    if (locale !== "US") {
       const override = IW2_STANDARD_PROP_LOCALES[locale]?.[code];
       if (override) return override;
     }
@@ -856,7 +856,7 @@ export class CItohPrinter extends PrinterBase {
 
   // NLQ *proportional* ROM hook (variable column count, up to 18-bit each).
   // Null in the 8510 base — only the ImageWriter II adds an NLQ-prop bank.
-  getNLQPropChar(code, locale = 'US') {
+  getNLQPropChar(code, locale = "US") {
     return null;
   }
 
@@ -868,11 +868,11 @@ export class CItohPrinter extends PrinterBase {
   getCharsPerSecond() {
     let cps;
     switch (this._effectiveQuality()) {
-      case 'nlq':  cps = 45;  break;
-      case 'corr': cps = 180; break;
+      case "nlq":  cps = 45;  break;
+      case "corr": cps = 180; break;
       default:     cps = 250; break;   // draft (and pre-init undefined)
     }
-    if (this._bold || (this._color && this._color !== 'black')) cps = Math.round(cps / 2);
+    if (this._bold || (this._color && this._color !== "black")) cps = Math.round(cps / 2);
     return cps;
   }
 

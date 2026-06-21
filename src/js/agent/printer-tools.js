@@ -11,6 +11,7 @@
  */
 
 import { PRINTER_MODELS, RIBBONS } from "../printer/printer-manager.js";
+import { getAllPages } from "../printer/printer-page-store.js";
 
 function getPrinterWindow() {
   const pw = window.emulator?.printerWindow;
@@ -244,5 +245,98 @@ export const printerTools = {
       height,
       message: `Printer paper captured as ${width}x${height} PNG`,
     };
+  },
+
+  /**
+   * Set the paper dimensions to any arbitrary size in 1/4-inch increments.
+   * The active printer model enforces its own min/max bounds and returns the
+   * actual committed value, which may differ from the requested value.
+   * Omit either field to leave that dimension unchanged.
+   * Parameters: { widthInch?: number, lengthInch?: number }.
+   */
+  printerSetPaperDimensions: async (params = {}) => {
+    const pw = getPrinterWindow();
+    const result = {};
+    if (params.widthInch !== undefined) {
+      const quantized = Math.round(params.widthInch * 4) / 4;
+      result.widthInch = pw.setPaperWidth(quantized);
+    }
+    if (params.lengthInch !== undefined) {
+      const quantized = Math.round(params.lengthInch * 4) / 4;
+      result.lengthInch = pw.setPaperLength(quantized);
+    }
+    if (!Object.keys(result).length) throw new Error("widthInch or lengthInch (or both) is required");
+    return { success: true, ...result, message: `Paper dimensions set: ${JSON.stringify(result)}` };
+  },
+
+  /**
+   * List all stored print jobs (from the browser's print history).
+   * Returns a summary array grouped by job — no PNG data, just metadata.
+   * Each entry: { jobId, pageCount, model, ribbon, formInches, paperWidthInch, savedAt }.
+   */
+  printerListHistory: async () => {
+    const pages = await getAllPages();
+    const jobMap = new Map();
+    pages.forEach((p) => {
+      if (!jobMap.has(p.jobId)) {
+        jobMap.set(p.jobId, {
+          jobId:          p.jobId,
+          pageCount:      0,
+          model:          p.model,
+          ribbon:         p.ribbon,
+          formInches:     p.formInches,
+          paperWidthInch: p.paperWidthInch,
+          savedAt:        p.savedAt,
+        });
+      }
+      jobMap.get(p.jobId).pageCount++;
+    });
+    const jobs = [...jobMap.values()];
+    return { success: true, jobs, message: `${jobs.length} print job(s) in history` };
+  },
+
+  /**
+   * Retrieve a single printed page as a base64 PNG (no data: URI prefix) so
+   * it can be passed to save_to or inspected directly.
+   * Parameters: { jobId: number, pageIndex: number (0-based) }.
+   */
+  printerGetPage: async (params = {}) => {
+    const { jobId, pageIndex } = params;
+    if (jobId === undefined)    throw new Error("jobId is required");
+    if (pageIndex === undefined) throw new Error("pageIndex is required");
+    const pages = await getAllPages();
+    const record = pages.find((p) => p.jobId === jobId && p.pageIndex === pageIndex);
+    if (!record) throw new Error(`Page not found: job ${jobId}, page ${pageIndex}`);
+    const base64 = record.pngDataUrl.replace(/^data:image\/png;base64,/, "");
+    return {
+      success: true,
+      imageBase64: base64,
+      jobId:          record.jobId,
+      pageIndex:      record.pageIndex,
+      model:          record.model,
+      ribbon:         record.ribbon,
+      formInches:     record.formInches,
+      paperWidthInch: record.paperWidthInch,
+      savedAt:        record.savedAt,
+      message:        `Job ${jobId} page ${pageIndex} retrieved`,
+    };
+  },
+
+  /**
+   * Re-preview a stored print job on the virtual printer paper — the same
+   * operation as the Print Browser's "Re-preview" button. Loads all pages of
+   * the job back onto the paper canvas at their original paper size.
+   * Parameters: { jobId: number }.
+   */
+  printerReloadJob: async (params = {}) => {
+    const { jobId } = params;
+    if (jobId === undefined) throw new Error("jobId is required");
+    const pages = await getAllPages();
+    const jobPages = pages
+      .filter((p) => p.jobId === jobId)
+      .sort((a, b) => a.pageIndex - b.pageIndex);
+    if (!jobPages.length) throw new Error(`No pages found for job ${jobId}`);
+    getPrinterWindow().loadJobToPaper({ pages: jobPages });
+    return { success: true, jobId, pageCount: jobPages.length, message: `Job ${jobId} reloaded (${jobPages.length} page(s))` };
   },
 };

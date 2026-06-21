@@ -46,8 +46,8 @@ export class AppleDMP extends CItohPrinter {
   // _resetRenderState re-reads _defaultPitch, so the choice takes effect at every
   // reset / power-on. propElite is a valid pitch the render path already maps
   // (_gfxDotW → ESC P elite-proportional at 144 dpi).
-  getElitePropDefault() { return this.getDefaultPitch() === 'propElite'; }
-  setElitePropDefault(on) { this.setDefaultPitch(on ? 'propElite' : 'pica'); }
+  getElitePropDefault() { return this.getDefaultPitch() === "propElite"; }
+  setElitePropDefault(on) { this.setDefaultPitch(on ? "propElite" : "pica"); }
 
   // Operator panel: the shared Auto-LF / default-pitch settings PLUS the DMP's
   // DIP SW2-5 power-on-pitch toggle. The inherited 'pitch' choice (fixed pitches)
@@ -55,10 +55,10 @@ export class AppleDMP extends CItohPrinter {
   // documented power-on choice is exactly Pica vs elite-proportional (§12).
   static get SETTINGS() {
     return [
-      ...super.SETTINGS.filter((s) => s.id !== 'pitch'),
-      { id: 'elitePropDefault', type: 'toggle', default: false,
-        label: 'Power-on Elite Proportional (DIP 2-5)',
-        hint: 'DIP SW2-5 closed: the printer powers up in Elite Proportional instead of Pica 10 cpi. ESC P / ESC N still change the pitch at runtime.',
+      ...super.SETTINGS.filter((s) => s.id !== "pitch"),
+      { id: "elitePropDefault", type: "toggle", default: false,
+        label: "Power-on Elite Proportional (DIP 2-5)",
+        hint: "DIP SW2-5 closed: the printer powers up in Elite Proportional instead of Pica 10 cpi. ESC P / ESC N still change the pitch at runtime.",
         get: (p) => p.getElitePropDefault(),
         set: (p, v) => p.setElitePropDefault(v) },
     ];
@@ -77,13 +77,13 @@ export class AppleDMP extends CItohPrinter {
   // One print font (no draft/correspondence/NLQ tiers): force the correspondence
   // path so getGlyph routes through getCorrChar below and the swallowed ESC
   // a/m/M font-select commands stay inert.
-  _effectiveQuality() { return 'corr'; }
+  _effectiveQuality() { return "corr"; }
 
   // Render from the DMP's own 8×9 character ROM when a glyph has been authored
   // (rom-editor.html → DMP_STANDARD_FIXED). Codes not yet transcribed fall back
   // to the IW-II correspondence ROM so the printer stays usable.
-  getCorrChar(code, locale = 'US') {
-    if (locale !== 'US') {
+  getCorrChar(code, locale = "US") {
+    if (locale !== "US") {
       const override = DMP_STANDARD_FIXED_LOCALES[locale]?.[code];
       if (override) return override;
     }
@@ -96,8 +96,8 @@ export class AppleDMP extends CItohPrinter {
   // ROM; a code with no proportional glyph falls back to the fixed cell (null →
   // _emitChar uses getGlyph). The DMP has no NLQ-proportional bank, so the II's
   // getNLQPropChar path never fires (quality is forced to 'corr' above).
-  getCorrPropChar(code, locale = 'US') {
-    if (locale !== 'US') {
+  getCorrPropChar(code, locale = "US") {
+    if (locale !== "US") {
       const override = DMP_STANDARD_PROP_LOCALES[locale]?.[code];
       if (override) return override;
     }
@@ -109,8 +109,8 @@ export class AppleDMP extends CItohPrinter {
   // the ImageWriter II's assignment for the same two pitch names. Override only
   // those two; every fixed pitch keeps the shared graphics density.
   _gfxDotW() {
-    if (this._pitch === 'propPica')  return this.dpi / 160;  // ESC p — pica-prop
-    if (this._pitch === 'propElite') return this.dpi / 144;  // ESC P — elite-prop
+    if (this._pitch === "propPica")  return this.dpi / 160;  // ESC p — pica-prop
+    if (this._pitch === "propElite") return this.dpi / 144;  // ESC P — elite-prop
     return super._gfxDotW();
   }
 

@@ -49,7 +49,7 @@ const PAPER_PRESETS = [
 // so the mapping tracks whatever internal scale the active printer uses (default
 // 480 → ÷4 / ÷6.667). Sourced live per printer via this._hdotInternal /
 // this._vdotInternal (a model may override its dpi for finer densities).
-const PAPER_BG   = '#ffffff';
+const PAPER_BG   = "#ffffff";
 // Four ribbon bands plus the three overprint secondaries (ESC K 4-6). Orange,
 // green and purple are what the real ribbon makes by laying two bands on the
 // same dot.
@@ -273,17 +273,18 @@ export class PrinterWindow extends BaseWindow {
     return `<style>
       .pr-root      { display: flex; flex-direction: column; height: 100%; min-width: 0; }
       .pr-toolbar   { display: flex; align-items: center; gap: 4px; padding: 4px 8px; background: var(--input-bg-dark); border-bottom: 1px solid var(--border-default); flex-shrink: 0; flex-wrap: nowrap; overflow: hidden; min-width: 132px; }
-      .pr-select    { padding: 2px 4px; font-size: 11px; border: 1px solid var(--border-default); border-radius: 3px; background: var(--badge-dim-bg); color: var(--text-secondary); font-family: 'Monaco', 'Menlo', monospace; cursor: pointer; }
-      .pr-btn       { padding: 2px 8px; font-size: 11px; border: 1px solid var(--border-default); border-radius: 3px; background: var(--badge-dim-bg); color: var(--text-secondary); cursor: pointer; font-family: 'Monaco', 'Menlo', monospace; flex-shrink: 0; }
+      .pr-select    { padding: 2px 4px; font-size: 11px; border: 1px solid var(--border-default); border-radius: 3px; background: var(--badge-dim-bg); color: var(--text-secondary); font-family: "Monaco", "Menlo", monospace; cursor: pointer; }
+      .pr-btn       { padding: 2px 8px; font-size: 11px; border: 1px solid var(--border-default); border-radius: 3px; background: var(--badge-dim-bg); color: var(--text-secondary); cursor: pointer; font-family: "Monaco", "Menlo", monospace; flex-shrink: 0; }
       .pr-btn:hover, .pr-select:hover { background: var(--input-bg-hover); color: var(--text-primary); }
       .pr-btn-dim   { color: var(--text-muted); }
       .pr-btn-fit-on { background: var(--accent-green-bg-stronger); color: var(--accent-green); border-color: var(--accent-green); }
       .pr-sep       { width: 1px; height: 16px; background: var(--border-default); margin: 0 2px; }
       .pr-spacer    { flex: 1; }
-      .pr-label     { font-size: 11px; color: var(--text-muted); font-family: 'Monaco', 'Menlo', monospace; }
-      .pr-toggle    { padding: 2px 8px; font-size: 11px; border: 1px solid var(--border-default); border-radius: 3px; cursor: pointer; font-family: 'Monaco', 'Menlo', monospace; flex-shrink: 0; }
+      .pr-label     { font-size: 11px; color: var(--text-muted); font-family: "Monaco", "Menlo", monospace; }
+      .pr-toggle    { padding: 2px 8px; font-size: 11px; border: 1px solid var(--border-default); border-radius: 3px; cursor: pointer; font-family: "Monaco", "Menlo", monospace; flex-shrink: 0; }
       .pr-toggle-on  { background: var(--accent-green-bg-stronger); color: var(--accent-green); border-color: var(--accent-green); }
       .pr-toggle-off { background: var(--badge-dim-bg); color: var(--text-muted); }
+      .pr-feed-bg.pr-no-interface { filter: grayscale(1) brightness(0.65); }
 
       /* Operator settings panel: app-standard toggle-switch / settings-select,
          stacked for the narrow side panel. */
@@ -366,7 +367,7 @@ export class PrinterWindow extends BaseWindow {
       .pr-panel.pinned .pr-panel-tab { color: var(--accent-green); }
       .pr-panel-body  { width: 108px; display: flex; flex-direction: column; gap: 4px; padding: 8px 6px; background: var(--bg-panel); border-left: 1px solid var(--border-default); box-shadow: -4px 0 10px rgba(0,0,0,0.28); overflow-y: auto; }
       .pr-panel.pinned .pr-panel-body { box-shadow: none; }
-      .pr-pbtn        { padding: 5px 6px; font-size: 11px; border: 1px solid var(--border-default); border-radius: 3px; background: var(--badge-dim-bg); color: var(--text-secondary); cursor: pointer; font-family: 'Monaco', 'Menlo', monospace; text-align: center; white-space: nowrap; }
+      .pr-pbtn        { padding: 5px 6px; font-size: 11px; border: 1px solid var(--border-default); border-radius: 3px; background: var(--badge-dim-bg); color: var(--text-secondary); cursor: pointer; font-family: "Monaco", "Menlo", monospace; text-align: center; white-space: nowrap; }
       .pr-pbtn:hover  { background: var(--input-bg-hover); color: var(--text-primary); }
       .pr-pbtn-on     { background: var(--accent-green-bg-stronger); color: var(--accent-green); border-color: var(--accent-green); }
       .pr-pbtn-dim    { color: var(--text-muted); }
@@ -418,7 +419,7 @@ export class PrinterWindow extends BaseWindow {
       }
       .pr-width-chip {
         position: absolute; top: 4px; left: 4px;
-        font: 10px 'Monaco', 'Menlo', monospace;
+        font: 10px "Monaco", "Menlo", monospace;
         background: var(--bg-panel, #1c2128); color: var(--text-secondary, #bbb);
         border: 1px solid var(--accent-green, #61bb46); border-radius: 3px;
         padding: 1px 4px; white-space: nowrap;
@@ -438,7 +439,7 @@ export class PrinterWindow extends BaseWindow {
       }
       .pr-length-chip {
         position: absolute; left: 4px; top: 4px;
-        font: 10px 'Monaco', 'Menlo', monospace;
+        font: 10px "Monaco", "Menlo", monospace;
         background: var(--bg-panel, #1c2128); color: var(--text-secondary, #bbb);
         border: 1px solid var(--accent-green, #61bb46); border-radius: 3px;
         padding: 1px 4px; white-space: nowrap;
@@ -464,7 +465,7 @@ export class PrinterWindow extends BaseWindow {
       .pr-preset-btn {
         padding: 3px 4px; font-size: 10px; border: 1px solid var(--border-default);
         border-radius: 3px; background: var(--badge-dim-bg); color: var(--text-secondary);
-        cursor: pointer; font-family: 'Monaco', 'Menlo', monospace; text-align: left;
+        cursor: pointer; font-family: "Monaco", "Menlo", monospace; text-align: left;
         white-space: nowrap; overflow: hidden;
       }
       .pr-preset-btn:hover { background: var(--input-bg-hover); color: var(--text-primary); }
@@ -474,7 +475,7 @@ export class PrinterWindow extends BaseWindow {
       }
       .pr-preset-dims {
         font-size: 10px; color: var(--text-muted);
-        font-family: 'Monaco','Menlo',monospace; text-align: center; margin-top: 2px;
+        font-family: "Monaco","Menlo",monospace; text-align: center; margin-top: 2px;
       }
 
       /* Paper (body) edges — green hairlines down the sheet at paper-left (= ruler
@@ -640,6 +641,7 @@ export class PrinterWindow extends BaseWindow {
       ribbon:      el.querySelector("#pr-ribbon"),
       page:        el.querySelector("#pr-page"),
       power:       el.querySelector("#pr-power"),
+      noCard:      el.querySelector("#pr-no-card"),
       downloadPng: el.querySelector("#pr-download-png"),
       downloadPdf: el.querySelector("#pr-download-pdf"),
       dump:        el.querySelector("#pr-dump"),
@@ -1202,6 +1204,9 @@ export class PrinterWindow extends BaseWindow {
       this._renderSettings();
     });
 
+    this.printerManager.onInterfaceChange((has) => this._updateInterfaceState(has));
+    this._updateInterfaceState(this.printerManager.hasInterface());
+
     // Collapse the toolbar as the window narrows so nothing clips off-screen:
     // page select drops first, then ribbon, then model — power + exports stay.
     this._resizeObs = new ResizeObserver(() => this._fitToolbar());
@@ -1254,6 +1259,9 @@ export class PrinterWindow extends BaseWindow {
       (p) => `<option value="${p.w}:${p.h}">${fmt(p.w)}×${fmt(p.h)} ${p.label}</option>`
     ).join('');
     el.value = `${PAPER_PRESETS[0].w}:${PAPER_PRESETS[0].h}`; // Standard default
+    if (!this.printerManager.availableModelIds().has(this.printerManager.getActivePrinter().getId())) {
+      el.querySelectorAll("option").forEach((o) => { o.disabled = true; });
+    }
     this._fitToolbar();
     this._renderPaperPresets();
   }
@@ -1285,6 +1293,9 @@ export class PrinterWindow extends BaseWindow {
       opt.disabled = !colorOk;
       opt.title    = colorOk ? "" : `${printer.getName()} is black-ribbon only`;
     }
+    if (!this.printerManager.availableModelIds().has(printer.getId())) {
+      sel.querySelectorAll("option").forEach((o) => { o.disabled = true; });
+    }
     sel.value = this.printerManager.getRibbon();
   }
 
@@ -1310,7 +1321,7 @@ export class PrinterWindow extends BaseWindow {
   // hiding them collapses the L-frame grid tracks (see _updateViewMode).
   _rulersOn() {
     if (this._rulersVisible == null) {
-      let v = true;
+      let v = false;
       try { const s = localStorage.getItem("a2e-printer-rulers"); if (s != null) v = s === "true"; } catch (e) {}
       this._rulersVisible = v;
     }
@@ -1613,14 +1624,14 @@ export class PrinterWindow extends BaseWindow {
   // resolved colour, so a second colour overstruck on the same dot subtracts to
   // the real secondary instead of just covering it.
   _inkDot(ctx, px, py, w, h, color) {
-    if (!color || color === 'black') {
+    if (!color || color === "black") {
       ctx.fillStyle = DOT_COLORS.black;
       ctx.fillRect(px, py, w, h);
       return;
     }
     if (!this._ink) this._ink = new Map();
     if (this._ink.size > 80000) this._ink.clear();   // bound memory on long runs
-    const key  = px + ',' + py;
+    const key  = px + "," + py;
     const mask = (this._ink.get(key) || 0) | (COLOR_BANDS[color] ?? BAND.K);
     this._ink.set(key, mask);
     ctx.fillStyle = mixInk(mask);
@@ -1647,9 +1658,9 @@ export class PrinterWindow extends BaseWindow {
     // to half its vertical extent; superscript rides the top half of the line,
     // subscript and plain half-height ride the bottom half.
     const xs     = doubleWidth ? 2 : 1;
-    const half   = halfHeight || (script && script !== 'none');
+    const half   = halfHeight || (script && script !== "none");
     const vScale = half ? 0.5 : 1;
-    const yOff   = (half && script !== 'super') ? Math.round(glyphH * 0.5) : 0;
+    const yOff   = (half && script !== "super") ? Math.round(glyphH * 0.5) : 0;
     // Dot footprint follows the row pitch so NLQ's finer grid paints smaller,
     // denser dots rather than the chunky 2-px draft dot smeared over 18 rows.
     const baseHpx = Math.max(1, Math.round(rowStep));
@@ -2196,7 +2207,7 @@ export class PrinterWindow extends BaseWindow {
   // Resolve the get/set target for a setting: 'manager' entries (e.g. Auto-LF)
   // route through the shared PrinterManager; everything else acts on the printer.
   _settingTarget(s) {
-    return s.target === 'manager' ? this.printerManager : this.printerManager.getActivePrinter();
+    return s.target === "manager" ? this.printerManager : this.printerManager.getActivePrinter();
   }
 
   _settingGet(s)      { return s.get(this._settingTarget(s)); }
@@ -2208,7 +2219,7 @@ export class PrinterWindow extends BaseWindow {
     try {
       const raw = localStorage.getItem(this._settingStoreKey(modelId, s.id));
       if (raw === null) return s.default;
-      return s.type === 'toggle' ? raw === 'true' : raw;
+      return s.type === "toggle" ? raw === "true" : raw;
     } catch (e) { return s.default; }
   }
 
@@ -2223,7 +2234,7 @@ export class PrinterWindow extends BaseWindow {
   _applyPersistedSettings(printer) {
     const schema = printer?.constructor?.SETTINGS ?? [];
     for (const s of schema) {
-      if (s.target === 'manager') continue;
+      if (s.target === "manager") continue;
       this._settingApply(s, this._loadSetting(printer.getId(), s));
     }
   }
@@ -2323,13 +2334,13 @@ export class PrinterWindow extends BaseWindow {
       if (!guide) return;
       const candPx = Math.round(cand * PX_PER_INCH);
       const sc = this._rulerScale();
-      guide.style.display = 'block';
+      guide.style.display = "block";
       guide.style.top = sc ? `${Math.round(candPx * sc.sy)}px` : `${candPx}px`;
-      guide.classList.toggle('pr-length-limit', atLimit);
-      if (chip) chip.textContent = `${atLimit ? '⊣ ' : ''}${cand.toFixed(2)}″`;
+      guide.classList.toggle("pr-length-limit", atLimit);
+      if (chip) chip.textContent = `${atLimit ? "⊣ " : ""}${cand.toFixed(2)}″`;
     };
     const hideGuide = () => {
-      if (this.elements?.lengthGuide) this.elements.lengthGuide.style.display = 'none';
+      if (this.elements?.lengthGuide) this.elements.lengthGuide.style.display = "none";
     };
 
     const compute = (clientY) => {
@@ -2344,15 +2355,15 @@ export class PrinterWindow extends BaseWindow {
       if (!dragging) return;
       dragging = false;
       hideGuide();
-      handle.classList.remove('pr-ldrag');
+      handle.classList.remove("pr-ldrag");
       try { handle.releasePointerCapture(captureId); } catch (_) {}
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
       this.setPaperLength(cand);
       this._armTransientHide();
     };
 
-    handle.addEventListener('pointerdown', (e) => {
+    handle.addEventListener("pointerdown", (e) => {
       if (!this._canvasMode) return;
       e.preventDefault();
       e.stopPropagation();
@@ -2365,10 +2376,10 @@ export class PrinterWindow extends BaseWindow {
       startL      = printer.paperGeo.lengthInch;
       cand        = startL;
       range       = printer.paperLengthRange();
-      handle.classList.add('pr-ldrag');
+      handle.classList.add("pr-ldrag");
       handle.setPointerCapture(e.pointerId);
-      window.addEventListener('pointermove', onMove);
-      window.addEventListener('pointerup', onUp);
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", onUp);
       showGuide(false);
     });
   }
@@ -2389,7 +2400,7 @@ export class PrinterWindow extends BaseWindow {
       sel.value = `${match.w}:${match.h}`;
     } else {
       const fmt = (n) => parseFloat(n.toFixed(2)).toString();
-      const opt = document.createElement('option');
+      const opt = document.createElement("option");
       opt.value = `${curW}:${curL}`;
       opt.textContent = `${fmt(curW)}×${fmt(curL)}"`;
       opt.dataset.custom = '1';
@@ -2415,7 +2426,7 @@ export class PrinterWindow extends BaseWindow {
   _settingRowHtml(s) {
     const cur  = this._settingGet(s);
     const hint = this._escAttr(s.hint || "");
-    if (s.type === 'choice') {
+    if (s.type === "choice") {
       const opts = (s.options || []).map((o) =>
         `<option value="${this._escAttr(o.value)}"${o.value === cur ? " selected" : ""}>${o.label}</option>`).join("");
       return `<label class="pr-set-row" title="${hint}"><span class="pr-set-label">${s.label}</span>`
@@ -2428,10 +2439,10 @@ export class PrinterWindow extends BaseWindow {
   }
 
   _onSettingChange(s, node) {
-    const value = s.type === 'toggle' ? node.checked : node.value;
+    const value = s.type === "toggle" ? node.checked : node.value;
     this._settingApply(s, value);
     // Manager-scoped settings persist themselves; model-scoped persist per model.
-    if (s.target !== 'manager') {
+    if (s.target !== "manager") {
       this._persistSetting(this.printerManager.getActivePrinter().getId(), s.id, value);
     }
   }
@@ -2473,6 +2484,24 @@ export class PrinterWindow extends BaseWindow {
     return state;
   }
 
+  // Show/hide the "No card" warning chip and disable the power button when no
+  // Parallel or SSC card is installed in any expansion slot.
+  _updateInterfaceState(_has) {
+    const el = this.elements;
+    if (!el) return;
+    const available = this.printerManager.availableModelIds();
+    const activeId  = this.printerManager.getActivePrinter().getId();
+    const activeOk  = available.has(activeId);
+    if (el.power) el.power.disabled = !activeOk;
+    if (el.model) {
+      el.model.querySelectorAll("option").forEach((o) => { o.disabled = !available.has(o.value); });
+    }
+    [el.ribbon, el.page].forEach((sel) => {
+      if (sel) sel.querySelectorAll("option").forEach((o) => { o.disabled = !activeOk; });
+    });
+    if (el.feedBg) el.feedBg.classList.toggle("pr-no-interface", !activeOk);
+  }
+
   // Switch active printer model by id (e.g. 'imagewriter-ii', 'epson-fx80').
   setModel(id) {
     const def = PRINTER_MODELS.find((m) => m.id === id);
@@ -2495,8 +2524,10 @@ export class PrinterWindow extends BaseWindow {
   // faithful graphics stream through the parser — the same path a real
   // screen-dump utility drives. `fb`/`width`/`height` can be supplied for an
   // arbitrary bitmap; default to the //e screen. Returns a status object.
-  // Dump Screen button: a normal click auto-picks polarity by lit density; a
-  // long hold (>= 500 ms) forces the inverted "white is black" dump.
+  // Dump Screen button: a normal click auto-picks polarity — text mode always
+  // inverts (white text → black ink), graphics mode inverts only when the screen
+  // is mostly dark (< 5% lit pixels). A long hold (>= 500 ms) forces the
+  // opposite: WYSIWYG in text mode, force-invert in graphics mode.
   _initDumpButton(btn) {
     if (!btn) return;
     let timer = null, fired = false;
@@ -2508,7 +2539,10 @@ export class PrinterWindow extends BaseWindow {
       timer = setTimeout(() => {
         fired = true;
         btn.classList.remove("pr-holding");
-        this.dumpScreen(null, SCREEN_W, SCREEN_H, { invert: true });
+        // Long-press overrides the auto default: text mode → WYSIWYG (invert=false),
+        // graphics mode → force invert (invert=true).
+        const isText = (this._cachedSoftState & 0x01) !== 0;
+        this.dumpScreen(null, SCREEN_W, SCREEN_H, { invert: !isText });
       }, LONG_MS);
     };
     const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } btn.classList.remove("pr-holding"); };
@@ -2584,7 +2618,9 @@ export class PrinterWindow extends BaseWindow {
     } else {
       if (monoOpts.invert === undefined) {
         const isGraphics = (this._cachedSoftState & 0x01) === 0; // bit 0 = TEXT mode
-        monoOpts.invert = isGraphics && litDensity(pixels, width, height) < 0.05;
+        // Text: always invert (white text on black screen → black ink on white paper).
+        // Graphics: invert only when the screen is mostly dark (sparse lit pixels).
+        monoOpts.invert = isGraphics ? litDensity(pixels, width, height) < 0.05 : true;
       }
       bytes = buildMono(pixels, width, height, { ...monoOpts, maxCols });
       this.printerManager.feedBytes(bytes);

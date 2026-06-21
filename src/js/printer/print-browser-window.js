@@ -345,7 +345,7 @@ export class PrintBrowserWindow extends BaseWindow {
   }
 
   _pageSizeLabel(rec) {
-    const h = rec.formInches?.toFixed(1) ?? '?';
+    const h = rec.formInches?.toFixed(1) ?? "?";
     const w = rec.paperWidthInch != null ? rec.paperWidthInch.toFixed(1) : null;
     return w ? `${w}×${h}"` : `${h}" form`;
   }

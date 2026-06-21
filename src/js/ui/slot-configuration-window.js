@@ -540,6 +540,8 @@ export class SlotConfigurationWindow extends BaseWindow {
     this.hasChanges = false;
     this.updateUI();
 
+    if (this.onSlotsApplied) this.onSlotsApplied({ ...this.slotAssignments });
+
     if (this.onResetCallback) {
       this.onResetCallback();
     } else if (this.wasmModule && this.wasmModule._reset) {

@@ -639,7 +639,7 @@ export class DocumentationWindow extends BaseWindow {
           <li><strong>Power:</strong> Printer mains power. When off, incoming bytes are ignored and the head parks &mdash; already-printed paper is kept.</li>
           <li><strong>Model:</strong> Switch the emulated printer (clears the current sheet).</li>
           <li><strong>Ribbon:</strong> Choose B/W or Colour. The colour option only appears for the ImageWriter II.</li>
-          <li><strong>Form length:</strong> Page height &mdash; the printable width is a fixed 8&quot;.</li>
+          <li><strong>Paper size:</strong> Choose from standard presets (11&Prime;, 12&Prime;, Legal, A4, and more) or drag the paper edges to set a custom size. The dropdown updates to show the current dimensions when a custom size is in use.</li>
           <li><strong>PNG:</strong> Export the printed output as a PNG image.</li>
           <li><strong>PDF:</strong> Print or save the output as a PDF (one sheet per page).</li>
         </ul>
@@ -668,22 +668,39 @@ export class DocumentationWindow extends BaseWindow {
           <li><strong>Off:</strong> A CR returns the head without feeding, so colour graphics passes overprint in register on the same band &mdash; needed by titles like DazzleDraw and Print Shop colour.</li>
         </ul>
 
-        <h4>Form Lengths</h4>
+        <h4>Paper Size &amp; Visual Resizing</h4>
+        <p>The paper size can be changed at any time without losing printed output. Use the <strong>paper size</strong> dropdown for common presets, or resize the paper visually:</p>
+        <ul>
+          <li><strong>Height (form length):</strong> Drag the <strong>page-break handle</strong> &mdash; the arrow marker on the right edge of the paper at the bottom of each page &mdash; up or down to set a custom form length. A guide line shows the current position as you drag.</li>
+          <li><strong>Width:</strong> Drag the <strong>right edge</strong> of the paper left or right to narrow or widen the sheet within the carriage limits of the selected printer model.</li>
+        </ul>
+        <p>The dropdown shows the active preset name, or displays the exact dimensions (e.g. <em>8.5&Prime;&times;11&Prime;</em>) when a custom size is in use. Programs can also set the form length via printer control codes; the page-break handle tracks those changes automatically.</p>
+
+        <h4>Ruler</h4>
+        <p>A ruler runs along the left edge of the paper showing inch markings. It is always visible when the ruler toggle is on and appears automatically during a resize drag even when hidden, so you can read the exact position while adjusting the paper. The ruler origin (0) is at the top of the printable body; tractor-strip margins are shown outside that range.</p>
+
+        <h4>Standard Paper Sizes</h4>
         <table class="key-table">
           <thead>
-            <tr><th>Setting</th><th>Height</th></tr>
+            <tr><th>Preset</th><th>Width</th><th>Height</th></tr>
           </thead>
           <tbody>
-            <tr><td>11 in (default)</td><td>Standard fanfold</td></tr>
-            <tr><td>12 in</td><td>Tall fanfold</td></tr>
-            <tr><td>14 in (Legal)</td><td>US legal</td></tr>
-            <tr><td>A4 (11.7 in)</td><td>ISO A4</td></tr>
+            <tr><td>11 in (default)</td><td>8&Prime;</td><td>Standard fanfold</td></tr>
+            <tr><td>12 in</td><td>8&Prime;</td><td>Tall fanfold</td></tr>
+            <tr><td>14 in (Legal)</td><td>8.5&Prime;</td><td>US legal</td></tr>
+            <tr><td>A4 (11.69 in)</td><td>8.27&Prime;</td><td>ISO A4</td></tr>
           </tbody>
         </table>
-        <p>Programs can also set the form length themselves via printer control codes; changing it moves the page perforations and resizes the sheet.</p>
 
-        <h4>Saving &amp; Persistence</h4>
-        <p>Printed pages are captured automatically and stored in your browser, so output survives closing the window or reloading the page. The <strong>Print Browser</strong> (<strong>View &gt; Print Browser...</strong>) lists every captured page across sessions for review, re-export, or deletion.</p>
+        <h4>Print History &amp; Print Browser</h4>
+        <p>Every page is captured automatically as it exits the printer and stored in your browser, so output survives closing the window or reloading the page. Open <strong>View &gt; Print Browser...</strong> to review your full print history:</p>
+        <ul>
+          <li>Browse jobs and individual pages as thumbnails.</li>
+          <li>Re-preview any page on the virtual printer paper.</li>
+          <li>Export a single page or an entire job as PNG or PDF.</li>
+          <li>Download a complete job as a ZIP archive of per-page PNGs.</li>
+          <li>Delete individual pages or whole jobs to free storage.</li>
+        </ul>
 
         <div class="info-box info">
           <p><strong>Tip:</strong> Leave the Printer window closed and output is still captured in the background &mdash; reopen it any time to see what your program printed.</p>

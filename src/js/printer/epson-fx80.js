@@ -66,7 +66,7 @@ const CPI = { pica: 10, elite: 12, compressed: 137 / 8 };
 // ESC R n — international charset index → editor locale key (FX Vol 2 App C).
 // Sets the editor has no glyphs for yet (8=Japan, 9=Norway, 10=Denmark II, …)
 // fall through to USA until they are transcribed in rom-editor.html.
-const EPSON_INTL = ['US', 'FR', 'DE', 'UK', 'DK', 'SE', 'IT', 'ES'];
+const EPSON_INTL = ["US", "FR", "DE", "UK", "DK", "SE", "IT", "ES"];
 
 
 export class EpsonFX80 extends PrinterBase {
@@ -118,7 +118,7 @@ export class EpsonFX80 extends PrinterBase {
   }
 
   _resetRenderState() {
-    this._pitch      = this._defaultPitch ?? 'pica';
+    this._pitch      = this._defaultPitch ?? "pica";
     this._expanded   = false;              // ESC W / ESC ! bit5 — continuous enlarged
     this._expandedOneLine = false;         // SO / ESC SO — enlarged for one line only, auto-cancels at the next line break (CR/LF/wrap) or DC4 (Op manual 3-13)
     this._emphasized = false;
@@ -126,7 +126,7 @@ export class EpsonFX80 extends PrinterBase {
     this._underline  = false;
     this._italic     = false;
     this._proportional = false;            // ESC p / Master Select bit 1
-    this._intlSet    = 'US';               // ESC R international charset (editor key)
+    this._intlSet    = "US";               // ESC R international charset (editor key)
     this._script     = 0;      // 0=none, 1=superscript, 2=subscript
     this._lineHeight = this._defaultLineHeight;
     this._autoLF     = true;               // DIP SW2-1 default ON; manager overrides
@@ -184,9 +184,9 @@ export class EpsonFX80 extends PrinterBase {
         // Graphics columns use all 8 bits — feed the RAW byte, never the
         // high-bit-stripped `ch` used for character codes — and reverse Epson's
         // MSB=top wire order into the renderer's bit 0 = top convention.
-        this.emit('printDots', {
+        this.emit("printDots", {
           byte: REV8[byte & 0xFF], xDot: this._xDot, yDot: this._yDot,
-          dotW: this._imgDotW, dotH: this._dotV, color: 'black',
+          dotW: this._imgDotW, dotH: this._dotV, color: "black",
         });
         this._xDot += this._imgDotW;
         if (--this._imgCount <= 0) this._state = S_NORMAL;
@@ -221,9 +221,9 @@ export class EpsonFX80 extends PrinterBase {
         // Reverse byte1 (Epson MSB=top) into the renderer's bit 0 = top order, the
         // same REV8 the 8-bit path uses; pin 9 lands at bit 8 (bottom wire).
         const bits9 = REV8[this._img9Byte1] | (((byte >> 7) & 1) << 8);
-        this.emit('printDots', {
+        this.emit("printDots", {
           byte: bits9, xDot: this._xDot, yDot: this._yDot,
-          dotW: this._img9DotW, dotH: this._dotV, color: 'black',
+          dotW: this._img9DotW, dotH: this._dotV, color: "black",
         });
         this._xDot += this._img9DotW;
         if (--this._imgCount <= 0) this._state = S_NORMAL;
@@ -317,7 +317,7 @@ export class EpsonFX80 extends PrinterBase {
         this._expandedOneLine = false;            // SO enlarged spans one line only
         if (!(this._autoLF && wasCR)) {           // LF paired with an auto-LF CR is swallowed
           this._yDot += this._lineHeight;
-          this.emit('linefeed');
+          this.emit("linefeed");
           this._checkSkipPerf();
         }
         break;
@@ -336,21 +336,21 @@ export class EpsonFX80 extends PrinterBase {
         if (this._autoLF) {
           this._yDot += this._lineHeight;
           this._lastCR = true;                    // arm CR+LF coalescing
-          this.emit('newline');
+          this.emit("newline");
           this._checkSkipPerf();
         } else {
-          this.emit('carriagereturn');            // head home, no paper feed
+          this.emit("carriagereturn");            // head home, no paper feed
         }
         break;
       case 0x0E:                                  // SO — enlarged for one line (auto-cancels at line break)
         this._expandedOneLine = true;
         break;
       case 0x0F:                                  // SI — compressed on (17.16 cpi)
-        this._pitch = 'compressed';
+        this._pitch = "compressed";
         break;
       case 0x11: break;                           // DC1 — printer on (ignore)
       case 0x12:                                  // DC2 — compressed off
-        if (this._pitch === 'compressed') this._pitch = 'pica';
+        if (this._pitch === "compressed") this._pitch = "pica";
         break;
       case 0x13: break;                           // DC3 — printer off (ignore)
       case 0x14:                                  // DC4 — cancel one-line (SO) enlarged
@@ -373,7 +373,7 @@ export class EpsonFX80 extends PrinterBase {
     switch (ch) {
       // ——— No-parameter commands ———
       case 0x0E: this._expandedOneLine = true; break; // ESC SO — same as SO (one-line enlarged), escaped path
-      case 0x0F: this._pitch = 'compressed';   break; // ESC SI — same as SI (condensed), escaped path
+      case 0x0F: this._pitch = "compressed";   break; // ESC SI — same as SI (condensed), escaped path
       case 0x23: break;                           // ESC # — accept 8th bit as-is (ignore)
       case 0x30: this._lineHeight = this.dpi / 8;            break; // ESC 0 — 1/8" (9-dot)
       case 0x31: this._lineHeight = this.dpi * 7 / 72;       break; // ESC 1 — 7/72" (7-dot)
@@ -396,9 +396,9 @@ export class EpsonFX80 extends PrinterBase {
       case 0x46: this._emphasized = false; break; // ESC F — emphasized off
       case 0x47: this._dblStrike  = true;  break; // ESC G — double-strike on
       case 0x48: this._dblStrike  = false; break; // ESC H — double-strike off
-      case 0x4D: this._pitch = 'elite';    break; // ESC M — elite on (12 cpi)
+      case 0x4D: this._pitch = "elite";    break; // ESC M — elite on (12 cpi)
       case 0x4F: this._skipPerf = 0;       break; // ESC O — cancel skip-over-perforation
-      case 0x50: this._pitch = 'pica';     break; // ESC P — elite off → pica
+      case 0x50: this._pitch = "pica";     break; // ESC P — elite off → pica
       case 0x54: this._script = 0;         break; // ESC T — cancel super/subscript
 
       // ——— Tab stop lists ———
@@ -474,7 +474,7 @@ export class EpsonFX80 extends PrinterBase {
         // Bit layout per Vol 1 Ch.5 (p.76 Quick Reference Chart):
         // bit 0=elite, bit 1=proportional, bit 2=condensed, bit 3=bold(emph),
         // bit 4=double-strike, bit 5=expanded, bit 6=italic, bit 7=underline
-        this._pitch       = (ch & 0x04) ? 'compressed' : (ch & 0x01) ? 'elite' : 'pica';
+        this._pitch       = (ch & 0x04) ? "compressed" : (ch & 0x01) ? "elite" : "pica";
         this._proportional = !!(ch & 0x02);
         this._emphasized = !!(ch & 0x08);
         this._dblStrike  = !!(ch & 0x10);
@@ -546,7 +546,7 @@ export class EpsonFX80 extends PrinterBase {
         break;
       }
       case 0x52: // ESC R n — international charset (USA for sets not yet authored)
-        this._intlSet = EPSON_INTL[ch] ?? 'US';
+        this._intlSet = EPSON_INTL[ch] ?? "US";
         this._state = S_NORMAL;
         break;
       case 0x53: // ESC S n
@@ -610,17 +610,17 @@ export class EpsonFX80 extends PrinterBase {
   static get SETTINGS() {
     return [
       ...super.SETTINGS,
-      { id: 'pitch', type: 'choice', default: 'pica', label: 'Default pitch',
-        hint: 'Character pitch the printer powers up in (ESC M elite / ESC P pica / SI compressed still change it at runtime).',
+      { id: "pitch", type: "choice", default: "pica", label: "Default pitch",
+        hint: "Character pitch the printer powers up in (ESC M elite / ESC P pica / SI compressed still change it at runtime).",
         options: [
-          { value: 'pica',       label: 'Pica · 10 cpi' },
-          { value: 'elite',      label: 'Elite · 12 cpi' },
-          { value: 'compressed', label: 'Compressed · 17 cpi' },
+          { value: "pica",       label: "Pica · 10 cpi" },
+          { value: "elite",      label: "Elite · 12 cpi" },
+          { value: "compressed", label: "Compressed · 17 cpi" },
         ],
         get: (p) => p.getDefaultPitch(),
         set: (p, v) => p.setDefaultPitch(v) },
-      { id: 'slashedZero', type: 'toggle', default: false, label: 'Slashed zero',
-        hint: 'Print 0 as Ø to distinguish it from the letter O (DIP SW1-2).',
+      { id: "slashedZero", type: "toggle", default: false, label: "Slashed zero",
+        hint: "Print 0 as Ø to distinguish it from the letter O (DIP SW1-2).",
         get: (p) => p.getSlashedZero(),
         set: (p, v) => p.setSlashedZero(v) },
     ];
@@ -657,11 +657,11 @@ export class EpsonFX80 extends PrinterBase {
       for (const ln of stops) {
         const y = this.paper.topOfForm + Math.round(ln * this._lineHeight);
         if (y > this._yDot + 0.5) {
-          this._yDot = y; this.emit('linefeed'); this._checkSkipPerf(); return;
+          this._yDot = y; this.emit("linefeed"); this._checkSkipPerf(); return;
         }
       }
     }
-    this._yDot += this._lineHeight; this.emit('linefeed'); this._checkSkipPerf();
+    this._yDot += this._lineHeight; this.emit("linefeed"); this._checkSkipPerf();
   }
 
   // Skip-over-perforation (ESC N): once the cursor reaches the last n lines of a
@@ -719,21 +719,21 @@ export class EpsonFX80 extends PrinterBase {
       this._yDot  += this._lineHeight;
       this._lastCR = false;
       this._expandedOneLine = false;              // SO enlarged spans one line only
-      this.emit('newline');
+      this.emit("newline");
       this._checkSkipPerf();
     }
 
-    this.emit('printChar', {
+    this.emit("printChar", {
       cols,
       xDot:      this._xDot,
       yDot:      this._yDot,
       dotW:      this._dotW,
       dotH:      this._dotV,
-      color:     'black',
+      color:     "black",
       bold:      this._emphasized || this._dblStrike,
       underline: this._underline,
     });
-    this.emit('text', String.fromCharCode(code));
+    this.emit("text", String.fromCharCode(code));
     this._xDot += advance;
   }
 
@@ -767,8 +767,8 @@ export class EpsonFX80 extends PrinterBase {
   // The FX-80 is the only modelled printer that is LEFT-referenced: the head
   // homes at the paper's left edge, so widening adds paper to the right only and
   // a single right-hand tractor sets the width.
-  paperAnchor()      { return 'left'; }
-  sprocketSymmetry() { return 'right-fixed-left'; }
+  paperAnchor()      { return "left"; }
+  sprocketSymmetry() { return "right-fixed-left"; }
 
   // Body range (strips off), tractor feed. One range spanning both tractor units
   // the FX-80 accepts: the optional narrow tractor floors at 3.0" body (overall

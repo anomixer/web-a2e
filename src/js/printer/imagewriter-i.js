@@ -40,7 +40,7 @@ export class ImageWriterI extends CItohPrinter {
   // Power-on default pitch is Elite (12 cpi), not Pica — DIP SW1-6 closed,
   // SW1-7 open (manual Ch.4). Everything else matches the II's render reset.
   _resetRenderState() {
-    this._defaultPitch ??= 'elite';
+    this._defaultPitch ??= "elite";
     super._resetRenderState();
   }
 
@@ -55,14 +55,14 @@ export class ImageWriterI extends CItohPrinter {
   // matches the IW-I's documented standard-character matrix (Appendix D: eight
   // columns, rightmost blank) — unlike the II draft ROM's 12 columns. Forcing a
   // single quality also makes the swallowed ESC a/m/M font-select commands inert.
-  _effectiveQuality() { return 'corr'; }
+  _effectiveQuality() { return "corr"; }
 
   // Render from the IW-I's own 7×8 character ROM when a glyph has been authored
   // (rom-editor.html → IW1_STANDARD_FIXED). The model forces 'corr' quality, so getGlyph
   // routes here; any code not yet transcribed falls back to the IW-II
   // correspondence ROM so the printer stays usable while the font is built.
-  getCorrChar(code, locale = 'US') {
-    if (locale !== 'US') {
+  getCorrChar(code, locale = "US") {
+    if (locale !== "US") {
       const override = IW1_STANDARD_FIXED_LOCALES[locale]?.[code];
       if (override) return override;
     }
@@ -75,8 +75,8 @@ export class ImageWriterI extends CItohPrinter {
   // proportional ROM (rom-editor.html → IW1_STANDARD_PROP). Drives both shape and
   // per-glyph advance via the inherited _emitChar proportional path. Codes not
   // yet transcribed fall back to the IW-II correspondence-proportional ROM.
-  getCorrPropChar(code, locale = 'US') {
-    if (locale !== 'US') {
+  getCorrPropChar(code, locale = "US") {
+    if (locale !== "US") {
       const override = IW1_STANDARD_PROP_LOCALES[locale]?.[code];
       if (override) return override;
     }

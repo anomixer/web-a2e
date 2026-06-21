@@ -127,7 +127,7 @@ export function computeLayout(profile, widthInch, lengthInch) {
   // body (symmetric tractors → body centre == sheet centre, so it's the same).
   const sheetL = -T;
   const sheetR = B + T;
-  const zoneL  = (profile?.anchor === 'left') ? 0 : (B / 2 - C / 2);
+  const zoneL  = (profile?.anchor === "left") ? 0 : (B / 2 - C / 2);
   const zoneR  = zoneL + C;
 
   const minIn = Math.min(sheetL, zoneL, 0);
@@ -191,7 +191,7 @@ export class PaperGeometry {
   // fields keep current values. Safe against partial / stale saved state — a
   // legacy `feedMode` key (pre-friction-removal saves) is simply ignored.
   load(obj, range = DEFAULT_PAPER_RANGE, lengthRange = DEFAULT_PAPER_LENGTH_RANGE) {
-    if (obj && typeof obj === 'object') {
+    if (obj && typeof obj === "object") {
       if (obj.widthInch != null)  this.widthInch  = obj.widthInch;
       if (obj.lengthInch != null) this.lengthInch = obj.lengthInch;
     }

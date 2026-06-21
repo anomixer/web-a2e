@@ -402,6 +402,10 @@ class AppleIIeEmulator {
       // even when the Printer window is closed. The worker WASM is already
       // ready here (wasmModule.init() was awaited earlier), so the RPC lands.
       printerManager.init().catch((e) => console.warn("printer init failed:", e));
+      // Sync interface availability from the already-applied slot config, then
+      // keep it live as the user changes cards in Expansion Slots.
+      printerManager.updateSlots(slotConfigWindow.slotAssignments);
+      slotConfigWindow.onSlotsApplied = (assignments) => printerManager.updateSlots(assignments);
 
       // Print Browser — manages the pages auto-captured to IndexedDB by the
       // printer window. Reads the store; can also send a stored job back to the
