@@ -34,6 +34,16 @@ const RULER_LEFT_W = 21;        // left ruler width, px — internal raster == C
 const VSTRETCH   = 120 / 72;     // 5/3
 const DOT_H_PX   = 2;            // painted height of one stretched wire dot
 const PAGE_H_PX  = Math.round(792 * VSTRETCH); // 1320 — 66 lines @ 11", default form
+// Six common continuous-stationery sizes from the Apple II era.
+// w/h are paper BODY inches (tractor strips already removed).
+const PAPER_PRESETS = [
+  { label: 'Standard', w: 8.50, h: 11.00 },
+  { label: 'Legal',    w: 8.50, h: 14.00 },
+  { label: 'Narrow',   w: 4.00, h: 11.00 },
+  { label: 'Half',     w: 5.50, h:  8.50 },
+  { label: 'Index',    w: 3.50, h:  5.00 },
+  { label: 'Card',     w: 3.50, h:  2.00 },
+];
 // The canvas is a fixed 120-dpi-across / 72-dpi-down raster. Internal dots map
 // onto it by dividing by (printer.dpi / 120) across and (printer.dpi / 72) down,
 // so the mapping tracks whatever internal scale the active printer uses (default
@@ -115,6 +125,7 @@ export class PrinterWindow extends BaseWindow {
     this._panelPinned   = this._loadPin();     // operator panel docked in-flow
     this._jobId         = null;                // page-store job id (this sheet run)
     this._persistTimer  = null;                // debounce for auto-capture
+    this._cachedSoftState = 1;                 // bit 0 = TEXT mode; default = text (safe: no auto-invert)
 
     // Last sheet before the tab unloads is best-effort flushed; the debounced
     // capture has usually already written it ~1.2s after the final byte.
@@ -182,7 +193,7 @@ export class PrinterWindow extends BaseWindow {
           <select id="pr-ribbon" class="pr-select" title="Ribbon cartridge">
             ${ribbonOptions}
           </select>
-          <select id="pr-page" class="pr-select" title="Form length (8&quot; printable width is fixed)"></select>
+          <select id="pr-page" class="pr-select" title="Paper size — sets paper body width and form length"></select>
           <div class="pr-spacer"></div>
           <button id="pr-download-png" class="pr-btn" title="Export as PNG image">PNG</button>
           <button id="pr-download-pdf" class="pr-btn" title="Print / save as PDF">PDF</button>
@@ -221,6 +232,9 @@ export class PrinterWindow extends BaseWindow {
                          sheet, in line with the ruler's green accents. -->
                     <div class="pr-paper-edge pr-paper-edge-left"  id="pr-paper-edge-left"></div>
                     <div class="pr-paper-edge pr-paper-edge-right" id="pr-paper-edge-right"></div>
+                    <!-- Form-bottom drag handle: sits at y=pageHeightPx, ns-resize. -->
+                    <div class="pr-length-handle" id="pr-length-handle" title="Form bottom — drag up/down to set page length"></div>
+                    <div class="pr-length-guide" id="pr-length-guide"><span class="pr-length-chip" id="pr-length-chip"></span></div>
                   </div>
                 </div>
               </div>
@@ -415,6 +429,53 @@ export class PrinterWindow extends BaseWindow {
         color: var(--accent-orange, #f5821f); border-color: var(--accent-orange, #f5821f);
       }
 
+      /* Length-drag preview: a horizontal line at candidate form bottom + readout. */
+      .pr-length-guide {
+        position: absolute; left: 0; right: 0; height: 0;
+        border-top: 2px dashed var(--accent-green, #61bb46);
+        pointer-events: none; z-index: 4; display: none;
+      }
+      .pr-length-chip {
+        position: absolute; left: 4px; top: 4px;
+        font: 10px 'Monaco', 'Menlo', monospace;
+        background: var(--bg-panel, #1c2128); color: var(--text-secondary, #bbb);
+        border: 1px solid var(--accent-green, #61bb46); border-radius: 3px;
+        padding: 1px 4px; white-space: nowrap;
+      }
+      .pr-length-guide.pr-length-limit { border-top-color: var(--accent-orange, #f5821f); }
+      .pr-length-guide.pr-length-limit .pr-length-chip {
+        color: var(--accent-orange, #f5821f); border-color: var(--accent-orange, #f5821f);
+      }
+      /* Form-bottom drag handle: horizontal bar, ns-resize. Positioned by _sizeLengthHandle. */
+      .pr-length-handle {
+        position: absolute; left: 0; right: 0; height: 10px;
+        cursor: ns-resize; pointer-events: auto; z-index: 4;
+        transform: translateY(-5px);
+      }
+      .pr-length-handle::after {
+        content: ''; display: block; height: 2px; margin: 4px 0;
+        background: var(--accent-green, #61bb46); opacity: 0; transition: opacity 0.12s;
+      }
+      .pr-length-handle:hover::after,
+      .pr-length-handle.pr-ldrag::after { opacity: 1; }
+      /* Paper size preset buttons in the operator panel. */
+      .pr-paper-presets { display: flex; flex-direction: column; gap: 3px; }
+      .pr-preset-btn {
+        padding: 3px 4px; font-size: 10px; border: 1px solid var(--border-default);
+        border-radius: 3px; background: var(--badge-dim-bg); color: var(--text-secondary);
+        cursor: pointer; font-family: 'Monaco', 'Menlo', monospace; text-align: left;
+        white-space: nowrap; overflow: hidden;
+      }
+      .pr-preset-btn:hover { background: var(--input-bg-hover); color: var(--text-primary); }
+      .pr-preset-btn.pr-preset-active {
+        background: var(--accent-green-bg-stronger); color: var(--accent-green);
+        border-color: var(--accent-green);
+      }
+      .pr-preset-dims {
+        font-size: 10px; color: var(--text-muted);
+        font-family: 'Monaco','Menlo',monospace; text-align: center; margin-top: 2px;
+      }
+
       /* Paper (body) edges — green hairlines down the sheet at paper-left (= ruler
          0, inner edge of the left tractor strip) and paper-right (= ruler max). The
          right line is the paper-sizer handle the operator drags. They line up with the
@@ -593,6 +654,9 @@ export class PrinterWindow extends BaseWindow {
       widthChip:   el.querySelector("#pr-width-chip"),
       paperEdgeLeft:  el.querySelector("#pr-paper-edge-left"),
       paperEdgeRight: el.querySelector("#pr-paper-edge-right"),
+      lengthHandle:   el.querySelector("#pr-length-handle"),
+      lengthGuide:    el.querySelector("#pr-length-guide"),
+      lengthChip:     el.querySelector("#pr-length-chip"),
       rulers:      el.querySelector("#pr-rulers"),
     };
     this._initCanvas();
@@ -635,6 +699,7 @@ export class PrinterWindow extends BaseWindow {
     this._sizeLeftRuler();
     this._sizeStrips();
     this._sizePaperEdges();
+    this._sizeLengthHandle();
   }
 
   // Park the green paper-edge hairlines down the sheet: left = paper-left (inner
@@ -1056,11 +1121,12 @@ export class PrinterWindow extends BaseWindow {
     });
 
     el.page.addEventListener("change", () => {
-      this._flushAndEndJob();   // save current sheet before the size change wipes it
-      this.printerManager.getActivePrinter().setPageSize?.(el.page.value);
-      // Form length changed → re-lay the sheet (clears paper, like reloading
-      // stock of a different size).
-      if (this._canvasMode) { this._initCanvas(); this._applyFit(); }
+      const [w, h] = el.page.value.split(':').map(Number);
+      if (!isNaN(w) && !isNaN(h)) {
+        this._flushAndEndJob();
+        this.setPaperWidth(w);
+        this.setPaperLength(h);
+      }
     });
 
     el.downloadPng.addEventListener("click", () => this._downloadPng());
@@ -1078,6 +1144,7 @@ export class PrinterWindow extends BaseWindow {
     el.panelTab.addEventListener("click",    () => this._togglePin());
     this._initHeadDrag();
     this._initWidthDrag();
+    this._initLengthDrag();
     this._refreshRulersBtn();
 
     // Rulers are scroll-locked chrome: every scroll re-pins them to the paper's
@@ -1163,19 +1230,22 @@ export class PrinterWindow extends BaseWindow {
     }
   }
 
-  // Populate the page-size select from the active model (models without
-  // selectable forms, e.g. the Epson, hide the control).
+  // Populate the page-size select with universal PAPER_PRESETS (all models,
+  // always visible in canvas mode). Replaces the old model-specific form-length list.
   _refreshPageSizes() {
     const el = this.elements?.page;
     if (!el) return;
     const printer = this.printerManager.getActivePrinter();
-    const sizes   = printer.constructor?.PAGE_SIZES ?? [];
-    this._pageAvailable = sizes.length > 0;
-    if (!sizes.length) { el.style.display = "none"; return; }
-    el.style.display = "";
-    el.innerHTML = sizes.map((s) => `<option value="${s.id}">${s.name}</option>`).join("");
-    el.value = printer.getPageSize?.() ?? sizes[0].id;
+    const canvasMode = printer?.usesPaperCanvas?.() ?? true;
+    this._pageAvailable = canvasMode;
+    const fmt = (n) => parseFloat(n.toFixed(2)).toString();
+    el.style.display = canvasMode ? "" : "none";
+    el.innerHTML = PAPER_PRESETS.map(
+      (p) => `<option value="${p.w}:${p.h}">${fmt(p.w)}×${fmt(p.h)} ${p.label}</option>`
+    ).join('');
+    el.value = `${PAPER_PRESETS[0].w}:${PAPER_PRESETS[0].h}`; // Standard default
     this._fitToolbar();
+    this._renderPaperPresets();
   }
 
   _updateViewMode(printer) {
@@ -1186,7 +1256,7 @@ export class PrinterWindow extends BaseWindow {
       // Rulers are frame chrome now — show the L-frame tracks only in canvas mode
       // AND when the user hasn't hidden the rulers. Collapsing the grid tracks (vs
       // hiding each canvas) reclaims the corner+gutter space for the paper.
-      this.elements.frame?.classList.toggle("pr-frame--rulers", this._canvasMode && this._rulersOn());
+      this.elements.frame?.classList.toggle("pr-frame--rulers", this._canvasMode && (this._rulersOn() || !!this._rulerTransient));
       if (!this._canvasMode && this.elements.headMark) this.elements.headMark.style.display = "none";
       this._refreshRibbonOptions(printer);
       this._applyFit();
@@ -1237,9 +1307,35 @@ export class PrinterWindow extends BaseWindow {
     return this._rulersVisible;
   }
   _toggleRulers() {
+    this._clearTransientRuler();
     this._rulersVisible = !this._rulersOn();
     try { localStorage.setItem("a2e-printer-rulers", String(this._rulersVisible)); } catch (e) {}
     this._refreshRulersBtn();
+    this._updateViewMode(this.printerManager.getActivePrinter());
+  }
+
+  // Show rulers transiently during a width-drag even when the user has hidden them.
+  // Caller: pointerdown on the right strip. Clears any pending hide timer.
+  _showTransientRulers() {
+    if (this._rulersOn()) return;   // already on — nothing to do
+    if (this._rulerTransientTimer) { clearTimeout(this._rulerTransientTimer); this._rulerTransientTimer = null; }
+    this._rulerTransient = true;
+    this._updateViewMode(this.printerManager.getActivePrinter());
+    this._sizeTopRuler();
+  }
+
+  // Arm a 5-second countdown to hide the transient ruler. Called on drag end and on
+  // each move tick so the clock resets while the pointer is still travelling.
+  _armTransientHide() {
+    if (!this._rulerTransient) return;
+    if (this._rulerTransientTimer) clearTimeout(this._rulerTransientTimer);
+    this._rulerTransientTimer = setTimeout(() => this._clearTransientRuler(), 5000);
+  }
+
+  _clearTransientRuler() {
+    if (this._rulerTransientTimer) { clearTimeout(this._rulerTransientTimer); this._rulerTransientTimer = null; }
+    if (!this._rulerTransient) return;
+    this._rulerTransient = false;
     this._updateViewMode(this.printerManager.getActivePrinter());
   }
   _refreshRulersBtn() {
@@ -1921,12 +2017,14 @@ export class PrinterWindow extends BaseWindow {
         }
       }
       this.setPaperWidth(cand);   // commit: clamp + persist + re-lay the sheet
+      this._armTransientHide();
     };
 
     strip.addEventListener("pointerdown", (e) => {
       if (!this._canvasMode) return;
       e.preventDefault();
       e.stopPropagation();                 // don't start a window-drag
+      this._showTransientRulers();
       const printer = this.printerManager.getActivePrinter();
       const geo = printer.paperGeo;
       dragging = true;
@@ -2141,7 +2239,112 @@ export class PrinterWindow extends BaseWindow {
     const value = geo.setWidthInch(widthInch, printer.paperWidthRange());
     this._persistPaper(printer);
     if (this._canvasMode) { this._initCanvas(); this._applyFit(); }
+    this._renderPaperPresets();
     return value;
+  }
+
+  // Public: set form length in inches, clamped to the active model's range,
+  // persisted, and re-laid on the canvas. Entry point for the length drag and presets.
+  setPaperLength(lengthInch) {
+    const printer = this.printerManager.getActivePrinter();
+    if (!printer) return;
+    const geo   = printer.paperGeo;
+    const value = geo.setLengthInch(lengthInch, printer.paperLengthRange());
+    // Clear model-internal formDots (set by ESC H) so _pageHeightPx uses lengthInch.
+    if (printer.paper) printer.paper.formDots = 0;
+    this._persistPaper(printer);
+    if (this._canvasMode) { this._initCanvas(); this._applyFit(); }
+    this._renderPaperPresets();
+    return value;
+  }
+
+  // Position the length drag handle at the current form bottom (y = pageHeightPx).
+  _sizeLengthHandle() {
+    const h = this.elements?.lengthHandle;
+    if (!h) return;
+    h.style.top = `${this._pageHeightPx()}px`;
+  }
+
+  // Vertical mirror of _initWidthDrag: drag the form-bottom handle up/down to
+  // set the page length. Shows a horizontal guide + inch readout during the gesture.
+  _initLengthDrag() {
+    const handle = this.elements?.lengthHandle;
+    if (!handle) return;
+    let dragging = false, startY = 0, startL = 0, cand = 0, range = null, captureId = null;
+    // 1 canvas px = 1/PX_PER_INCH inches (vertical: 72 dots × VSTRETCH px/dot = 120 px/in).
+    const PX_PER_INCH = 72 * VSTRETCH;
+
+    const syNow = () => {
+      const cv = this.elements?.canvas;
+      if (!cv || !cv.height) return 1;
+      return cv.getBoundingClientRect().height / cv.height;
+    };
+
+    const showGuide = (atLimit) => {
+      const guide = this.elements?.lengthGuide, chip = this.elements?.lengthChip;
+      if (!guide) return;
+      const candPx = Math.round(cand * PX_PER_INCH);
+      guide.style.display = 'block';
+      guide.style.top = `${candPx}px`;
+      guide.classList.toggle('pr-length-limit', atLimit);
+      if (chip) chip.textContent = `${atLimit ? '⊣ ' : ''}${cand.toFixed(2)}″`;
+    };
+    const hideGuide = () => {
+      if (this.elements?.lengthGuide) this.elements.lengthGuide.style.display = 'none';
+    };
+
+    const compute = (clientY) => {
+      const dIn = (clientY - startY) / (PX_PER_INCH * syNow());
+      const snapped = Math.round((startL + dIn) / GRID_INCH) * GRID_INCH;
+      cand = Math.round(Math.min(Math.max(snapped, range.min), range.max) * 100) / 100;
+      showGuide(cand <= range.min + 1e-6 || cand >= range.max - 1e-6);
+    };
+
+    const onMove = (e) => { if (dragging) compute(e.clientY); };
+    const onUp   = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      hideGuide();
+      handle.classList.remove('pr-ldrag');
+      try { handle.releasePointerCapture(captureId); } catch (_) {}
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      this.setPaperLength(cand);
+      this._armTransientHide();
+    };
+
+    handle.addEventListener('pointerdown', (e) => {
+      if (!this._canvasMode) return;
+      e.preventDefault();
+      e.stopPropagation();
+      this._showTransientRulers();
+      const printer = this.printerManager.getActivePrinter();
+      if (!printer) return;
+      dragging    = true;
+      captureId   = e.pointerId;
+      startY      = e.clientY;
+      startL      = printer.paperGeo.lengthInch;
+      cand        = startL;
+      range       = printer.paperLengthRange();
+      handle.classList.add('pr-ldrag');
+      handle.setPointerCapture(e.pointerId);
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      showGuide(false);
+    });
+  }
+
+  // Sync the toolbar preset select to the current paper dims (exact match within 0.01").
+  _renderPaperPresets() {
+    const printer = this.printerManager.getActivePrinter();
+    if (!printer) return;
+    const curW  = printer.paperGeo?.widthInch  ?? 8.5;
+    const curL  = printer.paperGeo?.lengthInch ?? 11;
+    const match = PAPER_PRESETS.find(
+      (p) => Math.abs(curW - p.w) < 0.01 && Math.abs(curL - p.h) < 0.01
+    );
+    const sel = this.elements?.page;
+    if (sel) sel.value = match ? `${match.w}:${match.h}` : '';
   }
 
   // Rebuild the settings rows for the active model using the app's standard
@@ -2269,8 +2472,20 @@ export class PrinterWindow extends BaseWindow {
   }
 
   dumpScreen(fb = null, width = SCREEN_W, height = SCREEN_H, opts = {}) {
-    const printer = this.printerManager.getActivePrinter();
-    const id = printer.getId();
+    const pixels = fb || window.emulator?._lastFramebuffer;
+    if (!pixels) return { success: false, message: "No framebuffer available — is the emulator running?" };
+
+    // Kick a fire-and-forget refresh of the cached soft-switch state so the NEXT
+    // dump has an up-to-date video mode. The cache starts as 1 (TEXT = safe, no
+    // auto-invert) and is updated after each dump without making this fn async
+    // (async dumpScreen caused silent failures when the WasmProxy rejected mid-cycle).
+    window.emulator?.wasmModule?._getSoftSwitchState?.()
+      ?.then?.((s) => { this._cachedSoftState = s; })
+      ?.catch?.(() => {});
+
+    const printer   = this.printerManager.getActivePrinter();
+    const id        = printer.getId();
+    const monoOpts  = { ...opts };
 
     // Each printer head speaks a different bit-image protocol; pick the matching
     // mono builder by model id. The ImageWriter II additionally has a colour
@@ -2285,8 +2500,6 @@ export class PrinterWindow extends BaseWindow {
     if (!buildMono) {
       return { success: false, message: `Screen dump not supported on this printer (active: ${id})` };
     }
-    const pixels = fb || window.emulator?._lastFramebuffer;
-    if (!pixels) return { success: false, message: "No framebuffer available — is the emulator running?" };
 
     // Colour ribbon → a dithered colour dump (one overprint pass per ribbon
     // band); B/W ribbon → the 1-bit threshold dump. Colour is an ImageWriter II
@@ -2294,21 +2507,40 @@ export class PrinterWindow extends BaseWindow {
     // always take the mono path. The colour dump returns the head between passes
     // with bare CRs, so Auto-LF must be off while it feeds (otherwise each CR
     // would also advance the paper and the bands would smear).
+    //
+    // Dump always starts at carriage home (xDot=0). For centered models (C.Itoh)
+    // this may be left of the paper body on narrow paper — tracers reflect the
+    // actual head position. Ink is clipped to paper body by _clipToPaper.
+    const savedLeftMargin  = printer._leftMargin;
+    const savedHeadMargin  = printer.head.leftMargin;
+    printer._leftMargin     = 0;
+    printer.head.leftMargin = 0;
+    printer._xDot           = 0;
+    printer.head.x          = 0;
+    const maxCols           = width;
+
     const colourCapable = id === "imagewriter-ii";
     const colour = colourCapable && this.printerManager.getRibbon() === "color";
     let bytes;
     if (colour) {
       // opts.invert (set by a long-hold on Dump Screen) forces the greyscale
       // polarity; omitted, the dump auto-picks by lit density.
-      bytes = buildScreenDumpColor(pixels, width, height, { invert: opts.invert });
+      bytes = buildScreenDumpColor(pixels, width, height, { invert: opts.invert, maxCols });
       const prevAutoLF = printer._autoLF;
       printer._autoLF = false;
       this.printerManager.feedBytes(bytes);   // parsed synchronously
       printer._autoLF = prevAutoLF;           // restore the DIP
     } else {
-      bytes = buildMono(pixels, width, height, opts);
+      if (monoOpts.invert === undefined) {
+        const isGraphics = (this._cachedSoftState & 0x01) === 0; // bit 0 = TEXT mode
+        monoOpts.invert = isGraphics && litDensity(pixels, width, height) < 0.05;
+      }
+      bytes = buildMono(pixels, width, height, { ...monoOpts, maxCols });
       this.printerManager.feedBytes(bytes);
     }
+
+    printer._leftMargin     = savedLeftMargin;
+    printer.head.leftMargin = savedHeadMargin;
     return { success: true, colour, width, height, bytes: bytes.length, message: `Dumped ${width}×${height} screen to printer${colour ? " (colour)" : ""}` };
   }
 

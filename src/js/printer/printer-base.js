@@ -151,7 +151,7 @@ export class PrinterBase {
     this.dpi = dpi;
     this._recomputeUnits();
     this.head?.setPitchDots(this._carriagePicaDots());
-    this.paper?.setFormDots(this.dpi * 11);
+    this.paper?.setFormDots(Math.round(this.defaultPaperLengthInch() * this.dpi));
     if (typeof this._resetRenderState === 'function') this._resetRenderState();
     // Carriage cps needs no re-arm: the head pulls it fresh on the next motion.
   }

@@ -131,6 +131,7 @@ export class EpsonFX80 extends PrinterBase {
     this._lineHeight = this._defaultLineHeight;
     this._autoLF     = true;               // DIP SW2-1 default ON; manager overrides
     this._leftMargin = 0;                  // ESC l — internal dots
+    this.head.leftMargin = 0;
     this._rightMargin = this._printWidthDots(); // ESC Q — defaults to full 8" carriage
     this._htabCols   = [];                 // ESC D stops (columns); empty = every 8
     this._vfu        = Array.from({ length: 8 }, () => []); // ESC B/b — 8 VFU channels of vertical-tab stops; an empty channel makes VT a single LF
@@ -141,7 +142,7 @@ export class EpsonFX80 extends PrinterBase {
     this._gfxMode    = { 0x4B: 0, 0x4C: 1, 0x59: 2, 0x5A: 3 }; // ESC K/L/Y/Z → ESC * density mode (ESC ? remaps)
     this._xDot       = 0;
     this._yDot       = this._homeYDot();   // power-on head rest, a hair below sheet top
-    if (this.paper) this.paper.setFormDots(this.dpi * 11); // ESC C resets to 11" default
+    if (this.paper) this.paper.setFormDots(Math.round(this.defaultPaperLengthInch() * this.dpi));
   }
 
   reset() {
@@ -568,6 +569,7 @@ export class EpsonFX80 extends PrinterBase {
         break;
       case 0x6C: // ESC l n — left margin at column n (current pitch)
         this._leftMargin = Math.round(ch * this._colDots());
+        this.head.leftMargin = this._leftMargin;
         if (this._xDot < this._leftMargin) this._xDot = this._leftMargin;
         this._state = S_NORMAL;
         break;

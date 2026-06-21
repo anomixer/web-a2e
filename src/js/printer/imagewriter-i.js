@@ -44,11 +44,6 @@ export class ImageWriterI extends CItohPrinter {
     super._resetRenderState();
   }
 
-  // Same operator settings as the II, but the IW-I powers up in Elite (DIP SW1-6/7).
-  static get SETTINGS() {
-    return super.SETTINGS.map((s) => (s.id === 'pitch' ? { ...s, default: 'elite' } : s));
-  }
-
   // Drop the IW-II-only style/font ESC codes; defer everything else to the II.
   _handleEsc(ch) {
     if (IW1_IGNORED_ESC.has(ch)) return;

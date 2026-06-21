@@ -146,13 +146,17 @@ const EPSON_FX = {
 // ---- Generic mono builder: shared scanner + a printer's protocol --------------
 function buildMono(fb, width, height, proto, opts = {}) {
   const threshold = opts.threshold ?? 0x40;
+  const invert    = opts.invert    ?? false;
+  const nCols     = Math.min(width, Math.max(1, (opts.maxCols ?? width) | 0));
   const out = [];
   proto.enterGraphics(out);
   for (let y = 0; y < height; y += proto.bandHeight) {
     const cols = scanBandColumns(fb, width, height, y, proto.bandHeight, threshold);
-    proto.beginRow(out, width);
-    for (let x = 0; x < width; x++) {
-      out.push(proto.msbTop ? REVERSE8[cols[x] & 0xFF] : (cols[x] & 0xFF));
+    proto.beginRow(out, nCols);
+    for (let x = 0; x < nCols; x++) {
+      let col = cols[x] & 0xFF;
+      if (invert) col = (~col) & 0xFF;
+      out.push(proto.msbTop ? REVERSE8[col] : col);
     }
     proto.endRow(out);
   }
@@ -336,6 +340,7 @@ function ditherToBands(fb, width, height, gam) {
  */
 export function buildScreenDumpColor(fb, width = SCREEN_W, height = SCREEN_H, opts = {}) {
   const invert = opts.invert ?? (litDensity(fb, width, height) < 0.05);
+  const nCols  = Math.min(width, Math.max(1, (opts.maxCols ?? width) | 0));
   const map = ditherToBands(fb, width, height, gamut(invert));
   const out = [];
 
@@ -346,7 +351,7 @@ export function buildScreenDumpColor(fb, width = SCREEN_W, height = SCREEN_H, op
     for (const pass of BAND_PASSES) {
       // Only emit this band's pass if some dot in the band uses it.
       let used = false;
-      for (let x = 0; x < width && !used; x++) {
+      for (let x = 0; x < nCols && !used; x++) {
         for (let r = 0; r < 8; r++) {
           const yy = y + r; if (yy >= height) break;
           if (map[yy * width + x] & pass.bit) { used = true; break; }
@@ -356,8 +361,8 @@ export function buildScreenDumpColor(fb, width = SCREEN_W, height = SCREEN_H, op
 
       out.push(ESC, 0x4B, 0x30 + pass.esc); // ESC K — select this band's colour
       out.push(ESC, 0x47);                  // ESC G
-      pushCount4(out, width);
-      for (let x = 0; x < width; x++) {
+      pushCount4(out, nCols);
+      for (let x = 0; x < nCols; x++) {
         let col = 0;
         for (let r = 0; r < 8; r++) {
           const yy = y + r; if (yy >= height) break;

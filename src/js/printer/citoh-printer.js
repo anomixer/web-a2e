@@ -112,21 +112,7 @@ export class CItohPrinter extends PrinterBase {
   // Operator panel: Auto-LF (inherited) + power-on character pitch. The ESC
   // pitch codes (N/E/e/q/Q/n/p/P) still override this live while printing.
   static get SETTINGS() {
-    return [
-      ...super.SETTINGS,
-      { id: 'pitch', type: 'choice', default: 'pica', label: 'Default pitch',
-        hint: 'Character pitch the printer powers up in (ESC N/E/e/q/Q/n still change it at runtime).',
-        options: [
-          { value: 'pica',      label: 'Pica · 10 cpi' },
-          { value: 'elite',     label: 'Elite · 12 cpi' },
-          { value: 'semicond',  label: 'Semicondensed · 13.4 cpi' },
-          { value: 'condensed', label: 'Condensed · 15 cpi' },
-          { value: 'ultra',     label: 'Ultracondensed · 17 cpi' },
-          { value: 'extended',  label: 'Extended · 9 cpi' },
-        ],
-        get: (p) => p.getDefaultPitch(),
-        set: (p, v) => p.setDefaultPitch(v) },
-    ];
+    return [...super.SETTINGS];
   }
 
   _resetParserState() {
@@ -167,6 +153,7 @@ export class CItohPrinter extends PrinterBase {
     this._color          = 'black';
     this._customFont     = 'none';    // ESC '/* — render downloaded glyphs: 'none' | 'low' | 'high'
     this._leftMargin     = 0;         // ESC L — left margin, internal dots
+    this.head.leftMargin = 0;
     this._lineHeight     = this.dpi / 6;   // 6 lpi default
     this._quality        = 'draft';   // power-on font (Table 4-1): draft | corr | nlq
     this._xDot           = 0;
@@ -623,6 +610,7 @@ export class CItohPrinter extends PrinterBase {
       case 0x48: this.paper.setFormDots(Math.round((n / 144) * this.dpi)); this._state = S_NORMAL; break;  // ESC H — page length n/144"
       case 0x4C: // ESC L — left margin at column n (current pitch)
         this._leftMargin = Math.round(n * (this.dpi / CPI[this._pitch]));
+        this.head.leftMargin = this._leftMargin;
         if (this._xDot < this._leftMargin) this._xDot = this._leftMargin;
         this._state = S_NORMAL;
         break;

@@ -24,7 +24,8 @@ export class VirtualHead {
   // read. velocity = pitchDots * cps dots/sec (constant; pitch changes spacing,
   // not carriage speed).
   constructor(pitchDots = 48, cps = 120) {
-    this.x   = 0; // current column, internal dots
+    this.x          = 0; // current column, internal dots
+    this.leftMargin = 0; // carriage return target, internal dots (mirrors printer _leftMargin)
     this.dir = 1; // +1 = travelling left->right, -1 = right->left
     this._pitchDots = pitchDots;
     // Stored as a provider so a quality / bold / colour / half-speed change is
@@ -61,10 +62,10 @@ export class VirtualHead {
   }
 
   // Time (ms) to slew back to the left margin from the current column.
-  returnMs() { return this.x / this.velocity * 1000; }
+  returnMs() { return Math.abs(this.x - this.leftMargin) / this.velocity * 1000; }
 
   flip() { this.dir = -this.dir; }            // bidirectional: face the other way
-  home() { this.x = 0; this.dir = 1; }        // unidirectional: parked at margin
+  home() { this.x = this.leftMargin; this.dir = 1; }  // park at left margin
 
-  reset() { this.x = 0; this.dir = 1; }
+  reset() { this.x = 0; this.leftMargin = 0; this.dir = 1; }
 }
