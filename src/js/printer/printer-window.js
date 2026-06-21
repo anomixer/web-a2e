@@ -842,22 +842,22 @@ export class PrinterWindow extends BaseWindow {
     ctx.font        = "10px 'Monaco','Menlo',monospace";
     ctx.textBaseline = "top";
 
-    // Walk 1/8" steps from paper-left (k=0) across to paper-right.
-    const step = this._ppi / 8;
+    // Walk 1/4" steps from paper-left (k=0) across to paper-right.
+    // 1/8" sub-ticks omitted — drag grid snaps at 1/4" so finer marks mislead.
+    const step = this._ppi / 4;
     const kMin = 0;
     const kMax = Math.round((bodyR - zeroPx) / step);
     for (let k = kMin; k <= kMax; k++) {
-      const isMajor = ((k % 8) + 8) % 8 === 0;   // +8 %8 so negative k still detects
-      const isQtr   = ((k % 2) + 2) % 2 === 0;
-      const h = isMajor ? majorH : (isQtr ? medH : minH);
+      const isMajor = ((k % 4) + 4) % 4 === 0;   // every 4 quarters = 1 inch
+      const isHalf  = ((k % 2) + 2) % 2 === 0;   // every 2 quarters = 1/2 inch
+      const h = isMajor ? majorH : isHalf ? medH : minH;
       const xx = Math.floor(X(zeroPx + k * step)) + 0.5;   // crisp 1px line
       ctx.beginPath();
       ctx.moveTo(xx, H - h);
       ctx.lineTo(xx, H);
       ctx.stroke();
       if (isMajor) {
-        // Inch number measured from the ruler zero (page-left or print origin).
-        ctx.fillText(String(k / 8), xx + 2, 1);
+        ctx.fillText(String(k / 4), xx + 2, 1);
       }
     }
 
@@ -959,14 +959,13 @@ export class PrinterWindow extends BaseWindow {
     const panelBg  = this._themeColor("--bg-panel", "#1e1e1e");
 
     const majorLen = W;
-    const minorLen = Math.round(W * 0.5);
+    const halfLen  = Math.round(W * 0.65);
+    const qtrLen   = Math.round(W * 0.45);
 
-    // Draw one row tick (+ optional major label, masked so the notch can't strike
-    // through the digit).
-    const drawTick = (yy, inch, isMajor, labelIt) => {
-      const len = isMajor ? majorLen : minorLen;
+    // Draw one row tick (+ optional inch label, masked so the chip doesn't bleed).
+    const drawTick = (yy, inch, len, labelIt) => {
       ctx.beginPath(); ctx.moveTo(W - len, yy); ctx.lineTo(W, yy); ctx.stroke();
-      if (isMajor && labelIt) {
+      if (labelIt) {
         const s = String(inch);
         ctx.fillStyle = panelBg;
         ctx.fillRect(0, yy - 6, ctx.measureText(s).width + 4, 12);
@@ -997,22 +996,22 @@ export class PrinterWindow extends BaseWindow {
     ctx.font        = "10px 'Monaco','Menlo',monospace";
     ctx.textBaseline = "middle";
 
-    // Per-page numbering: every form/page restarts at 0 and counts up to
-    // formInches, so each sheet reads 0..N like a fresh page (the shared perforation
-    // is page k's bottom == page k+1's 0). Positions are computed in canvas-internal
-    // px then scaled to display px by Y(). Half-inch minor ticks.
+    // Per-page numbering: restarts at 0 each page. Walk 1/4" steps; 3 tick levels:
+    // inch (full, labelled) → half (65%) → quarter (45%).
     const pages = Math.ceil(this.elements.canvas.height / pageH);
     for (let pg = 0; pg < pages; pg++) {
       const y0 = pg * pageH;
       for (let i = 0; ; i++) {
-        const yc = y0 + i * pxPerInch / 2;      // canvas-internal y
-        const inch = i / 2;
+        const yc   = y0 + i * pxPerInch / 4;    // canvas-internal y, 1/4" steps
+        const inch = i / 4;
         if (inch > formInches + 1e-6) break;
         const yy = Math.floor(Y(yc)) + 0.5;     // display y, crisp 1px line
         if (yy > H) break;
-        // Label majors, but suppress the page's bottom inch (== next page's 0) so
-        // the two don't print on top of each other at the perforation.
-        drawTick(yy, inch, i % 2 === 0, inch < formInches - 1e-6);
+        const isInch = i % 4 === 0;
+        const isHalf = i % 2 === 0;
+        const len = isInch ? majorLen : isHalf ? halfLen : qtrLen;
+        // Label inch majors, suppress the page's bottom (== next page's 0).
+        drawTick(yy, isInch ? inch : 0, len, isInch && inch < formInches - 1e-6);
       }
     }
   }
