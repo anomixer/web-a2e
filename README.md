@@ -11,7 +11,8 @@ A cycle-accurate Apple //e Enhanced emulator running in the browser using WebAss
 - **Web Worker architecture** — WASM emulation runs in a dedicated Worker thread, eliminating main-thread blocking
 - **Audio-driven timing** — Web Audio API AudioWorklet drives frame timing at 48kHz via Worker RPC
 - **Disk II controller** — DSK, DO, PO, and WOZ format support with write capability
-- **Expansion cards** — Mockingboard sound card, Thunderclock Plus, Apple Mouse Interface Card, SmartPort hard drive, Super Serial Card, Microsoft Z-80 SoftCard, No-Slot Clock (DS1215)
+- **Expansion cards** — Mockingboard sound card, Thunderclock Plus, Apple Mouse Interface Card, SmartPort hard drive, Super Serial Card, Parallel Card (Centronics), Microsoft Z-80 SoftCard, No-Slot Clock (DS1215)
+- **Virtual dot-matrix printer** — ImageWriter II (colour), ImageWriter I, Epson FX-80, and Apple DMP with period-correct fonts, sounds, and PNG/PDF export
 - **File explorer** — Browse DOS 3.3 and ProDOS disk contents with BASIC detokenizer and disassembler
 - **Save states** — Autosave slot plus 5 manual save slots, stored in IndexedDB
 - **Built-in debugger** — CPU debugger, memory browser, heat map, soft switch monitor, BASIC conditional breakpoints, and more
@@ -36,6 +37,7 @@ Place the following ROM files in the `roms/` directory before building. ROMs are
 | `341-0027.bin` | 256 bytes | Disk II controller ROM |
 | `Thunderclock Plus ROM.bin` | 2KB | Thunderclock card ROM |
 | `Apple Mouse Interface Card ROM - 342-0270-C.bin` | 2KB | Mouse Interface Card ROM |
+| `Apple Parallel Interface Card ROM - 341-0057.bin` | 512 bytes | Parallel card PROM (341-0057); upper half is 341-0005 "Parallel Printer" firmware |
 
 An alternate character ROM variant `341-0160-A-US-UK.bin` (8KB) is also supported.
 
@@ -149,8 +151,8 @@ Cards are configured via **View > Expansion Slots**.
 
 | Slot | Default | Available Cards |
 |------|---------|-----------------|
-| 1 | Empty | Z-80 SoftCard |
-| 2 | Empty | SmartPort, Z-80 SoftCard |
+| 1 | Empty | Parallel Card, Super Serial Card, Z-80 SoftCard |
+| 2 | Empty | Parallel Card, Super Serial Card, SmartPort, Z-80 SoftCard |
 | 3 | 80-Column | Built-in (fixed) |
 | 4 | Mockingboard | Mouse Card, SmartPort, Z-80 SoftCard, Empty |
 | 5 | Thunderclock Plus | SmartPort, Z-80 SoftCard, Empty |
@@ -165,7 +167,9 @@ Cards are configured via **View > Expansion Slots**.
 
 **SmartPort Hard Drive** — Block device controller supporting two hard drive images (.hdv/.po/.2mg).
 
-**Super Serial Card** — ACIA 6551-based serial card with built-in WebSocket-to-TCP proxy and Hayes modem emulation for BBS and dial-up software.
+**Parallel Card** — Centronics parallel port (slots 1–2). Drives the Epson FX-80 and Apple DMP virtual printers.
+
+**Super Serial Card** — ACIA 6551-based serial card with built-in WebSocket-to-TCP proxy and Hayes modem emulation for BBS and dial-up software. Drives the ImageWriter I and ImageWriter II virtual printers (slots 1–2).
 
 **Microsoft Z-80 SoftCard** — Z80 co-processor card enabling CP/M software to run on the Apple //e. Full Z80 CPU emulation at 2.041 MHz with hardware-accurate address translation.
 
@@ -320,6 +324,7 @@ web-a2e/
 │   │   │   ├── smartport/   # SmartPort hard drive controller
 │   │   │   ├── softcard/    # Microsoft Z-80 SoftCard
 │   │   │   │   └── z80/     # Z80 CPU emulation core
+│   │   │   ├── parallel/    # Parallel (Centronics) card
 │   │   │   ├── ssc/         # Super Serial Card + ACIA 6551
 │   │   │   └── thunderclock/  # Thunderclock Plus
 │   │   ├── filesystem/      # DOS 3.3 and ProDOS parsers
@@ -344,6 +349,7 @@ web-a2e/
 │       ├── file-explorer/   # DOS 3.3/ProDOS browser, file viewer, disassembler
 │       ├── help/            # Documentation and release notes
 │       ├── input/           # Keyboard, text selection, joystick, mouse
+│       ├── printer/         # Virtual dot-matrix printer (IW-I, IW-II, FX-80, DMP)
 │       ├── state/           # Save state manager and persistence
 │       ├── ui/              # Menu wiring, reminders, slot configuration
 │       ├── utils/           # Storage, string, BASIC utilities
@@ -378,9 +384,6 @@ web-a2e/
 Requires WebAssembly, WebGL 2.0, Web Audio API (AudioWorklet), IndexedDB, and Service Worker support. Works in current versions of Chrome, Firefox, Safari, and Edge.
 
 ## TODO
-
-### Expansion Cards
-- **Parallel Printer Card** — Centronics parallel port for printing to file/PDF
 
 ### Input
 - **Configurable key bindings** — Allow remapping of Apple II keys and shortcuts
