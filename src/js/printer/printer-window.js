@@ -1380,7 +1380,7 @@ export class PrinterWindow extends BaseWindow {
     // new scale (not just translate). Do it next frame, once layout has settled
     // so _rulerScale() reads the updated display box.
     this._syncRulers();
-    requestAnimationFrame(() => { this._sizeTopRuler(); this._sizeLeftRuler(); this._styleSprocketHoles(); });
+    requestAnimationFrame(() => { this._sizeTopRuler(); this._sizeLeftRuler(); this._styleSprocketHoles(); this._sizePaperEdges(); this._sizeLengthHandle(); });
   }
 
   _attachPrinterListeners(printer) {
@@ -1429,23 +1429,28 @@ export class PrinterWindow extends BaseWindow {
       model:      printer.getName(),
       modelId:    printer.getId(),
       ribbon:     this.printerManager.getRibbon(),
-      pageSize:   printer.getPageSize?.() ?? null,
-      formInches: pageH / 120,
+      pageSize:    printer.getPageSize?.() ?? null,
+      formInches:  pageH / 120,
+      paperWidthInch: printer.paperGeo?.widthInch ?? null,
       // Where the head sits at capture — restored verbatim when the job is sent
       // back to the paper, so re-printing resumes exactly where it left off.
       headXDot:   printer._xDot | 0,
       headYDot:   printer._yDot | 0,
       savedAt:    Date.now(),
     };
+    // Crop to paper body only (paperLPx → paperRPx), dropping tractor strips.
+    const g      = this._platen;
+    const cropX  = Math.round(g.paperLPx);
+    const cropW  = Math.max(1, Math.round(g.paperRPx - g.paperLPx));
     const recs = [];
     for (let i = 0; i < pages; i++) {
       const slice  = document.createElement("canvas");
-      slice.width  = clean.width;
+      slice.width  = cropW;
       slice.height = pageH;
       const s = slice.getContext("2d");
       s.fillStyle = PAPER_BG;
-      s.fillRect(0, 0, slice.width, pageH);
-      s.drawImage(clean, 0, -i * pageH);   // this page's band
+      s.fillRect(0, 0, cropW, pageH);
+      s.drawImage(clean, -cropX, -i * pageH);   // this page's band, paper-body aligned
       recs.push({
         ...base,
         id:         `${this._jobId}::${i}`,
@@ -1484,30 +1489,41 @@ export class PrinterWindow extends BaseWindow {
     // Bank the current sheet before its pixels are overwritten.
     this._flushAndEndJob();
 
-    // Match the printer the job was made on (model → ribbon → form length) so the
+    // Match the printer the job was made on (model → ribbon → paper size) so the
     // page geometry and colours line up with the captured pixels.
     if (first.modelId && this.printerManager.getActivePrinter().getId() !== first.modelId)
       this.setModel(first.modelId);
     if (first.ribbon) this.setRibbon(first.ribbon);
     const printer = this.printerManager.getActivePrinter();
-    if (first.pageSize) printer.setPageSize?.(first.pageSize);
+
+    // Restore paper dimensions directly from the record so the canvas is sized
+    // to exactly what was printed — not the DIP/ESC-H form setting which is
+    // independent of the paper actually loaded.
+    if (first.paperWidthInch != null)
+      printer.paperGeo.setWidthInch(first.paperWidthInch, printer.paperWidthRange());
+    if (first.formInches != null)
+      printer.paperGeo.setLengthInch(first.formInches, printer.paperLengthRange());
+    if (printer.paper) printer.paper.formDots = 0;   // ensure _pageHeightPx uses lengthInch
+    this._persistPaper(printer);
+    this._renderPaperPresets();
 
     this.show();
     if (!this._canvasMode || !this.elements) return false;
 
     // Rebuild the paper: each stored page painted at its page band, plus the two
     // trailing blank feed pages so it still reads as continuous fan-fold stock.
+    this._recomputePlaten();
     const pageH = this._pageHeightPx();
     const cv  = this.elements.canvas;
-    this._applyPersistedPaper(printer);   // lay the restored job at the model's saved width
-    this._recomputePlaten();
     cv.width  = this._platen.widthPx;
     cv.height = pageH * (job.pages.length + 2);
     const ctx = this.elements.ctx;
     this._paintPaper(ctx, 0, cv.height);
+    const g = this._platen;
     for (let i = 0; i < job.pages.length; i++) {
       const img = await this._loadImage(job.pages[i].pngDataUrl);
-      ctx.drawImage(img, 0, i * pageH, cv.width, pageH);
+      // PNGs are cropped to paper body — draw them back at the body position.
+      ctx.drawImage(img, g.paperLPx, i * pageH, g.paperRPx - g.paperLPx, pageH);
     }
     this._drawPageBreaks();
     const hc = this.elements.head;
@@ -2225,6 +2241,9 @@ export class PrinterWindow extends BaseWindow {
       const obj = JSON.parse(raw);
       const geo = printer.paperGeo;
       geo.load(obj, printer.paperWidthRange(), printer.paperLengthRange());
+      // If a custom form length was saved, clear any model-internal formDots
+      // (set by the IW-II constructor / ESC H) so _pageHeightPx uses lengthInch.
+      if (obj.lengthInch != null && printer.paper) printer.paper.formDots = 0;
     } catch (e) { /* keep model default */ }
   }
 

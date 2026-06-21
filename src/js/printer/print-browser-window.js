@@ -39,14 +39,6 @@ function loadImage(src) {
   });
 }
 
-// Friendly names for the stored page-size ids (ImageWriterII.PAGE_SIZES). Models
-// without selectable forms (Epson) store no id → fall back to the form length.
-const PAGE_SIZE_NAMES = {
-  form11: '11" form',
-  form12: '12" form',
-  legal:  'Legal 14"',
-  a4:     'A4',
-};
 
 function saveBlob(blob, filename) {
   const url = URL.createObjectURL(blob);
@@ -101,7 +93,7 @@ export class PrintBrowserWindow extends BaseWindow {
         .pb-actions .pb-spacer { margin-left:auto; }
         .pb-meta { font-size:11px; color:var(--text-muted); flex-shrink:0; }
         .pb-stage { flex:1; min-height:0; overflow:auto; background:var(--canvas-bg); border:1px solid var(--border-default); border-radius:3px; padding:10px; }
-        .pb-stage img { display:block; margin:0 auto 8px; max-width:100%; background:#fff; box-shadow:0 1px 6px rgba(0,0,0,0.35); }
+        .pb-stage img { display:block; margin:0 auto 8px; max-width:100%; height:auto; background:#fff; box-shadow:0 1px 6px rgba(0,0,0,0.35); }
         .pb-stage img:last-child { margin-bottom:0; }
         .pb-empty { margin:auto; color:var(--text-muted); font-size:12px; text-align:center; }
       </style>
@@ -151,17 +143,18 @@ export class PrintBrowserWindow extends BaseWindow {
     this._renderPreview();
   }
 
-  // Group consecutive pages by jobId (getAllPages already sorts job→page).
+  // Group pages by jobId, newest job first.
   _groupJobs() {
     const jobs = [];
     for (const page of this._pages) {
-      let job = jobs[jobs.length - 1];
-      if (!job || job.jobId !== page.jobId) {
+      let job = jobs.find((j) => j.jobId === page.jobId);
+      if (!job) {
         job = { jobId: page.jobId, pages: [] };
         jobs.push(job);
       }
       job.pages.push(page);
     }
+    jobs.sort((a, b) => b.jobId - a.jobId);
     return jobs;
   }
 
@@ -201,7 +194,7 @@ export class PrintBrowserWindow extends BaseWindow {
         card.innerHTML =
           `<img src="${page.pngDataUrl}" alt="page ${page.pageIndex + 1}"/>` +
           `<span class="pb-thumb-cap">Page ${page.pageIndex + 1} / ${page.pageCount}<br>` +
-          `${this._esc(page.ribbon)} · ${page.formInches.toFixed(1)}"</span>`;
+          `${this._esc(page.ribbon)} · ${this._pageSizeLabel(page)}</span>`;
         card.addEventListener("click", () => {
           this._sel = { kind: "page", id: page.id };
           this._renderList();
@@ -227,12 +220,15 @@ export class PrintBrowserWindow extends BaseWindow {
     this._preview.innerHTML = `<div class="pb-empty">Select a job header to preview the whole run, or a page to preview it on its own</div>`;
   }
 
+  // 72-dpi display width for a page PNG (canvas px → physical inches → 72dpi screen px).
+  _imgDisplayW(page) { return Math.round((page.width || 960) * 72 / 120); }
+
   // Whole job: the continuous paper track (every page stacked) + job actions.
   _renderJobPreview(job) {
     const first = job.pages[0];
     const when  = new Date(first.savedAt).toLocaleString();
     const imgs  = job.pages
-      .map((p) => `<img src="${p.pngDataUrl}" alt="page ${p.pageIndex + 1}"/>`).join("");
+      .map((p) => `<img src="${p.pngDataUrl}" style="width:${this._imgDisplayW(p)}px" alt="page ${p.pageIndex + 1}"/>`).join("");
     this._preview.innerHTML = `
       <div class="pb-actions">
         <button id="pb-print" class="pb-btn">Print Job…</button>
@@ -264,7 +260,7 @@ export class PrintBrowserWindow extends BaseWindow {
         ${this._esc(page.model)} · page ${page.pageIndex + 1} of ${page.pageCount} ·
         ${this._esc(page.ribbon)} ribbon · ${this._pageSizeLabel(page)} · ${when}
       </div>
-      <div class="pb-stage"><img src="${page.pngDataUrl}" alt="printed page"/></div>`;
+      <div class="pb-stage"><img src="${page.pngDataUrl}" style="width:${this._imgDisplayW(page)}px" alt="printed page"/></div>`;
     this._preview.querySelector("#pb-print").addEventListener("click", () => this._printPage(page));
     this._preview.querySelector("#pb-png").addEventListener("click", () => this._exportPage(page));
     this._preview.querySelector("#pb-del").addEventListener("click", () => this._deletePage(page));
@@ -348,9 +344,10 @@ export class PrintBrowserWindow extends BaseWindow {
     this._refresh();
   }
 
-  // Named page size when the record kept a form id, else the raw form length.
   _pageSizeLabel(rec) {
-    return PAGE_SIZE_NAMES[rec.pageSize] || `${rec.formInches.toFixed(2)}" form`;
+    const h = rec.formInches?.toFixed(1) ?? '?';
+    const w = rec.paperWidthInch != null ? rec.paperWidthInch.toFixed(1) : null;
+    return w ? `${w}×${h}"` : `${h}" form`;
   }
 
   _esc(str) {
