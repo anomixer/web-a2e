@@ -33,13 +33,9 @@ function popcount(n) {
   return c;
 }
 
-// Power-on print-head rest, in internal dots below the paper's top edge. At
-// power-on the paper sits at top-of-form and the head homes a hair down from
-// the sheet edge (~3 rendered px) instead of striking row zero. This is the
-// head's physical home position — NOT a margin: the page keeps its exact size,
-// and after the first form feed the head realigns to the bare form top with no
-// offset. The renderer reads this y straight; it adds nothing of its own.
-const POWER_ON_HEAD_DOTS = 12;
+// Power-on print-head rest, in internal dots below the paper's top edge.
+// Zero = head starts flush at the sheet top so printing begins at y=0 with no gap.
+const POWER_ON_HEAD_DOTS = 0;
 
 export class PrinterBase {
   constructor() {

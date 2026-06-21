@@ -216,7 +216,8 @@ export class PrinterWindow extends BaseWindow {
                   <pre id="pr-output" class="pr-output"></pre>
                   <div class="pr-canvas-wrap" id="pr-canvas-wrap">
                     <canvas id="pr-canvas" class="pr-canvas"></canvas>
-                    <canvas id="pr-head" class="pr-head"></canvas>
+                    <canvas id="pr-perf"  class="pr-perf"></canvas>
+                    <canvas id="pr-head"  class="pr-head"></canvas>
                     <div class="pr-strip pr-strip-left" id="pr-strip-left">
                       <div class="pr-headmark" id="pr-headmark" title="Print head — drag to move the paper (snaps to line spacing)"></div>
                     </div>
@@ -602,7 +603,7 @@ export class PrinterWindow extends BaseWindow {
         image-rendering: pixelated;
         image-rendering: crisp-edges;
       }
-      .pr-head {
+      .pr-perf, .pr-head {
         position: absolute;
         left: 0; top: 0;
         display: block;
@@ -616,6 +617,7 @@ export class PrinterWindow extends BaseWindow {
   _cacheElements() {
     const el     = this.contentElement;
     const canvas = el.querySelector("#pr-canvas");
+    const perf   = el.querySelector("#pr-perf");
     const head   = el.querySelector("#pr-head");
     this.elements = {
       toolbar:     el.querySelector(".pr-toolbar"),
@@ -627,6 +629,8 @@ export class PrinterWindow extends BaseWindow {
       rulerLeft:   el.querySelector("#pr-ruler-left"),
       canvas,
       ctx:         canvas.getContext("2d"),
+      perf,
+      perfCtx:     perf.getContext("2d"),
       head,
       headCtx:     head.getContext("2d"),
       feedBg:      el.querySelector("#pr-feed-bg"),
@@ -687,8 +691,12 @@ export class PrinterWindow extends BaseWindow {
     cv.height = this._pageHeightPx() * 3;
     const ctx = this.elements.ctx;
     this._paintPaper(ctx, 0, cv.height);
+    // Size both overlays to match main canvas, then draw perforation marks on
+    // the perf canvas only — they never touch the printable canvas.
+    const pf = this.elements.perf;
+    pf.width  = cv.width;
+    pf.height = cv.height;
     this._drawPageBreaks();
-    // Keep the transparent head-overlay aligned to the paper canvas.
     const hc = this.elements.head;
     hc.width  = cv.width;
     hc.height = cv.height;
@@ -1028,22 +1036,20 @@ export class PrinterWindow extends BaseWindow {
   // paper). Exact 66-line pitch. Drawn onto the canvas so it scrolls and
   // exports with the output.
   _drawPageBreaks() {
-    const cv  = this.elements.canvas;
-    const ctx = this.elements.ctx;
+    const cv  = this.elements.perf;
+    const ctx = this.elements.perfCtx;
+    if (!cv || !ctx) return;
     const pageH = this._pageHeightPx();
-    const g = this._platen;   // perforations belong to the paper, not the platen
+    const g = this._platen;
     ctx.save();
     ctx.setLineDash([7, 5]);
     for (let y = pageH; y < cv.height; y += pageH) {
       const yy = Math.floor(y) + 0.5;
-      // faint shadow band so the fold reads even on white
-      ctx.fillStyle = "rgba(0,0,0,0.04)";
-      ctx.fillRect(g.sheetLPx, y - 3, g.sheetRPx - g.sheetLPx, 6);
       ctx.strokeStyle = "rgba(0,0,0,0.32)";
       ctx.lineWidth   = 1;
       ctx.beginPath();
-      ctx.moveTo(g.sheetLPx, yy);
-      ctx.lineTo(g.sheetRPx, yy);
+      ctx.moveTo(0, yy);
+      ctx.lineTo(cv.width, yy);
       ctx.stroke();
     }
     ctx.restore();
@@ -1089,8 +1095,12 @@ export class PrinterWindow extends BaseWindow {
     const ctx = this.elements.ctx;
     this._paintPaper(ctx, 0, newH);
     ctx.drawImage(tmp, 0, 0);
+    // Grow both overlays to match (both transparent, no content to preserve).
+    // Size perf first so _drawPageBreaks draws onto the new dimensions.
+    const pf = this.elements.perf;
+    pf.width  = cv.width;
+    pf.height = newH;
     this._drawPageBreaks();
-    // Grow the head overlay to match (transparent, no content to preserve).
     const hc = this.elements.head;
     hc.width  = cv.width;
     hc.height = newH;
@@ -1141,6 +1151,7 @@ export class PrinterWindow extends BaseWindow {
     el.formFeed.addEventListener("click",    () => this._panelFeed("ff"));
     el.power.addEventListener("click",       () => this.setPower(!this.printerManager.getPower()));
     el.panelTab.addEventListener("click",    () => this._togglePin());
+    el.panel.addEventListener("mouseleave",  () => { const f = el.panel.querySelector(":focus"); if (f) f.blur(); });
     this._initHeadDrag();
     this._initWidthDrag();
     this._initLengthDrag();
@@ -1355,6 +1366,7 @@ export class PrinterWindow extends BaseWindow {
   _applyFit() {
     if (!this.elements) return;
     const cv   = this.elements.canvas;
+    const pf   = this.elements.perf;
     const hc   = this.elements.head;
     const wrap = this.elements.canvasWrap;
     const btn  = this.elements.fit;
@@ -1364,12 +1376,14 @@ export class PrinterWindow extends BaseWindow {
       // viewport width with no horizontal scroll.
       if (wrap) { wrap.style.flex = "1 1 0"; wrap.style.minWidth = "0"; wrap.style.width = ""; }
       cv.style.width  = "100%"; cv.style.height = "auto";
+      if (pf) { pf.style.width = "100%"; pf.style.height = "auto"; }
       hc.style.width  = "100%"; hc.style.height = "auto";
     } else {
       // 1:1 — canvas-wrap sizes to the canvas's natural platen px; the sheet then
       // overflows and scrolls horizontally, the strips panning with it.
       if (wrap) { wrap.style.flex = "0 0 auto"; wrap.style.minWidth = ""; wrap.style.width = ""; }
       cv.style.width  = "";  cv.style.height = "";  // natural platen px (cv.width)
+      if (pf) { pf.style.width = "";  pf.style.height = ""; }
       hc.style.width  = "";  hc.style.height = "";
     }
     if (btn) {
@@ -1525,6 +1539,9 @@ export class PrinterWindow extends BaseWindow {
       // PNGs are cropped to paper body — draw them back at the body position.
       ctx.drawImage(img, g.paperLPx, i * pageH, g.paperRPx - g.paperLPx, pageH);
     }
+    const pf = this.elements.perf;
+    pf.width  = cv.width;
+    pf.height = cv.height;
     this._drawPageBreaks();
     const hc = this.elements.head;
     hc.width  = cv.width;
@@ -2276,11 +2293,14 @@ export class PrinterWindow extends BaseWindow {
     return value;
   }
 
-  // Position the length drag handle at the current form bottom (y = pageHeightPx).
+  // Position the length drag handle at the first perforation (pageH canvas px from top).
+  // Multiply by sy (display px / canvas px) to land in CSS-pixel space.
   _sizeLengthHandle() {
-    const h = this.elements?.lengthHandle;
+    const h  = this.elements?.lengthHandle;
     if (!h) return;
-    h.style.top = `${this._pageHeightPx()}px`;
+    const sc = this._rulerScale();
+    if (!sc) { requestAnimationFrame(() => this._sizeLengthHandle()); return; }
+    h.style.top = `${Math.round(this._pageHeightPx() * sc.sy)}px`;
   }
 
   // Vertical mirror of _initWidthDrag: drag the form-bottom handle up/down to
@@ -2302,8 +2322,9 @@ export class PrinterWindow extends BaseWindow {
       const guide = this.elements?.lengthGuide, chip = this.elements?.lengthChip;
       if (!guide) return;
       const candPx = Math.round(cand * PX_PER_INCH);
+      const sc = this._rulerScale();
       guide.style.display = 'block';
-      guide.style.top = `${candPx}px`;
+      guide.style.top = sc ? `${Math.round(candPx * sc.sy)}px` : `${candPx}px`;
       guide.classList.toggle('pr-length-limit', atLimit);
       if (chip) chip.textContent = `${atLimit ? '⊣ ' : ''}${cand.toFixed(2)}″`;
     };
@@ -2362,7 +2383,19 @@ export class PrinterWindow extends BaseWindow {
       (p) => Math.abs(curW - p.w) < 0.01 && Math.abs(curL - p.h) < 0.01
     );
     const sel = this.elements?.page;
-    if (sel) sel.value = match ? `${match.w}:${match.h}` : '';
+    if (!sel) return;
+    sel.querySelector('[data-custom]')?.remove();
+    if (match) {
+      sel.value = `${match.w}:${match.h}`;
+    } else {
+      const fmt = (n) => parseFloat(n.toFixed(2)).toString();
+      const opt = document.createElement('option');
+      opt.value = `${curW}:${curL}`;
+      opt.textContent = `${fmt(curW)}×${fmt(curL)}"`;
+      opt.dataset.custom = '1';
+      sel.insertBefore(opt, sel.firstChild);
+      sel.value = opt.value;
+    }
   }
 
   // Rebuild the settings rows for the active model using the app's standard
@@ -2779,17 +2812,9 @@ export class PrinterWindow extends BaseWindow {
   // copy and overpaint a thin paper band over every interior boundary (the page
   // break always falls in the blank inter-page gap, so no ink is lost).
   _cleanUsedCanvas() {
-    const used = this._usedCanvas();
-    if (!used) return used;
-    const out = document.createElement("canvas");
-    out.width  = used.width;
-    out.height = used.height;
-    const o = out.getContext("2d");
-    o.drawImage(used, 0, 0);
-    const pageH = this._pageHeightPx();
-    o.fillStyle = PAPER_BG;
-    for (let y = pageH; y < out.height; y += pageH) o.fillRect(0, y - 4, out.width, 8);
-    return out;
+    // Page break marks live on the perf overlay canvas, not the main canvas —
+    // main canvas is content-only, nothing to erase.
+    return this._usedCanvas();
   }
 
   _escapeHtml(str) {
