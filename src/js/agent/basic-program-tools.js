@@ -86,7 +86,11 @@ export const basicProgramTools = {
     const rawLines = text.split(/\r?\n/);
 
     for (const rawLine of rawLines) {
-      const trimmed = rawLine.trim().toUpperCase();
+      // Preserve original case. The tokenizer case-folds keywords internally
+      // and keeps original case inside quotes / REM / DATA, so uppercasing the
+      // whole line here would corrupt lowercase string literals (e.g. ESC
+      // command bytes like "a1") into "A1".
+      const trimmed = rawLine.trim();
       if (!trimmed) continue;
 
       const match = trimmed.match(/^(\d+)\s*(.*)/);
