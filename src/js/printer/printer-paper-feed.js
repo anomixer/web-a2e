@@ -55,11 +55,19 @@ export class VirtualPaperFeed {
   // dots. Driven by ESC H or a host-side page-size selection.
   setFormDots(dots) { if (dots > 0) this.formDots = dots; }
 
-  // The next page boundary at or below cursor `y`.
-  nextFormTop(y) {
+  // The next page boundary at or below cursor `y`. `formDotsOverride` lets the
+  // caller supply the effective form length when this unit's own formDots has
+  // been parked at 0 — the window's "no ESC H override, track lengthInch"
+  // display sentinel. Without it a 0 formDots makes past/0 → Infinity and
+  // Infinity*0 → NaN, which poisons the head position and blanks every strike
+  // after the first form feed. Always resolves to a positive form length so the
+  // result is a finite page boundary.
+  nextFormTop(y, formDotsOverride) {
+    const fd = (formDotsOverride > 0) ? formDotsOverride
+             : (this.formDots > 0 ? this.formDots : DEFAULT_FORM_DOTS);
     const past  = y - this.topOfForm;                 // distance into this page
-    const pages = Math.floor(past / this.formDots) + 1;
-    return this.topOfForm + pages * this.formDots;
+    const pages = Math.floor(past / fd) + 1;
+    return this.topOfForm + pages * fd;
   }
 
   reset() { this.topOfForm = 0; }

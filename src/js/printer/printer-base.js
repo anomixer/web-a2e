@@ -408,8 +408,21 @@ export class PrinterBase {
   formFeed() {
     const fromY = this._yDot | 0;
     this._xDot = 0;
-    this._yDot = this.paper.nextFormTop(fromY);
+    this._yDot = this.paper.nextFormTop(fromY, this._effectiveFormDots());
     this.emit("formfeed", { dist: this._yDot - fromY });
+  }
+
+  // Effective form length in dots for page-boundary math: the feed unit's own
+  // formDots when a program set one (ESC H), otherwise derived from the
+  // operator's form length (paperGeo.lengthInch). The window parks
+  // paper.formDots at 0 as an "unset" sentinel so its page-height readout tracks
+  // lengthInch; resolving it here keeps the form feed in step with that display
+  // and stops a /0 NaN from killing _yDot (and every strike after the first form
+  // feed). Used by formFeed() and the FX-80 skip-over-perforation check.
+  _effectiveFormDots() {
+    return this.paper.formDots > 0
+      ? this.paper.formDots
+      : Math.round(this.dpi * (this.paperGeo?.lengthInch ?? this.defaultPaperLengthInch()));
   }
 
   // Commit any partial (un-terminated) line so trailing output still prints.

@@ -12,6 +12,7 @@
 
 import { PRINTER_MODELS, RIBBONS } from "../printer/printer-manager.js";
 import { getAllPages } from "../printer/printer-page-store.js";
+import { setPrinterStrike, getPrinterStrike, setPrinterSS, getPrinterSS } from "../printer/printer-window.js";
 
 function getPrinterWindow() {
   const pw = window.emulator?.printerWindow;
@@ -23,6 +24,12 @@ function getWindowManager() {
   const wm = window.emulator?.windowManager;
   if (!wm) throw new Error("Window manager not available");
   return wm;
+}
+
+function getPrinterManager() {
+  const pm = window.emulator?.printerManager;
+  if (!pm) throw new Error("Printer manager not available");
+  return pm;
 }
 
 const PRINTER_WINDOW_ID = "printer-output";
@@ -52,6 +59,31 @@ export const printerTools = {
   printerClear: async () => {
     getPrinterWindow().clearPaper();
     return { success: true, message: "Printer paper cleared" };
+  },
+
+  /**
+   * Inject a raw byte stream straight into the active virtual printer,
+   * bypassing the Apple-side PR#/CSW redirect. Useful for testing glyph
+   * rendering and printer control codes directly. The bytes go through the
+   * head model and scheduler exactly like host-sent output. Parameters:
+   *   { bytes?: number[], text?: string }.
+   *   bytes — array of integers; each is clamped to 0-255, non-finite ignored.
+   *   text  — convenience: each char sent as (charCodeAt(i) & 0xFF).
+   * If both are given, bytes wins. At least one is required.
+   */
+  printerSendBytes: async (params = {}) => {
+    let byteArray;
+    if (Array.isArray(params.bytes)) {
+      byteArray = params.bytes
+        .filter((b) => Number.isFinite(b))
+        .map((b) => Math.max(0, Math.min(255, Math.round(b))));
+    } else if (typeof params.text === "string") {
+      byteArray = Array.from(params.text, (ch) => ch.charCodeAt(0) & 0xff);
+    } else {
+      throw new Error("bytes (number[]) or text (string) is required");
+    }
+    getPrinterManager().feedBytes(byteArray);
+    return { success: true, count: byteArray.length, message: `Sent ${byteArray.length} byte(s) to printer` };
   },
 
   /**
@@ -230,6 +262,32 @@ export const printerTools = {
    */
   printerGetState: async () => {
     return { success: true, ...getPrinterWindow().getState() };
+  },
+
+  /**
+   * Tune the dot STRIKE live (no reload). The strike is the per-dot ink mark on
+   * native text glyphs. Parameters (all optional — omit to just read state):
+   *   { round?: boolean, diaPx?: number }.
+   *   round — round fixed-size pin dot (true) vs square footprint (false).
+   *   diaPx — pin dot DIAMETER in canvas px (0.5–6), fixed across all densities.
+   * Persists to localStorage. Re-print the paper to see the change.
+   */
+  printerStrike: async (params = {}) => {
+    const strike = setPrinterStrike(params);
+    return { success: true, strike, message: `Strike: round=${strike.round} diaPx=${strike.diaPx}` };
+  },
+
+  /**
+   * Set the paper-canvas supersample factor (1–4). The dot raster is ~120 px/inch;
+   * at 1:1 a pin dot is too small to hold a solid core, so canvas anti-aliases it
+   * to grey. Rendering the backing store at SS× density (then CSS-downscaling)
+   * gives dots a real black core + clean round edge. Persists to localStorage and
+   * rebuilds the live canvas immediately (content is wiped — re-print after).
+   * Param: { ss }.
+   */
+  printerSuper: async (params = {}) => {
+    const ss = setPrinterSS(params.ss);
+    return { success: true, ss, message: `Supersample: ${ss}× (re-print to populate)` };
   },
 
   /**

@@ -34,6 +34,72 @@ const RULER_LEFT_W = 21;        // left ruler width, px — internal raster == C
 const VSTRETCH   = 120 / 72;     // 5/3
 const DOT_H_PX   = 2;            // painted height of one stretched wire dot
 const PAGE_H_PX  = Math.round(792 * VSTRETCH); // 1320 — 66 lines @ 11", default form
+// Dot STRIKE shape. A 9-pin head stamps a FIXED-diameter ink dot (the pin tip)
+// wherever a wire fires. The dot size is physical — it does NOT scale with the
+// glyph's grid density. Density only changes how far apart dots sit: draft
+// spaces them out, NLQ packs more in (overlapping into smoother strokes), but
+// every dot is the same pin-sized disc. So we paint a round disc of one fixed
+// canvas diameter, centred on each grid cell, regardless of the cell footprint.
+// (Square strike — hard footprint rects — is kept for the graphics/screen-dump
+// path, which butts dots into solid fills.)
+//
+// Runtime-tunable so the strike can be dialled live (printerStrike agent tool)
+// without a reload; defaults seed from localStorage and persist there.
+//   round  — round pin dot vs square footprint
+//   diaPx  — pin dot DIAMETER in canvas px (fixed across all densities)
+const STRIKE_DEFAULTS = { round: true, diaPx: 1.9 };
+function _loadStrike() {
+  try {
+    const raw = localStorage.getItem("a2e-printer-strike");
+    if (raw) return { ...STRIKE_DEFAULTS, ...JSON.parse(raw) };
+  } catch (e) {}
+  return { ...STRIKE_DEFAULTS };
+}
+const STRIKE = _loadStrike();
+export function setPrinterStrike(patch = {}) {
+  if (typeof patch.round === "boolean") STRIKE.round = patch.round;
+  if (Number.isFinite(patch.diaPx))     STRIKE.diaPx = Math.max(0.5, Math.min(6, patch.diaPx));
+  try { localStorage.setItem("a2e-printer-strike", JSON.stringify(STRIKE)); } catch (e) {}
+  return { ...STRIKE };
+}
+export function getPrinterStrike() { return { ...STRIKE }; }
+
+// Display SUPERSAMPLING. The dot raster is only ~120 px/inch, so at 1:1 a pin
+// dot spans ~1–2 device px — too few pixels to hold both a solid black core and
+// a clean round edge, so canvas anti-aliases the whole disc to grey (no ink
+// core). Fix the way real high-DPI rendering does: paint the PAPER canvas into a
+// backing store SS× denser, then show it CSS-downscaled. Dots are drawn at
+// SS×-resolution (the arc now has a genuine solid core) and the browser area-
+// downsamples to the display — solid centre, soft edge, dots separated like a
+// real print. ONLY the paper canvas is supersampled; rulers/perf/head stay at
+// display density. All draw code is unchanged: the paper context is pre-scaled
+// by SS (_sizePaperBacking), so every coordinate stays in the original 120-dpi
+// "logical" space. Layout/scale/export math must read the cached logical dims
+// (_logW/_logH), never canvas.width/height (which are the ×SS backing).
+const SS_DEFAULT = 3;
+function _loadSS() {
+  try {
+    const v = parseFloat(localStorage.getItem("a2e-printer-ss"));
+    if (Number.isFinite(v) && v >= 1 && v <= 4) return Math.round(v);
+  } catch (e) {}
+  return SS_DEFAULT;
+}
+let PRINTER_SS = _loadSS();
+let _ssRebuild = null;   // set by the live PrinterWindow so a dial rebuilds its canvas
+export function getPrinterSS() { return PRINTER_SS; }
+export function setPrinterSS(ss) {
+  if (Number.isFinite(ss)) PRINTER_SS = Math.max(1, Math.min(4, Math.round(ss)));
+  try { localStorage.setItem("a2e-printer-ss", String(PRINTER_SS)); } catch (e) {}
+  _ssRebuild?.();   // resize the backing store + repaint at the new factor
+  return PRINTER_SS;
+}
+// Conservative cross-browser canvas limits. Chrome/Firefox allow ~32767 px per
+// side; Safari is bound instead by total AREA (~16.78M px²) and silently BLANKS
+// the whole canvas once either is exceeded. We clamp by both — per-dimension and
+// by area / current width — so a long multi-page print stops growing cleanly
+// instead of zeroing the backing store. The page store retains earlier sheets.
+const CANVAS_MAX_H    = 32000;
+const CANVAS_MAX_AREA = 16000000;
 // Six common continuous-stationery sizes from the Apple II era.
 // w/h are paper BODY inches (tractor strips already removed).
 const PAPER_PRESETS = [
@@ -130,6 +196,9 @@ export class PrinterWindow extends BaseWindow {
     // Last sheet before the tab unloads is best-effort flushed; the debounced
     // capture has usually already written it ~1.2s after the final byte.
     window.addEventListener("pagehide", () => this._flushAndEndJob());
+    // Let a live supersample dial (setPrinterSS) rebuild this window's canvas at
+    // the new factor without a reload. Reprint after — _initCanvas wipes content.
+    _ssRebuild = () => { if (this._canvasMode && this.elements) this._initCanvas(); };
   }
 
   // Internal dot scale of the active printer, and the internal→canvas divisors
@@ -142,6 +211,34 @@ export class PrinterWindow extends BaseWindow {
   // Active display raster (canvas px per inch), printer-owned. Single conversion
   // factor for all inch↔px work in the ruler and the width-drag.
   get _ppi() { return this.printerManager?.getActivePrinter?.()?.canvasPxPerInch?.() ?? DEFAULT_PX_PER_INCH; }
+
+  // Paper-canvas supersample factor (see SS knob above). Backing store is this×
+  // the logical raster; the paper context is pre-scaled by it so draw code is
+  // unchanged. Rulers/perf/head stay logical.
+  get _ss() { return PRINTER_SS; }
+
+  // Size the PAPER canvas backing store at SS× the logical dimensions, hold the
+  // CSS box at the logical size (so 1:1 still shows true platen px while the dots
+  // render denser), and pre-scale the context by SS so all draw code keeps using
+  // 120-dpi logical coordinates. Caches the logical dims every layout/scale/export
+  // site reads — those MUST use _logW/_logH, not canvas.width/height (the backing).
+  // Assigning canvas.width/height resets the context, so the transform is (re)set
+  // here on every resize. Returns the ready-to-draw context.
+  _sizePaperBacking(logW, logH) {
+    const cv = this.elements.canvas;
+    const ss = this._ss;
+    this._logW = logW;
+    this._logH = logH;
+    cv.width  = Math.round(logW * ss);
+    cv.height = Math.round(logH * ss);
+    // Hold the on-screen size at the logical box. Fit mode stretches to the wrap
+    // (handled in _applyFit); 1:1 pins to logical px so the backing downsamples.
+    if (this._fitMode) { cv.style.width = "100%"; cv.style.height = "auto"; }
+    else               { cv.style.width = logW + "px"; cv.style.height = logH + "px"; }
+    const ctx = this.elements.ctx;
+    ctx.setTransform(ss, 0, 0, ss, 0, 0);
+    return ctx;
+  }
 
   // ---- Platen layout (horizontal page geometry) ----
   // All geometry is solved by the pure computeLayout() in printer-paper-geometry.js
@@ -683,26 +780,26 @@ export class PrinterWindow extends BaseWindow {
   }
 
   _initCanvas() {
-    const cv  = this.elements.canvas;
     this._applyPersistedPaper(this.printerManager.getActivePrinter());  // restored width sizes the platen
     this._recomputePlaten();
-    cv.width  = this._platen.widthPx;
+    const logW = this._platen.widthPx;
     // Start with the first sheet plus two blank feed pages ahead (display-only;
     // cropped from saved PNGs). _ensureCanvasHeight keeps the 2-page lead as
     // printing advances.
-    cv.height = this._pageHeightPx() * 3;
-    const ctx = this.elements.ctx;
-    this._paintPaper(ctx, 0, cv.height);
-    // Size both overlays to match main canvas, then draw perforation marks on
-    // the perf canvas only — they never touch the printable canvas.
+    const logH = this._pageHeightPx() * 3;
+    const ctx  = this._sizePaperBacking(logW, logH);   // backing ×SS, ctx pre-scaled
+    this._paintPaper(ctx, 0, logH);
+    // Size both overlays to match main canvas at LOGICAL density (they carry thin
+    // lines/markers, not dots — no supersample), then draw perforation marks on
+    // the perf canvas only; they never touch the printable canvas.
     const pf = this.elements.perf;
-    pf.width  = cv.width;
-    pf.height = cv.height;
+    pf.width  = logW;
+    pf.height = logH;
     this._drawPageBreaks();
     const hc = this.elements.head;
-    hc.width  = cv.width;
-    hc.height = cv.height;
-    this.elements.headCtx.clearRect(0, 0, hc.width, hc.height);
+    hc.width  = logW;
+    hc.height = logH;
+    this.elements.headCtx.clearRect(0, 0, logW, logH);
     // Match the ruler's internal width to the platen so its 120-dpi tick math
     // lands on the same columns as the paper canvas, then paint it.
     this._sizeTopRuler();
@@ -780,8 +877,9 @@ export class PrinterWindow extends BaseWindow {
     const cv = this.elements?.canvas;
     if (!cv) return null;
     const r = cv.getBoundingClientRect();
-    if (!r.width || !r.height || !cv.width || !cv.height) return null;
-    return { sx: r.width / cv.width, sy: r.height / cv.height, dw: r.width, dh: r.height };
+    const lw = this._logW, lh = this._logH;   // CSS box tracks the LOGICAL size, not the ×SS backing
+    if (!r.width || !r.height || !lw || !lh) return null;
+    return { sx: r.width / lw, sy: r.height / lh, dw: r.width, dh: r.height };
   }
 
   // Size the top ruler's raster to the paper's DISPLAY width and redraw it. The
@@ -991,7 +1089,7 @@ export class PrinterWindow extends BaseWindow {
     // and perforates; it just lacks the sprocket TRACKS (handled in _sizeStrips).
     ctx.strokeStyle = edgeCol;
     ctx.lineWidth   = 1.5;
-    for (let yc = pageH; yc < this.elements.canvas.height; yc += pageH) {
+    for (let yc = pageH; yc < this._logH; yc += pageH) {
       const yy = Math.floor(Y(yc)) + 0.5;
       if (yy > H) break;
       ctx.beginPath();
@@ -1008,7 +1106,7 @@ export class PrinterWindow extends BaseWindow {
 
     // Per-page numbering: restarts at 0 each page. Walk 1/4" steps; 3 tick levels:
     // inch (full, labelled) → half (65%) → quarter (45%).
-    const pages = Math.ceil(this.elements.canvas.height / pageH);
+    const pages = Math.ceil(this._logH / pageH);
     for (let pg = 0; pg < pages; pg++) {
       const y0 = pg * pageH;
       for (let i = 0; ; i++) {
@@ -1077,34 +1175,74 @@ export class PrinterWindow extends BaseWindow {
   _clipToPaper(ctx) {
     const g = this._platen;
     ctx.beginPath();
-    ctx.rect(g.paperLPx, 0, Math.max(0, g.paperRPx - g.paperLPx), ctx.canvas.height);
+    ctx.rect(g.paperLPx, 0, Math.max(0, g.paperRPx - g.paperLPx), this._logH);
     ctx.clip();
   }
 
   _ensureCanvasHeight(neededPx) {
     const cv = this.elements.canvas;
+    // A non-finite neededPx (a NaN/Infinity leaking out of the dot math when a
+    // density or pitch comes through as 0) would compute newH = NaN and silently
+    // collapse cv.height to 0 — blanking the whole sheet and every later draw.
+    // Reject it: keep the canvas as-is and record the fault rather than poison it.
+    if (!Number.isFinite(neededPx)) {
+      this._lastRenderError = `ensureCanvasHeight: non-finite neededPx (${neededPx})`;
+      return;
+    }
     // Always keep two blank fan-fold pages visible past the last used page, so
     // the paper reads as continuous feed. These trailing pages are display-only
     // — _usedCanvas() crops them out of any saved PNG.
+    // neededPx is a LOGICAL canvas y (draw-space), so all the page math here is
+    // logical; only the backing store is ×SS (set via _sizePaperBacking below).
+    const ss    = this._ss;
     const pageH = this._pageHeightPx();
-    const newH  = Math.ceil(Math.max(1, neededPx) / pageH) * pageH + 2 * pageH;
-    if (newH <= cv.height) return;
-    const tmp  = document.createElement("canvas");
-    tmp.width  = cv.width;
-    tmp.height = cv.height;
-    tmp.getContext("2d").drawImage(cv, 0, 0);
-    cv.height = newH;
-    const ctx = this.elements.ctx;
+    let   newH  = Math.ceil(Math.max(1, neededPx) / pageH) * pageH + 2 * pageH;
+    // Browsers cap a canvas backing store (~32767 px per side; less by area on
+    // some engines). The cap is on the BACKING (×SS) dimensions, so convert to a
+    // logical limit: divide the per-side cap by SS and the area cap by SS² (both
+    // axes scale). Past it the assignment silently no-ops or zeroes the canvas,
+    // blanking the bottom of a long print. Clamp to whole pages; the page store
+    // already retains the earlier sheets for export.
+    const areaH = Math.floor(CANVAS_MAX_AREA / Math.max(1, this._logW * ss * ss) / pageH) * pageH;
+    const maxH  = Math.max(pageH, Math.min(Math.floor(CANVAS_MAX_H / ss / pageH) * pageH, areaH));
+    if (newH > maxH) {
+      newH = maxH;
+      if (!this._canvasCapWarned) {
+        this._canvasCapWarned = true;
+        this._lastRenderError = `canvas height capped at ${maxH}px (browser limit)`;
+        console.warn(`[printer] canvas height hit browser cap (${maxH}px); long print truncated on screen`);
+      }
+    }
+    this._maxNeeded = Math.max(this._maxNeeded || 0, Math.round(neededPx));
+    if (newH <= this._logH) return;
+    this._growCount = (this._growCount || 0) + 1;
+    // Snapshot existing content only when there IS some: drawImage throws if the
+    // source canvas has a 0 width or height, and that throw (window opened before
+    // init sized the canvas) escaped into the scheduler pump and killed it. A
+    // 0-dim canvas simply grows clean here instead of throwing. tmp is a raw copy
+    // of the OLD ×SS backing bitmap.
+    const oldLogH    = this._logH;
+    const hadContent = cv.width > 0 && cv.height > 0;
+    let tmp = null;
+    if (hadContent) {
+      tmp = document.createElement("canvas");
+      tmp.width  = cv.width;
+      tmp.height = cv.height;
+      tmp.getContext("2d").drawImage(cv, 0, 0);
+    }
+    const ctx = this._sizePaperBacking(this._logW, newH);   // grow backing ×SS, ctx re-scaled
     this._paintPaper(ctx, 0, newH);
-    ctx.drawImage(tmp, 0, 0);
-    // Grow both overlays to match (both transparent, no content to preserve).
-    // Size perf first so _drawPageBreaks draws onto the new dimensions.
+    // Restore prior content: tmp is the old backing bitmap; under the SS-scaled
+    // context, draw it into the old LOGICAL rect so it lands 1:1 on the backing.
+    if (tmp) ctx.drawImage(tmp, 0, 0, this._logW, oldLogH);
+    // Grow both overlays to match at LOGICAL density (transparent, no content to
+    // preserve). Size perf first so _drawPageBreaks draws onto the new dimensions.
     const pf = this.elements.perf;
-    pf.width  = cv.width;
+    pf.width  = this._logW;
     pf.height = newH;
     this._drawPageBreaks();
     const hc = this.elements.head;
-    hc.width  = cv.width;
+    hc.width  = this._logW;
     hc.height = newH;
     this._sizeLeftRuler();
   }
@@ -1393,7 +1531,11 @@ export class PrinterWindow extends BaseWindow {
       // 1:1 — canvas-wrap sizes to the canvas's natural platen px; the sheet then
       // overflows and scrolls horizontally, the strips panning with it.
       if (wrap) { wrap.style.flex = "0 0 auto"; wrap.style.minWidth = ""; wrap.style.width = ""; }
-      cv.style.width  = "";  cv.style.height = "";  // natural platen px (cv.width)
+      // The paper backing is ×SS; pin its CSS box to the LOGICAL size so 1:1 shows
+      // true platen px (the dense backing downsamples). Overlays are already
+      // logical-res, so their natural "" box matches.
+      cv.style.width  = (this._logW ? this._logW + "px" : "");
+      cv.style.height = (this._logH ? this._logH + "px" : "");
       if (pf) { pf.style.width = "";  pf.style.height = ""; }
       hc.style.width  = "";  hc.style.height = "";
     }
@@ -1409,12 +1551,28 @@ export class PrinterWindow extends BaseWindow {
   }
 
   _attachPrinterListeners(printer) {
-    printer.on("text",      (str)  => this._onText(str));
-    printer.on("newline",   ()     => this._onNewline());
-    printer.on("linefeed",  ()     => this._onLinefeed());
-    printer.on("formfeed",  ()     => this._onFormFeed());
-    printer.on("printChar", (data) => { this._renderChar(data); this._schedulePersist(); });
-    printer.on("printDots", (data) => { this._renderDots(data); this._schedulePersist(); });
+    printer.on("text",      (str)  => this._guard("text",     () => this._onText(str)));
+    printer.on("newline",   ()     => this._guard("newline",  () => this._onNewline()));
+    printer.on("linefeed",  ()     => this._guard("linefeed", () => this._onLinefeed()));
+    printer.on("formfeed",  ()     => this._guard("formfeed", () => this._onFormFeed()));
+    printer.on("printChar", (data) => this._guard("printChar", () => { this._renderChar(data); this._schedulePersist(); }, data));
+    printer.on("printDots", (data) => this._guard("printDots", () => { this._renderDots(data); this._schedulePersist(); }, data));
+  }
+
+  // A throw in any render callback used to escape into the byte-feed pump and kill
+  // ALL further rendering — the paper froze/blanked for the rest of the print and
+  // never recovered. Isolate every event so one bad byte can't stop the printer;
+  // the failure is recorded (surfaced in getState) instead of going silent.
+  _guard(label, fn, data) {
+    try {
+      fn();
+    } catch (e) {
+      this._renderErrCount = (this._renderErrCount || 0) + 1;
+      this._lastRenderError = `${label}: ${e && e.message ? e.message : e}`;
+      if ((this._renderErrCount % 50) === 1) {
+        console.error(`[printer] render error in ${label} (#${this._renderErrCount})`, e, data);
+      }
+    }
   }
 
   // ===== Auto-capture printed pages to the page store =====
@@ -1465,17 +1623,21 @@ export class PrinterWindow extends BaseWindow {
     };
     // Crop to paper body only (paperLPx → paperRPx), dropping tractor strips.
     const g      = this._platen;
+    const ss     = this._ss;
     const cropX  = Math.round(g.paperLPx);
     const cropW  = Math.max(1, Math.round(g.paperRPx - g.paperLPx));
     const recs = [];
     for (let i = 0; i < pages; i++) {
       const slice  = document.createElement("canvas");
-      slice.width  = cropW;
+      slice.width  = cropW;       // stored at LOGICAL res (restore upsamples back)
       slice.height = pageH;
       const s = slice.getContext("2d");
       s.fillStyle = PAPER_BG;
       s.fillRect(0, 0, cropW, pageH);
-      s.drawImage(clean, -cropX, -i * pageH);   // this page's band, paper-body aligned
+      // `clean` is the ×SS backing; sample this page's body band and downscale to
+      // the logical page PNG (paper-body aligned).
+      s.drawImage(clean, cropX * ss, i * pageH * ss, cropW * ss, pageH * ss,
+                         0, 0, cropW, pageH);
       recs.push({
         ...base,
         id:         `${this._jobId}::${i}`,
@@ -1539,25 +1701,25 @@ export class PrinterWindow extends BaseWindow {
     // trailing blank feed pages so it still reads as continuous fan-fold stock.
     this._recomputePlaten();
     const pageH = this._pageHeightPx();
-    const cv  = this.elements.canvas;
-    cv.width  = this._platen.widthPx;
-    cv.height = pageH * (job.pages.length + 2);
-    const ctx = this.elements.ctx;
-    this._paintPaper(ctx, 0, cv.height);
+    const logW  = this._platen.widthPx;
+    const logH  = pageH * (job.pages.length + 2);
+    const ctx   = this._sizePaperBacking(logW, logH);   // backing ×SS, ctx pre-scaled
+    this._paintPaper(ctx, 0, logH);
     const g = this._platen;
     for (let i = 0; i < job.pages.length; i++) {
       const img = await this._loadImage(job.pages[i].pngDataUrl);
-      // PNGs are cropped to paper body — draw them back at the body position.
+      // PNGs are cropped to paper body — draw them back at the body position
+      // (logical coords; the SS-scaled ctx upsamples the stored page to backing).
       ctx.drawImage(img, g.paperLPx, i * pageH, g.paperRPx - g.paperLPx, pageH);
     }
     const pf = this.elements.perf;
-    pf.width  = cv.width;
-    pf.height = cv.height;
+    pf.width  = logW;
+    pf.height = logH;
     this._drawPageBreaks();
     const hc = this.elements.head;
-    hc.width  = cv.width;
-    hc.height = cv.height;
-    this.elements.headCtx.clearRect(0, 0, hc.width, hc.height);
+    hc.width  = logW;
+    hc.height = logH;
+    this.elements.headCtx.clearRect(0, 0, logW, logH);
     this._sizeTopRuler();   // restored width may differ — resync + repaint the ruler
     this._sizeLeftRuler();
     this._heads = [];
@@ -1623,10 +1785,10 @@ export class PrinterWindow extends BaseWindow {
   // a coloured dot accumulates its ribbon band(s) at the pixel and repaints the
   // resolved colour, so a second colour overstruck on the same dot subtracts to
   // the real secondary instead of just covering it.
-  _inkDot(ctx, px, py, w, h, color) {
+  _inkDot(ctx, px, py, w, h, color, round = false) {
     if (!color || color === "black") {
       ctx.fillStyle = DOT_COLORS.black;
-      ctx.fillRect(px, py, w, h);
+      this._paintDot(ctx, px, py, w, h, round);
       return;
     }
     if (!this._ink) this._ink = new Map();
@@ -1635,7 +1797,20 @@ export class PrinterWindow extends BaseWindow {
     const mask = (this._ink.get(key) || 0) | (COLOR_BANDS[color] ?? BAND.K);
     this._ink.set(key, mask);
     ctx.fillStyle = mixInk(mask);
-    ctx.fillRect(px, py, w, h);
+    this._paintDot(ctx, px, py, w, h, round);
+  }
+
+  // Paint one dot into its w×h grid cell. Square = exact footprint (the
+  // graphics/screen-dump path, which butts dots into solid fills). Round = a
+  // FIXED pin-sized ink disc (STRIKE.diaPx), centred on the cell — its size is
+  // the physical pin tip, independent of the cell footprint/density, so draft
+  // and NLQ dots are the same size; NLQ just packs them closer.
+  _paintDot(ctx, px, py, w, h, round) {
+    if (!round) { ctx.fillRect(px, py, w, h); return; }
+    const r = STRIKE.diaPx * 0.5;
+    ctx.beginPath();
+    ctx.arc(px + w * 0.5, py + h * 0.5, r, 0, Math.PI * 2);
+    ctx.fill();
   }
 
   _renderChar({ cols, xDot, yDot, dotW, dotH, rows, hDensity, vDensity, color, bold, underline, halfHeight, script, doubleWidth }) {
@@ -1677,7 +1852,7 @@ export class PrinterWindow extends BaseWindow {
         if (!colVal) continue;
         const px = cx + Math.round(c * xs * colStep) + shift * DOT_PX;
         for (let r = 0; r < nRows; r++) {
-          if (colVal & (1 << r)) this._inkDot(ctx, px, rowY(r), dotWpx, dotHpx, color);
+          if (colVal & (1 << r)) this._inkDot(ctx, px, rowY(r), dotWpx, dotHpx, color, STRIKE.round);
         }
       }
     };
@@ -1795,7 +1970,7 @@ export class PrinterWindow extends BaseWindow {
     // the paper's display scale changes (panel pin/resize, fit toggle, window
     // resize) — otherwise the head drifts off the real print row.
     this._headCanvasY = canvasY;
-    const scale = cv.height ? cv.clientHeight / cv.height : 1;
+    const scale = this._logH ? cv.clientHeight / this._logH : 1;   // display px per LOGICAL canvas px
     m.style.top = Math.round(canvasY * scale) + "px";
     m.style.display = "block";
   }
@@ -1820,7 +1995,7 @@ export class PrinterWindow extends BaseWindow {
     const apply = () => {
       const p     = this.printerManager.getActivePrinter();
       const cv    = this.elements.canvas;
-      const scale = cv.height ? cv.clientHeight / cv.height : 1;
+      const scale = this._logH ? cv.clientHeight / this._logH : 1;   // display px per LOGICAL canvas px
       const baseDelta = (lastClientY - startMouseY) / (scale || 1) / VSTRETCH;
       const lines     = Math.round((baseDelta * this._vdotInternal) / dotsPerLine);
       const newYDot   = Math.max(0, startYDot + (lines + autoLines) * dotsPerLine);
@@ -1837,7 +2012,7 @@ export class PrinterWindow extends BaseWindow {
     // sets the auto-feed direction (0 = in manual range) and a gentle speed ramp.
     const evalZone = () => {
       const cv    = this.elements.canvas;
-      const scale = cv.height ? cv.clientHeight / cv.height : 1;
+      const scale = this._logH ? cv.clientHeight / this._logH : 1;   // display px per LOGICAL canvas px
       const rect  = m.getBoundingClientRect();
       const pxPerLine = (dotsPerLine / this._vdotInternal) * VSTRETCH * (scale || 1);
       const distLines = pxPerLine ? (lastClientY - (rect.top + rect.height / 2)) / pxPerLine : 0;
@@ -2113,7 +2288,7 @@ export class PrinterWindow extends BaseWindow {
     // No artificial bottom pad: the two trailing blank pages already give the
     // head room to centre, and the scroll clamps to the real paper bottom so
     // you can't scroll past the last page.
-    const scale = cv.height ? cv.clientHeight / cv.height : 1;
+    const scale = this._logH ? cv.clientHeight / this._logH : 1;   // display px per LOGICAL canvas px
     // Head Y in feedBg's scroll-content coordinates (account for the sheet's
     // offset within the scroller and the canvas's display scale).
     const cvTop = cv.getBoundingClientRect().top
@@ -2325,8 +2500,8 @@ export class PrinterWindow extends BaseWindow {
 
     const syNow = () => {
       const cv = this.elements?.canvas;
-      if (!cv || !cv.height) return 1;
-      return cv.getBoundingClientRect().height / cv.height;
+      if (!cv || !this._logH) return 1;
+      return cv.getBoundingClientRect().height / this._logH;   // display px per LOGICAL canvas px
     };
 
     const showGuide = (atLimit) => {
@@ -2644,6 +2819,12 @@ export class PrinterWindow extends BaseWindow {
       canvasMode:   this._canvasMode,
       textLength:   this.text.length,
       paperHeightPx: this._canvasMode && this.elements ? this.elements.canvas.height : 0,
+      paperWidthPx:  this._canvasMode && this.elements ? this.elements.canvas.width  : 0,
+      renderErrCount: this._renderErrCount || 0,
+      lastRenderError: this._lastRenderError || null,
+      headYDot:    p?._yDot | 0,
+      maxNeeded:   this._maxNeeded || 0,
+      growCount:   this._growCount || 0,
     };
   }
 
@@ -2745,16 +2926,17 @@ export class PrinterWindow extends BaseWindow {
   _usedCanvas() {
     const cv = this.elements?.canvas;
     if (!cv) return cv;
-    const pageH = this._pageHeightPx();
-    const usedH = this._usedPageCount(pageH) * pageH;
-    if (usedH >= cv.height) return cv;
+    const pageH  = this._pageHeightPx();
+    // _usedPageCount/pageH are logical; the canvas is ×SS, so crop in backing px.
+    const usedHb = this._usedPageCount(pageH) * pageH * this._ss;
+    if (usedHb >= cv.height) return cv;
     const out = document.createElement("canvas");
-    out.width  = cv.width;
-    out.height = usedH;
+    out.width  = cv.width;          // backing width
+    out.height = Math.round(usedHb);
     const o = out.getContext("2d");
     o.fillStyle = PAPER_BG;
-    o.fillRect(0, 0, out.width, usedH);
-    o.drawImage(cv, 0, 0);
+    o.fillRect(0, 0, out.width, out.height);
+    o.drawImage(cv, 0, 0);          // 1:1 backing copy
     return out;
   }
 
@@ -2762,14 +2944,15 @@ export class PrinterWindow extends BaseWindow {
   async _exportPagesZip(cv, pageH, pages) {
     const pad   = (n) => String(n).padStart(2, "0");
     const files = [];
+    const ss = this._ss;   // cv is the ×SS backing; bands are sliced in backing px
     for (let i = 0; i < pages; i++) {
       const slice = document.createElement("canvas");
       slice.width  = cv.width;
-      slice.height = pageH;
+      slice.height = Math.round(pageH * ss);
       const sctx = slice.getContext("2d");
       sctx.fillStyle = PAPER_BG;
-      sctx.fillRect(0, 0, slice.width, pageH);
-      sctx.drawImage(cv, 0, -i * pageH);   // copy this page's band
+      sctx.fillRect(0, 0, slice.width, slice.height);
+      sctx.drawImage(cv, 0, -i * pageH * ss);   // copy this page's band
       files.push({ name: `page-${pad(i + 1)}.png`, data: await this._canvasBytes(slice) });
     }
     // Whole run joined — for printshop/banner output spanning pages. Used pages
@@ -2823,20 +3006,21 @@ export class PrinterWindow extends BaseWindow {
   _downloadPdfCanvas() {
     const pageH = this._pageHeightPx();
     const pages = this._usedPageCount(pageH);
-    const clean = this._cleanUsedCanvas();      // used pages, perforations erased
+    const clean = this._cleanUsedCanvas();      // used pages, perforations erased (×SS backing)
     if (!clean) return;
-    const wIn = clean.width / 120;              // 960 / 120 = 8in
-    const hIn = pageH / 120;                    // form length in inches
+    const ss  = this._ss;
+    const wIn = clean.width / (120 * ss);       // backing width ÷ (120·SS) = 8in
+    const hIn = pageH / 120;                    // form length in inches (logical)
 
     const imgs = [];
     for (let i = 0; i < pages; i++) {
       const slice = document.createElement("canvas");
-      slice.width  = clean.width;
-      slice.height = pageH;
+      slice.width  = clean.width;               // backing width
+      slice.height = Math.round(pageH * ss);    // backing band height
       const s = slice.getContext("2d");
       s.fillStyle = PAPER_BG;
-      s.fillRect(0, 0, slice.width, pageH);
-      s.drawImage(clean, 0, -i * pageH);        // this page's band
+      s.fillRect(0, 0, slice.width, slice.height);
+      s.drawImage(clean, 0, -i * pageH * ss);   // this page's band
       imgs.push(slice.toDataURL("image/png"));
     }
 

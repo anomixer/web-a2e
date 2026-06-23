@@ -32,6 +32,15 @@ export const RIBBONS = [
 
 const now = () => (typeof performance !== "undefined" ? performance.now() : 0);
 
+// Hard ceiling on how far the paced output timeline may run ahead of real time.
+// The CPU (especially at warp) can hand us a whole multi-page document in a few
+// milliseconds; the scheduler then spreads it over real printer speed, so without
+// a cap the release times stretch MINUTES into the future and the paper appears to
+// freeze midway with a blank un-printed tail. Capping the backlog keeps the
+// rendered paper at most this far behind the bytes received, so a long print
+// catches up in ~1.5s instead of dribbling out for minutes.
+const MAX_LAG_MS = 1500;
+
 export class PrinterManager {
   constructor(wasmProxy, getSharedAudioContext = null) {
     this.wasmProxy          = wasmProxy;
@@ -69,6 +78,8 @@ export class PrinterManager {
     this._cursor  = 0;    // printer timeline head (perf-clock ms)
     this._pumping = false;
     this._flushTimer = null;
+    this._tickTimer  = null;   // setTimeout fallback that keeps the pump alive when
+                               // rAF is throttled (backgrounded/unfocused tab)
 
     this.activePrinter = new ImageWriterII();
     this._install(this.activePrinter);
@@ -119,6 +130,12 @@ export class PrinterManager {
     if (!this._sched.length && !this._pumping) this._cursor = t;
     if (this._cursor < t) this._cursor = t;          // never schedule in the past
     this._cursor += evt.dt / this._speed;             // advance the printer timeline (Nx faster)
+    // Keep the backlog bounded: never let a release time run further than
+    // MAX_LAG_MS ahead of real time. A warp-speed CPU can flood us with a whole
+    // document at once; without this clamp the paper would freeze with a blank
+    // tail while the timeline pointed minutes into the future.
+    const cap = t + MAX_LAG_MS;
+    if (this._cursor > cap) this._cursor = cap;
     this._sched.push({ name: evt.name, data: evt.data, at: this._cursor });
     this._pump();
   }
@@ -127,16 +144,40 @@ export class PrinterManager {
     if (this._pumping) return;
     this._pumping = true;
     const loop = () => {
+      // Whichever scheduler fired this tick (rAF or the fallback timer), cancel
+      // the pending fallback so the two never double-run a tick.
+      if (this._tickTimer) { clearTimeout(this._tickTimer); this._tickTimer = null; }
       if (!this._sched.length) { this._pumping = false; return; }
       const t = now();
       let guard = 20000;
       while (this._sched.length && t >= this._sched[0].at && guard-- > 0) {
         const evt = this._sched.shift();
-        this.activePrinter._fire(evt.name, evt.data); // → listeners (render) + sound
+        try {
+          this.activePrinter._fire(evt.name, evt.data); // → listeners (render) + sound
+        } catch (e) {
+          // A render listener that throws must never strand the scheduler: an
+          // escaped throw would skip the reschedule below, leaving the pump dead
+          // with _pumping stuck true and every later byte silently dropped.
+          // Drop the offending event and keep pacing the rest.
+          console.error("printer: render event failed, continuing", e);
+        }
       }
-      requestAnimationFrame(loop);
+      if (!this._sched.length) { this._pumping = false; return; }
+      this._scheduleTick(loop);
     };
-    requestAnimationFrame(loop);
+    this._scheduleTick(loop);
+  }
+
+  // Drive the pump from requestAnimationFrame (smooth in the foreground) AND a
+  // setTimeout fallback. rAF is throttled to a near-halt in a backgrounded or
+  // unfocused tab, which would otherwise freeze the paper mid-print with a blank
+  // tail; the timer guarantees the backlog keeps draining regardless. When the
+  // tab is hidden we skip rAF entirely (it would just pile up un-fired callbacks)
+  // and lean on the timer alone.
+  _scheduleTick(loop) {
+    const hidden = (typeof document !== "undefined" && document.hidden);
+    if (!hidden && typeof requestAnimationFrame !== "undefined") requestAnimationFrame(loop);
+    this._tickTimer = setTimeout(loop, hidden ? 250 : 200);
   }
 
   // Force every queued event out NOW, ignoring wall-clock pacing. The normal
@@ -151,7 +192,8 @@ export class PrinterManager {
     let guard = 1_000_000;
     while (this._sched.length && guard-- > 0) {
       const evt = this._sched.shift();
-      this.activePrinter._fire(evt.name, evt.data);
+      try { this.activePrinter._fire(evt.name, evt.data); }
+      catch (e) { console.error("printer: render event failed during drain", e); }
     }
     this._pumping = false;
   }
@@ -277,6 +319,7 @@ export class PrinterManager {
       this._sched.length = 0;
       this._pumping      = false;
       if (this._flushTimer) { clearTimeout(this._flushTimer); this._flushTimer = null; }
+      if (this._tickTimer)  { clearTimeout(this._tickTimer);  this._tickTimer  = null; }
     } else {
       this._cursor = now();
     }
@@ -323,6 +366,7 @@ export class PrinterManager {
     this._pumping      = false;
     this._cursor       = 0;
     if (this._flushTimer) { clearTimeout(this._flushTimer); this._flushTimer = null; }
+    if (this._tickTimer)  { clearTimeout(this._tickTimer);  this._tickTimer  = null; }
     this._install(printer);
     if (this._onPrinterChange) this._onPrinterChange(printer);
   }

@@ -668,7 +668,7 @@ export class EpsonFX80 extends PrinterBase {
   // page, slew straight to the next page top so nothing prints across the fold.
   _checkSkipPerf() {
     if (this._skipPerf <= 0) return;
-    const bottom = this.paper.nextFormTop(this._yDot);
+    const bottom = this.paper.nextFormTop(this._yDot, this._effectiveFormDots());
     if (this._yDot > bottom - this._skipPerf * this._lineHeight) this.formFeed();
   }
 
