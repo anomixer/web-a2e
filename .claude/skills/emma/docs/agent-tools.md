@@ -60,8 +60,10 @@ MCP tools for managing multiple simultaneously connected emulator tabs. These ar
 | `"asm-editor"` | Assembly source from editor | — |
 | `"basic-memory"` | BASIC program from emulator memory | — |
 | `"file-explorer"` | File from disk / SmartPort | `filename`, `drive` (0/1) |
+| `"disk"` | Entire disk image for a drive (in-emulator modifications included) | `drive` (0/1) |
 | `"memory-range"` | Raw memory bytes | `address` ($hex or dec), `length` ($hex or dec) |
 | `"screen"` | Screen capture | `screenMode`: `"auto"`\|`"graphics"`\|`"text"` |
+| `"printer"` | Printed paper as PNG | — |
 | `"raw"` | LLM-provided content | `content: { data, type: "text"\|"binary" }` |
 
 ### Retired Tools (replaced by `save_to`)

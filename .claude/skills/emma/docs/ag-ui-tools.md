@@ -1,7 +1,7 @@
 # AG-UI Tools Reference
 
 **Location**: `src/js/agent/*-tools.js`
-**Total**: 89 frontend tools
+**Total**: 91 frontend tools
 **Purpose**: Agent-callable functions that execute in the browser and control the emulator
 
 ---
@@ -154,14 +154,16 @@ Use cases:
 
 ---
 
-## Disk Tools (6 tools)
+## Disk Tools (8 tools)
 
 **Location**: `src/js/agent/disk-tools.js`
 **Purpose**: Disk drive operations and recent disk management
 
 ### Disk Operations
 - **driveInsertDisc** - Insert disk image from filesystem path
+- **driveInsertBlank** - Insert a fresh blank, write-enabled WOZ (unformatted) into a drive
 - **diskDriveEject** - Eject disk from drive
+- **getDiskImageData** - Read a drive's current image bytes (modifications included) → base64; pairs with MCP `save_to` `from:"disk"`
 
 ### Recent Disks
 - **driveRecentsList** - Get list of recent disks
@@ -172,6 +174,10 @@ Use cases:
 **MCP dependencies**:
 - `load_disk_image` - Returns `{ success, data, filename, error }`
 - `data` is base64-encoded disk image
+
+**WASM dependencies**:
+- `_insertBlankDisk(driveIdx)` - create+insert blank WOZ (driveInsertBlank)
+- `_getDiskData(driveIdx, sizePtr)` - serialize current image to a C++-owned buffer (getDiskImageData)
 
 **Numbering**: Drive 1-2 (user), 0-1 (internal)
 

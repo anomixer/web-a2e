@@ -55,6 +55,18 @@ emma_command({ command: "diskDriveEject", params: { driveNum: 1 } })
 ```
 Eject the disk from drive 1 or 2. Removes the disk image from the drive and updates the UI to show the drive as empty. The driveNum parameter defaults to 1 if not specified. If no disk is inserted, returns success with a message indicating the drive is already empty.
 
+**Insert a blank disk:**
+```
+emma_command({ command: "driveInsertBlank", params: { driveNum: 2 } })
+```
+Insert a fresh, write-enabled blank WOZ into drive 1 or 2. The disk is unformatted — boot a system disk and `INIT` it (DOS 3.3) or write to it with RWTS to create a filesystem. The driveNum parameter defaults to 1 if not specified.
+
+**Save the whole disk image to local filesystem (single step, no base64 in context):**
+```
+save_to({ from: "disk", drive: 1, whereTo: "[t]/mydisk.woz" })
+```
+Saves the drive's current disk image — including any in-emulator writes — to a sandbox path. `drive` is 0-based (0 = drive 1, 1 = drive 2; default 0). The image format matches the inserted disk (.woz/.dsk/.nib/etc.). This is the preferred way to export a disk; the base64 never passes through the LLM. (Underlying app tool: `getDiskImageData`, which returns the bytes as base64 if called directly.)
+
 ## Overview
 
 The disk-drives window manages 5.25" floppy disk images for Drive 1 and Drive 2.

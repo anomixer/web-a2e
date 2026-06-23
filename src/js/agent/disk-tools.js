@@ -5,7 +5,7 @@
  *  Shawn Bullock <shawn@agenticexpert.ai>
  */
 
-import { loadDiskFromData } from "../disk-manager/disk-operations.js";
+import { loadDiskFromData, insertBlankDisk } from "../disk-manager/disk-operations.js";
 import { getRecentDisks, loadRecentDisk, clearRecentDisks } from "../disk-manager/disk-persistence.js";
 
 export const diskTools = {
@@ -413,5 +413,131 @@ export const diskTools = {
     } catch (error) {
       throw new Error(`Error ejecting disk: ${error.message}`);
     }
+  },
+
+  /**
+   * Insert a fresh blank, write-enabled WOZ disk into a drive. The disk is
+   * unformatted (no DOS/ProDOS filesystem) — boot a system disk and INIT it,
+   * or write to it with RWTS, to give it a filesystem.
+   */
+  driveInsertBlank: async (args = {}) => {
+    const { driveNum = 1 } = args;
+
+    if (driveNum !== 1 && driveNum !== 2) {
+      throw new Error("driveNum must be 1 or 2");
+    }
+
+    const driveIndex = driveNum - 1;
+    const diskManager = window.emulator?.diskManager;
+    const wasmModule = window.emulator?.wasmModule;
+
+    if (!diskManager) {
+      throw new Error("Disk manager not available");
+    }
+    if (!wasmModule) {
+      throw new Error("WASM module not available");
+    }
+
+    const drive = diskManager.drives[driveIndex];
+    if (!drive) {
+      throw new Error(`Drive ${driveNum} not found`);
+    }
+
+    return new Promise((resolve, reject) => {
+      insertBlankDisk({
+        wasmModule,
+        drive,
+        driveNum: driveIndex,
+        onSuccess: (filename) => {
+          diskManager.setDiskName(driveIndex, filename);
+          if (diskManager.onDiskLoaded) {
+            diskManager.onDiskLoaded(driveIndex, filename);
+          }
+          resolve({
+            success: true,
+            drive: driveNum,
+            filename,
+            message: `Blank WOZ disk inserted into drive ${driveNum}`,
+          });
+        },
+        onError: (error) => {
+          reject(new Error(`Failed to insert blank disk: ${error}`));
+        },
+      });
+    });
+  },
+
+  /**
+   * Read the current (in-emulator, modifications included) disk image bytes for
+   * a drive and return them base64-encoded. Pairs with the MCP `save_to`
+   * `from: "disk"` source so the image is written to the filesystem without the
+   * base64 passing through the LLM. Format matches the inserted image
+   * (.woz / .dsk / .nib / etc.).
+   */
+  getDiskImageData: async (args = {}) => {
+    const { driveNum = 1 } = args;
+
+    if (driveNum !== 1 && driveNum !== 2) {
+      throw new Error("driveNum must be 1 or 2");
+    }
+
+    const driveIndex = driveNum - 1;
+    const wasmModule = window.emulator?.wasmModule;
+    if (!wasmModule) {
+      throw new Error("WASM module not available");
+    }
+
+    if (!(await wasmModule._isDiskInserted(driveIndex))) {
+      throw new Error(`No disk in drive ${driveNum}`);
+    }
+
+    const sizePtr = await wasmModule._malloc(4);
+    if (!sizePtr) {
+      throw new Error("Failed to allocate size pointer");
+    }
+
+    let dataPtr;
+    let size;
+    try {
+      dataPtr = await wasmModule._getDiskData(driveIndex, sizePtr);
+      if (!dataPtr) {
+        throw new Error("_getDiskData returned null");
+      }
+      size = await wasmModule.heapDataViewU32(sizePtr);
+    } finally {
+      await wasmModule._free(sizePtr);
+    }
+
+    if (size <= 0 || size > 10000000) {
+      throw new Error(`Invalid disk image size: ${size}`);
+    }
+
+    // _getDiskData points into a C++-owned buffer — read only, do not free.
+    const bytes = await wasmModule.heapRead(dataPtr, size);
+
+    // Encode to base64 in chunks to avoid call-stack limits on large images.
+    let binaryString = "";
+    const CHUNK = 0x8000;
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      binaryString += String.fromCharCode.apply(null, bytes.subarray(i, i + CHUNK));
+    }
+    const contentBase64 = btoa(binaryString);
+
+    // Suggested filename: current disk name, WOZ for blank/unnamed.
+    const diskManager = window.emulator?.diskManager;
+    let filename = diskManager?.drives?.[driveIndex]?.filename || `disk${driveNum}.woz`;
+    if (filename === "Blank Disk.woz" || !filename.includes(".")) {
+      filename = filename.replace(/\.[^.]*$/, "") + ".woz";
+    }
+
+    return {
+      success: true,
+      drive: driveNum,
+      filename,
+      size,
+      isBinary: true,
+      contentBase64,
+      message: `Read ${size}-byte disk image from drive ${driveNum}`,
+    };
   },
 };

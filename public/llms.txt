@@ -17,7 +17,7 @@
 
 ### Core
 - screen-window
-- [disk-drives](/docs/llms/llm-disk-drives.txt) Disk drives window and operations related to disks
+- [disk-drives](/docs/llms/llm-disk-drives.txt) Disk drives window and operations related to disks — insert/eject, blank disk creation, recents, and saving a drive's image to local
 - [hard-drives](/docs/llms/llm-hard-drives.txt) SmartPort hard drives and operations related to hard drive images
 - save-states
 
