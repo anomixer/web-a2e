@@ -91,6 +91,34 @@ Returns:
 }
 ```
 
+## Keyboard Input
+
+**Type text and special keys:**
+```
+emma_command({ command: "typeKeyboard", params: { text: "CATALOG\n" } })
+emma_command({ command: "typeKeyboard", params: { text: "10 PRINT 123{enter}RUN{enter}" } })
+```
+Types text into the emulator exactly as if entered at the keyboard, through the accelerated paste queue. Plain text types literally; newlines (`\n`) act as Return.
+
+Special keys use `{token}` syntax:
+- Arrows: `{left}` `{right}` `{up}` `{down}`
+- Editing/control: `{esc}` `{enter}`/`{return}`/`{cr}` `{tab}` `{del}` `{backspace}` `{space}`
+- Ctrl combos: `{ctrl-c}`, `{ctrl+c}`, or `{^c}` (any letter)
+- Raw code by value: `{chr:4}` (decimal) or `{chr:$1b}` / `{chr:0x1b}` (hex) — equals `CHR$(N)`, for control codes and bytes a key name doesn't cover
+- Literal brace: `{{` produces a single `{`
+
+Parameters:
+- `text`: String to type. Required. May contain `{token}` special keys.
+
+Returns:
+```
+{ success: true, length: 8, message: "Typed 8 characters" }
+```
+
+Notes:
+- `CHR$(4)` (Ctrl-D, the DOS/ProDOS command char) = `{chr:4}` or `{ctrl-d}`. To issue a DOS command *from a running program* you still type the literal BASIC line, e.g. `PRINT CHR$(4);"PR#1"` (all printable, no tokens needed).
+- Token parsing is on for this tool; ordinary clipboard paste still treats braces literally.
+
 ## Workflow Examples
 
 **Loading binary file from local filesystem to memory:**

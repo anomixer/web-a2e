@@ -268,4 +268,37 @@ export const mainTools = {
       message: `Screen text captured from (${startRow},${startCol}) to (${endRow},${endCol})`,
     };
   },
+
+  /**
+   * Type text into the emulator as if typed at the keyboard. Plain text types
+   * literally and newlines act as Return. Special keys use {token} syntax:
+   * {left} {right} {up} {down} {esc} {enter}/{return} {tab} {del} {backspace}
+   * {space}, plus Ctrl combos like {ctrl-c} or {^c}, and raw codes by value
+   * like {chr:4} / {chr:$1b} (CHR$(N)). Use {{ for a literal '{'.
+   */
+  typeKeyboard: async (params = {}) => {
+    const { text } = params;
+
+    if (typeof text !== "string" || text.length === 0) {
+      throw new Error("text parameter is required");
+    }
+
+    const inputHandler = window.emulator?.inputHandler;
+    if (!inputHandler) {
+      throw new Error("Input handler not available");
+    }
+
+    return new Promise((resolve) => {
+      inputHandler.queueTextInput(text, {
+        parseTokens: true,
+        onComplete: () => {
+          resolve({
+            success: true,
+            length: text.length,
+            message: `Typed ${text.length} characters`,
+          });
+        },
+      });
+    });
+  },
 };

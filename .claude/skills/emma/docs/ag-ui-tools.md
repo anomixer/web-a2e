@@ -1,7 +1,7 @@
 # AG-UI Tools Reference
 
 **Location**: `src/js/agent/*-tools.js`
-**Total**: 64 frontend tools
+**Total**: 89 frontend tools
 **Purpose**: Agent-callable functions that execute in the browser and control the emulator
 
 ---
@@ -43,10 +43,10 @@ Use cases:
 
 ---
 
-## Main Tools (7 tools)
+## Main Tools (8 tools)
 
 **Location**: `src/js/agent/main-tools.js`
-**Purpose**: Core emulator control and direct memory access
+**Purpose**: Core emulator control, direct memory access, and keyboard input
 
 ### Power Control
 - **emulatorPower** - Power on/off/toggle
@@ -61,11 +61,15 @@ Use cases:
 - **captureScreenshot** - Capture screen as 560x384 PNG (base64)
 - **captureScreenText** - Read text from screen region
 
+### Keyboard Input
+- **typeKeyboard** - Type text as if at the keyboard; `{token}` syntax for special keys (arrows, `{esc}` `{enter}` `{tab}` `{del}` `{backspace}` `{space}`, ctrl combos `{ctrl-c}`/`{^c}`, raw codes `{chr:N}` = CHR$(N), `{{` literal). Newlines act as Return. Token parsing is on for this tool only — clipboard paste still treats braces literally.
+
 **WASM dependencies**:
 - `_isPaused()`, `_setPaused()`
 - `_reset()`, `_warmReset()`
 - `_readMemory()`, `_writeMemory()`
 - `_readScreenText()` - Screen text capture
+- `_charToAppleKey()` - Char → Apple key code (typeKeyboard, via input handler paste queue)
 
 ---
 
@@ -242,6 +246,58 @@ Use cases:
 
 ---
 
+## Printer Tools (23 tools)
+
+**Location**: `src/js/agent/printer-tools.js`
+**Purpose**: Drive the virtual dot-matrix printer (ImageWriter I/II, Apple DMP, Epson FX-80) — window, paper, feed, power, model/ribbon/form, raw output, screen dump, and print history
+
+### Window / Paper
+- **printerOpen** - Show + focus the Printer window
+- **printerClose** - Hide the window (output still captures in the background)
+- **printerClear** - Clear the paper (resets glyph state + canvas/text buffer)
+- **printerCapturePaper** - Capture the printed paper as a PNG (`imageBase64`, no `data:` prefix)
+- **printerSetPaperDimensions** - Set paper width/length in ¼" increments (model clamps to its bounds); `{ widthInch?, lengthInch? }`
+
+### Feed / Motion
+- **printerFeed** - Panel feed `{ kind: "up" | "down" | "ff" }` (default `ff`)
+- **printerLineFeed** - Advance/reverse N lines `{ direction: "up"|"down", count }`
+- **printerFormFeed** - Advance the paper to the next top-of-form
+
+### Power / State
+- **printerSetPower** - Mains power `{ on: boolean }` (off ignores bytes, preserves paper)
+- **printerSetOnline** - Online/offline `{ online: boolean }`
+- **printerSetAutoLineFeed** - Auto Line Feed DIP SW2-1 `{ on: boolean }` (CR-feeds vs overprint register)
+- **printerGetState** - Current model, online, ribbon, paper height
+- **printerSetup** - Combined config in one call (`power`/`online`/`model`/`ribbon`/`pageSize`, all optional) + returns state & valid options
+
+### Model / Ribbon / Form
+- **printerSetModel** - `{ model: "imagewriter-ii" | "imagewriter-i" | "epson-fx80" }`
+- **printerSetRibbon** - `{ ribbon: "bw" | "color" }` (affects future ink only)
+- **printerSetPageSize** - Form length `{ size: "form11" | "form12" | "legal" | "a4" }`
+
+### Output / Rendering
+- **printerSendBytes** - Inject raw bytes/text straight into the active printer, bypassing PR#/CSW; `{ bytes?: number[], text?: string }` (bytes wins)
+- **printerDumpScreen** - //e screen → ImageWriter bit-image "screen dump" `{ threshold?, invert? }` (auto-polarity when omitted; ImageWriter model required)
+- **printerStrike** - Tune the per-dot ink strike live `{ round?, diaPx? }` (persists to localStorage; re-print to see)
+- **printerSuper** - Paper-canvas supersample factor `{ ss: 1–4 }` (rebuilds canvas; re-print after)
+
+### Print History
+- **printerListHistory** - List stored print jobs (metadata only, grouped by job)
+- **printerGetPage** - One stored page as base64 PNG `{ jobId, pageIndex }`
+- **printerReloadJob** - Re-preview a stored job onto the paper `{ jobId }`
+
+**Dependencies**:
+- `window.emulator.printerWindow`, `.printerManager`, `.windowManager`
+- `printer-manager.js` (`PRINTER_MODELS`, `RIBBONS`), `printer-window.js` (strike/supersample), `printer-page-store.js` (IndexedDB history)
+
+**Window ID**: `printer-output`
+
+**Notes**:
+- Screen-dump polarity: `invert:false` = WYSIWYG, `invert:true` = classic white-is-black; omit for auto by lit density
+- `printerSendBytes` is the glyph/control-code verification path (host CPU/SSC bypassed)
+
+---
+
 ## Window Tools (3 tools)
 
 **Location**: `src/js/agent/window-tools.js`
@@ -289,7 +345,9 @@ Use cases:
 - `drive*` - Disk drive operations
 - `smartport*` - SmartPort hard drive operations
 - `slots*` - Expansion slot operations
+- `printer*` - Virtual dot-matrix printer operations
 - `emulator*` - Core emulator control
+- `typeKeyboard` - Keyboard input (type text + special keys)
 
 **Return format**:
 All tools return objects with:
