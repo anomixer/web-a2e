@@ -267,14 +267,19 @@ export const printerTools = {
   /**
    * Tune the dot STRIKE live (no reload). The strike is the per-dot ink mark on
    * native text glyphs. Parameters (all optional — omit to just read state):
-   *   { round?: boolean, diaPx?: number }.
-   *   round — round fixed-size pin dot (true) vs square footprint (false).
-   *   diaPx — pin dot DIAMETER in canvas px (0.5–6), fixed across all densities.
+   *   { round?: boolean, diaPx?: number, buildup?: boolean, maxBuild?: number, bleedPx?: number }.
+   *   round    — round fixed-size pin dot (true) vs square footprint (false).
+   *   diaPx    — pin dot DIAMETER in canvas px (0.5–6), fixed across all densities.
+   *   buildup  — overstrike darkening on: a dot struck again on the same spot
+   *              deepens toward saturation (black→pure, colour deepens, hue kept)
+   *              and bleeds a hair. 1st strike unchanged; off = pre-buildup look.
+   *   maxBuild — strikes to full saturation (1–4, default 3).
+   *   bleedPx  — extra disc radius per overstrike (0–0.5, default 0.12).
    * Persists to localStorage. Re-print the paper to see the change.
    */
   printerStrike: async (params = {}) => {
     const strike = setPrinterStrike(params);
-    return { success: true, strike, message: `Strike: round=${strike.round} diaPx=${strike.diaPx}` };
+    return { success: true, strike, message: `Strike: round=${strike.round} diaPx=${strike.diaPx} buildup=${strike.buildup} maxBuild=${strike.maxBuild} bleedPx=${strike.bleedPx}` };
   },
 
   /**

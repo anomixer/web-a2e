@@ -27,13 +27,18 @@ const DEFAULT_PX_PER_INCH = 120;
 const RULER_TOP_H = 22;          // top ruler height, px — internal raster == CSS display
                                  // height so ticks/labels draw with no vertical squish
 const RULER_LEFT_W = 21;        // left ruler width, px — internal raster == CSS display
-// The dot grid is anisotropic: 120 dpi across vs 72 dpi down. Painting 1:1 makes
-// an 8×11" page look square. VSTRETCH scales every vertical coordinate to the
-// true 8:11 page aspect — physically honest, since 9-pin rows (1/72") really do
-// sit wider apart than columns (1/120").
-const VSTRETCH   = 120 / 72;     // 5/3
+// The dot grid is anisotropic: the horizontal canvas raster (_ppi, default 120)
+// across vs V_RASTER (72, the 9-pin row pitch) down. Painting 1:1 makes an
+// 8×11" page look square. The live vertical stretch (_ppi / V_RASTER, via
+// get _vstretch) scales every vertical coordinate to the true 8:11 page aspect —
+// physically honest, since 9-pin rows (1/72") really do sit wider apart than
+// columns (1/_ppi"). At the default _ppi=120 this stays the historic 120/72.
+const V_RASTER    = 72;           // vertical canvas raster, px/in down (9-pin pitch)
+const DRAFT_H_DPI = 120;          // default glyph H density when a printer omits it
+const DRAFT_V_DPI = 72;           // default glyph V density
+const DEFAULT_VSTRETCH = DEFAULT_PX_PER_INCH / V_RASTER; // module fallback (= 5/3)
 const DOT_H_PX   = 2;            // painted height of one stretched wire dot
-const PAGE_H_PX  = Math.round(792 * VSTRETCH); // 1320 — 66 lines @ 11", default form
+const PAGE_H_PX  = Math.round(792 * DEFAULT_VSTRETCH); // 1320 — 66 lines @ 11", default form
 // Dot STRIKE shape. A 9-pin head stamps a FIXED-diameter ink dot (the pin tip)
 // wherever a wire fires. The dot size is physical — it does NOT scale with the
 // glyph's grid density. Density only changes how far apart dots sit: draft
@@ -45,9 +50,14 @@ const PAGE_H_PX  = Math.round(792 * VSTRETCH); // 1320 — 66 lines @ 11", defau
 //
 // Runtime-tunable so the strike can be dialled live (printerStrike agent tool)
 // without a reload; defaults seed from localStorage and persist there.
-//   round  — round pin dot vs square footprint
-//   diaPx  — pin dot DIAMETER in canvas px (fixed across all densities)
-const STRIKE_DEFAULTS = { round: true, diaPx: 1.9 };
+//   round   — round pin dot vs square footprint
+//   diaPx   — pin dot DIAMETER in canvas px (fixed across all densities)
+//   buildup — overstrike darkening: a dot struck again on the SAME spot deepens
+//             toward saturation (real ribbon/paper). The 1st strike is unchanged,
+//             so normal single-pass output is byte-identical to buildup off.
+//   maxBuild— strike count at which ink is fully saturated (no further darkening)
+//   bleedPx — extra disc radius added per overstrike (capillary spread; sub-pixel)
+const STRIKE_DEFAULTS = { round: true, diaPx: 1.9, buildup: true, maxBuild: 3, bleedPx: 0.12 };
 function _loadStrike() {
   try {
     const raw = localStorage.getItem("a2e-printer-strike");
@@ -57,8 +67,11 @@ function _loadStrike() {
 }
 const STRIKE = _loadStrike();
 export function setPrinterStrike(patch = {}) {
-  if (typeof patch.round === "boolean") STRIKE.round = patch.round;
-  if (Number.isFinite(patch.diaPx))     STRIKE.diaPx = Math.max(0.5, Math.min(6, patch.diaPx));
+  if (typeof patch.round === "boolean")   STRIKE.round   = patch.round;
+  if (typeof patch.buildup === "boolean") STRIKE.buildup = patch.buildup;
+  if (Number.isFinite(patch.diaPx))    STRIKE.diaPx    = Math.max(0.5, Math.min(6, patch.diaPx));
+  if (Number.isFinite(patch.maxBuild)) STRIKE.maxBuild = Math.max(1, Math.min(4, Math.round(patch.maxBuild)));
+  if (Number.isFinite(patch.bleedPx))  STRIKE.bleedPx  = Math.max(0, Math.min(0.5, patch.bleedPx));
   try { localStorage.setItem("a2e-printer-strike", JSON.stringify(STRIKE)); } catch (e) {}
   return { ...STRIKE };
 }
@@ -121,20 +134,21 @@ const PAPER_BG   = "#ffffff";
 // same dot.
 const DOT_COLORS = {
   black:   '#1a1a1a',
-  yellow:  '#ccaa00',
-  magenta: '#c0268a',   // purplish-red band (Table 8-6), not pure red
-  cyan:    '#0093b0',   // greenish-blue band, not pure blue
-  orange:  '#e07a1f',   // yellow + magenta
-  green:   '#2e9e3f',   // yellow + cyan
-  purple:  '#7a3d97',   // magenta + cyan
+  yellow:  '#b8860b',   // dense gold — yellow on white is the faintest band even so
+  magenta: '#d0006a',   // vivid purplish-red band (Table 8-6), not pure red
+  cyan:    '#0078c0',   // vivid greenish-blue band, not pure blue
+  orange:  '#e0600f',   // yellow + magenta
+  green:   '#008a2e',   // yellow + cyan
+  purple:  '#8a1ca8',   // magenta + cyan
 };
 
 // Ribbon bands as a bitmask. A single strike paints its colour at full strength
 // (readable); when the head overstrikes a dot with a different band, the ink
 // mixes subtractively — yellow+cyan = green, magenta+cyan = purple, etc. —
 // exactly as the real four-band ribbon does on a LF-back-and-reprint. We model
-// that by accumulating the bands struck at each dot, not by making ink
-// translucent.
+// that by accumulating the bands struck at each dot. Re-striking the SAME band
+// instead deepens the dot toward saturation (see inkColor / STRIKE.buildup) —
+// never by stacking translucency.
 const BAND = { Y: 1, M: 2, C: 4, K: 8 };
 
 // Which band(s) each selectable colour lays down. The direct secondaries
@@ -165,6 +179,53 @@ function mixInk(mask) {
     case BAND.Y | BAND.M | BAND.C: return '#3a2a14'; // all three → dark brown
     default:                       return DOT_COLORS.black;
   }
+}
+
+// Overstrike darkening. A pin striking the same spot again forces more ink into
+// the paper — most of the gain comes on the 2nd strike, saturated by ~3 (the
+// curve behind double-strike / emphasized bold and any program that overprints).
+// We deepen the RESOLVED ink toward a floor, NOT by stacking translucency:
+// black saturates to pure #000; a colour deepens ~40% but keeps its hue. count<=1
+// (or buildup off) returns the exact single-strike colour → normal output unchanged.
+function _hexToRgb(h) {
+  const n = parseInt(h.slice(1), 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+}
+function _rgbToHex(r, g, b) {
+  const c = v => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0");
+  return "#" + c(r) + c(g) + c(b);
+}
+// Single-strike chromatic brightness multiplier. Vividness now comes from the
+// saturated palette + fatter colour dot (COLOR_DOT_FATTEN), so this stays 1.0
+// (no source darkening) — kept as a tunable knob. Overstrike buildup still
+// deepens colour from this base. Black is always left at 1.0.
+const COLOR_BASE_DARKEN = 1.0;
+// Colour ink lays a wider footprint than the thin black strokes (real colour
+// ribbons over-ink a touch), so chromatic round dots get a ~20% fatter disc to
+// read clearly on white. Text only — the square screen-dump path ignores it.
+const COLOR_DOT_FATTEN = 1.2;
+// Chromatic vibrance: push each channel away from the dot's luma to saturate it
+// without shifting hue. 1.0 = raw palette; 1.25 = ~25% more vivid. Black is never
+// touched (luma boost on a grey is a no-op anyway, but we skip it explicitly).
+const COLOR_VIVID = 1.25;
+function inkColor(mask, count) {
+  const base    = mixInk(mask);
+  const isBlack = !!(mask & BAND.K);
+  let mul = isBlack ? 1 : COLOR_BASE_DARKEN;            // single-strike richness
+  if (STRIKE.buildup && count > 1) {
+    const t     = Math.min(1, (count - 1) / Math.max(1, STRIKE.maxBuild - 1)); // 0..1 over strikes 1..maxBuild
+    const floor = isBlack ? 0.0 : 0.6;                 // black → pure #000; colour → deeper, hue kept
+    mul *= 1 - t * (1 - floor);
+  }
+  if (isBlack && mul === 1) return base;               // black fast path, byte-identical
+  let [r, g, b] = _hexToRgb(base);
+  if (!isBlack && COLOR_VIVID !== 1) {                 // vibrance around luma, hue preserved
+    const y = 0.299 * r + 0.587 * g + 0.114 * b;
+    r = y + (r - y) * COLOR_VIVID;
+    g = y + (g - y) * COLOR_VIVID;
+    b = y + (b - y) * COLOR_VIVID;
+  }
+  return _rgbToHex(r * mul, g * mul, b * mul);
 }
 
 // Whether a model renders dot-matrix to the canvas (rulers, sprocket strips,
@@ -202,11 +263,15 @@ export class PrinterWindow extends BaseWindow {
   }
 
   // Internal dot scale of the active printer, and the internal→canvas divisors
-  // derived from it. The canvas is a fixed 120-dpi-across / 72-dpi-down raster;
-  // a model may override its dpi for finer densities, so these track it live.
+  // derived from it. The canvas is an isotropic raster at the announced _ppi
+  // across and V_RASTER down; a model may override its dpi for finer densities,
+  // so these track it live.
   get _dpi()          { return this.printerManager?.getActivePrinter?.()?.dpi || DEFAULT_DPI; }
-  get _hdotInternal() { return this._dpi / 120; }
-  get _vdotInternal() { return this._dpi / 72; }
+  get _hdotInternal() { return this._dpi / this._ppi; }
+  get _vdotInternal() { return this._dpi / V_RASTER; }
+  // Live vertical stretch — canvas px per V_RASTER unit so the page keeps its
+  // true 8:11 aspect at any announced _ppi (default 120 → 5/3, identical before).
+  get _vstretch()     { return this._ppi / V_RASTER; }
 
   // Active display raster (canvas px per inch), printer-owned. Single conversion
   // factor for all inch↔px work in the ruler and the width-drag.
@@ -776,7 +841,7 @@ export class PrinterWindow extends BaseWindow {
   _pageHeightPx() {
     const p = this.printerManager.getActivePrinter();
     const formDots = p?.paper?.formDots || (this._dpi * (p?.paperGeo?.lengthInch ?? 11));
-    return Math.max(40, Math.round(formDots / this._vdotInternal * VSTRETCH));
+    return Math.max(40, Math.round(formDots / this._vdotInternal * this._vstretch));
   }
 
   _initCanvas() {
@@ -1129,7 +1194,7 @@ export class PrinterWindow extends BaseWindow {
   // would draw a square page. No offset — the head's own y carries any start
   // position, so the page keeps its exact dimensions.
   _yToCanvas(base) {
-    return Math.round(base * VSTRETCH);
+    return Math.round(base * this._vstretch);
   }
 
   // Dashed horizontal perforation at every page boundary (fan-fold tractor
@@ -1613,7 +1678,7 @@ export class PrinterWindow extends BaseWindow {
       modelId:    printer.getId(),
       ribbon:     this.printerManager.getRibbon(),
       pageSize:    printer.getPageSize?.() ?? null,
-      formInches:  pageH / 120,
+      formInches:  pageH / this._ppi,
       paperWidthInch: printer.paperGeo?.widthInch ?? null,
       // Where the head sits at capture — restored verbatim when the job is sent
       // back to the paper, so re-printing resumes exactly where it left off.
@@ -1780,24 +1845,26 @@ export class PrinterWindow extends BaseWindow {
 
   // ===== Canvas dot-matrix rendering =====
 
-  // Paint one ink dot, mixing with whatever bands already struck this exact
-  // pixel. Black (and B/W ribbon) paints straight through with no bookkeeping;
-  // a coloured dot accumulates its ribbon band(s) at the pixel and repaints the
-  // resolved colour, so a second colour overstruck on the same dot subtracts to
-  // the real secondary instead of just covering it.
+  // Paint one ink dot, mixing with whatever has already struck this exact pixel.
+  // Each dot remembers the ribbon band(s) laid down (subtractive colour mix) AND
+  // how many times it was struck (overstrike darkening). A coloured second strike
+  // subtracts to the real secondary; a same-band re-strike deepens toward
+  // saturation. The map value packs both: low nibble = band mask, bits 4-6 =
+  // strike count. At count 1 (or buildup off) the painted colour/size is identical
+  // to the pre-buildup renderer, so normal single-pass output is unchanged.
   _inkDot(ctx, px, py, w, h, color, round = false) {
-    if (!color || color === "black") {
-      ctx.fillStyle = DOT_COLORS.black;
-      this._paintDot(ctx, px, py, w, h, round);
-      return;
-    }
     if (!this._ink) this._ink = new Map();
     if (this._ink.size > 80000) this._ink.clear();   // bound memory on long runs
     const key  = px + "," + py;
-    const mask = (this._ink.get(key) || 0) | (COLOR_BANDS[color] ?? BAND.K);
-    this._ink.set(key, mask);
-    ctx.fillStyle = mixInk(mask);
-    this._paintDot(ctx, px, py, w, h, round);
+    const prev = this._ink.get(key) || 0;
+    const band = (!color || color === "black") ? BAND.K : (COLOR_BANDS[color] ?? BAND.K);
+    const mask = (prev & 0x0F) | band;
+    let count  = ((prev >> 4) & 0x07) + 1;
+    if (count > STRIKE.maxBuild) count = STRIKE.maxBuild;   // saturate — no gain past the cap
+    this._ink.set(key, mask | (count << 4));
+    ctx.fillStyle = inkColor(mask, count);
+    const rScale = (mask & BAND.K) ? 1 : COLOR_DOT_FATTEN;   // colour disc lays a wider footprint
+    this._paintDot(ctx, px, py, w, h, round, count, rScale);
   }
 
   // Paint one dot into its w×h grid cell. Square = exact footprint (the
@@ -1805,9 +1872,13 @@ export class PrinterWindow extends BaseWindow {
   // FIXED pin-sized ink disc (STRIKE.diaPx), centred on the cell — its size is
   // the physical pin tip, independent of the cell footprint/density, so draft
   // and NLQ dots are the same size; NLQ just packs them closer.
-  _paintDot(ctx, px, py, w, h, round) {
+  _paintDot(ctx, px, py, w, h, round, count = 1, rScale = 1) {
     if (!round) { ctx.fillRect(px, py, w, h); return; }
-    const r = STRIKE.diaPx * 0.5;
+    // Overstrike spreads ink a hair into the paper fibres (capillary) — a capped
+    // sub-pixel radius bump on the 2nd+ strike. count 1 keeps the exact base disc.
+    // rScale fattens colour dots (1.0 for black → byte-identical to before).
+    let r = STRIKE.diaPx * 0.5 * rScale;
+    if (STRIKE.buildup && count > 1) r += Math.min(count - 1, 2) * STRIKE.bleedPx;
     ctx.beginPath();
     ctx.arc(px + w * 0.5, py + h * 0.5, r, 0, Math.PI * 2);
     ctx.fill();
@@ -1821,11 +1892,12 @@ export class PrinterWindow extends BaseWindow {
     const cx    = this._platen.zoneOriginPx + Math.round(xDot / dotW) * DOT_PX;
     const cy    = this._yToCanvas(Math.round(yDot / dotH) * DOT_PX);
     const nRows = rows || 9;
-    // Column/row canvas pitch from the glyph's dot density: draft/corr are 120/72
-    // dpi → 1 px per column, VSTRETCH per row. NLQ is 160/144 dpi → ~0.75 px and
-    // ~0.83 px, so its 16x18 grid lands in the same cell as a 12x9 draft glyph.
-    const colStep = DOT_PX   * (120 / (hDensity || 120));
-    const rowStep = VSTRETCH * ( 72 / (vDensity || 72));
+    // Column/row canvas pitch from the glyph's dot density vs the active raster:
+    // draft/corr (120/72 dpi) → _ppi/120 px per column, _vstretch per row. NLQ
+    // (160/144 dpi) packs ~0.75/~0.83 of that, so its 16x18 grid lands in the same
+    // cell as a 12x9 draft glyph; bumping _ppi scales both up together.
+    const colStep = DOT_PX * (this._ppi / (hDensity || DRAFT_H_DPI));
+    const rowStep = this._vstretch * (DRAFT_V_DPI / (vDensity || DRAFT_V_DPI));
     const glyphH = Math.round(nRows * rowStep);
 
     // Double-width (CTRL-N): each dot column is twice as wide and twice as far
@@ -1863,9 +1935,16 @@ export class PrinterWindow extends BaseWindow {
     if (bold) paint(1);            // double-strike, offset one canvas-dot right
 
     if (underline) {
-      // Underline wire sits at the bottom of the cell — full glyph cell width
-      ctx.fillStyle = DOT_COLORS[color] ?? DOT_COLORS.black;
-      ctx.fillRect(cx, cy + Math.round((nRows - 1) * rowStep), cellW, DOT_H_PX);
+      // Real underline fires the BOTTOM pin across the cell at the horizontal dot
+      // pitch — single-strike round dots that butt into a continuous line, NOT a
+      // solid bar (a fillRect lays ~2-3x the ink of a dotted glyph row → reads way
+      // too dark). Route through _inkDot so density, colour mixing and overstrike
+      // buildup all match the glyph exactly.
+      const uy   = rowY(nRows - 1);
+      const step = Math.max(1, Math.round(colStep));
+      for (let ux = cx; ux < cx + cellW; ux += step) {
+        this._inkDot(ctx, ux, uy, dotWpx, dotHpx, color, STRIKE.round);
+      }
     }
     ctx.restore();
 
@@ -1878,8 +1957,8 @@ export class PrinterWindow extends BaseWindow {
     if (!this.elements?.ctx) return;
     const ctx = this.elements.ctx;
     // Map the printer's internal dot grid (480/inch) onto the canvas the SAME
-    // way text does: horizontally ÷(480/120) and vertically ÷(480/72)×VSTRETCH,
-    // a fixed 120-dpi raster. The graphics density (dotW/dotH) only governs how
+    // way text does: horizontally ÷(_dpi/_ppi) and vertically ÷(_dpi/V_RASTER)
+    // ×_vstretch, an isotropic _ppi raster. The graphics density (dotW/dotH) only governs how
     // far the cursor steps per emitted dot — it must NOT change the canvas px
     // scale. So a 560-dot 72-dpi screen dump spans 560/72 = 7.78" and fills the
     // page width, exactly like a real ImageWriter, rather than 1px-per-dot
@@ -1888,7 +1967,7 @@ export class PrinterWindow extends BaseWindow {
     // into solid ink with no gaps.
     const px      = this._platen.zoneOriginPx + Math.round(xDot / this._hdotInternal) * DOT_PX;
     const py      = this._yToCanvas(yDot / this._vdotInternal);
-    const rowStep = (dotH / this._vdotInternal) * VSTRETCH;                 // canvas px between data rows
+    const rowStep = (dotH / this._vdotInternal) * this._vstretch;          // canvas px between data rows
     const dW      = Math.max(DOT_PX, Math.round((dotW / this._hdotInternal) * DOT_PX));
     const dH      = Math.max(DOT_H_PX, Math.round(rowStep) + 1);
     const glyphH  = Math.round(8 * rowStep);
@@ -1996,12 +2075,12 @@ export class PrinterWindow extends BaseWindow {
       const p     = this.printerManager.getActivePrinter();
       const cv    = this.elements.canvas;
       const scale = this._logH ? cv.clientHeight / this._logH : 1;   // display px per LOGICAL canvas px
-      const baseDelta = (lastClientY - startMouseY) / (scale || 1) / VSTRETCH;
+      const baseDelta = (lastClientY - startMouseY) / (scale || 1) / this._vstretch;
       const lines     = Math.round((baseDelta * this._vdotInternal) / dotsPerLine);
       const newYDot   = Math.max(0, startYDot + (lines + autoLines) * dotsPerLine);
       if (p) p._yDot = newYDot;
       const cy = this._yToCanvas(Math.round(newYDot / this._vdotInternal) * DOT_PX);
-      this._ensureCanvasHeight(cy + Math.round(12 * VSTRETCH));
+      this._ensureCanvasHeight(cy + Math.round(12 * this._vstretch));
       this._updateHeadMarker(cy);
       // Head is the anchor: feed the paper past it so it stays centred in the
       // viewport (clamped at the top of the first page), exactly as printing does.
@@ -2014,7 +2093,7 @@ export class PrinterWindow extends BaseWindow {
       const cv    = this.elements.canvas;
       const scale = this._logH ? cv.clientHeight / this._logH : 1;   // display px per LOGICAL canvas px
       const rect  = m.getBoundingClientRect();
-      const pxPerLine = (dotsPerLine / this._vdotInternal) * VSTRETCH * (scale || 1);
+      const pxPerLine = (dotsPerLine / this._vdotInternal) * this._vstretch * (scale || 1);
       const distLines = pxPerLine ? (lastClientY - (rect.top + rect.height / 2)) / pxPerLine : 0;
       autoDir = distLines > AUTO_LINES ? 1 : distLines < -AUTO_LINES ? -1 : 0;
       // Spring-loaded: a slow creep right at the threshold, ramping up the further
@@ -2309,7 +2388,7 @@ export class PrinterWindow extends BaseWindow {
     else if (kind === "ff")   p.formFeed();
     if (this._canvasMode) {
       const cy = this._yToCanvas(Math.round((p._yDot | 0) / this._vdotInternal) * DOT_PX);
-      this._ensureCanvasHeight(cy + Math.round(12 * VSTRETCH));
+      this._ensureCanvasHeight(cy + Math.round(12 * this._vstretch));
       this._updateHeadMarker(cy);
       this._followHead(cy);
     }
@@ -2495,8 +2574,9 @@ export class PrinterWindow extends BaseWindow {
     const handle = this.elements?.lengthHandle;
     if (!handle) return;
     let dragging = false, startY = 0, startL = 0, cand = 0, range = null, captureId = null;
-    // 1 canvas px = 1/PX_PER_INCH inches (vertical: 72 dots × VSTRETCH px/dot = 120 px/in).
-    const PX_PER_INCH = 72 * VSTRETCH;
+    // 1 canvas px = 1/PX_PER_INCH inches. The canvas is isotropic at the active
+    // raster, so vertical px/in == _ppi (V_RASTER × _vstretch).
+    const PX_PER_INCH = this._ppi;
 
     const syNow = () => {
       const cv = this.elements?.canvas;
@@ -2917,7 +2997,7 @@ export class PrinterWindow extends BaseWindow {
   _usedPageCount(pageH) {
     const p      = this.printerManager.getActivePrinter();
     const yDot   = p?._yDot | 0;
-    const bottom = this._yToCanvas(Math.round(yDot / this._vdotInternal)) + Math.round(9 * VSTRETCH);
+    const bottom = this._yToCanvas(Math.round(yDot / this._vdotInternal)) + Math.round(9 * this._vstretch);
     return Math.max(1, Math.ceil(bottom / pageH));
   }
 
@@ -2998,9 +3078,9 @@ export class PrinterWindow extends BaseWindow {
   }
 
   // Dot-matrix PDF: one full-bleed page image per used page, perforation-free,
-  // at the printer's true dimensions. The canvas is a 120-dpi raster both axes
-  // (960px = 8" across; pageH px = formInches × 120 down), so canvas px ÷ 120 =
-  // inches. Printing the page image full-bleed onto a page of that exact size
+  // at the printer's true dimensions. The canvas is an isotropic _ppi raster both
+  // axes (body inches × _ppi across; pageH px = formInches × _ppi down), so canvas
+  // px ÷ _ppi = inches. Printing the page image full-bleed onto a page of that size
   // reproduces the printer's aspect; any upscale by the print pipeline keeps it
   // since the image and the @page share one aspect.
   _downloadPdfCanvas() {
@@ -3009,8 +3089,8 @@ export class PrinterWindow extends BaseWindow {
     const clean = this._cleanUsedCanvas();      // used pages, perforations erased (×SS backing)
     if (!clean) return;
     const ss  = this._ss;
-    const wIn = clean.width / (120 * ss);       // backing width ÷ (120·SS) = 8in
-    const hIn = pageH / 120;                    // form length in inches (logical)
+    const wIn = clean.width / (this._ppi * ss); // backing width ÷ (_ppi·SS) = body inches
+    const hIn = pageH / this._ppi;              // form length in inches (logical)
 
     const imgs = [];
     for (let i = 0; i < pages; i++) {
