@@ -1,12 +1,29 @@
 # AG-UI Tools Reference
 
 **Location**: `src/js/agent/*-tools.js`
-**Total**: 91 frontend tools
+**Total**: 93 frontend tools
 **Purpose**: Agent-callable functions that execute in the browser and control the emulator
 
 ---
 
 ## Recent Additions
+
+### Direct Editor File Load (context-bypass)
+**basicProgramLoadFile** / **asmLoadFile** — load a sandbox file straight into the
+BASIC / assembler editor without the source passing through the LLM context. The
+MCP `load_file` runs server-side via `agentManager.callMCPTool` (mirrors
+`driveInsertDisc`); only `{ filename, lines, bytes }` returns.
+
+```javascript
+// Parameters: path (sandbox path, e.g. "[t]/printer/test.bas")
+emma_command({ command: "basicProgramLoadFile", params: { path: "[t]/x.bas" } })
+emma_command({ command: "asmLoadFile",          params: { path: "[t]/x.s"  } })
+// → { success: true, filename: "x.bas", lines: 42, bytes: 1337 }
+```
+
+Replaces the bloated `load_file` (text → context) + `basicProgramSet`/`asmSet`
+(text → param) chain. **Save** counterpart already exists:
+`save_to({ from: "basic-editor" | "asm-editor", whereTo, direct: true })`.
 
 ### Screen Capture Tools (v1.0.15)
 Added in commit `6b242d1` by Mike Daley:
@@ -73,7 +90,7 @@ Use cases:
 
 ---
 
-## BASIC Program Tools (23 tools)
+## BASIC Program Tools (24 tools)
 
 **Location**: `src/js/agent/basic-program-tools.js`
 **Purpose**: BASIC program editing, execution, debugging, variable inspection
@@ -112,6 +129,7 @@ Use cases:
 - **basicProgramSetVariable** - Set variable value
 
 ### File Operations
+- **basicProgramLoadFile** - Load a sandbox file into the editor server-side (no source in LLM context); pairs with `save_to from:"basic-editor"`
 - **saveBasicInEditorToLocal** - Export from editor (for MCP `save_basic_file`)
 - **directSaveBasicInMemoryToLocal** - Export from memory
 
@@ -128,7 +146,7 @@ Use cases:
 
 ---
 
-## Assembler Tools (9 tools)
+## Assembler Tools (10 tools)
 
 **Location**: `src/js/agent/assembler-tools.js`
 **Purpose**: 6502 assembly compilation and execution
@@ -144,6 +162,7 @@ Use cases:
 - **asmNew** - Clear editor
 - **asmGet** - Get editor content
 - **asmSet** - Set editor content
+- **asmLoadFile** - Load a sandbox file into the editor server-side (no source in LLM context); pairs with `save_to from:"asm-editor"`
 - **saveAsmInEditorToLocal** - Export source (for MCP `save_asm_file`)
 
 **WASM dependencies**:

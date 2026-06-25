@@ -166,6 +166,66 @@ export const assemblerTools = {
   },
 
   /**
+   * Load an assembly source file from a sandbox path straight into the
+   * editor WITHOUT routing the source through the LLM context. The MCP
+   * load_file call runs server-side (mirrors driveInsertDisc), so only the
+   * line count comes back — use this instead of load_file + asmSet when you
+   * don't need to read the source yourself.
+   * @param {string} path - Sandbox path, e.g. "[t]/asm/prog.s"
+   */
+  asmLoadFile: async (args) => {
+    const { path } = args;
+
+    if (!path) {
+      throw new Error("path parameter is required");
+    }
+
+    const windowManager = window.emulator?.windowManager;
+    if (!windowManager) {
+      throw new Error("Window manager not available");
+    }
+
+    const asmWindow = windowManager.getWindow("assembler-editor");
+    if (!asmWindow) {
+      throw new Error("Assembler window not found");
+    }
+
+    const agentManager = window.emulator?.agentManager;
+    if (!agentManager) {
+      throw new Error("Agent manager not available");
+    }
+
+    // Read the file as text server-side; content stays out of LLM context.
+    const result = await agentManager.callMCPTool("load_file", { path, binary: false });
+    if (!result || !result.success) {
+      throw new Error(result?.error || `Failed to load file: ${path}`);
+    }
+
+    const source = result.content ?? "";
+    const filename = path.split("/").pop();
+    if (asmWindow.textarea) {
+      asmWindow.textarea.value = source;
+      asmWindow.currentFileName = filename;
+      asmWindow._fileHandle = null;
+      if (asmWindow.updateTitle) asmWindow.updateTitle(filename);
+      asmWindow.updateHighlighting();
+      asmWindow.validateAllLines();
+      asmWindow.encodeAllLineBytes();
+      asmWindow.updateGutter();
+    }
+
+    const lines = source ? source.split(/\r?\n/).length : 0;
+
+    return {
+      success: true,
+      filename,
+      lines,
+      bytes: result.size,
+      message: `Loaded ${filename} into assembler editor (${lines} lines)`,
+    };
+  },
+
+  /**
    * Get assembly source content from editor (used with save file MCP tool)
    */
   saveAsmInEditorToLocal: async (args) => {

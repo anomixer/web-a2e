@@ -428,6 +428,7 @@ Registered in `agent-tools.js`, organized by category:
 - `basicProgramLoadFromMemory` / `basicProgramLoadIntoEmulator` — transfer between editor and emulator
 - `basicProgramRun` / `basicProgramPause` / `basicProgramNew` / `basicProgramRenumber` / `basicProgramFormat`
 - `basicProgramGet` / `basicProgramSet` / `basicProgramLineCount`
+- `basicProgramLoadFile` — load a sandbox file into the editor server-side (source bypasses LLM context); pairs with `save_to from:"basic-editor"`
 - `saveBasicInEditorToLocal` — export from editor
 
 **Assembler** (`assembler-tools.js`)
@@ -435,6 +436,7 @@ Registered in `agent-tools.js`, organized by category:
 - `asmWrite` — load assembled code into memory
 - `asmLoadExample` — load template program
 - `asmNew` / `asmGet` / `asmSet` — editor operations
+- `asmLoadFile` — load a sandbox file into the editor server-side (source bypasses LLM context); pairs with `save_to from:"asm-editor"`
 - `asmGetStatus` — compilation status (origin, size, errors)
 - `directExecuteAssemblyAt` — execute at address with optional return address
 

@@ -77,6 +77,12 @@ emma_command({ command: "asmSet", params: { source: "ORG $0800\nLDA #$00\nRTS" }
 ```
 Replaces the entire assembly source code in the editor.
 
+**Load assembly source from a file (no source in context):**
+```
+emma_command({ command: "asmLoadFile", params: { path: "[t]/asm/prog.s" } })
+```
+Loads a sandbox file straight into the editor server-side; only { filename, lines, bytes } is returned, so the source never enters the LLM context. Prefer this over load_file + asmSet when you don't need to read the source. Save counterpart: save_to({ from: "asm-editor", whereTo, direct: true }).
+
 **Get assembly source for saving:**
 ```
 emma_command({ command: "saveAsmInEditorToLocal", params: {} })
