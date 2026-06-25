@@ -77,6 +77,9 @@ export class PrinterManager {
     this._sched   = [];   // queued {name, data, at} events, ascending `at`
     this._cursor  = 0;    // printer timeline head (perf-clock ms)
     this._pumping = false;
+    this._unclampedFeed = false; // true while a host block (feedBytes) enqueues —
+                                 // exempts it from the warp-flood lag cap (below)
+                                 // so a screen dump paces at the real head speed
     this._flushTimer = null;
     this._tickTimer  = null;   // setTimeout fallback that keeps the pump alive when
                                // rAF is throttled (backgrounded/unfocused tab)
@@ -134,8 +137,16 @@ export class PrinterManager {
     // MAX_LAG_MS ahead of real time. A warp-speed CPU can flood us with a whole
     // document at once; without this clamp the paper would freeze with a blank
     // tail while the timeline pointed minutes into the future.
-    const cap = t + MAX_LAG_MS;
-    if (this._cursor > cap) this._cursor = cap;
+    //
+    // A host-injected block (a screen dump, or printerSendBytes — both arrive via
+    // feedBytes as one synchronous burst) is NOT that continuous warp flood: it is
+    // a single bounded job. Clamping it would race the carriage through every band
+    // after the first ~1.5s. Exempt it so it plays at the printer's own configured
+    // head speed, exactly as the CPU-paced path does — congruent, just real-time.
+    if (!this._unclampedFeed) {
+      const cap = t + MAX_LAG_MS;
+      if (this._cursor > cap) this._cursor = cap;
+    }
     this._sched.push({ name: evt.name, data: evt.data, at: this._cursor });
     this._pump();
   }
@@ -234,7 +245,13 @@ export class PrinterManager {
   // prints out at hardware speed exactly like a host-sent graphics stream.
   feedBytes(bytes) {
     if (!this._powered || !this._hasInterface) return;
-    bytes.forEach((byte) => this.activePrinter.receiveByte(byte));
+    // The whole block is one bounded job (screen dump / printerSendBytes). Its CR
+    // commits enqueue synchronously inside this loop, so flag the enqueue window
+    // as unclamped (see _enqueue) — the carriage then sweeps every band at the
+    // real configured speed instead of racing once the lag cap binds.
+    this._unclampedFeed = true;
+    try { bytes.forEach((byte) => this.activePrinter.receiveByte(byte)); }
+    finally { this._unclampedFeed = false; }
     if (this._flushTimer) clearTimeout(this._flushTimer);
     this._flushTimer = setTimeout(() => this.activePrinter.flushLine?.(), 120);
   }

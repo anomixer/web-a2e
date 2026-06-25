@@ -2785,10 +2785,10 @@ export class PrinterWindow extends BaseWindow {
   // faithful graphics stream through the parser — the same path a real
   // screen-dump utility drives. `fb`/`width`/`height` can be supplied for an
   // arbitrary bitmap; default to the //e screen. Returns a status object.
-  // Dump Screen button: a normal click auto-picks polarity — text mode always
-  // inverts (white text → black ink), graphics mode inverts only when the screen
-  // is mostly dark (< 5% lit pixels). A long hold (>= 500 ms) forces the
-  // opposite: WYSIWYG in text mode, force-invert in graphics mode.
+  // Dump Screen button: a normal click auto-picks polarity — text mode prints
+  // white pixels as black ink (no invert), graphics mode inverts only when the
+  // screen is mostly dark (< 5% lit pixels). A long hold (>= 500 ms) forces the
+  // reverse-video polarity (invert) in either mode.
   _initDumpButton(btn) {
     if (!btn) return;
     let timer = null, fired = false;
@@ -2800,10 +2800,9 @@ export class PrinterWindow extends BaseWindow {
       timer = setTimeout(() => {
         fired = true;
         btn.classList.remove("pr-holding");
-        // Long-press overrides the auto default: text mode → WYSIWYG (invert=false),
-        // graphics mode → force invert (invert=true).
-        const isText = (this._cachedSoftState & 0x01) !== 0;
-        this.dumpScreen(null, SCREEN_W, SCREEN_H, { invert: !isText });
+        // Long-press overrides the auto default with reverse-video polarity in
+        // either mode (text default is no-invert, graphics auto-picks by density).
+        this.dumpScreen(null, SCREEN_W, SCREEN_H, { invert: true });
       }, LONG_MS);
     };
     const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } btn.classList.remove("pr-holding"); };
@@ -2879,9 +2878,12 @@ export class PrinterWindow extends BaseWindow {
     } else {
       if (monoOpts.invert === undefined) {
         const isGraphics = (this._cachedSoftState & 0x01) === 0; // bit 0 = TEXT mode
-        // Text: always invert (white text on black screen → black ink on white paper).
-        // Graphics: invert only when the screen is mostly dark (sparse lit pixels).
-        monoOpts.invert = isGraphics ? litDensity(pixels, width, height) < 0.05 : true;
+        // buildMono: invert=false → a lit (white) pixel strikes black ink; invert=true
+        // is reverse-video (the black field inks, white knocks out). A text dump wants
+        // the plain mapping — white text → black ink on white paper — so invert=false.
+        // The density auto-pick is a GRAPHICS concern: a mostly-dark picture inverts so
+        // the paper stays white instead of a near-solid black page.
+        monoOpts.invert = isGraphics ? litDensity(pixels, width, height) < 0.05 : false;
       }
       bytes = buildMono(pixels, width, height, { ...monoOpts, maxCols });
       this.printerManager.feedBytes(bytes);
