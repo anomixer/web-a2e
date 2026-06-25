@@ -656,6 +656,12 @@ export class PrinterWindow extends BaseWindow {
         pointer-events: none;
         z-index: 3;
       }
+      /* Left edge only: the 1px border renders to the RIGHT of paper-left, i.e.
+         over body column 0 — obscuring the first printed column. Pull it one px
+         left so it lands on the last tractor (track) column, flush against the
+         body left edge, clear of the print. The right edge keeps its position —
+         it drives the ruler / paper-sizer handle and must not move. */
+      .pr-paper-edge-left { margin-left: -1px; }
 
       /* Print-head row indicator riding the left tractor strip — a little
          impact-head carriage with pin slots and a red strike point that tracks
