@@ -37,6 +37,20 @@ void init() {
   if (!g_emulator) {
     g_emulator = new a2e::Emulator();
     g_emulator->init();
+    // Install the parallel (Centronics) printer tx callback at construction so
+    // EVERY ParallelCard created later (when the saved slot config is applied)
+    // inherits it via Emulator::setSlotCard's `if (parallelTxCallback_)` apply.
+    // This removes the dependence on the JS-side _setParallelTxCallback() RPC
+    // landing at exactly the right boot moment — a fire-and-forget call whose
+    // failure was silent and left the parallel bus permanently unregistered.
+    // SSC/serial registration is deliberately left to its existing JS path.
+    g_emulator->setParallelTxCallback([](uint8_t byte) {
+      EM_ASM({
+        if (self.emulator && self.emulator.printer) {
+          self.emulator.printer.receiveByte($0);
+        }
+      }, byte);
+    });
   }
 }
 

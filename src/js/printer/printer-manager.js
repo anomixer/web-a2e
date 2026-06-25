@@ -200,14 +200,21 @@ export class PrinterManager {
 
   async init() {
     if (this._callbackInstalled) return;
-    if (!this.wasmProxy || !this.wasmProxy._setParallelTxCallback) return;
+    if (!this.wasmProxy) return;
+    // Arm the receive bridge FIRST, before any await, so a byte is never
+    // dropped while a bus registration is still in flight.
     this.wasmProxy.onPrinterByte = (byte) => this.receiveByte(byte);
     // The printer is one device reachable over either bus: the parallel
     // (Centronics) port, or a serial (SSC) port — the historical ImageWriter
     // wiring. Arm both; whichever card the user installs delivers the bytes to
     // the same `emulator.printer` shim, so print works regardless of bus.
-    await this.wasmProxy._setParallelTxCallback();
-    await this.wasmProxy._setSerialTxCallback();
+    // Register each bus INDEPENDENTLY: a failure on one (e.g. an older WASM
+    // missing that export) must not strand the other. A swallowed reject here
+    // used to leave the parallel bus permanently unregistered.
+    try { await this.wasmProxy._setParallelTxCallback(); }
+    catch (e) { console.warn("printer: parallel tx callback registration failed", e); }
+    try { await this.wasmProxy._setSerialTxCallback(); }
+    catch (e) { console.warn("printer: serial tx callback registration failed", e); }
     this._callbackInstalled = true;
   }
 

@@ -43,8 +43,8 @@ async function setSlotCardWasm(wasmModule, slot, cardId) {
 }
 
 async function persistSlotConfig(wasmModule) {
+  const config = {};
   try {
-    const config = {};
     for (const cfg of SLOT_CONFIG) {
       if (!cfg.fixed) {
         config[cfg.slot] = await getSlotCard(wasmModule, cfg.slot);
@@ -60,6 +60,15 @@ async function persistSlotConfig(wasmModule) {
   if (slotWindow) {
     if (typeof slotWindow.loadSettings === "function") slotWindow.loadSettings();
     if (typeof slotWindow.updateDisabledOptions === "function") slotWindow.updateDisabledOptions();
+  }
+
+  // Refresh the printer interface gate. The slot-window UI path notifies the
+  // printer via onSlotsApplied (main.js); the agent path must do it too, or a
+  // card installed via slotsInstallCard leaves the printer's bus availability
+  // (DMP/FX-80 over parallel, IW-I/II over SSC) stale until a full page reload.
+  const printerManager = window.emulator?.printerManager;
+  if (printerManager && typeof printerManager.updateSlots === "function") {
+    printerManager.updateSlots(config);
   }
 }
 

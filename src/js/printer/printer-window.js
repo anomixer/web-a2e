@@ -1405,6 +1405,12 @@ export class PrinterWindow extends BaseWindow {
       this._refreshPageSizes();
       this._applyPersistedSettings(p);
       this._renderSettings();
+      // Re-evaluate the interface gate for the NEW active model. Availability is
+      // per-bus (DMP/FX-80 over parallel, IW-I/II over SSC), so switching models
+      // can flip the active model between reachable/unreachable. Without this the
+      // "no device" grey overlay and disabled power button stay stuck from the
+      // previous model (e.g. picking parallel DMP after serial IW-II left them on).
+      this._updateInterfaceState(this.printerManager.hasInterface());
     });
 
     this.printerManager.onInterfaceChange((has) => this._updateInterfaceState(has));

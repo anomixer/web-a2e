@@ -98,7 +98,7 @@ const AGENT_TOOLS = {
         x: await wasmModule._getX(),
         y: await wasmModule._getY(),
         sp: await wasmModule._getSP(),
-        cycles: await wasmModule._getTotalCycles(),
+        cycles: Number(await wasmModule._getTotalCycles()),
       },
     };
   },

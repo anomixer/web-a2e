@@ -48,6 +48,7 @@ const FIRE_AND_FORGET = new Set([
   '_loadAsmIntoMemory',
   '_serialReceive',
   '_setSerialTxCallback',
+  '_setParallelTxCallback',
   '_setMonochrome',
   '_enableNoSlotClock',
   '_reset',
