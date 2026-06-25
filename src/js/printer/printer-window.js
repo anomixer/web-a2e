@@ -1864,14 +1864,27 @@ export class PrinterWindow extends BaseWindow {
   // saturation. The map value packs both: low nibble = band mask, bits 4-6 =
   // strike count. At count 1 (or buildup off) the painted colour/size is identical
   // to the pre-buildup renderer, so normal single-pass output is unchanged.
-  _inkDot(ctx, px, py, w, h, color, round = false) {
+  _inkDot(ctx, px, py, w, h, color, round = false, textInk = false) {
     if (!this._ink) this._ink = new Map();
     if (this._ink.size > 80000) this._ink.clear();   // bound memory on long runs
     const key  = px + "," + py;
     const prev = this._ink.get(key) || 0;
+    const prevMask = prev & 0x0F;
     const band = (!color || color === "black") ? BAND.K : (COLOR_BANDS[color] ?? BAND.K);
-    const mask = (prev & 0x0F) | band;
-    let count  = ((prev >> 4) & 0x07) + 1;
+    // Graphics passes ACCUMULATE bands so multi-pass colour overprints (DazzleDraw,
+    // Print Shop) mix subtractively on the same dot. TEXT never overprints band-on-
+    // band on a real IW-II — each colour glyph is a single pass — so a text dot that
+    // lands on a DIFFERENT prior band (an unrelated earlier line/job that shares this
+    // quantised canvas pixel) must paint its OWN colour, not inherit the stale band.
+    // Inheriting a stale BLACK band opaquely blackened the glyph: the "random black".
+    // Same-colour re-strike still falls through to buildup (bold / double-strike).
+    let mask, count;
+    if (textInk && prevMask && prevMask !== band) {
+      mask = band; count = 1;                              // fresh strike, not an overprint
+    } else {
+      mask  = prevMask | band;                             // same-colour re-strike, or graphics overprint
+      count = ((prev >> 4) & 0x07) + 1;
+    }
     if (count > STRIKE.maxBuild) count = STRIKE.maxBuild;   // saturate — no gain past the cap
     this._ink.set(key, mask | (count << 4));
     ctx.fillStyle = inkColor(mask, count);
@@ -1936,7 +1949,7 @@ export class PrinterWindow extends BaseWindow {
         if (!colVal) continue;
         const px = cx + Math.round(c * xs * colStep) + shift * DOT_PX;
         for (let r = 0; r < nRows; r++) {
-          if (colVal & (1 << r)) this._inkDot(ctx, px, rowY(r), dotWpx, dotHpx, color, STRIKE.round);
+          if (colVal & (1 << r)) this._inkDot(ctx, px, rowY(r), dotWpx, dotHpx, color, STRIKE.round, true);
         }
       }
     };
@@ -1955,7 +1968,7 @@ export class PrinterWindow extends BaseWindow {
       const uy   = rowY(nRows - 1);
       const step = Math.max(1, Math.round(colStep));
       for (let ux = cx; ux < cx + cellW; ux += step) {
-        this._inkDot(ctx, ux, uy, dotWpx, dotHpx, color, STRIKE.round);
+        this._inkDot(ctx, ux, uy, dotWpx, dotHpx, color, STRIKE.round, true);
       }
     }
     ctx.restore();
