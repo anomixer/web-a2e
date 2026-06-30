@@ -352,10 +352,42 @@ export const assemblerTools = {
     // Pause first to ensure clean state
     wasmModule._setPaused(true);
 
-    // Push return address onto stack if specified
+    // Push return address onto stack so an RTS lands somewhere defined.
     const { returnTo = "auto" } = args;
     let returnAddr = null;
-    if (returnTo !== undefined) {
+
+    // "halt"/"spin": instead of returning to BASIC/monitor, land the RTS in a
+    // tiny JMP-self pad so the CPU loops forever and NEVER re-enters
+    // BASIC/ProDOS. That freezes RAM after the routine finishes, so you can
+    // verify graphics pages (or any memory) without the OS clobbering them.
+    // Pad defaults to $03C0 (free page-3 scratch); override with haltAddr.
+    const isHalt = typeof returnTo === "string" &&
+      ["halt", "spin"].includes(returnTo.trim().toLowerCase());
+    if (isHalt) {
+      let haltAddr = 0x03c0;
+      if (args.haltAddr !== undefined) {
+        const h = args.haltAddr;
+        if (typeof h === "string") {
+          const t = h.trim();
+          haltAddr = t.startsWith("$")
+            ? parseInt(t.substring(1), 16)
+            : t.toLowerCase().startsWith("0x")
+              ? parseInt(t, 16)
+              : parseInt(t, 10);
+        } else {
+          haltAddr = h;
+        }
+        if (isNaN(haltAddr)) {
+          throw new Error(`Invalid haltAddr: ${args.haltAddr}`);
+        }
+      }
+      haltAddr &= 0xffff;
+      // JMP haltAddr  (4C lo hi) — infinite self-loop
+      wasmModule._writeMemory(haltAddr, 0x4c);
+      wasmModule._writeMemory((haltAddr + 1) & 0xffff, haltAddr & 0xff);
+      wasmModule._writeMemory((haltAddr + 2) & 0xffff, (haltAddr >> 8) & 0xff);
+      returnAddr = haltAddr;
+    } else if (returnTo !== undefined) {
       const NAMED_RETURNS = {
         "monitor": 0xFF69,
         "basic": 0xE003,
@@ -380,7 +412,9 @@ export const assemblerTools = {
       if (isNaN(returnAddr)) {
         throw new Error(`Invalid returnTo address: ${returnTo}`);
       }
+    }
 
+    if (returnAddr !== null) {
       // RTS pops address and adds 1, so push (returnAddr - 1)
       const rtsAddr = (returnAddr - 1) & 0xFFFF;
       const sp = await wasmModule._getSP();
@@ -399,7 +433,11 @@ export const assemblerTools = {
     const returnHex = returnAddr !== null
       ? "$" + returnAddr.toString(16).toUpperCase().padStart(4, "0")
       : null;
-    const returnMsg = returnHex ? `, return to ${returnHex}` : "";
+    const returnMsg = returnHex
+      ? isHalt
+        ? `, halt-spin at ${returnHex}`
+        : `, return to ${returnHex}`
+      : "";
     const statusMsg = paused
       ? `PC set to ${addrHex} (paused${returnMsg})`
       : `Executing at ${addrHex}${returnMsg}`;
@@ -410,6 +448,7 @@ export const assemblerTools = {
       addressHex: addrHex,
       returnTo: returnAddr,
       returnToHex: returnHex,
+      halt: isHalt,
       paused: paused,
       message: statusMsg,
     };

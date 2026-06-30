@@ -11,7 +11,7 @@
 
 ## Main
 
-- [main](/docs/llms/llm-main.txt) Core emulator power, reset controls, memory operations for loading/saving binary data, screen capture (screenshot + text), and keyboard input (type text + special keys)
+- [main](/docs/llms/llm-main.txt) Core emulator power, reset controls, memory operations for loading/saving binary data, screen capture (screenshot + text), and keyboard input (type text + special keys). **Read its RULE 0 first: prefer the no-base64 bypass tools (`directLoadFileAt`, `directMemoryCopy`, `directMemoryFill`, `save_to`, `get_screenshot`) over base64 round-trips — this holds across context compaction.**
 
 ## Windows
 

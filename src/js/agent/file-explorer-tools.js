@@ -5,6 +5,96 @@
  *  Shawn Bullock <shawn@agenticexpert.ai>
  */
 
+/**
+ * Read a file's raw bytes from a disk image mounted in the given drive.
+ * Shared by getDiskFileContent (which encodes to base64/text for the LLM) and
+ * directLoadFileAt (which writes straight to emulator memory, no base64).
+ * Returns { format, bytes } where bytes is a Uint8Array copy.
+ * @param {object} wasmModule - WASM proxy
+ * @param {number} drive - 0 or 1
+ * @param {string} filename - file name or full ProDOS path
+ */
+export async function readDiskFileBytes(wasmModule, drive, filename) {
+  if (drive !== 0 && drive !== 1) {
+    throw new Error("drive must be 0 or 1");
+  }
+  if (!filename) {
+    throw new Error("filename parameter is required");
+  }
+  if (!(await wasmModule._isDiskInserted(drive))) {
+    throw new Error(`No disk in drive ${drive + 1}`);
+  }
+
+  // Get disk data
+  const sizePtr = await wasmModule._malloc(4);
+  const dataPtr = await wasmModule._getDiskSectorData(drive, sizePtr);
+  const size = (await wasmModule.heapReadU32(sizePtr, 1))[0];
+  await wasmModule._free(sizePtr);
+
+  if (!dataPtr || size === 0) {
+    throw new Error("Cannot read disk data");
+  }
+
+  let format = null;
+  let fileIndex = -1;
+  let bytes = null;
+
+  if (await wasmModule._isProDOSFormat(dataPtr, size)) {
+    format = "prodos";
+    const count = await wasmModule._getProDOSCatalog(dataPtr, size);
+    for (let i = 0; i < count; i++) {
+      const name = await wasmModule.UTF8ToString(
+        await wasmModule._getProDOSEntryFilename(i),
+      );
+      const path = await wasmModule.UTF8ToString(
+        await wasmModule._getProDOSEntryPath(i),
+      );
+      if (name === filename || path === filename) {
+        fileIndex = i;
+        break;
+      }
+    }
+    if (fileIndex === -1) {
+      throw new Error(`File not found: ${filename}`);
+    }
+    const bytesRead = await wasmModule._readProDOSFile(dataPtr, size, fileIndex);
+    if (bytesRead === 0) {
+      throw new Error("Failed to read file");
+    }
+    bytes = await wasmModule.heapRead(
+      await wasmModule._getProDOSFileBuffer(),
+      bytesRead,
+    );
+  } else if (await wasmModule._isDOS33Format(dataPtr, size)) {
+    format = "dos33";
+    const count = await wasmModule._getDOS33Catalog(dataPtr, size);
+    for (let i = 0; i < count; i++) {
+      const name = await wasmModule.UTF8ToString(
+        await wasmModule._getDOS33EntryFilename(i),
+      );
+      if (name === filename) {
+        fileIndex = i;
+        break;
+      }
+    }
+    if (fileIndex === -1) {
+      throw new Error(`File not found: ${filename}`);
+    }
+    const bytesRead = await wasmModule._readDOS33File(dataPtr, size, fileIndex);
+    if (bytesRead === 0) {
+      throw new Error("Failed to read file");
+    }
+    bytes = await wasmModule.heapRead(
+      await wasmModule._getDOS33FileBuffer(),
+      bytesRead,
+    );
+  } else {
+    throw new Error("Unknown disk format");
+  }
+
+  return { format, bytes };
+}
+
 export const fileExplorerTools = {
   /**
    * List files in a disk drive
@@ -128,100 +218,17 @@ export const fileExplorerTools = {
   getDiskFileContent: async (args) => {
     const { drive = 0, filename, isBinary = true } = args;
 
-    if (!filename) {
-      throw new Error("filename parameter is required");
-    }
-
-    if (drive !== 0 && drive !== 1) {
-      throw new Error("drive must be 0 or 1");
-    }
-
     const wasmModule = window.emulator?.wasmModule;
     if (!wasmModule) {
       throw new Error("WASM module not available");
     }
 
-    // Check if disk is inserted
-    if (!await wasmModule._isDiskInserted(drive)) {
-      throw new Error(`No disk in drive ${drive + 1}`);
-    }
-
-    // Get disk data
-    const sizePtr = await wasmModule._malloc(4);
-    const dataPtr = await wasmModule._getDiskSectorData(drive, sizePtr);
-    const size = (await wasmModule.heapReadU32(sizePtr, 1))[0];
-    await wasmModule._free(sizePtr);
-
-    if (!dataPtr || size === 0) {
-      throw new Error("Cannot read disk data");
-    }
-
-    // Detect format and find file
-    let format = null;
-    let fileIndex = -1;
-    let fileData = null;
-
-    if (await wasmModule._isProDOSFormat(dataPtr, size)) {
-      format = "prodos";
-      const count = await wasmModule._getProDOSCatalog(dataPtr, size);
-
-      // Find file by name or path
-      for (let i = 0; i < count; i++) {
-        const name = await wasmModule.UTF8ToString(
-          await wasmModule._getProDOSEntryFilename(i),
-        );
-        const path = await wasmModule.UTF8ToString(
-          await wasmModule._getProDOSEntryPath(i),
-        );
-
-        if (name === filename || path === filename) {
-          fileIndex = i;
-          break;
-        }
-      }
-
-      if (fileIndex === -1) {
-        throw new Error(`File not found: ${filename}`);
-      }
-
-      // Read file
-      const bytesRead = await wasmModule._readProDOSFile(dataPtr, size, fileIndex);
-      if (bytesRead === 0) {
-        throw new Error("Failed to read file");
-      }
-
-      const bufPtr = await wasmModule._getProDOSFileBuffer();
-      fileData = await wasmModule.heapRead(bufPtr, bytesRead);
-    } else if (await wasmModule._isDOS33Format(dataPtr, size)) {
-      format = "dos33";
-      const count = await wasmModule._getDOS33Catalog(dataPtr, size);
-
-      // Find file by name
-      for (let i = 0; i < count; i++) {
-        const name = await wasmModule.UTF8ToString(
-          await wasmModule._getDOS33EntryFilename(i),
-        );
-        if (name === filename) {
-          fileIndex = i;
-          break;
-        }
-      }
-
-      if (fileIndex === -1) {
-        throw new Error(`File not found: ${filename}`);
-      }
-
-      // Read file
-      const bytesRead = await wasmModule._readDOS33File(dataPtr, size, fileIndex);
-      if (bytesRead === 0) {
-        throw new Error("Failed to read file");
-      }
-
-      const bufPtr = await wasmModule._getDOS33FileBuffer();
-      fileData = await wasmModule.heapRead(bufPtr, bytesRead);
-    } else {
-      throw new Error("Unknown disk format");
-    }
+    // Read the file's raw bytes (shared with directLoadFileAt)
+    const { format, bytes: fileData } = await readDiskFileBytes(
+      wasmModule,
+      drive,
+      filename,
+    );
 
     // Return either base64 (binary) or plain text
     if (isBinary) {

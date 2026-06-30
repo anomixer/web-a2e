@@ -2,6 +2,27 @@
 
 > Core emulator power and reset controls.
 
+## ⚠️ RULE 0 — Never move bytes through the LLM (read this first)
+
+base64 blobs and file dumps burn the user's context and slow every turn. A
+bypass tool that keeps the bytes server-side almost always exists. **Default to
+the bypass.** Use base64 only when no bypass exists for that source — and when
+you do, say so out loud (that's the cue to add a new bypass tool).
+
+| You're about to… | base64 way — AVOID | bypass — USE |
+| --- | --- | --- |
+| put a sandbox/host file in memory | `load_file` → `directLoadBinaryAt` | **`directLoadFileAt`** `{ address, path }` |
+| put a disk-image file in memory | `getDiskFileContent` → `directLoadBinaryAt` | **`directLoadFileAt`** `{ address, filename, drive }` |
+| load `.asm` source to assemble | `load_file` → `asmSet` | **`asmLoadFile`** `{ path }` |
+| copy a memory block | `directSaveBinaryRangeTo` → `directLoadBinaryAt` | **`directMemoryCopy`** `{ src, dst, length }` |
+| blank/fill a memory block | zero-blob → `directLoadBinaryAt` | **`directMemoryFill`** `{ address, length, value }` |
+| save memory to a file | `directSaveBinaryRangeTo` → write | **`save_to`** `{ from:"memory-range" }` |
+| save editor/screen to a file | `asmGet`/`capture*` → write | **`save_to`** `{ from:"asm-editor" \| "basic-editor" \| "screen" }` |
+| look at the screen | `captureScreenshot` (base64) | **`get_screenshot`** (MCP) or **`save_to`** `{ from:"screen" }` |
+| run a routine, then verify RAM | execute → BASIC clobbers pages | `directExecuteAssemblyAt` `{ returnTo:"halt" }` (CPU spins, RAM frozen) |
+
+This rule holds across context compaction — do not silently fall back to base64.
+
 ## Tool Operations
 
 **Power control:**
@@ -26,19 +47,50 @@ Cold reset - full reboot that clears all memory.
 
 ## Memory Operations
 
-**Load binary data to memory:**
+### Preferred (no base64 in context)
+
+**Load a file straight into memory — `directLoadFileAt`:**
+```
+emma_command({ command: "directLoadFileAt", params: { address: "$2000", path: "[t]/bin/pic.bin" } })
+emma_command({ command: "directLoadFileAt", params: { address: "$6000", filename: "HGR.ART", drive: 0 } })
+emma_command({ command: "directLoadFileAt", params: { address: "$2000", filename: "PIC", drive: 0, offset: "$04" } })
+```
+Loads a binary directly into emulator memory with the bytes kept server-side — **never base64 through the LLM**. Pick ONE source:
+- `path` — a sandbox/host file (read via the MCP `load_file` tool, decoded in the browser).
+- `filename` (+ optional `drive`, default 0) — a file in the DOS 3.3 / ProDOS disk image currently mounted in that drive.
+
+Optional `offset`/`length` (hex or decimal) slice the file before writing (e.g. skip a 4-byte BSAVE header). This replaces `load_file`/`getDiskFileContent` + `directLoadBinaryAt`.
+
+**Copy a memory block — `directMemoryCopy`:**
+```
+emma_command({ command: "directMemoryCopy", params: { src: "$2000", dst: "$4000", length: "$2000" } })
+```
+Copies `length` bytes from `src` to `dst` entirely Apple-side. The source is buffered first, so overlapping ranges are safe. Reads follow the current RAMRD bank, writes the current RAMWRT bank — set soft switches first if you need a specific main/aux bank. (e.g. promote HGR page 1 → page 2 without a host round-trip.)
+
+**Fill/blank a memory block — `directMemoryFill`:**
+```
+emma_command({ command: "directMemoryFill", params: { address: "$2000", length: "$2000", value: 0 } })
+```
+Writes the constant byte `value` (default 0) across the range. Use this to blank a graphics page instead of loading a zero-filled base64 blob.
+
+**Save memory range to a file (single step, no base64):**
+```
+save_to({ from: "memory-range", address: "$0800", length: "$0400", whereTo: "[files]/output.bin" })
+```
+
+### Fallback (base64 passes through the LLM — avoid unless no bypass fits)
+
+**Load binary data to memory — `directLoadBinaryAt`:**
 ```
 emma_command({ command: "directLoadBinaryAt", params: { address: "$2000", contentBase64: "<base64 data>" } })
-emma_command({ command: "directLoadBinaryAt", params: { address: 8192, contentBase64: "<base64 data>" } })
 ```
-Loads binary data (base64 encoded) directly into emulator memory at the specified address. Address can be hex (`"$2000"` or `"0x2000"`) or decimal (`8192` or `"8192"`). Use with MCP tool `load_file` to load files from local filesystem.
+⚠️ base64 in context. Prefer `directLoadFileAt`. Only use this when the bytes were generated in-conversation and exist nowhere on disk.
 
-**Save memory range to binary:**
+**Save memory range to base64 — `directSaveBinaryRangeTo`:**
 ```
 emma_command({ command: "directSaveBinaryRangeTo", params: { address: "$2000", length: "$0100" } })
-emma_command({ command: "directSaveBinaryRangeTo", params: { address: 8192, length: 256 } })
 ```
-Reads a range of memory and returns it as base64-encoded binary data. Both address and length can be hex (`"$0100"`) or decimal (`256`). Use MCP tool `save_to` with `from: "memory-range"` to capture directly to a file without the base64 passing through the LLM.
+⚠️ base64 in context. Prefer `save_to { from:"memory-range" }` to capture to a file. Only use this for a tiny readback you must inspect inline (a few bytes).
 
 ## Screen Capture
 
@@ -121,9 +173,22 @@ Notes:
 
 ## Workflow Examples
 
-**Loading binary file from local filesystem to memory:**
-1. Load file: `load_file({ path: "~/program.bin", binary: true })`
-2. Load to memory: `directLoadBinaryAt({ address: "$2000", contentBase64: result.contentBase64 })`
+**Loading a binary file into memory (single step, no base64):**
+```
+emma_command({ command: "directLoadFileAt", params: { address: "$2000", path: "[t]/program.bin" } })
+```
+
+**Promote HGR page 1 → page 2 and blank page 1 (no host round-trip):**
+```
+emma_command({ command: "directMemoryCopy", params: { src: "$2000", dst: "$4000", length: "$2000" } })
+emma_command({ command: "directMemoryFill", params: { address: "$2000", length: "$2000", value: 0 } })
+```
+
+**Run a routine then verify RAM without BASIC clobbering it:**
+```
+emma_command({ command: "directExecuteAssemblyAt", params: { addr: "$6000", returnTo: "halt" } })
+```
+The CPU spins in a JMP-self pad after the routine's RTS, so `$2000`/`$4000` (or any RAM) stay frozen for screenshot + readback.
 
 **Saving memory range to local filesystem (single step, no base64 in context):**
 ```

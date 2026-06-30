@@ -1,12 +1,38 @@
 # AG-UI Tools Reference
 
 **Location**: `src/js/agent/*-tools.js`
-**Total**: 93 frontend tools
+**Total**: 96 frontend tools
 **Purpose**: Agent-callable functions that execute in the browser and control the emulator
 
 ---
 
 ## Recent Additions
+
+### Base64-Bypass Memory Tools (context-bypass)
+Three `main-tools.js` tools + a `directExecuteAssemblyAt` mode that keep bytes
+off the LLM context. See the **RULE 0** table in `public/docs/llms/llm-main.txt`.
+
+**directLoadFileAt** — load a binary straight into memory. Source is either a
+sandbox file (`path`, read server-side via `agentManager.callMCPTool("load_file")`)
+or a mounted-disk file (`filename` + `drive`, read in-browser via the shared
+`readDiskFileBytes` helper in `file-explorer-tools.js`). Optional `offset`/`length`
+slice. Replaces `load_file`/`getDiskFileContent` + `directLoadBinaryAt`.
+
+**directMemoryCopy** `{ src, dst, length }` — Apple-side block copy (source
+buffered first, overlap-safe). **directMemoryFill** `{ address, length, value }`
+— constant-byte fill/blank. Both follow current RAMRD/RAMWRT banks.
+
+**directExecuteAssemblyAt `returnTo:"halt"`** (alias `"spin"`) — writes a
+`JMP self` pad (default $03C0, override `haltAddr`) and returns the RTS into it,
+so the CPU loops forever and never re-enters BASIC/ProDOS — freezes RAM for
+post-routine verification. Obsoletes hand-rolled spin stubs.
+
+```javascript
+emma_command({ command: "directLoadFileAt",  params: { address: "$6000", filename: "HGR.ART", drive: 0 } })
+emma_command({ command: "directMemoryCopy",  params: { src: "$2000", dst: "$4000", length: "$2000" } })
+emma_command({ command: "directMemoryFill",  params: { address: "$2000", length: "$2000", value: 0 } })
+emma_command({ command: "directExecuteAssemblyAt", params: { addr: "$6000", returnTo: "halt" } })
+```
 
 ### Direct Editor File Load (context-bypass)
 **basicProgramLoadFile** / **asmLoadFile** — load a sandbox file straight into the
@@ -60,7 +86,7 @@ Use cases:
 
 ---
 
-## Main Tools (8 tools)
+## Main Tools (11 tools)
 
 **Location**: `src/js/agent/main-tools.js`
 **Purpose**: Core emulator control, direct memory access, and keyboard input
@@ -71,8 +97,11 @@ Use cases:
 - **emulatorReboot** - Cold reset (power cycle)
 
 ### Memory Access
-- **directLoadBinaryAt** - Load binary data into memory at address
-- **directSaveBinaryRangeTo** - Read memory range as base64
+- **directLoadFileAt** - Load a file (sandbox `path` or disk `filename`+`drive`) straight to memory, no base64 in context (preferred over the two below)
+- **directMemoryCopy** - Copy a memory block Apple-side (`src`, `dst`, `length`); overlap-safe
+- **directMemoryFill** - Fill/blank a memory block (`address`, `length`, `value`)
+- **directLoadBinaryAt** - Load base64 binary into memory at address (fallback; base64 in context)
+- **directSaveBinaryRangeTo** - Read memory range as base64 (fallback; prefer `save_to from:"memory-range"`)
 
 ### Screen Capture
 - **captureScreenshot** - Capture screen as 560x384 PNG (base64)
@@ -84,7 +113,7 @@ Use cases:
 **WASM dependencies**:
 - `_isPaused()`, `_setPaused()`
 - `_reset()`, `_warmReset()`
-- `_readMemory()`, `_writeMemory()`
+- `_readMemory()`, `_writeMemory()`, `_peekMemory()` (copy/save reads, no side effects)
 - `_readScreenText()` - Screen text capture
 - `_charToAppleKey()` - Char → Apple key code (typeKeyboard, via input handler paste queue)
 
@@ -155,7 +184,7 @@ Use cases:
 - **asmAssemble** - Compile 6502 source code
 - **asmWrite** - Load assembled code into memory
 - **asmGetStatus** - Get compilation status (origin, size, errors)
-- **directExecuteAssemblyAt** - Execute at address
+- **directExecuteAssemblyAt** - Execute at address; `returnTo` accepts `"auto"`/`"monitor"`/`"basic"`/hex/decimal plus `"halt"`/`"spin"` (RTS into a JMP-self pad — freezes RAM, no return to BASIC)
 
 ### Editor Operations
 - **asmLoadExample** - Load template program
