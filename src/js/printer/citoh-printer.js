@@ -83,6 +83,12 @@ export class CItohPrinter extends PrinterBase {
     // reselects it. Default: select disabled (so a stray DC3/XOFF is inert).
     this._swSelectEnabled = false;
     this._deselected      = false;
+    // Include/ignore the 8th data bit (ESC Z/D CTRL-@ SPACE, Group B 0x20; Tables
+    // 6-4 / 7-3). Power-on = ignore: strip bit 7 so Applesoft's high-bit ASCII
+    // prints as normal characters. ESC Z includes it (high-ASCII selects the ESC *
+    // custom high set / true 8-bit data). DIP-like: survives a software reset,
+    // exactly like _swSelectEnabled above.
+    this._includeEighth   = false;
     // Paper-out sensor (ESC O/o, Table 5-13). DIP-like, default on. On real hw it
     // deselects the printer when ~7/144" of paper remains; our virtual paper is
     // endless and no SheetFeeder is modelled, so the flag never trips — but the
@@ -157,6 +163,7 @@ export class CItohPrinter extends PrinterBase {
     this._lineHeight     = this.dpi / 6;   // 6 lpi default
     this._quality        = "draft";   // power-on font (Table 4-1): draft | corr | nlq
     this._xDot           = 0;
+    this._lastAdvance    = 0;         // escapement of the last glyph emitted — CTRL-H backspace steps this (proportional/custom aware)
     this._yDot           = this._homeYDot();   // power-on head rest, a hair below sheet top
     this._unidirectional = false;     // power-on default is bidirectional (ESC <)
     this._mouseText      = false;     // ESC &/$ — map MouseText into low ASCII $40-$5F
@@ -185,7 +192,9 @@ export class CItohPrinter extends PrinterBase {
   _carriagePicaDots() { return this.dpi / 10; }
 
   receiveByte(byte) {
-    const ch = byte & 0x7F; // strip Apple II high bit
+    // Strip the Apple II high bit unless ESC Z enabled 8-bit mode, in which case
+    // the full byte is data: high-ASCII selects the custom high set / 8-bit graphics.
+    const ch = this._includeEighth ? byte : (byte & 0x7F);
 
     // Software-deselected (CTRL-S while SWA-5 enabled): swallow every byte until
     // a CTRL-Q (DC1) reselects the printer (Table 6-6). Mirrors the real DTR
@@ -210,10 +219,13 @@ export class CItohPrinter extends PrinterBase {
         } else if (ch === 0x0F) {
           this._doubleWidth = false;  // CTRL-O — double-width off
         } else if (ch === 0x08) {
-          // CTRL-H backspace: step head back one char cell, no paper feed.
-          // Clamped at the left margin. Reprinting here overstrikes the prior
-          // glyph (how period software drew strikethrough — no native opcode).
-          this._xDot = Math.max(this._leftMargin, this._xDot - this._charAdvance());
+          // CTRL-H backspace: step head back over the LAST glyph emitted, no paper
+          // feed — using that glyph's actual escapement, so a proportional or a
+          // downloaded custom char steps back its true width, not a fixed cell.
+          // Falls back to one cell before anything prints. Clamped at the left
+          // margin. Reprinting here overstrikes the prior glyph (strikethrough).
+          const backStep = this._lastAdvance || this._charAdvance();
+          this._xDot = Math.max(this._leftMargin, this._xDot - backStep);
           this.emit("backspace");
         } else if (ch === 0x09) {
           this._horizontalTab();   // CTRL-I / HT — advance to next tab stop
@@ -259,10 +271,12 @@ export class CItohPrinter extends PrinterBase {
           // one-param-byte machinery; the digit/letter split happens in S_PARAM1.
           this._paramCmd = 0x1F;
           this._state    = S_PARAM1;
-        } else if (ch >= 0x20 && ch < 0x7F) {
+        } else if ((ch >= 0x20 && ch < 0x7F) || (this._includeEighth && ch >= 0xA0)) {
           // ESC & maps the 32 MouseText glyphs into low ASCII $40-$5F (Table 4-2):
           // each lives at code+$80 in the ROM ($C0-$DF). Outside that window, or
-          // after ESC $, codes print as standard ASCII.
+          // after ESC $, codes print as standard ASCII. In 8-bit mode (ESC Z) the
+          // high-ASCII band $A0-$FF passes straight through as its own code — the
+          // ESC * custom high set (or the high-ASCII ROM face).
           const code = (this._mouseText && ch >= 0x40 && ch <= 0x5F) ? ch + 0x80 : ch;
           this._emitChar(code);
         }
@@ -583,8 +597,9 @@ export class CItohPrinter extends PrinterBase {
   // Apply an ESC D/Z software-switch pattern (Tables A-4/A-5). `a` is the Group A
   // byte, `b` the Group B byte; `isD` is true for ESC D (close = switch ON), false
   // for ESC Z (open = OFF). Only the switches with a modelled effect act —
-  // slash-zero (Group B, 0x01) and auto-LF-after-CR (Group A, 0x80); the rest are
-  // consumed as documented no-ops so their pattern bytes never print as text.
+  // slash-zero (Group B, 0x01), auto-LF-after-CR (Group A, 0x80), software-select
+  // (Group A, 0x10) and 8th-data-bit (Group B, 0x20); the rest are consumed as
+  // documented no-ops so their pattern bytes never print as text.
   _applySoftSwitch(a, b, isD) {
     if (b & 0x01) this.setSlashedZero(isD);   // zeros slashed (ESC D) / unslashed (ESC Z)
     if (a & 0x80) this.setAutoLineFeed(isD);  // add LF after CR (ESC D) / none (ESC Z)
@@ -592,6 +607,10 @@ export class CItohPrinter extends PrinterBase {
     // (open) enables CTRL-Q/CTRL-S and ESC D (close) disables them — inverted
     // from the bits above (Table 6-6 / Chapter 3).
     if (a & 0x10) this._swSelectEnabled = !isD;
+    // 8th data bit (Group B 0x20, Table 6-4): ESC Z (open) INCLUDES it, ESC D
+    // (close) IGNORES it — the power-on default. Gates the high-bit strip in
+    // receiveByte so high-ASCII reaches the custom high set / 8-bit graphics.
+    if (b & 0x20) this._includeEighth = !isD;
   }
 
   // Begin collecting an ASCII-decimal parameter of `digits` characters for
@@ -702,6 +721,13 @@ export class CItohPrinter extends PrinterBase {
     }
 
     const xs = this._doubleWidth ? 2 : 1;
+    // A downloaded custom glyph (ESC '/* font active, code defined) advances by
+    // its WIDTH CODE — the column count you downloaded, trailing blank columns
+    // included (IW-II Tech Ref ch.7: "the width you specify is the escapement").
+    // Its columns strike at the pitch's graphics density like ESC G data, NOT the
+    // fixed 120-dpi draft cell. An undefined code falls through to the ROM face
+    // and keeps the fixed-cell advance below.
+    const customActive = this._customFont !== "none" && this.getCustomChar(code) != null;
     let cols, dotW, adv;
     if (propCols) {
       cols = propCols;
@@ -711,6 +737,13 @@ export class CItohPrinter extends PrinterBase {
       // draws for an NLQ cell. Corr-prop keeps the 1:1 factor (no change).
       const advScale = propIsNlq ? (120 / 160) : 1;
       adv  = Math.round((cols.length * xs + this._propSpacing) * dotW * advScale);
+    } else if (customActive) {
+      // Width code = escapement: advance cols.length graphics columns at the pitch
+      // density (pica 16-col glyph = 16/80" = 0.2" = two pica cells). dotW stays
+      // the 120-raster unit so the head-origin mapping (ESC F, text) is untouched.
+      cols = this.getGlyph(code);
+      dotW = this._dotW;
+      adv  = Math.round(cols.length * xs * this._gfxDotW());
     } else {
       cols = this.getGlyph(code);
       dotW = this._dotW;
@@ -730,7 +763,8 @@ export class CItohPrinter extends PrinterBase {
     const nlqMouse = nlqCell && code >= 0xC0 && code <= 0xDF;
     const nlqDense = nlqCell || propIsNlq;
     const rows     = propIsNlq ? 18 : (nlqCell ? (nlqMouse ? 16 : 18) : 9);
-    const hDensity = nlqDense ? 160 : 120;
+    const hDensity = customActive ? (GFX_DENSITY[this._pitch] ?? 120)
+                   : nlqDense ? 160 : 120;
     const vDensity = nlqDense ? 144 : 72;
 
     // Auto-wrap at the right platen margin: real ImageWriter issues an
@@ -760,6 +794,7 @@ export class CItohPrinter extends PrinterBase {
     // Plain-text event for text-mode listeners
     this.emit("text", String.fromCharCode(code));
     this._xDot += adv;
+    this._lastAdvance = adv;   // remembered so CTRL-H backspace can step this glyph's true width
   }
 
   // ESC G/S/g column width (internal dots) at the current pitch's graphics density.

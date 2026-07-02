@@ -209,6 +209,20 @@ export class PrinterManager {
     this._pumping = false;
   }
 
+  // Abandon queued-but-unreleased motion WITHOUT firing it. Unlike drainNow()
+  // (which flushes the backlog onto the paper), this DISCARDS it so the pending
+  // events can never render onto a wiped or re-initialised canvas. A screen dump
+  // paces out over seconds; a Clear — or a second dump — issued mid-render would
+  // otherwise keep painting the old job's bands onto the fresh sheet ("the top
+  // clears, then it prints something different"). Callers that wipe or re-init
+  // the paper (clear, model switch, power-off) must cancel here first.
+  cancelQueued() {
+    this._sched.length = 0;
+    this._pumping      = false;
+    if (this._flushTimer) { clearTimeout(this._flushTimer); this._flushTimer = null; }
+    if (this._tickTimer)  { clearTimeout(this._tickTimer);  this._tickTimer  = null; }
+  }
+
   async init() {
     if (this._callbackInstalled) return;
     if (!this.wasmProxy) return;
@@ -234,9 +248,21 @@ export class PrinterManager {
   // with no terminating CR still prints.
   receiveByte(byte) {
     if (!this._powered || !this._hasInterface) return;
+    // A live print stream (real 6502 -> SSC/parallel -> printer) arrives one byte
+    // at a time as the CPU emits it. Pace it at the head model's real carriage
+    // speed, NOT the lag clamp: exactly like feedBytes(), flag the enqueue window
+    // unclamped (see _enqueue) so every band sweeps at spec speed. Without this
+    // the MAX_LAG_MS cap binds after ~1.5s and snaps the rest of the page out
+    // instantly — a few lines pace, then the whole sheet appears at once. The
+    // idle flush below re-clamps once the stream goes quiet so a warp-speed CPU
+    // can't build an unbounded backlog between jobs.
+    this._unclampedFeed = true;
     this.activePrinter.receiveByte(byte);
     if (this._flushTimer) clearTimeout(this._flushTimer);
-    this._flushTimer = setTimeout(() => this.activePrinter.flushLine?.(), 120);
+    this._flushTimer = setTimeout(() => {
+      this.activePrinter.flushLine?.();
+      this._unclampedFeed = false;   // stream idle -> restore the lag clamp
+    }, 120);
   }
 
   // Feed a whole block of bytes (e.g. a host-built screen dump) straight to the
@@ -340,10 +366,7 @@ export class PrinterManager {
     if (next === this._powered) return this._powered;
     this._powered = next;
     if (!next) {
-      this._sched.length = 0;
-      this._pumping      = false;
-      if (this._flushTimer) { clearTimeout(this._flushTimer); this._flushTimer = null; }
-      if (this._tickTimer)  { clearTimeout(this._tickTimer);  this._tickTimer  = null; }
+      this.cancelQueued();
     } else {
       this._cursor = now();
     }
@@ -386,11 +409,8 @@ export class PrinterManager {
   setActivePrinter(printer) {
     this.activePrinter.reset();
     this.activePrinter = printer;
-    this._sched.length = 0;
-    this._pumping      = false;
+    this.cancelQueued();
     this._cursor       = 0;
-    if (this._flushTimer) { clearTimeout(this._flushTimer); this._flushTimer = null; }
-    if (this._tickTimer)  { clearTimeout(this._tickTimer);  this._tickTimer  = null; }
     this._install(printer);
     if (this._onPrinterChange) this._onPrinterChange(printer);
   }

@@ -66,6 +66,15 @@ export function tokenizeLine(text) {
       continue;
     }
 
+    // Crunch out spaces (outside quotes / REM / DATA), exactly as the Applesoft
+    // ROM tokenizer does. The runtime ASSUMES a space-free token stream: several
+    // statement handlers (POKE/GETADR among them) advance TXTPTR by reading the
+    // bytes directly, without the space-skipping CHRGET, so a single retained
+    // $20 makes RUN throw ?SYNTAX ERROR — even though LIST re-inserts spaces and
+    // looks perfectly correct. Dropping spaces here makes the poked-in program
+    // byte-identical to one typed at the ROM prompt.
+    if (ch === ' ') { i++; continue; }
+
     // ? is shorthand for PRINT
     if (ch === '?') {
       bytes.push(0xBA); // PRINT token

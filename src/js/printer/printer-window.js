@@ -12,7 +12,7 @@ import { PRINTER_MODELS, RIBBONS } from "./printer-manager.js";
 import { makeZipStore } from "./zip-store.js";
 import {
   buildScreenDumpImageWriter, buildScreenDumpAppleDMP, buildScreenDumpEpson,
-  buildScreenDumpColor, SCREEN_W, SCREEN_H,
+  buildScreenDumpColor, litDensity, SCREEN_W, SCREEN_H,
 } from "./screen-dump.js";
 import { printViaIframe, printPagesViaIframe } from "./print-utils.js";
 import { savePage } from "./printer-page-store.js";
@@ -2973,6 +2973,10 @@ export class PrinterWindow extends BaseWindow {
 
   _clear() {
     this._flushAndEndJob();   // save the sheet to the page store before wiping it
+    // Drop any still-pacing output (a screen dump feeds out over seconds) BEFORE
+    // wiping the canvas — otherwise the prior job's queued bands keep rendering
+    // onto the fresh sheet and the next dump interleaves with them.
+    this.printerManager.cancelQueued();
     this.text = "";
     this.printerManager.getActivePrinter().reset();
     this._heads = [];
