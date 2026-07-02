@@ -228,14 +228,15 @@ export const mainTools = {
    * sources, pick one:
    *   - sandbox file: pass `path` (e.g. "[t]/bin/pic.bin") — read server-side
    *     via the MCP load_file tool, decoded in the browser.
-   *   - disk file: pass `filename` (+ optional `drive`, default 0) — read from
-   *     the DOS 3.3 / ProDOS disk image currently mounted in that drive.
+   *   - disk file: pass `filename` (+ optional `drive`, default 1) — read from
+   *     the DOS 3.3 / ProDOS disk image currently mounted in that drive (1=Drive 1, 2=Drive 2).
    * Prefer this over load_file/getDiskFileContent + directLoadBinaryAt: those
    * return base64 to the LLM, this never does. Optional `offset`/`length` slice
    * the file (e.g. skip a header) before writing.
    */
   directLoadFileAt: async (args) => {
-    const { address, path, filename, drive = 0, offset = 0, length } = args;
+    const { address, path, filename, drive = 1, offset = 0, length } = args;
+    const driveIndex = drive - 1;
 
     const wasmModule = window.emulator?.wasmModule;
     if (!wasmModule) {
@@ -271,9 +272,9 @@ export const mainTools = {
       }
       source = path;
     } else {
-      const disk = await readDiskFileBytes(wasmModule, drive, filename);
+      const disk = await readDiskFileBytes(wasmModule, driveIndex, filename);
       bytes = disk.bytes;
-      source = `${filename} (drive ${drive + 1}, ${disk.format})`;
+      source = `${filename} (drive ${drive}, ${disk.format})`;
     }
 
     // Optional slice (offset/length) before writing

@@ -100,11 +100,12 @@ export const fileExplorerTools = {
    * List files in a disk drive
    */
   listDiskFiles: async (args) => {
-    const { drive = 0 } = args;
+    const { drive = 1 } = args;
 
-    if (drive !== 0 && drive !== 1) {
-      throw new Error("drive must be 0 or 1");
+    if (drive !== 1 && drive !== 2) {
+      throw new Error("drive must be 1 or 2");
     }
+    const driveIndex = drive - 1;
 
     const windowManager = window.emulator?.windowManager;
     if (!windowManager) {
@@ -122,19 +123,19 @@ export const fileExplorerTools = {
     }
 
     // Check if disk is inserted
-    if (!await wasmModule._isDiskInserted(drive)) {
+    if (!await wasmModule._isDiskInserted(driveIndex)) {
       return {
         success: false,
         drive: drive,
         format: null,
         files: [],
-        message: `No disk in drive ${drive + 1}`,
+        message: `No disk in drive ${drive}`,
       };
     }
 
     // Get disk data
     const sizePtr = await wasmModule._malloc(4);
-    const dataPtr = await wasmModule._getDiskSectorData(drive, sizePtr);
+    const dataPtr = await wasmModule._getDiskSectorData(driveIndex, sizePtr);
     const size = (await wasmModule.heapReadU32(sizePtr, 1))[0];
     await wasmModule._free(sizePtr);
 
@@ -208,7 +209,7 @@ export const fileExplorerTools = {
       volumeName: volumeName,
       fileCount: files.length,
       files: files,
-      message: `Found ${files.length} file(s) on ${format ? format.toUpperCase() : "Unknown"} disk in drive ${drive + 1}`,
+      message: `Found ${files.length} file(s) on ${format ? format.toUpperCase() : "Unknown"} disk in drive ${drive}`,
     };
   },
 
@@ -216,7 +217,12 @@ export const fileExplorerTools = {
    * Get file content from disk
    */
   getDiskFileContent: async (args) => {
-    const { drive = 0, filename, isBinary = true } = args;
+    const { drive = 1, filename, isBinary = true } = args;
+
+    if (drive !== 1 && drive !== 2) {
+      throw new Error("drive must be 1 or 2");
+    }
+    const driveIndex = drive - 1;
 
     const wasmModule = window.emulator?.wasmModule;
     if (!wasmModule) {
@@ -226,7 +232,7 @@ export const fileExplorerTools = {
     // Read the file's raw bytes (shared with directLoadFileAt)
     const { format, bytes: fileData } = await readDiskFileBytes(
       wasmModule,
-      drive,
+      driveIndex,
       filename,
     );
 
