@@ -8,9 +8,15 @@
  *
  * Record shape (one per printed page):
  *   { id, jobId, pageIndex, pageCount, pngDataUrl, model, modelId, ribbon,
- *     pageSize, formInches, width, height, headXDot, headYDot, savedAt }
+ *     pageSize, formInches, width, height, pxPerInch, headXDot, headYDot,
+ *     savedAt }
  * headXDot/headYDot are job-level (the head position at capture); the Print
  * Browser restores them when sending a job back to the paper.
+ * pxPerInch is the stored PNG's raster density. Pages are captured at the FULL
+ * supersampled backing density (120/in logical × SS), so a stored page is a
+ * pixel-exact copy of the paper: restoring a job back to the paper and
+ * reprinting from the browser both happen at the same fidelity as the
+ * original print. Records from before the field lack it and read as 120/in.
  * id is `${jobId}::${pageIndex}` so re-persisting a still-growing job overwrites
  * its pages in place rather than duplicating them.
  *

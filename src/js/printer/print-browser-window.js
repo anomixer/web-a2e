@@ -66,37 +66,6 @@ export class PrintBrowserWindow extends BaseWindow {
 
   renderContent() {
     return `
-      <style>
-        .pb-root { display:flex; flex-direction:column; height:100%; box-sizing:border-box; color:var(--text-secondary); font-family:var(--font-mono); }
-        .pb-toolbar { display:flex; align-items:center; gap:6px; padding:4px 8px; background:var(--input-bg-dark); border-bottom:1px solid var(--border-default); flex-shrink:0; }
-        .pb-btn { padding:2px 8px; font-size:11px; border:1px solid var(--border-default); border-radius:3px; background:var(--badge-dim-bg); color:var(--text-secondary); cursor:pointer; font-family:var(--font-mono); flex-shrink:0; }
-        .pb-btn:hover { background:var(--control-bg-hover); color:var(--text-primary); }
-        .pb-btn:disabled { opacity:0.4; cursor:default; }
-        .pb-btn-danger { color:var(--accent-red); border-color:var(--accent-red-border); }
-        .pb-btn-danger:hover { background:var(--accent-red-bg); color:var(--accent-red); }
-        .pb-count { margin-left:auto; font-size:11px; color:var(--text-muted); }
-        .pb-body { display:flex; flex:1; min-height:0; }
-        .pb-list { width:236px; flex:0 0 236px; overflow-y:auto; padding:6px; border-right:1px solid var(--border-default); background:var(--bg-panel); }
-        .pb-job { margin-bottom:12px; }
-        .pb-job-head { display:flex; align-items:center; gap:6px; font-size:11px; color:var(--text-muted); padding:3px 5px; border:1px solid transparent; border-radius:3px; cursor:pointer; }
-        .pb-job-head:hover { background:var(--control-bg-hover); color:var(--text-secondary); }
-        .pb-job-head.sel { color:var(--accent-green); border-color:var(--accent-green); background:var(--accent-green-bg); }
-        .pb-job-title { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-        .pb-thumbs { padding:4px 0 0 6px; }
-        .pb-thumb { display:flex; gap:8px; align-items:center; padding:4px; border:1px solid transparent; border-radius:3px; cursor:pointer; }
-        .pb-thumb:hover { background:var(--control-bg-hover); }
-        .pb-thumb.sel { border-color:var(--accent-green); background:var(--accent-green-bg); }
-        .pb-thumb img { width:42px; height:auto; max-height:56px; background:#fff; border:1px solid var(--border-default); }
-        .pb-thumb-cap { font-size:11px; line-height:1.35; color:var(--text-secondary); }
-        .pb-preview { flex:1; min-width:0; display:flex; flex-direction:column; padding:8px 10px; gap:8px; }
-        .pb-actions { display:flex; gap:6px; flex-wrap:wrap; flex-shrink:0; }
-        .pb-actions .pb-spacer { margin-left:auto; }
-        .pb-meta { font-size:11px; color:var(--text-muted); flex-shrink:0; }
-        .pb-stage { flex:1; min-height:0; overflow:auto; background:var(--canvas-bg); border:1px solid var(--border-default); border-radius:3px; padding:10px; }
-        .pb-stage img { display:block; margin:0 auto 8px; max-width:100%; height:auto; background:#fff; box-shadow:0 1px 6px rgba(0,0,0,0.35); }
-        .pb-stage img:last-child { margin-bottom:0; }
-        .pb-empty { margin:auto; color:var(--text-muted); font-size:12px; text-align:center; }
-      </style>
       <div class="pb-root">
         <div class="pb-toolbar">
           <button id="pb-refresh" class="pb-btn">Refresh</button>
@@ -221,7 +190,11 @@ export class PrintBrowserWindow extends BaseWindow {
   }
 
   // 72-dpi display width for a page PNG (canvas px → physical inches → 72dpi screen px).
-  _imgDisplayW(page) { return Math.round((page.width || 960) * 72 / 120); }
+  _imgDisplayW(page) { return Math.round((page.width || 960) * 72 / this._pagePpi(page)); }
+
+  // Stored-PNG raster density. Newer records carry it (pages are stored above
+  // logical res for print quality); records from before the field are 120/in.
+  _pagePpi(page) { return page.pxPerInch || 120; }
 
   // Whole job: the continuous paper track (every page stacked) + job actions.
   _renderJobPreview(job) {
@@ -272,13 +245,13 @@ export class PrintBrowserWindow extends BaseWindow {
     const first = job.pages[0];
     printPagesViaIframe(
       job.pages.map((p) => p.pngDataUrl),
-      first.width / 120,
+      first.width / this._pagePpi(first),
       first.formInches,
     );
   }
 
   _printPage(page) {
-    printImageViaIframe(page.pngDataUrl, page.width / 120, page.formInches);
+    printImageViaIframe(page.pngDataUrl, page.width / this._pagePpi(page), page.formInches);
   }
 
   // Re-load the whole job onto the virtual printer's paper — re-preview it there,

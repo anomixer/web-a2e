@@ -24,6 +24,7 @@ import "../css/basic-debugger.css";
 import "../css/assembler-editor.css";
 import "../css/release-notes.css";
 import "../css/file-explorer.css";
+import "../css/printer.css";
 import "../css/documentation.css";
 import "../css/window-switcher.css";
 import "../css/docking.css";

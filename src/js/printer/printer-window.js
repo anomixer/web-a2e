@@ -14,7 +14,7 @@ import {
   buildScreenDumpImageWriter, buildScreenDumpAppleDMP, buildScreenDumpEpson,
   buildScreenDumpColor, litDensity, SCREEN_W, SCREEN_H,
 } from "./screen-dump.js";
-import { printViaIframe, printPagesViaIframe } from "./print-utils.js";
+import { printPagesViaIframe } from "./print-utils.js";
 import { savePage } from "./printer-page-store.js";
 import { clampWidthInch, GRID_INCH, computeLayout } from "./printer-paper-geometry.js";
 
@@ -113,6 +113,29 @@ export function setPrinterSS(ss) {
 // instead of zeroing the backing store. The page store retains earlier sheets.
 const CANVAS_MAX_H    = 32000;
 const CANVAS_MAX_AREA = 16000000;
+// Can this browser actually host a w×h canvas? The static area cap above is
+// Safari's floor; Chrome/Firefox go far larger. Page-store snapshots use this
+// so full-density capture survives on browsers that allow it (Safari's failure
+// mode is a silently blank canvas, hence the draw-and-read-back probe).
+const _canvasFitCache = new Map();
+function canvasFits(w, h) {
+  if (w > CANVAS_MAX_H || h > CANVAS_MAX_H) return false;
+  if (w * h <= CANVAS_MAX_AREA) return true;
+  const key = w + "x" + h;
+  if (!_canvasFitCache.has(key)) {
+    let ok = false;
+    try {
+      const c = document.createElement("canvas");
+      c.width  = w;
+      c.height = h;
+      const x = c.getContext("2d");
+      x.fillRect(w - 1, h - 1, 1, 1);
+      ok = x.getImageData(w - 1, h - 1, 1, 1).data[3] !== 0;
+    } catch (e) { ok = false; }
+    _canvasFitCache.set(key, ok);
+  }
+  return _canvasFitCache.get(key);
+}
 // Six common continuous-stationery sizes from the Apple II era.
 // w/h are paper BODY inches (tractor strips already removed).
 const PAPER_PRESETS = [
@@ -344,8 +367,11 @@ export class PrinterWindow extends BaseWindow {
       `<option value="${r.id}">${r.name}</option>`
     ).join("");
 
+    // Styles live in src/css/printer.css. The vars below hand it the sizing
+    // constants that ALSO drive the ruler canvas rasters and the paper fill —
+    // JS stays the single source of truth for values that must match.
     return `
-      <div class="pr-root">
+      <div class="pr-root" style="--pr-ruler-top-h: ${RULER_TOP_H}px; --pr-ruler-left-w: ${RULER_LEFT_W}px; --pr-paper-bg: ${PAPER_BG};">
         <div class="pr-toolbar">
           <button id="pr-power" class="pr-toggle pr-toggle-on" title="Printer mains power. Off ignores incoming bytes and parks the head; printed paper is kept.">&#9211;</button>
           <div class="pr-sep"></div>
@@ -427,360 +453,7 @@ export class PrinterWindow extends BaseWindow {
           </div>
         </div>
       </div>
-      ${this._renderStyles()}
     `;
-  }
-
-  _renderStyles() {
-    return `<style>
-      .pr-root      { display: flex; flex-direction: column; height: 100%; min-width: 0; }
-      .pr-toolbar   { display: flex; align-items: center; gap: 4px; padding: 4px 8px; background: var(--input-bg-dark); border-bottom: 1px solid var(--border-default); flex-shrink: 0; flex-wrap: nowrap; overflow: hidden; min-width: 132px; }
-      .pr-select    { padding: 2px 4px; font-size: 11px; border: 1px solid var(--border-default); border-radius: 3px; background: var(--badge-dim-bg); color: var(--text-secondary); font-family: "Monaco", "Menlo", monospace; cursor: pointer; }
-      .pr-btn       { padding: 2px 8px; font-size: 11px; border: 1px solid var(--border-default); border-radius: 3px; background: var(--badge-dim-bg); color: var(--text-secondary); cursor: pointer; font-family: "Monaco", "Menlo", monospace; flex-shrink: 0; }
-      .pr-btn:hover, .pr-select:hover { background: var(--input-bg-hover); color: var(--text-primary); }
-      .pr-btn-dim   { color: var(--text-muted); }
-      .pr-btn-fit-on { background: var(--accent-green-bg-stronger); color: var(--accent-green); border-color: var(--accent-green); }
-      .pr-sep       { width: 1px; height: 16px; background: var(--border-default); margin: 0 2px; }
-      .pr-spacer    { flex: 1; }
-      .pr-label     { font-size: 11px; color: var(--text-muted); font-family: "Monaco", "Menlo", monospace; }
-      .pr-toggle    { padding: 2px 8px; font-size: 11px; border: 1px solid var(--border-default); border-radius: 3px; cursor: pointer; font-family: "Monaco", "Menlo", monospace; flex-shrink: 0; }
-      .pr-toggle-on  { background: var(--accent-green-bg-stronger); color: var(--accent-green); border-color: var(--accent-green); }
-      .pr-toggle-off { background: var(--badge-dim-bg); color: var(--text-muted); }
-      .pr-feed-bg.pr-no-interface { filter: grayscale(1) brightness(0.65); }
-
-      /* Operator settings panel: app-standard toggle-switch / settings-select,
-         stacked for the narrow side panel. */
-      .pr-settings   { display: flex; flex-direction: column; gap: 7px; padding: 2px; }
-      .pr-set-toggle { font-size: 11px; gap: 6px; color: var(--text-secondary); }
-      .pr-set-row    { display: flex; flex-direction: column; gap: 2px; cursor: default; }
-      .pr-set-label  { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
-      .pr-set-select { width: 100%; font-size: 11px; }
-
-      /* Stage holds the scrolling paper plus the slide-out operator panel. */
-      .pr-stage   { flex: 1; position: relative; display: flex; min-height: 0; min-width: 0; overflow: hidden; }
-
-      /* Figma-style L-frame: corner + top/left rulers are fixed chrome; the paper
-         scrolls under them in .pr-feed-bg. Ruler tracks collapse to 0 when the
-         active model isn't a canvas model (.pr-frame loses .pr-frame--rulers). */
-      .pr-frame {
-        flex: 1; min-width: 0; min-height: 0;
-        display: grid;
-        grid-template-columns: 0 1fr;
-        grid-template-rows: 0 1fr;
-      }
-      .pr-frame--rulers {
-        grid-template-columns: ${RULER_LEFT_W}px 1fr;
-        grid-template-rows: ${RULER_TOP_H}px 1fr;
-      }
-      /* Ruler chrome sits on the printable BASE colour (--bg-primary) by default;
-         only the top ruler's unprintable margin is repainted to the panel grey
-         (--bg-panel) in _drawTopRuler. So printable = undiscoloured base, unusable
-         = greyed — the single discolouration the operator should read. */
-      .pr-corner {
-        background: var(--bg-primary);
-        border-right: 1px solid var(--border-default);
-        border-bottom: 1px solid var(--border-default);
-        border-top-left-radius: 5px;
-      }
-      .pr-ruler-top-vp  { overflow: hidden; background: var(--bg-primary); border-bottom: 1px solid var(--border-default); }
-      .pr-ruler-left-vp { overflow: hidden; background: var(--bg-primary); border-right: 1px solid var(--border-default); }
-      .pr-frame:not(.pr-frame--rulers) .pr-corner,
-      .pr-frame:not(.pr-frame--rulers) .pr-ruler-top-vp,
-      .pr-frame:not(.pr-frame--rulers) .pr-ruler-left-vp { display: none; }
-
-      /* min-height/width:0 so this 1fr grid cell can actually scroll its tall paper
-         instead of the auto-min blowing the grid past the frame. */
-      /* Pinned to the 1fr cell (col 2 / row 2). Without this, hiding the ruler
-         chrome (display:none) lets grid auto-placement reflow the feed into the
-         collapsed 0-width/0-height first cell — the whole page vanishes. */
-      .pr-feed-bg { grid-column: 2; grid-row: 2; min-width: 0; min-height: 0; overflow: auto; background: #444; padding: 0; }
-      .pr-sheet   { display: flex; flex-direction: row; min-height: 100%; }
-
-      /* Hide the scroll gutters so a non-overlay (always-on) scrollbar can't steal
-         horizontal width — that gutter pushed the right tractor strip off the
-         window edge so it never sat flush. Vertical feed scrolls via the head-follow
-         / wheel on .pr-feed-bg; the inner .pr-paper owns only the 1:1 horizontal pan
-         and never its own vertical bar (feed-bg is the sole vertical scroller). */
-      .pr-feed-bg, .pr-paper { scrollbar-width: none; }
-      .pr-feed-bg::-webkit-scrollbar, .pr-paper::-webkit-scrollbar { width: 0; height: 0; }
-
-      /* Operator panel: by default parked off the right edge with a grab-tab
-         poking out; hover (or focus-within) glides the button column in over the
-         paper. Click the tab to PIN — the panel docks in-flow as a flex child so
-         the paper shrinks to fit beside it; click again to unpin (auto-hide). */
-      /* Collapsed = fully transparent; only the 18px tab column overlaps the
-         paper as an invisible hover hotspot. Hover (or pin) slides the column in
-         and paints the tab + body. */
-      .pr-panel       { position: absolute; top: 0; right: 0; height: 100%; display: flex; flex-direction: row; align-items: stretch; transform: translateX(calc(100% - 18px)); transition: transform 0.18s ease; z-index: 5; }
-      .pr-panel:hover, .pr-panel:focus-within { transform: translateX(0); }
-      /* Same guard as the width handle (.pr-strip-right.pr-mute-hover): if a width
-         drop leaves the pointer parked on the panel's right-edge hover trigger, the
-         panel would slide out in the operator's face. Mute it FULLY (push the whole
-         panel — tab included — off the right edge, not just re-park to the 18px tab)
-         until the pointer leaves the zone (class removed on pointerleave). More
-         specific than the :hover rule above, so it wins; never added while pinned. */
-      .pr-panel.pr-mute-hover,
-      .pr-panel.pr-mute-hover:hover,
-      .pr-panel.pr-mute-hover:focus-within { transform: translateX(100%); }
-      .pr-panel.pinned { position: relative; transform: none; }
-      .pr-panel-tab   { width: 18px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: transparent; color: transparent; border-left: 1px solid transparent; font-size: 13px; cursor: pointer; writing-mode: vertical-rl; transition: color 0.12s ease; }
-      .pr-panel:hover .pr-panel-tab, .pr-panel:focus-within .pr-panel-tab, .pr-panel.pinned .pr-panel-tab { background: var(--bg-panel); border-left-color: var(--border-default); color: var(--text-muted); }
-      .pr-panel:hover .pr-panel-tab:hover { color: var(--text-primary); }
-      .pr-panel.pinned .pr-panel-tab { color: var(--accent-green); }
-      .pr-panel-body  { width: 108px; display: flex; flex-direction: column; gap: 4px; padding: 8px 6px; background: var(--bg-panel); border-left: 1px solid var(--border-default); box-shadow: -4px 0 10px rgba(0,0,0,0.28); overflow-y: auto; }
-      .pr-panel.pinned .pr-panel-body { box-shadow: none; }
-      .pr-pbtn        { padding: 5px 6px; font-size: 11px; border: 1px solid var(--border-default); border-radius: 3px; background: var(--badge-dim-bg); color: var(--text-secondary); cursor: pointer; font-family: "Monaco", "Menlo", monospace; text-align: center; white-space: nowrap; }
-      .pr-pbtn:hover  { background: var(--input-bg-hover); color: var(--text-primary); }
-      .pr-pbtn-on     { background: var(--accent-green-bg-stronger); color: var(--accent-green); border-color: var(--accent-green); }
-      .pr-pbtn-dim    { color: var(--text-muted); }
-      .pr-pbtn.pr-holding { background: var(--accent-orange-bg-stronger, var(--input-bg-hover)); color: var(--accent-orange, var(--text-primary)); border-color: var(--accent-orange, var(--border-default)); transition: background 0.45s linear; }
-      .pr-pdiv        { height: 1px; background: var(--border-default); margin: 2px 0; }
-
-      /* Sprocket tear-strips: absolute overlays sitting on the sheet's own ½" edges
-         (left/width set by _sizeStrips as a % of the canvas, so they scale with the
-         paper and never widen it). The punched-hole texture (background gradient +
-         size + position) is set INLINE by _styleSprocketHoles, sized off the strip's
-         display width so the holes stay proportional (½" pitch, ⌀4 mm) at any zoom —
-         a fixed-px gradient here looked right fit-scaled but too small at 1:1.
-         pointer-events:none so they don't block scrolling; the head bug re-enables
-         its own. */
-      .pr-strip {
-        position: absolute;
-        top: 0;
-        bottom: 0;
-        background-color: #cdcdcd;
-        pointer-events: none;
-        z-index: 2;
-      }
-      .pr-strip-left  { left: 0; }
-      /* Right tractor doubles as the paper-WIDTH grab handle (the left strip is the
-         fixed datum + head bug). pointer-events re-enabled so it can catch the drag;
-         ew-resize cursor + a hover ring advertise it. */
-      .pr-strip-right { right: 0; pointer-events: auto; cursor: ew-resize; }
-      /* Fatten the hit zone INWARD with a transparent rail so the operator can grab at
-         the width line (the strip's inner edge) instead of chasing the ½" holed track.
-         A ::before is painted by — and routes pointer events to — the strip itself, so
-         pointerdown still fires on .pr-strip-right; the visible holes stay put. */
-      .pr-strip-right::before {
-        content: ""; position: absolute; top: 0; bottom: 0; right: 100%;
-        width: 14px; cursor: ew-resize;
-      }
-      .pr-strip-right:hover    { box-shadow: inset 0 0 0 1px var(--accent-green, #61bb46); }
-      .pr-strip-right.pr-wdrag { box-shadow: inset 0 0 0 1px var(--accent-green, #61bb46); }
-      /* After a width drop the pointer is often still parked over the strip; mute the
-         hover ring until it actually leaves the zone, so finishing a drag near the
-         right edge doesn't immediately re-light the handle the operator just released. */
-      .pr-strip-right.pr-mute-hover:hover { box-shadow: none; }
-
-      /* Width-drag preview: a dashed line at the candidate sheet right-edge with a
-         readout chip. Display-px positioned by _initWidthDrag; hidden when idle. */
-      .pr-width-guide {
-        position: absolute; top: 0; bottom: 0; width: 0;
-        border-left: 2px dashed var(--accent-green, #61bb46);
-        pointer-events: none; z-index: 4; display: none;
-      }
-      .pr-width-chip {
-        position: absolute; top: 4px; left: 4px;
-        font: 10px "Monaco", "Menlo", monospace;
-        background: var(--bg-panel, #1c2128); color: var(--text-secondary, #bbb);
-        border: 1px solid var(--accent-green, #61bb46); border-radius: 3px;
-        padding: 1px 4px; white-space: nowrap;
-      }
-      /* Device paper min/max reached: the line hard-stops (amber) so the operator
-         sees the clamp bite while the cursor keeps moving past it. */
-      .pr-width-guide.pr-width-limit { border-left-color: var(--accent-orange, #f5821f); }
-      .pr-width-guide.pr-width-limit .pr-width-chip {
-        color: var(--accent-orange, #f5821f); border-color: var(--accent-orange, #f5821f);
-      }
-
-      /* Length-drag preview: a horizontal line at candidate form bottom + readout. */
-      .pr-length-guide {
-        position: absolute; left: 0; right: 0; height: 0;
-        border-top: 2px dashed var(--accent-green, #61bb46);
-        pointer-events: none; z-index: 4; display: none;
-      }
-      .pr-length-chip {
-        position: absolute; left: 4px; top: 4px;
-        font: 10px "Monaco", "Menlo", monospace;
-        background: var(--bg-panel, #1c2128); color: var(--text-secondary, #bbb);
-        border: 1px solid var(--accent-green, #61bb46); border-radius: 3px;
-        padding: 1px 4px; white-space: nowrap;
-      }
-      .pr-length-guide.pr-length-limit { border-top-color: var(--accent-orange, #f5821f); }
-      .pr-length-guide.pr-length-limit .pr-length-chip {
-        color: var(--accent-orange, #f5821f); border-color: var(--accent-orange, #f5821f);
-      }
-      /* Form-bottom drag handle: horizontal bar, ns-resize. Positioned by _sizeLengthHandle. */
-      .pr-length-handle {
-        position: absolute; left: 0; right: 0; height: 10px;
-        cursor: ns-resize; pointer-events: auto; z-index: 4;
-        transform: translateY(-5px);
-      }
-      .pr-length-handle::after {
-        content: ''; display: block; height: 2px; margin: 4px 0;
-        background: var(--accent-green, #61bb46); opacity: 0; transition: opacity 0.12s;
-      }
-      .pr-length-handle:hover::after,
-      .pr-length-handle.pr-ldrag::after { opacity: 1; }
-      /* Paper size preset buttons in the operator panel. */
-      .pr-paper-presets { display: flex; flex-direction: column; gap: 3px; }
-      .pr-preset-btn {
-        padding: 3px 4px; font-size: 10px; border: 1px solid var(--border-default);
-        border-radius: 3px; background: var(--badge-dim-bg); color: var(--text-secondary);
-        cursor: pointer; font-family: "Monaco", "Menlo", monospace; text-align: left;
-        white-space: nowrap; overflow: hidden;
-      }
-      .pr-preset-btn:hover { background: var(--input-bg-hover); color: var(--text-primary); }
-      .pr-preset-btn.pr-preset-active {
-        background: var(--accent-green-bg-stronger); color: var(--accent-green);
-        border-color: var(--accent-green);
-      }
-      .pr-preset-dims {
-        font-size: 10px; color: var(--text-muted);
-        font-family: "Monaco","Menlo",monospace; text-align: center; margin-top: 2px;
-      }
-
-      /* Paper (body) edges — green hairlines down the sheet at paper-left (= ruler
-         0, inner edge of the left tractor strip) and paper-right (= ruler max). The
-         right line is the paper-sizer handle the operator drags. They line up with the
-         ruler's green edge accents to read as one continuous line top-to-bottom. Overlay
-         only (z3: above the strips, below the live width-drag guide at z4); pointer-events
-         none so the strip catches the drag. Positioned as a % by _sizePaperEdges. */
-      .pr-paper-edge {
-        position: absolute;
-        top: 0;
-        bottom: 0;
-        width: 0;
-        border-left: 1px solid var(--accent-green, #61bb46);
-        opacity: 0.6;
-        pointer-events: none;
-        z-index: 3;
-      }
-      /* Left edge only: the 1px border renders to the RIGHT of paper-left, i.e.
-         over body column 0 — obscuring the first printed column. Pull it one px
-         left so it lands on the last tractor (track) column, flush against the
-         body left edge, clear of the print. The right edge keeps its position —
-         it drives the ruler / paper-sizer handle and must not move. */
-      .pr-paper-edge-left { margin-left: -1px; }
-
-      /* Print-head row indicator riding the left tractor strip — a little
-         impact-head carriage with pin slots and a red strike point that tracks
-         the head's current paper row. Drag it to move the paper; it snaps to
-         whole line-feed intervals (see _initHeadDrag). */
-      .pr-headmark {
-        position: absolute;
-        left: 3px;
-        top: 0;
-        width: 14px;
-        height: 11px;
-        border-radius: 2px;
-        background: linear-gradient(#646e7b 0%, #3a414b 55%, #232930 100%);
-        border: 1px solid #14181d;
-        box-shadow: inset 0 1px 0 rgba(255,255,255,0.28), 0 1px 2px rgba(0,0,0,0.5);
-        transform: translateY(-6px);
-        transition: top 0.08s linear, transform 0.1s ease;
-        display: none;
-        cursor: grab;
-        user-select: none;
-        -webkit-user-select: none;
-        pointer-events: auto;   /* re-enable: the parent strip is pointer-events:none */
-        z-index: 3;
-      }
-      /* vertical column of pin slots facing the paper */
-      .pr-headmark::before {
-        content: '';
-        position: absolute;
-        right: 2px; top: 2px; bottom: 2px;
-        width: 2px;
-        border-radius: 1px;
-        background: repeating-linear-gradient(#cfd5dc 0 1px, transparent 1px 2px);
-      }
-      /* red strike point — the dot the pins actually hit on the paper */
-      .pr-headmark::after {
-        content: '';
-        position: absolute;
-        right: -4px; top: 50%;
-        width: 0; height: 0;
-        border-top: 3px solid transparent;
-        border-bottom: 3px solid transparent;
-        border-left: 4px solid var(--accent-red, #e03a3e);
-        transform: translateY(-50%);
-      }
-      .pr-headmark:hover    { transform: translateY(-6px) scale(1.22); }
-      .pr-headmark.dragging { cursor: grabbing; transition: transform 0.1s ease; }
-      .pr-headmark.dragging:hover { transform: translateY(-6px) scale(1.28); }
-
-      /* Horizontal scroller AND the row that lays out [strip][paper][strip].
-         align-items:stretch makes the tractor strips run the full paper height;
-         the canvas/output in the middle carries the flex (set per fit-mode in
-         _applyFit), so the strips stay glued to the paper's left/right edges. */
-      .pr-paper { flex: 1; min-width: 0; background: ${PAPER_BG}; position: relative; overflow: auto; padding: 0; display: flex; flex-direction: row; align-items: stretch; }
-
-      .pr-paper::after {
-        content: '';
-        position: absolute;
-        inset: 0;
-        background-image: radial-gradient(circle, rgba(0,0,0,0.032) 0.8px, transparent 0.8px);
-        background-size: 4px 4px;
-        pointer-events: none;
-      }
-
-      .pr-output {
-        flex: 1 1 0;
-        min-width: 0;
-        margin: 0;
-        font-family: 'Courier New', Courier, monospace;
-        font-size: 13px;
-        line-height: 1.45;
-        color: #1a1a1a;
-        letter-spacing: 0.3px;
-        white-space: pre-wrap;
-        word-break: break-all;
-        -webkit-font-smoothing: none;
-        font-smooth: never;
-      }
-
-      /* Top inch ruler living in its viewport (.pr-ruler-top-vp). It rasters at
-         the paper's DISPLAY width (set in _sizeTopRuler) and is positioned with a
-         translateX (_syncRulers) so it tracks the paper as it scrolls/scales. The
-         fixed CSS height pins it; the vp clips any horizontal overhang. */
-      .pr-ruler-top {
-        display: block;
-        height: ${RULER_TOP_H}px;
-        transform-origin: top left;
-        will-change: transform;
-        image-rendering: pixelated;
-        image-rendering: crisp-edges;
-      }
-
-      /* Left inch ruler living in its viewport (.pr-ruler-left-vp). It rasters at
-         the paper's DISPLAY height (set in _sizeLeftRuler) and is positioned with
-         a translateY (_syncRulers) to lock it to the paper's on-screen box in both
-         fit and 1:1. The fixed CSS width pins it; the vp clips vertical overhang. */
-      .pr-ruler-left {
-        display: block;
-        width: ${RULER_LEFT_W}px;
-        transform-origin: top left;
-        will-change: transform;
-        image-rendering: pixelated;
-        image-rendering: crisp-edges;
-      }
-
-      .pr-canvas-wrap { position: relative; display: none; }
-      .pr-canvas {
-        display: block;
-        image-rendering: pixelated;
-        image-rendering: crisp-edges;
-      }
-      .pr-perf, .pr-head {
-        position: absolute;
-        left: 0; top: 0;
-        display: block;
-        pointer-events: none;
-        image-rendering: pixelated;
-        image-rendering: crisp-edges;
-      }
-    </style>`;
   }
 
   _cacheElements() {
@@ -1200,7 +873,20 @@ export class PrinterWindow extends BaseWindow {
   // would draw a square page. No offset — the head's own y carries any start
   // position, so the page keeps its exact dimensions.
   _yToCanvas(base) {
-    return Math.round(base * this._vstretch);
+    return this._snapPx(base * this._vstretch);
+  }
+
+  // Quantize a logical-px coordinate to the supersampled backing grid (1/SS px).
+  // Ink PLACEMENT precision rides the SS factor: the ctx is pre-scaled by SS, so
+  // a coordinate on a 1/SS step lands on an exact backing pixel. At the default
+  // SS=3 the paint grid is 360/in — fine placements (FX-80 ESC Z 240 dpi, IW-II
+  // 136/144/160-dpi graphics, 1/144" line pitch) survive instead of snapping to
+  // whole 120/in logical columns as the old Math.round did. SS=1 degrades to
+  // exactly the old integer grid. Footprint SIZES stay logical-px — only where
+  // a dot lands gets finer, not how big it paints.
+  _snapPx(v) {
+    const q = this._ss;
+    return Math.round(v * q) / q;
   }
 
   // Dashed horizontal perforation at every page boundary (fan-fold tractor
@@ -1703,18 +1389,28 @@ export class PrinterWindow extends BaseWindow {
     const ss     = this._ss;
     const cropX  = Math.round(g.paperLPx);
     const cropW  = Math.max(1, Math.round(g.paperRPx - g.paperLPx));
+    // Stored raster: the FULL ×SS backing density. A stored page is a
+    // pixel-exact copy of what sits on the paper, so loadJobToPaper restores it
+    // 1:1 (continue printing seamlessly) and the Print Browser reprints at the
+    // identical fidelity — nothing is downsampled into history. K only backs
+    // off if a single page slice would exceed browser canvas limits (it never
+    // does at standard paper/SS combinations). pxPerInch rides the record so
+    // sizing and any cross-density restore stay correct.
+    let K = ss;
+    while (K > 1 && !canvasFits(cropW * K, pageH * K)) K--;
+    base.pxPerInch = this._ppi * K;
     const recs = [];
     for (let i = 0; i < pages; i++) {
       const slice  = document.createElement("canvas");
-      slice.width  = cropW;       // stored at LOGICAL res (restore upsamples back)
-      slice.height = pageH;
+      slice.width  = cropW * K;
+      slice.height = pageH * K;
       const s = slice.getContext("2d");
       s.fillStyle = PAPER_BG;
-      s.fillRect(0, 0, cropW, pageH);
-      // `clean` is the ×SS backing; sample this page's body band and downscale to
-      // the logical page PNG (paper-body aligned).
+      s.fillRect(0, 0, slice.width, slice.height);
+      // `clean` is the ×SS backing; sample this page's body band into the ×K
+      // stored page PNG (paper-body aligned).
       s.drawImage(clean, cropX * ss, i * pageH * ss, cropW * ss, pageH * ss,
-                         0, 0, cropW, pageH);
+                         0, 0, slice.width, slice.height);
       recs.push({
         ...base,
         id:         `${this._jobId}::${i}`,
@@ -1783,11 +1479,15 @@ export class PrinterWindow extends BaseWindow {
     const ctx   = this._sizePaperBacking(logW, logH);   // backing ×SS, ctx pre-scaled
     this._paintPaper(ctx, 0, logH);
     const g = this._platen;
+    // Same rounded body rect the snapshot cropped with: a full-density page
+    // (pxPerInch == ppi×SS) lands back integer-aligned 1:1 on the backing —
+    // a pixel-exact restore, no resampling. Lower-density records (older
+    // captures, or a since-lowered SS dial) rect-map up/down here instead.
+    const bodyX = Math.round(g.paperLPx);
+    const bodyW = Math.max(1, Math.round(g.paperRPx - g.paperLPx));
     for (let i = 0; i < job.pages.length; i++) {
       const img = await this._loadImage(job.pages[i].pngDataUrl);
-      // PNGs are cropped to paper body — draw them back at the body position
-      // (logical coords; the SS-scaled ctx upsamples the stored page to backing).
-      ctx.drawImage(img, g.paperLPx, i * pageH, g.paperRPx - g.paperLPx, pageH);
+      ctx.drawImage(img, bodyX, i * pageH, bodyW, pageH);
     }
     const pf = this.elements.perf;
     pf.width  = logW;
@@ -1867,7 +1567,11 @@ export class PrinterWindow extends BaseWindow {
   _inkDot(ctx, px, py, w, h, color, round = false, textInk = false) {
     if (!this._ink) this._ink = new Map();
     if (this._ink.size > 80000) this._ink.clear();   // bound memory on long runs
-    const key  = px + "," + py;
+    // Key on BACKING pixels (coords arrive snapped to 1/SS steps, so ×SS is an
+    // integer) — compact keys, and overstrike/band detection stays exact-position
+    // at the finer placement grid.
+    const q    = this._ss;
+    const key  = Math.round(px * q) + "," + Math.round(py * q);
     const prev = this._ink.get(key) || 0;
     const prevMask = prev & 0x0F;
     const band = (!color || color === "black") ? BAND.K : (COLOR_BANDS[color] ?? BAND.K);
@@ -1914,8 +1618,18 @@ export class PrinterWindow extends BaseWindow {
     const ctx   = this.elements.ctx;
     // Shift the glyph's zone-relative column into platen space; the dot math
     // inside the zone is untouched (see the layout's zoneOriginPx).
-    const cx    = this._platen.zoneOriginPx + Math.round(xDot / dotW) * DOT_PX;
-    const cy    = this._yToCanvas(Math.round(yDot / dotH) * DOT_PX);
+    // The head column maps through the printer's BASE raster (dpi/ppi), same as
+    // _renderDots: xDot is absolute internal dots regardless of what pitch put
+    // the head there. Dividing by the glyph's own column pitch (dotW — 144/160
+    // dpi for proportional faces) inflated every proportional strike's canvas x
+    // by 4/3.33 or 4/3, so prop text drifted right of its true column and text
+    // printed after a mid-line return to a fixed pitch landed back left, over
+    // it. dotW still paces the head model; only the intra-glyph column step
+    // (colStep, from hDensity) belongs to the glyph.
+    const cx    = this._platen.zoneOriginPx + this._snapPx(xDot / this._hdotInternal) * DOT_PX;
+    // No whole-row rounding on the baseline: ESC T fine pitches (1/144") place
+    // lines BETWEEN 1/72" rows — _yToCanvas snaps to the 1/SS backing grid.
+    const cy    = this._yToCanvas((yDot / dotH) * DOT_PX);
     const nRows = rows || 9;
     // Column/row canvas pitch from the glyph's dot density vs the active raster:
     // draft/corr (120/72 dpi) → _ppi/120 px per column, _vstretch per row. NLQ
@@ -1932,13 +1646,13 @@ export class PrinterWindow extends BaseWindow {
     const xs     = doubleWidth ? 2 : 1;
     const half   = halfHeight || (script && script !== "none");
     const vScale = half ? 0.5 : 1;
-    const yOff   = (half && script !== "super") ? Math.round(glyphH * 0.5) : 0;
+    const yOff   = (half && script !== "super") ? this._snapPx(glyphH * 0.5) : 0;
     // Dot footprint follows the row pitch so NLQ's finer grid paints smaller,
     // denser dots rather than the chunky 2-px draft dot smeared over 18 rows.
     const baseHpx = Math.max(1, Math.round(rowStep));
     const dotHpx = half ? Math.max(1, Math.round(baseHpx * 0.5)) : baseHpx;
     const dotWpx = Math.max(1, Math.round(colStep * xs));
-    const rowY   = r => cy + yOff + Math.round(r * rowStep * vScale);
+    const rowY   = r => cy + yOff + this._snapPx(r * rowStep * vScale);
     const cellW  = Math.round(cols.length * colStep * xs);
 
     this._ensureCanvasHeight(cy + glyphH + DOT_PX);
@@ -1947,7 +1661,7 @@ export class PrinterWindow extends BaseWindow {
       for (let c = 0; c < cols.length; c++) {
         const colVal = cols[c];
         if (!colVal) continue;
-        const px = cx + Math.round(c * xs * colStep) + shift * DOT_PX;
+        const px = cx + this._snapPx(c * xs * colStep) + shift * DOT_PX;
         for (let r = 0; r < nRows; r++) {
           if (colVal & (1 << r)) this._inkDot(ctx, px, rowY(r), dotWpx, dotHpx, color, STRIKE.round, true);
         }
@@ -1966,9 +1680,11 @@ export class PrinterWindow extends BaseWindow {
       // too dark). Route through _inkDot so density, colour mixing and overstrike
       // buildup all match the glyph exactly.
       const uy   = rowY(nRows - 1);
-      const step = Math.max(1, Math.round(colStep));
+      // Float step = the exact dot pitch (snapping the STEP would compound its
+      // rounding error across the cell); each strike snaps to the backing grid.
+      const step = Math.max(1 / this._ss, colStep);
       for (let ux = cx; ux < cx + cellW; ux += step) {
-        this._inkDot(ctx, ux, uy, dotWpx, dotHpx, color, STRIKE.round, true);
+        this._inkDot(ctx, this._snapPx(ux), uy, dotWpx, dotHpx, color, STRIKE.round, true);
       }
     }
     ctx.restore();
@@ -1990,7 +1706,7 @@ export class PrinterWindow extends BaseWindow {
     // (which collapsed every density to the same too-small size). Each dot's
     // canvas footprint is its physical pitch, so neighbouring dots butt/overlap
     // into solid ink with no gaps.
-    const px      = this._platen.zoneOriginPx + Math.round(xDot / this._hdotInternal) * DOT_PX;
+    const px      = this._platen.zoneOriginPx + this._snapPx(xDot / this._hdotInternal) * DOT_PX;
     const py      = this._yToCanvas(yDot / this._vdotInternal);
     const rowStep = (dotH / this._vdotInternal) * this._vstretch;          // canvas px between data rows
     const dW      = Math.max(DOT_PX, Math.round((dotW / this._hdotInternal) * DOT_PX));
@@ -2002,7 +1718,7 @@ export class PrinterWindow extends BaseWindow {
     ctx.save();
     this._clipToPaper(ctx);          // dots past the paper land on the roller, never the tractor strips
     for (let r = 0; r < 8; r++) {
-      if (colByte & (1 << r)) this._inkDot(ctx, px, py + Math.round(r * rowStep), dW, dH, color);
+      if (colByte & (1 << r)) this._inkDot(ctx, px, py + this._snapPx(r * rowStep), dW, dH, color);
     }
     ctx.restore();
 
@@ -3088,50 +2804,39 @@ export class PrinterWindow extends BaseWindow {
     URL.revokeObjectURL(url);
   }
 
+  // Dot-matrix PDF — the ONLY PDF path: every model prints through the paper
+  // canvas, so the PDF is always the emulated print, never re-typeset text.
+  // One full-bleed page image per used page at the printer's true dimensions,
+  // straight off the ×SS backing (default SS=3 → 360 px/in, above every model's
+  // physical dot density). The canvas is an isotropic _ppi raster both axes, so
+  // canvas px ÷ _ppi = inches; the image and the @page share one aspect, so the
+  // print pipeline can't distort it.
+  // Pages are cropped to the paper BODY (paperLPx → paperRPx) — the sheet an
+  // operator files after tearing off the ½" tractor strips; same crop as the
+  // page store, so the printer window's PDF and the Print Browser's agree.
   _downloadPdf() {
-    if (this._canvasMode) { this._downloadPdfCanvas(); return; }
-    this._printViaIframe(
-      `<!DOCTYPE html>` +
-      `<html><head><title>Printer Output</title>` +
-      `<style>` +
-      `body { margin: 0.75in; font-family: 'Courier New', monospace; font-size: 12pt; color: #1a1a1a; }` +
-      `pre  { white-space: pre-wrap; word-break: break-all; }` +
-      `@media print { @page { margin: 0.75in; } }` +
-      `</style></head>` +
-      `<body><pre>${this._escapeHtml(this.text)}</pre></body></html>`
-    );
-  }
-
-  // Print HTML through a throwaway hidden iframe (shared with the Print Browser
-  // window — see print-utils.js for why the iframe must be torn down).
-  _printViaIframe(html) {
-    printViaIframe(html);
-  }
-
-  // Dot-matrix PDF: one full-bleed page image per used page, perforation-free,
-  // at the printer's true dimensions. The canvas is an isotropic _ppi raster both
-  // axes (body inches × _ppi across; pageH px = formInches × _ppi down), so canvas
-  // px ÷ _ppi = inches. Printing the page image full-bleed onto a page of that size
-  // reproduces the printer's aspect; any upscale by the print pipeline keeps it
-  // since the image and the @page share one aspect.
-  _downloadPdfCanvas() {
+    if (!this._canvasMode) return;
     const pageH = this._pageHeightPx();
     const pages = this._usedPageCount(pageH);
-    const clean = this._cleanUsedCanvas();      // used pages, perforations erased (×SS backing)
+    const clean = this._cleanUsedCanvas();      // used pages, perforation-free (×SS backing)
     if (!clean) return;
-    const ss  = this._ss;
-    const wIn = clean.width / (this._ppi * ss); // backing width ÷ (_ppi·SS) = body inches
-    const hIn = pageH / this._ppi;              // form length in inches (logical)
+    const ss    = this._ss;
+    const g     = this._platen;
+    const cropX = Math.round(g.paperLPx * ss);                              // backing px
+    const cropW = Math.max(1, Math.round((g.paperRPx - g.paperLPx) * ss));
+    const bandH = Math.round(pageH * ss);
+    const wIn   = cropW / (this._ppi * ss);     // body width in true inches
+    const hIn   = pageH / this._ppi;            // form length in inches (logical)
 
     const imgs = [];
     for (let i = 0; i < pages; i++) {
       const slice = document.createElement("canvas");
-      slice.width  = clean.width;               // backing width
-      slice.height = Math.round(pageH * ss);    // backing band height
+      slice.width  = cropW;
+      slice.height = bandH;
       const s = slice.getContext("2d");
       s.fillStyle = PAPER_BG;
-      s.fillRect(0, 0, slice.width, slice.height);
-      s.drawImage(clean, 0, -i * pageH * ss);   // this page's band
+      s.fillRect(0, 0, cropW, bandH);
+      s.drawImage(clean, cropX, i * bandH, cropW, bandH, 0, 0, cropW, bandH);
       imgs.push(slice.toDataURL("image/png"));
     }
 
@@ -3146,12 +2851,5 @@ export class PrinterWindow extends BaseWindow {
     // Page break marks live on the perf overlay canvas, not the main canvas —
     // main canvas is content-only, nothing to erase.
     return this._usedCanvas();
-  }
-
-  _escapeHtml(str) {
-    return str
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
   }
 }
