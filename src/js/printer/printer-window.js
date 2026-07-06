@@ -136,6 +136,12 @@ function canvasFits(w, h) {
   }
   return _canvasFitCache.get(key);
 }
+// Down-chevron for the operator-panel choice dropdowns (.pr-dip-menu), matching
+// the app's header-menu trigger caret (svg.menu-chevron; rotates when open).
+const DIP_CHEVRON =
+  `<svg class="menu-chevron" width="10" height="10" viewBox="0 0 10 10" fill="none" `
+  + `stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round">`
+  + `<path d="M2.5 4L5 6.5 7.5 4"/></svg>`;
 // Six common continuous-stationery sizes from the Apple II era.
 // w/h are paper BODY inches (tractor strips already removed).
 const PAPER_PRESETS = [
@@ -2405,8 +2411,11 @@ export class PrinterWindow extends BaseWindow {
     }
   }
 
-  // Rebuild the settings rows for the active model using the app's standard
-  // controls (toggle-switch for booleans, settings-select for enum choices).
+  // Rebuild the settings rows for the active model. Each DIP switch becomes a
+  // labelled panel row: booleans use a compact toggle switch; enum "combo"
+  // switches use a custom dropdown (.pr-dip-menu) built in the app's own
+  // header-menu idiom — a trigger + a glass option list with a ✓ on the active
+  // value — rather than a native <select>, so it matches the main menu bar.
   _renderSettings() {
     const host = this.elements?.settings;
     if (!host) return;
@@ -2414,28 +2423,80 @@ export class PrinterWindow extends BaseWindow {
     const schema  = printer?.constructor?.SETTINGS ?? [];
     host.innerHTML = schema.map((s) => this._settingRowHtml(s)).join("");
     for (const s of schema) {
-      const node = host.querySelector(`[data-setting="${s.id}"]`);
-      if (node) node.addEventListener("change", () => this._onSettingChange(s, node));
+      if (s.type === "choice") { this._wireDipMenu(s, host); continue; }
+      const node = host.querySelector(`input[data-setting="${s.id}"]`);
+      if (node) node.addEventListener("change", () => this._onSettingChange(s, node.checked));
     }
+    this._ensureDipDismiss();
   }
 
   _settingRowHtml(s) {
     const cur  = this._settingGet(s);
     const hint = this._escAttr(s.hint || "");
     if (s.type === "choice") {
-      const opts = (s.options || []).map((o) =>
-        `<option value="${this._escAttr(o.value)}"${o.value === cur ? " selected" : ""}>${o.label}</option>`).join("");
-      return `<label class="pr-set-row" title="${hint}"><span class="pr-set-label">${s.label}</span>`
-           + `<select class="settings-select pr-set-select" data-setting="${s.id}">${opts}</select></label>`;
+      const options = s.options || [];
+      const curOpt  = options.find((o) => o.value === cur) || options[0] || { label: "" };
+      const items   = options.map((o) =>
+        `<button type="button" class="pr-dip-item${o.value === cur ? " active" : ""}"`
+        + ` role="option" data-value="${this._escAttr(o.value)}">`
+        + `<span class="pr-dip-item-label">${o.label}</span><span class="menu-check-icon"></span></button>`).join("");
+      return `<div class="pr-set-row" title="${hint}"><span class="pr-set-label">${s.label}</span>`
+        + `<div class="pr-dip-menu" data-setting="${this._escAttr(s.id)}">`
+        + `<button type="button" class="pr-dip-trigger" aria-haspopup="listbox" aria-expanded="false">`
+        + `<span class="pr-dip-value">${curOpt.label}</span>${DIP_CHEVRON}</button>`
+        + `<div class="pr-dip-list" role="listbox">${items}</div></div></div>`;
     }
-    // toggle
+    // toggle — compact app-standard switch, label left / switch right
     return `<label class="toggle-label pr-set-toggle" title="${hint}">`
-         + `<input type="checkbox" data-setting="${s.id}"${cur ? " checked" : ""}>`
-         + `<span class="toggle-switch"></span><span>${s.label}</span></label>`;
+         + `<span class="pr-set-toggle-text">${s.label}</span>`
+         + `<input type="checkbox" data-setting="${this._escAttr(s.id)}"${cur ? " checked" : ""}>`
+         + `<span class="toggle-switch"></span></label>`;
   }
 
-  _onSettingChange(s, node) {
-    const value = s.type === "toggle" ? node.checked : node.value;
+  // Wire a choice DIP dropdown: the trigger opens/closes the option list, each
+  // option applies its value and reflects it back into the trigger + ✓ marker.
+  _wireDipMenu(s, host) {
+    const menu = host.querySelector(`.pr-dip-menu[data-setting="${this._escAttr(s.id)}"]`);
+    if (!menu) return;
+    const trigger = menu.querySelector(".pr-dip-trigger");
+    trigger.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const willOpen = !menu.classList.contains("open");
+      this._closeDipMenus();
+      menu.classList.toggle("open", willOpen);
+      trigger.setAttribute("aria-expanded", String(willOpen));
+    });
+    menu.querySelectorAll(".pr-dip-item").forEach((item) => {
+      item.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const value = item.dataset.value;
+        const opt   = (s.options || []).find((o) => String(o.value) === value);
+        this._onSettingChange(s, value);
+        menu.querySelector(".pr-dip-value").textContent = opt ? opt.label : value;
+        menu.querySelectorAll(".pr-dip-item").forEach((it) => it.classList.toggle("active", it === item));
+        this._closeDipMenus();
+      });
+    });
+  }
+
+  _closeDipMenus() {
+    this.elements?.settings?.querySelectorAll(".pr-dip-menu.open").forEach((m) => {
+      m.classList.remove("open");
+      m.querySelector(".pr-dip-trigger")?.setAttribute("aria-expanded", "false");
+    });
+  }
+
+  // One document-level dismiss handler for the choice dropdowns (added once);
+  // any click outside an open .pr-dip-menu collapses it.
+  _ensureDipDismiss() {
+    if (this._dipDismissBound) return;
+    this._dipDismissBound = (e) => {
+      if (!e.target.closest?.(".pr-dip-menu")) this._closeDipMenus();
+    };
+    document.addEventListener("click", this._dipDismissBound);
+  }
+
+  _onSettingChange(s, value) {
     this._settingApply(s, value);
     // Manager-scoped settings persist themselves; model-scoped persist per model.
     if (s.target !== "manager") {

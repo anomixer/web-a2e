@@ -613,8 +613,12 @@ export class EpsonFX80 extends PrinterBase {
   static get SETTINGS() {
     return [
       ...super.SETTINGS,
-      { id: "pitch", type: "choice", default: "pica", label: "Default pitch",
-        hint: "Character pitch the printer powers up in (ESC M elite / ESC P pica / SI compressed still change it at runtime).",
+      { id: "slashedZero", type: "toggle", default: false, label: "Slashed zero",
+        hint: "Print 0 as Ø (DIP SW1-2)",
+        get: (p) => p.getSlashedZero(),
+        set: (p, v) => p.setSlashedZero(v) },
+      { id: "pitch", type: "choice", default: "pica", label: "Pitch",
+        hint: "Power-on character pitch",
         options: [
           { value: "pica",       label: "Pica · 10 cpi" },
           { value: "elite",      label: "Elite · 12 cpi" },
@@ -622,10 +626,6 @@ export class EpsonFX80 extends PrinterBase {
         ],
         get: (p) => p.getDefaultPitch(),
         set: (p, v) => p.setDefaultPitch(v) },
-      { id: "slashedZero", type: "toggle", default: false, label: "Slashed zero",
-        hint: "Print 0 as Ø to distinguish it from the letter O (DIP SW1-2).",
-        get: (p) => p.getSlashedZero(),
-        set: (p, v) => p.setSlashedZero(v) },
     ];
   }
 

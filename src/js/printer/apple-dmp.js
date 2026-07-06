@@ -64,8 +64,8 @@ export class AppleDMP extends CItohPrinter {
     return [
       ...super.SETTINGS.filter((s) => s.id !== "pitch"),
       { id: "elitePropDefault", type: "toggle", default: false,
-        label: "Power-on Elite Proportional (DIP 2-5)",
-        hint: "DIP SW2-5 closed: the printer powers up in Elite Proportional instead of Pica 10 cpi. ESC P / ESC N still change the pitch at runtime.",
+        label: "Prop.",
+        hint: "Power-on Elite Proportional pitch (DIP SW2-5)",
         get: (p) => p.getElitePropDefault(),
         set: (p, v) => p.setElitePropDefault(v) },
     ];

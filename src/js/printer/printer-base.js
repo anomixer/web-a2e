@@ -88,8 +88,8 @@ export class PrinterBase {
   static get SETTINGS() {
     return [
       { id: "autoLF", type: "toggle", target: "manager", default: true,
-        label: "Auto LF on CR",
-        hint: "A carriage return also advances the paper one line — how plain text / Applesoft (CR only) expects to print. Off: CR returns the head without feeding, so multi-pass colour graphics overprint in register.",
+        label: "Auto LF",
+        hint: "Line feed on every carriage return (DIP SW2-1)",
         get: (m) => m.getAutoLineFeed(),
         set: (m, v) => m.setAutoLineFeed(v) },
     ];
