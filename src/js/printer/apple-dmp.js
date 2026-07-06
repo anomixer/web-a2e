@@ -25,11 +25,18 @@ import {
 } from "./apple-dmp-rom.js";
 
 // ESC bytes the IW-II understands but the DMP has no hardware for. Consumed
-// (so a stray parameter never prints as text) and otherwise ignored.
+// (so a stray parameter never prints as text) and otherwise ignored — matching
+// the manual's rule that an unrecognised code after ESCAPE is dropped with it
+// (any parameter bytes then print as ordinary text, exactly like real iron).
 //   w/W  half-height            x/y/z  super/subscript
 //   m/M  correspondence/NLQ     &      MouseText character map
 //   e    semicondensed 13.4 cpi (not one of the DMP's seven pitches, App B)
-const DMP_IGNORED_ESC = new Set([0x77, 0x57, 0x78, 0x79, 0x7A, 0x6D, 0x4D, 0x26, 0x65]);
+//   s    ESC s n prop spacing   (the DMP spelling is ESC 1…6, handled below)
+//   c    software reset         (DMP resets only via the INPUT.PRIME line)
+//   g    ESC g nnn graphics     (DMP has ESC G / ESC V only, Appendix B)
+//   u    ESC u nnn add tab stop (DMP tabbing is ESC ( / ESC ) / ESC 0 only)
+const DMP_IGNORED_ESC = new Set([0x77, 0x57, 0x78, 0x79, 0x7A, 0x6D, 0x4D, 0x26, 0x65,
+                                 0x73, 0x63, 0x67, 0x75]);
 
 export class AppleDMP extends CItohPrinter {
   getName() { return "Apple DMP"; }
@@ -65,12 +72,18 @@ export class AppleDMP extends CItohPrinter {
   }
 
   // Drop the IW-II-only style/font ESC codes; defer everything else to the II.
-  // ESC 1…ESC 6 ($31–$36) set the proportional inter-character gap to 1–6 dots
-  // (DMP Reference §3 / Appendix B) — a DMP-only spelling of the spacing the
-  // IW-II controls with ESC s n, and a no-op on the IW-II, so it's handled here.
+  // ESC 1…ESC 6 ($31–$36): insert 1–6 extra dots of space between the two
+  // adjacent characters (DMP Reference, "Elite Character Spacing"). A ONE-SHOT
+  // micro-space, not a mode — the manual requires a code after every character
+  // to space a whole line, and consecutive codes accumulate (real iron caps one
+  // gap at 128 dots). Documented for the proportional pitches only; in a fixed
+  // pitch the code is consumed with no effect, like real hardware.
   _handleEsc(ch) {
     if (DMP_IGNORED_ESC.has(ch)) return;
-    if (ch >= 0x31 && ch <= 0x36) { this._propSpacing = ch - 0x30; return; }
+    if (ch >= 0x31 && ch <= 0x36) {
+      if (this._proportional) this._xDot += Math.round((ch - 0x30) * this._gfxDotW());
+      return;
+    }
     super._handleEsc(ch);
   }
 

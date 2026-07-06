@@ -151,7 +151,10 @@ export class CItohPrinter extends PrinterBase {
     this._halfHeight     = false;     // ESC w/W (Table 4-10)
     this._script         = "none";    // ESC x/y/z: 'none' | 'super' | 'sub' (Table 4-11)
     this._doubleWidth    = false;     // CTRL-N/CTRL-O (Table 4-7)
-    this._proportional   = false;     // ESC p/P — proportional pitch (corr font only)
+    // A proportional power-on pitch (DMP DIP SW2-5 → default propElite) IS
+    // proportional mode, exactly as if ESC P had been sent — pitch and the
+    // proportional flag must never disagree.
+    this._proportional   = this._pitch === "propPica" || this._pitch === "propElite";
     this._propSpacing    = 0;         // ESC s n — extra inter-char dot gap, 0-9 (Table A-11)
     this._pendingDotSpace = 0;        // ESC 1-6 — one-shot dot spaces before next char (Table 4-6)
     this._crBeforeLF     = true;      // ESC l — insert CR before LF/FF (Table A-16, default on)
@@ -598,8 +601,9 @@ export class CItohPrinter extends PrinterBase {
   // byte, `b` the Group B byte; `isD` is true for ESC D (close = switch ON), false
   // for ESC Z (open = OFF). Only the switches with a modelled effect act —
   // slash-zero (Group B, 0x01), auto-LF-after-CR (Group A, 0x80), software-select
-  // (Group A, 0x10) and 8th-data-bit (Group B, 0x20); the rest are consumed as
-  // documented no-ops so their pattern bytes never print as text.
+  // (Group A, 0x10), 8th-data-bit (Group B, 0x20) and print-commands/end-of-line
+  // (Group A, 0x40); the rest are consumed as documented no-ops so their pattern
+  // bytes never print as text.
   _applySoftSwitch(a, b, isD) {
     if (b & 0x01) this.setSlashedZero(isD);   // zeros slashed (ESC D) / unslashed (ESC Z)
     if (a & 0x80) this.setAutoLineFeed(isD);  // add LF after CR (ESC D) / none (ESC Z)
@@ -611,6 +615,12 @@ export class CItohPrinter extends PrinterBase {
     // (close) IGNORES it — the power-on default. Gates the high-bit strip in
     // receiveByte so high-ASCII reaches the custom high set / 8-bit graphics.
     if (b & 0x20) this._includeEighth = !isD;
+    // SWA-7 "print commands" (IW-II Table 3-2; DMP SW1-7 "end-of-line"): closed
+    // (ESC D, power-on default) LF/FF terminate the line — carriage returns, same
+    // effect as ESC l 0. Open (ESC Z) makes CR the only end-of-line, so LF is a
+    // pure paper feed. The DMP has no ESC l; its manual spells this ESC Z H R
+    // ('H' = A-7 plus unused A-4, 'R' touches only unused Group B bits).
+    if (a & 0x40) this._crBeforeLF = isD;
   }
 
   // Begin collecting an ASCII-decimal parameter of `digits` characters for

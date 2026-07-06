@@ -288,7 +288,10 @@ export class EpsonFX80 extends PrinterBase {
         break;
 
       case S_AMP_DATA:
-        this._ampBuf.push(ch);
+        // RAW byte, not high-bit-stripped `ch`, and REV8-reversed — mirrors
+        // S_IMG_DATA. Column bytes carry pin data across all 8 bits, and the
+        // wire's MSB=top-pin order must flip to the renderer's bit 0 = top.
+        this._ampBuf.push(REV8[byte & 0xFF]);
         if (--this._ampColsLeft <= 0) {
           this._customChars.set(this._ampCur, new Uint8Array(this._ampBuf));
           this._ampCur++;
@@ -549,8 +552,8 @@ export class EpsonFX80 extends PrinterBase {
         this._intlSet = EPSON_INTL[ch] ?? "US";
         this._state = S_NORMAL;
         break;
-      case 0x53: // ESC S n
-        this._script = (ch === 0) ? 1 : 2;
+      case 0x53: // ESC S n — n may be 0/1 or ASCII "0"/"1"; low bit selects
+        this._script = (ch & 0x01) ? 2 : 1;
         this._state  = S_NORMAL;
         break;
       case 0x55: // ESC U n — ignore
@@ -730,8 +733,11 @@ export class EpsonFX80 extends PrinterBase {
       dotW:      this._dotW,
       dotH:      this._dotV,
       color:     "black",
-      bold:      this._emphasized || this._dblStrike,
+      // Script chars render short (top/bottom of line) and always in
+      // Double-Strike — FX Vol.1 Ch.9 pp.116-117 + Quick Reference recap.
+      bold:      this._emphasized || this._dblStrike || this._script !== 0,
       underline: this._underline,
+      script:    this._script === 1 ? "super" : this._script === 2 ? "sub" : "none",
     });
     this.emit("text", String.fromCharCode(code));
     this._xDot += advance;
