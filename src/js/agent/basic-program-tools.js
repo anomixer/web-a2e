@@ -86,7 +86,11 @@ export const basicProgramTools = {
     const rawLines = text.split(/\r?\n/);
 
     for (const rawLine of rawLines) {
-      const trimmed = rawLine.trim().toUpperCase();
+      // Preserve original case. The tokenizer case-folds keywords internally
+      // and keeps original case inside quotes / REM / DATA, so uppercasing the
+      // whole line here would corrupt lowercase string literals (e.g. ESC
+      // command bytes like "a1") into "A1".
+      const trimmed = rawLine.trim();
       if (!trimmed) continue;
 
       const match = trimmed.match(/^(\d+)\s*(.*)/);
@@ -147,6 +151,7 @@ export const basicProgramTools = {
     writePtr(0xaf, endAddr); // PRGEND - end of program
     writePtr(0xb8, txttab - 1); // TXTPTR - interpreter text pointer
     wasmModule._writeMemory(0x76, 0xff); // CURLIN+1 = $FF (direct mode)
+    wasmModule._writeMemory(0xf2, 0x00); // TRCFLG - clear stale trace flag (#NN spam)
 
     return {
       success: true,
@@ -233,6 +238,7 @@ export const basicProgramTools = {
     writePtr(0xaf, txttab); // PRGEND - end of program
     writePtr(0xb8, txttab - 1); // TXTPTR - interpreter text pointer
     wasmModule._writeMemory(0x76, 0xff); // CURLIN+1 = $FF (direct mode)
+    wasmModule._writeMemory(0xf2, 0x00); // TRCFLG - clear stale trace flag
 
     return {
       success: true,
@@ -543,6 +549,65 @@ export const basicProgramTools = {
     return {
       success: true,
       message: "BASIC program set",
+    };
+  },
+
+  /**
+   * Load a BASIC program from a sandbox file straight into the editor
+   * WITHOUT routing the source through the LLM context. The MCP load_file
+   * call runs server-side (mirrors driveInsertDisc), so only the line count
+   * comes back — use this instead of load_file + basicProgramSet when you
+   * don't need to read the program yourself.
+   * @param {string} path - Sandbox path, e.g. "[t]/printer/test.bas"
+   */
+  basicProgramLoadFile: async (args) => {
+    const { path } = args;
+
+    if (!path) {
+      throw new Error("path parameter is required");
+    }
+
+    const windowManager = window.emulator?.windowManager;
+    if (!windowManager) {
+      throw new Error("Window manager not available");
+    }
+
+    const basicWindow = windowManager.getWindow("basic-program");
+    if (!basicWindow) {
+      throw new Error("BASIC program window not found");
+    }
+
+    const agentManager = window.emulator?.agentManager;
+    if (!agentManager) {
+      throw new Error("Agent manager not available");
+    }
+
+    // Read the file as text server-side; content stays out of LLM context.
+    const result = await agentManager.callMCPTool("load_file", { path, binary: false });
+    if (!result || !result.success) {
+      throw new Error(result?.error || `Failed to load file: ${path}`);
+    }
+
+    const program = result.content ?? "";
+    if (basicWindow.textarea) {
+      basicWindow.textarea.value = program;
+      basicWindow._fileHandle = null;
+      basicWindow.updateGutter();
+      basicWindow.updateHighlighting();
+      basicWindow.updateStats();
+    }
+
+    const filename = path.split("/").pop();
+    const lines = program
+      ? program.split(/\r?\n/).filter((l) => l.trim()).length
+      : 0;
+
+    return {
+      success: true,
+      filename,
+      lines,
+      bytes: result.size,
+      message: `Loaded ${filename} into BASIC editor (${lines} lines)`,
     };
   },
 

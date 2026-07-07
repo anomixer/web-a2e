@@ -37,6 +37,20 @@ void init() {
   if (!g_emulator) {
     g_emulator = new a2e::Emulator();
     g_emulator->init();
+    // Install the parallel (Centronics) printer tx callback at construction so
+    // EVERY ParallelCard created later (when the saved slot config is applied)
+    // inherits it via Emulator::setSlotCard's `if (parallelTxCallback_)` apply.
+    // This removes the dependence on the JS-side _setParallelTxCallback() RPC
+    // landing at exactly the right boot moment — a fire-and-forget call whose
+    // failure was silent and left the parallel bus permanently unregistered.
+    // SSC/serial registration is deliberately left to its existing JS path.
+    g_emulator->setParallelTxCallback([](uint8_t byte) {
+      EM_ASM({
+        if (self.emulator && self.emulator.printer) {
+          self.emulator.printer.receiveByte($0);
+        }
+      }, byte);
+    });
   }
 }
 
@@ -1293,11 +1307,35 @@ EMSCRIPTEN_KEEPALIVE
 void setSerialTxCallback() {
   REQUIRE_EMULATOR();
   g_emulator->setSerialTxCallback([](uint8_t byte) {
+    // Runs inside the Worker: the global is `self`, not `window`. Fan the byte
+    // to whichever device shim is attached to the serial port. A printer wired
+    // to the SSC (the historical ImageWriter path) consumes it via the same
+    // shim the parallel port uses — one device, two possible buses.
     EM_ASM({
-      if (window.emulator && window.emulator.modem) {
-        window.emulator.modem.processTxByte($0);
-      } else if (window.emulator && window.emulator.serialManager) {
-        window.emulator.serialManager.sendByte($0);
+      if (self.emulator && self.emulator.modem) {
+        self.emulator.modem.processTxByte($0);
+      } else if (self.emulator && self.emulator.serialManager) {
+        self.emulator.serialManager.sendByte($0);
+      } else if (self.emulator && self.emulator.printer) {
+        self.emulator.printer.receiveByte($0);
+      }
+    }, byte);
+  });
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool isParallelCardInstalled() {
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->isParallelCardInstalled();
+}
+
+EMSCRIPTEN_KEEPALIVE
+void setParallelTxCallback() {
+  REQUIRE_EMULATOR();
+  g_emulator->setParallelTxCallback([](uint8_t byte) {
+    EM_ASM({
+      if (self.emulator && self.emulator.printer) {
+        self.emulator.printer.receiveByte($0);
       }
     }, byte);
   });

@@ -1360,7 +1360,10 @@ export class BasicProgramWindow extends BaseWindow {
     const rawLines = text.split(/\r?\n/);
 
     for (const rawLine of rawLines) {
-      const trimmed = rawLine.trim().toUpperCase();
+      // Preserve original case. Keyword case-folding is the tokenizer's job and
+      // it does so only outside quotes/REM/DATA; uppercasing the whole line here
+      // would corrupt lowercase string literals and comments.
+      const trimmed = rawLine.trim();
       if (!trimmed) continue;
 
       const match = trimmed.match(/^(\d+)\s*(.*)/);

@@ -260,7 +260,7 @@ export class AgentManager {
       return { major: parts[0], minor: parts[1], patch: parts[2] };
     };
 
-    const minVersion = "1.2.0"; // Required minimum version
+    const minVersion = "1.1.4"; // Required minimum version
     const agentVersion = parseVersion(versionInfo.version);
     const requiredVersion = parseVersion(minVersion);
 

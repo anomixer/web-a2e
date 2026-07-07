@@ -22,3 +22,4 @@ export const MSG_READY = 'ready';                   // Worker initialized
 export const MSG_AUDIO_SAMPLES = 'audio-samples';   // { samples } (Phase 1 postMessage audio)
 export const MSG_FRAME_READY = 'frame-ready';       // { framebuffer } (Phase 1 postMessage framebuffer)
 export const MSG_HEAP_ACCESS = 'heap-access';       // { id, data } — result of heap read operations
+export const MSG_PRINTER_BYTE = 'printer-byte';     // { byte } — printer output byte from Worker

@@ -47,9 +47,24 @@ export class MouseHandler {
   }
 
   _onCanvasClick(event) {
-    if (!this.enabled || this.locked) return;
-    if (!event.altKey) return;
-    this.canvas.requestPointerLock();
+    if (!event.altKey) return;              // only ⌥-click engages capture
+    if (this.locked) return;                // already captured
+    if (!this.enabled) {
+      console.warn("[mouse] ⌥-click ignored — capture disabled (no Mouse card in a slot?). enabled=false");
+      return;
+    }
+    if (!this.canvas || !this.canvas.isConnected) {
+      console.warn("[mouse] ⌥-click ignored — canvas missing/detached:", this.canvas);
+      return;
+    }
+    // requestPointerLock rejects silently on a Promise in modern browsers; surface it.
+    let p;
+    try { p = this.canvas.requestPointerLock(); }
+    catch (err) { console.warn("[mouse] requestPointerLock threw:", err); return; }
+    if (p && typeof p.then === "function") {
+      p.then(() => console.info("[mouse] pointer lock engaged"))
+       .catch((err) => console.warn("[mouse] pointer lock rejected:", err?.message || err));
+    }
   }
 
   _onPointerLockChange() {

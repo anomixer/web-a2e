@@ -43,7 +43,7 @@ export const agentVersionTools = {
    * Returns version info and compatibility status
    */
   checkAgentCompatibility: async (args) => {
-    const { minVersion = "1.0.5" } = args;
+    const { minVersion = "1.1.4" } = args;
 
     // Get agentManager from global window object
     const agentManager = window.emulator?.agentManager;

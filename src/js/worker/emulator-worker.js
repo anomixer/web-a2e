@@ -22,6 +22,7 @@ const MSG_RPC_ERROR = 'rpc-error';
 const MSG_READY = 'ready';
 const MSG_AUDIO_SAMPLES = 'audio-samples';
 const MSG_FRAME_READY = 'frame-ready';
+const MSG_PRINTER_BYTE = 'printer-byte';
 
 // Shared buffer constants (mirrored from shared-buffers.js)
 const AUDIO_WRITE_POS_OFFSET = 0;
@@ -236,13 +237,18 @@ self.onmessage = function(event) {
     case MSG_INIT:
       try {
         importScripts(msg.wasmUrl);
+        // Carry the loader's cache-bust query (?v=...) onto the .wasm fetch too,
+        // otherwise Emscripten loads a stale a2e.wasm from cache after a rebuild.
+        var bustQuery = (msg.wasmUrl.indexOf('?') >= 0) ? msg.wasmUrl.slice(msg.wasmUrl.indexOf('?')) : '';
         // Override locateFile so Emscripten finds a2e.wasm at the root,
         // not relative to this Worker's URL path.
         self.createA2EModule({
-          locateFile: function(path) { return '/' + path; }
+          locateFile: function(path) { return '/' + path + bustQuery; }
         }).then(function(module) {
           wasmModule = module;
           wasmModule._init();
+          self.emulator = self.emulator || {};
+          self.emulator.printer = { receiveByte: function(byte) { self.postMessage({ type: MSG_PRINTER_BYTE, byte: byte }); } };
           self.postMessage({ type: MSG_READY });
         }).catch(function(err) {
           self.postMessage({ type: MSG_RPC_ERROR, id: '__init__', error: err.message });

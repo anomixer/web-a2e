@@ -1,12 +1,55 @@
 # AG-UI Tools Reference
 
 **Location**: `src/js/agent/*-tools.js`
-**Total**: 64 frontend tools
+**Total**: 96 frontend tools
 **Purpose**: Agent-callable functions that execute in the browser and control the emulator
 
 ---
 
 ## Recent Additions
+
+### Base64-Bypass Memory Tools (context-bypass)
+Three `main-tools.js` tools + a `directExecuteAssemblyAt` mode that keep bytes
+off the LLM context. See the **RULE 0** table in `public/docs/llms/llm-main.txt`.
+
+**directLoadFileAt** — load a binary straight into memory. Source is either a
+sandbox file (`path`, read server-side via `agentManager.callMCPTool("load_file")`)
+or a mounted-disk file (`filename` + `drive`, read in-browser via the shared
+`readDiskFileBytes` helper in `file-explorer-tools.js`). Optional `offset`/`length`
+slice. Replaces `load_file`/`getDiskFileContent` + `directLoadBinaryAt`.
+
+**directMemoryCopy** `{ src, dst, length }` — Apple-side block copy (source
+buffered first, overlap-safe). **directMemoryFill** `{ address, length, value }`
+— constant-byte fill/blank. Both follow current RAMRD/RAMWRT banks.
+
+**directExecuteAssemblyAt `returnTo:"halt"`** (alias `"spin"`) — writes a
+`JMP self` pad (default $03C0, override `haltAddr`) and returns the RTS into it,
+so the CPU loops forever and never re-enters BASIC/ProDOS — freezes RAM for
+post-routine verification. Obsoletes hand-rolled spin stubs.
+
+```javascript
+emma_command({ command: "directLoadFileAt",  params: { address: "$6000", filename: "HGR.ART", drive: 0 } })
+emma_command({ command: "directMemoryCopy",  params: { src: "$2000", dst: "$4000", length: "$2000" } })
+emma_command({ command: "directMemoryFill",  params: { address: "$2000", length: "$2000", value: 0 } })
+emma_command({ command: "directExecuteAssemblyAt", params: { addr: "$6000", returnTo: "halt" } })
+```
+
+### Direct Editor File Load (context-bypass)
+**basicProgramLoadFile** / **asmLoadFile** — load a sandbox file straight into the
+BASIC / assembler editor without the source passing through the LLM context. The
+MCP `load_file` runs server-side via `agentManager.callMCPTool` (mirrors
+`driveInsertDisc`); only `{ filename, lines, bytes }` returns.
+
+```javascript
+// Parameters: path (sandbox path, e.g. "[t]/printer/test.bas")
+emma_command({ command: "basicProgramLoadFile", params: { path: "[t]/x.bas" } })
+emma_command({ command: "asmLoadFile",          params: { path: "[t]/x.s"  } })
+// → { success: true, filename: "x.bas", lines: 42, bytes: 1337 }
+```
+
+Replaces the bloated `load_file` (text → context) + `basicProgramSet`/`asmSet`
+(text → param) chain. **Save** counterpart already exists:
+`save_to({ from: "basic-editor" | "asm-editor", whereTo, direct: true })`.
 
 ### Screen Capture Tools (v1.0.15)
 Added in commit `6b242d1` by Mike Daley:
@@ -43,10 +86,10 @@ Use cases:
 
 ---
 
-## Main Tools (7 tools)
+## Main Tools (11 tools)
 
 **Location**: `src/js/agent/main-tools.js`
-**Purpose**: Core emulator control and direct memory access
+**Purpose**: Core emulator control, direct memory access, and keyboard input
 
 ### Power Control
 - **emulatorPower** - Power on/off/toggle
@@ -54,22 +97,29 @@ Use cases:
 - **emulatorReboot** - Cold reset (power cycle)
 
 ### Memory Access
-- **directLoadBinaryAt** - Load binary data into memory at address
-- **directSaveBinaryRangeTo** - Read memory range as base64
+- **directLoadFileAt** - Load a file (sandbox `path` or disk `filename`+`drive`) straight to memory, no base64 in context (preferred over the two below)
+- **directMemoryCopy** - Copy a memory block Apple-side (`src`, `dst`, `length`); overlap-safe
+- **directMemoryFill** - Fill/blank a memory block (`address`, `length`, `value`)
+- **directLoadBinaryAt** - Load base64 binary into memory at address (fallback; base64 in context)
+- **directSaveBinaryRangeTo** - Read memory range as base64 (fallback; prefer `save_to from:"memory-range"`)
 
 ### Screen Capture
 - **captureScreenshot** - Capture screen as 560x384 PNG (base64)
 - **captureScreenText** - Read text from screen region
 
+### Keyboard Input
+- **typeKeyboard** - Type text as if at the keyboard; `{token}` syntax for special keys (arrows, `{esc}` `{enter}` `{tab}` `{del}` `{backspace}` `{space}`, ctrl combos `{ctrl-c}`/`{^c}`, raw codes `{chr:N}` = CHR$(N), `{{` literal). Newlines act as Return. Token parsing is on for this tool only — clipboard paste still treats braces literally.
+
 **WASM dependencies**:
 - `_isPaused()`, `_setPaused()`
 - `_reset()`, `_warmReset()`
-- `_readMemory()`, `_writeMemory()`
+- `_readMemory()`, `_writeMemory()`, `_peekMemory()` (copy/save reads, no side effects)
 - `_readScreenText()` - Screen text capture
+- `_charToAppleKey()` - Char → Apple key code (typeKeyboard, via input handler paste queue)
 
 ---
 
-## BASIC Program Tools (23 tools)
+## BASIC Program Tools (24 tools)
 
 **Location**: `src/js/agent/basic-program-tools.js`
 **Purpose**: BASIC program editing, execution, debugging, variable inspection
@@ -108,6 +158,7 @@ Use cases:
 - **basicProgramSetVariable** - Set variable value
 
 ### File Operations
+- **basicProgramLoadFile** - Load a sandbox file into the editor server-side (no source in LLM context); pairs with `save_to from:"basic-editor"`
 - **saveBasicInEditorToLocal** - Export from editor (for MCP `save_basic_file`)
 - **directSaveBasicInMemoryToLocal** - Export from memory
 
@@ -124,7 +175,7 @@ Use cases:
 
 ---
 
-## Assembler Tools (9 tools)
+## Assembler Tools (10 tools)
 
 **Location**: `src/js/agent/assembler-tools.js`
 **Purpose**: 6502 assembly compilation and execution
@@ -133,13 +184,14 @@ Use cases:
 - **asmAssemble** - Compile 6502 source code
 - **asmWrite** - Load assembled code into memory
 - **asmGetStatus** - Get compilation status (origin, size, errors)
-- **directExecuteAssemblyAt** - Execute at address
+- **directExecuteAssemblyAt** - Execute at address; `returnTo` accepts `"auto"`/`"monitor"`/`"basic"`/hex/decimal plus `"halt"`/`"spin"` (RTS into a JMP-self pad — freezes RAM, no return to BASIC)
 
 ### Editor Operations
 - **asmLoadExample** - Load template program
 - **asmNew** - Clear editor
 - **asmGet** - Get editor content
 - **asmSet** - Set editor content
+- **asmLoadFile** - Load a sandbox file into the editor server-side (no source in LLM context); pairs with `save_to from:"asm-editor"`
 - **saveAsmInEditorToLocal** - Export source (for MCP `save_asm_file`)
 
 **WASM dependencies**:
@@ -150,14 +202,16 @@ Use cases:
 
 ---
 
-## Disk Tools (6 tools)
+## Disk Tools (8 tools)
 
 **Location**: `src/js/agent/disk-tools.js`
 **Purpose**: Disk drive operations and recent disk management
 
 ### Disk Operations
 - **driveInsertDisc** - Insert disk image from filesystem path
+- **driveInsertBlank** - Insert a fresh blank, write-enabled WOZ (unformatted) into a drive
 - **diskDriveEject** - Eject disk from drive
+- **getDiskImageData** - Read a drive's current image bytes (modifications included) → base64; pairs with MCP `save_to` `from:"disk"`
 
 ### Recent Disks
 - **driveRecentsList** - Get list of recent disks
@@ -168,6 +222,10 @@ Use cases:
 **MCP dependencies**:
 - `load_disk_image` - Returns `{ success, data, filename, error }`
 - `data` is base64-encoded disk image
+
+**WASM dependencies**:
+- `_insertBlankDisk(driveIdx)` - create+insert blank WOZ (driveInsertBlank)
+- `_getDiskData(driveIdx, sizePtr)` - serialize current image to a C++-owned buffer (getDiskImageData)
 
 **Numbering**: Drive 1-2 (user), 0-1 (internal)
 
@@ -242,6 +300,58 @@ Use cases:
 
 ---
 
+## Printer Tools (23 tools)
+
+**Location**: `src/js/agent/printer-tools.js`
+**Purpose**: Drive the virtual dot-matrix printer (ImageWriter I/II, Apple DMP, Epson FX-80) — window, paper, feed, power, model/ribbon/form, raw output, screen dump, and print history
+
+### Window / Paper
+- **printerOpen** - Show + focus the Printer window
+- **printerClose** - Hide the window (output still captures in the background)
+- **printerClear** - Clear the paper (resets glyph state + canvas/text buffer)
+- **printerCapturePaper** - Capture the printed paper as a PNG (`imageBase64`, no `data:` prefix)
+- **printerSetPaperDimensions** - Set paper width/length in ¼" increments (model clamps to its bounds); `{ widthInch?, lengthInch? }`
+
+### Feed / Motion
+- **printerFeed** - Panel feed `{ kind: "up" | "down" | "ff" }` (default `ff`)
+- **printerLineFeed** - Advance/reverse N lines `{ direction: "up"|"down", count }`
+- **printerFormFeed** - Advance the paper to the next top-of-form
+
+### Power / State
+- **printerSetPower** - Mains power `{ on: boolean }` (off ignores bytes, preserves paper)
+- **printerSetOnline** - Online/offline `{ online: boolean }`
+- **printerSetAutoLineFeed** - Auto Line Feed DIP SW2-1 `{ on: boolean }` (CR-feeds vs overprint register)
+- **printerGetState** - Current model, online, ribbon, paper height
+- **printerSetup** - Combined config in one call (`power`/`online`/`model`/`ribbon`/`pageSize`, all optional) + returns state & valid options
+
+### Model / Ribbon / Form
+- **printerSetModel** - `{ model: "imagewriter-ii" | "imagewriter-i" | "epson-fx80" }`
+- **printerSetRibbon** - `{ ribbon: "bw" | "color" }` (affects future ink only)
+- **printerSetPageSize** - Form length `{ size: "form11" | "form12" | "legal" | "a4" }`
+
+### Output / Rendering
+- **printerSendBytes** - Inject raw bytes/text straight into the active printer, bypassing PR#/CSW; `{ bytes?: number[], text?: string }` (bytes wins)
+- **printerDumpScreen** - //e screen → ImageWriter bit-image "screen dump" `{ threshold?, invert? }` (auto-polarity when omitted; ImageWriter model required)
+- **printerStrike** - Tune the per-dot ink strike live `{ round?, diaPx? }` (persists to localStorage; re-print to see)
+- **printerSuper** - Paper-canvas supersample factor `{ ss: 1–4 }` (rebuilds canvas; re-print after)
+
+### Print History
+- **printerListHistory** - List stored print jobs (metadata only, grouped by job)
+- **printerGetPage** - One stored page as base64 PNG `{ jobId, pageIndex }`
+- **printerReloadJob** - Re-preview a stored job onto the paper `{ jobId }`
+
+**Dependencies**:
+- `window.emulator.printerWindow`, `.printerManager`, `.windowManager`
+- `printer-manager.js` (`PRINTER_MODELS`, `RIBBONS`), `printer-window.js` (strike/supersample), `printer-page-store.js` (IndexedDB history)
+
+**Window ID**: `printer-output`
+
+**Notes**:
+- Screen-dump polarity: `invert:false` = WYSIWYG, `invert:true` = classic white-is-black; omit for auto by lit density
+- `printerSendBytes` is the glyph/control-code verification path (host CPU/SSC bypassed)
+
+---
+
 ## Window Tools (3 tools)
 
 **Location**: `src/js/agent/window-tools.js`
@@ -289,7 +399,9 @@ Use cases:
 - `drive*` - Disk drive operations
 - `smartport*` - SmartPort hard drive operations
 - `slots*` - Expansion slot operations
+- `printer*` - Virtual dot-matrix printer operations
 - `emulator*` - Core emulator control
+- `typeKeyboard` - Keyboard input (type text + special keys)
 
 **Return format**:
 All tools return objects with:

@@ -11,13 +11,13 @@
 
 ## Main
 
-- [main](/docs/llms/llm-main.txt) Core emulator power, reset controls, memory operations for loading/saving binary data, and screen capture (screenshot + text)
+- [main](/docs/llms/llm-main.txt) Core emulator power, reset controls, memory operations for loading/saving binary data, screen capture (screenshot + text), and keyboard input (type text + special keys). **Read its RULE 0 first: prefer the no-base64 bypass tools (`directLoadFileAt`, `directMemoryCopy`, `directMemoryFill`, `save_to`, `get_screenshot`) over base64 round-trips — this holds across context compaction.**
 
 ## Windows
 
 ### Core
 - screen-window
-- [disk-drives](/docs/llms/llm-disk-drives.txt) Disk drives window and operations related to disks
+- [disk-drives](/docs/llms/llm-disk-drives.txt) Disk drives window and operations related to disks — insert/eject, blank disk creation, recents, and saving a drive's image to local
 - [hard-drives](/docs/llms/llm-hard-drives.txt) SmartPort hard drives and operations related to hard drive images
 - save-states
 
@@ -41,6 +41,7 @@
 - joystick
 - display-settings
 - [slot-configuration](/docs/llms/llm-slot-configuration.txt) Expansion slot configuration and operations for listing, installing, and managing expansion cards
+- [printer](/docs/llms/llm-printer.txt) Virtual dot-matrix printer (ImageWriter I/II, Apple DMP, Epson FX-80) — model/ribbon/feed/screen dump/PNG export
 - mockingboard-debug
 - mouse-card-debug
 

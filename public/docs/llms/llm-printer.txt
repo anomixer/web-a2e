@@ -1,0 +1,173 @@
+llm-printer.txt
+# Printer
+
+Virtual dot-matrix printer peripheral. Output from the //e renders to an on-screen
+sheet of continuous fanfold paper. Supports four printer models, ribbon selection,
+paper feed, screen dump, and PNG export.
+
+## Printer Models
+
+- **imagewriter-ii** — ImageWriter II (colour ribbon, four-band colour mixing, full pitch set)
+- **imagewriter-i** — ImageWriter I (black only, authentic 7×8 charset)
+- **epson-fx80** — Epson FX-80 (Roman + Italic fonts, international charsets, proportional)
+- **apple-dmp** — Apple DMP (rebadged C.Itoh 8510, pica/elite/proportional, black only)
+
+## Ribbons
+
+- **bw** — Black/white ribbon (all models)
+- **color** — 4-band colour ribbon (ImageWriter II only)
+
+## Paper Size Presets
+
+- **form11** — 8″ × 11″ (default)
+- **form12** — 8″ × 12″
+- **legal** — 8.5″ × 14″
+- **a4** — 8.27″ × 11.69″ (ISO A4)
+
+Custom dimensions can be set in ¼-inch increments via `printerSetPaperDimensions`.
+The active printer model enforces its own min/max bounds and returns the actual committed value.
+
+## Window
+
+Window ID: `printer-output`
+
+## Tool Operations
+
+**Read current state + available options:**
+```
+emma_command({ command: "printerSetup" })
+```
+Returns current model, ribbon, online state, and full lists of valid models/ribbons/pageSizes. Call this first.
+
+**Configure in one call (any fields optional):**
+```
+emma_command({ command: "printerSetup", params: { power: true, model: "imagewriter-ii", ribbon: "bw", pageSize: "form11", online: true } })
+```
+Apply any combination of power/model/ribbon/pageSize/online. Returns applied changes + full state.
+
+**Open printer window:**
+```
+emma_command({ command: "printerOpen" })
+```
+
+**Close printer window (output continues in background):**
+```
+emma_command({ command: "printerClose" })
+```
+
+**Power on/off:**
+```
+emma_command({ command: "printerSetPower", params: { on: true } })
+```
+Power off ignores incoming bytes; paper is preserved.
+
+**Set online/offline:**
+```
+emma_command({ command: "printerSetOnline", params: { online: true } })
+```
+
+**Select printer model:**
+```
+emma_command({ command: "printerSetModel", params: { model: "epson-fx80" } })
+```
+
+**Swap ribbon:**
+```
+emma_command({ command: "printerSetRibbon", params: { ribbon: "color" } })
+```
+
+**Set form length via preset:**
+```
+emma_command({ command: "printerSetPageSize", params: { size: "form11" } })
+```
+
+**Set arbitrary paper dimensions (¼-inch increments):**
+```
+emma_command({ command: "printerSetPaperDimensions", params: { widthInch: 8.5, lengthInch: 11 } })
+emma_command({ command: "printerSetPaperDimensions", params: { lengthInch: 9.5 } })
+```
+Either field may be omitted to leave that dimension unchanged. Returns actual committed
+values — the model clamps to its valid range if the requested size is out of bounds.
+
+**Dump the current //e screen to the printer:**
+```
+emma_command({ command: "printerDumpScreen" })
+emma_command({ command: "printerDumpScreen", params: { invert: true } })
+emma_command({ command: "printerDumpScreen", params: { threshold: 128 } })
+```
+Prints whatever is on screen (HGR, DHGR, LORES, text) as a bit-image graphics stream.
+`invert` omitted = auto-pick by lit density. Requires an ImageWriter model active.
+
+**Auto Line Feed DIP (SW2-1):**
+```
+emma_command({ command: "printerSetAutoLineFeed", params: { on: true } })
+```
+ON = CR also advances paper (plain text / Applesoft). OFF = CR without feed, so colour
+overprint passes register on the same band (DazzleDraw, Print Shop colour).
+
+**Line feed:**
+```
+emma_command({ command: "printerLineFeed", params: { direction: "down", count: 1 } })
+```
+
+**Form feed (advance to next top-of-form):**
+```
+emma_command({ command: "printerFormFeed" })
+```
+
+**Clear paper:**
+```
+emma_command({ command: "printerClear" })
+```
+
+**Capture printed paper as PNG:**
+```
+emma_command({ command: "printerCapturePaper" })
+```
+Returns `{ imageBase64, width, height }` — base64 has no data: URI prefix.
+
+**Get current state:**
+```
+emma_command({ command: "printerGetState" })
+```
+Returns model, online, ribbon, paper dimensions.
+
+## Print History
+
+Every completed page is automatically stored in the browser (IndexedDB) and survives
+page reloads. Use these tools to inspect and restore historical output.
+
+**List all stored print jobs (metadata only, no PNG data):**
+```
+emma_command({ command: "printerListHistory" })
+```
+Returns `{ jobs: [{ jobId, pageCount, model, ribbon, formInches, paperWidthInch, savedAt }] }`.
+Call this first to discover available jobIds.
+
+**Retrieve a specific page as base64 PNG:**
+```
+emma_command({ command: "printerGetPage", params: { jobId: 1, pageIndex: 0 } })
+```
+Returns `{ imageBase64, jobId, pageIndex, model, ribbon, formInches, paperWidthInch, savedAt }`.
+`imageBase64` has no `data:` URI prefix — pass directly to `save_to` or `get_screenshot`.
+`pageIndex` is 0-based.
+
+**Re-preview a stored job on the virtual printer paper:**
+```
+emma_command({ command: "printerReloadJob", params: { jobId: 1 } })
+```
+Restores all pages of the job to the paper canvas at their original paper size — the same
+as the Print Browser's "Re-preview" button. Useful for re-examining or re-exporting a job.
+
+## Typical Workflow
+
+1. `printerSetup` — read options and current state
+2. `printerSetup` with model/ribbon params — configure
+3. From the //e: `PR#1` (slot 1) then print — text appears on the virtual paper
+4. `printerDumpScreen` — print whatever is on screen
+5. `printerCapturePaper` — export paper as PNG
+
+**History workflow:**
+1. `printerListHistory` — see all stored jobs and their jobIds
+2. `printerGetPage` — retrieve a specific page as PNG for inspection or `save_to`
+3. `printerReloadJob` — put a past job back on the paper to re-export or review

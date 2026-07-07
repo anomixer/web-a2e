@@ -274,14 +274,45 @@ export class InputHandler {
   // speedMultiplier: emulation speed during input (1=normal, 8=8x)
   // onStart: callback when pasting begins
   // onComplete: callback when pasting finishes (or is cancelled)
-  async queueTextInput(text, { speedMultiplier = 8, onStart = null, onComplete = null } = {}) {
+  // parseTokens: when true, recognize {token} special keys (arrows, esc,
+  //   enter, tab, del, backspace, space, ctrl combos). Default false so
+  //   ordinary paste passes braces through literally.
+  async queueTextInput(text, { speedMultiplier = 8, onStart = null, onComplete = null, parseTokens = false } = {}) {
     this.pasteOnComplete = onComplete;
     await this.setPasteSpeed(speedMultiplier);
 
-    for (const char of text) {
-      const appleKey = await this.charToAppleKey(char);
-      if (appleKey !== null) {
-        this.pasteQueue.push(appleKey);
+    if (parseTokens) {
+      let i = 0;
+      while (i < text.length) {
+        if (text[i] === "{") {
+          // "{{" is a literal "{"
+          if (text[i + 1] === "{") {
+            const lit = await this.charToAppleKey("{");
+            if (lit !== null) this.pasteQueue.push(lit);
+            i += 2;
+            continue;
+          }
+          const end = text.indexOf("}", i + 1);
+          if (end > i) {
+            const code = this.specialKeyToAppleCode(text.slice(i + 1, end));
+            if (code !== null) {
+              this.pasteQueue.push(code);
+              i = end + 1;
+              continue;
+            }
+          }
+          // Unrecognized token — fall through and treat "{" literally
+        }
+        const appleKey = await this.charToAppleKey(text[i]);
+        if (appleKey !== null) this.pasteQueue.push(appleKey);
+        i++;
+      }
+    } else {
+      for (const char of text) {
+        const appleKey = await this.charToAppleKey(char);
+        if (appleKey !== null) {
+          this.pasteQueue.push(appleKey);
+        }
       }
     }
 
@@ -290,6 +321,40 @@ export class InputHandler {
       if (onStart) onStart();
       this.processPasteQueue();
     }
+  }
+
+  // Map a {token} name to an Apple II key code, mirroring keyboard.cpp.
+  // Supports arrows, esc, enter/return/cr, tab, del, backspace, space, and
+  // Ctrl combos ({ctrl-c}, {ctrl+c}, {^c}). Returns null if unrecognized.
+  specialKeyToAppleCode(token) {
+    const t = token.trim().toLowerCase();
+    const named = {
+      left: 0x08, right: 0x15, up: 0x0b, down: 0x0a,
+      esc: 0x1b, escape: 0x1b,
+      enter: 0x0d, return: 0x0d, cr: 0x0d,
+      tab: 0x09,
+      del: 0x7f, delete: 0x7f,
+      bs: 0x08, backspace: 0x08,
+      space: 0x20,
+    };
+    if (Object.prototype.hasOwnProperty.call(named, t)) return named[t];
+
+    // Ctrl combo: {ctrl-c}, {ctrl+c}, {^c}
+    const m = t.match(/^(?:ctrl[-+]|\^)(.)$/);
+    if (m) {
+      const c = m[1].charCodeAt(0);
+      if (c >= 0x61 && c <= 0x7a) return c - 0x60; // a-z -> 0x01-0x1A
+      if (c >= 0x40 && c <= 0x5f) return c & 0x1f; // @ [ \ ] ^ _ -> 0x00-0x1F
+    }
+
+    // Raw code by value: {chr:4}, {chr:$04}, {chr:0x1b} -> CHR$(N).
+    // Covers control codes (e.g. Ctrl-D = {chr:4}) and any byte by number.
+    const chr = t.match(/^chr:(?:(\$|0x)([0-9a-f]+)|([0-9]+))$/);
+    if (chr) {
+      const v = chr[3] !== undefined ? parseInt(chr[3], 10) : parseInt(chr[2], 16);
+      if (!Number.isNaN(v) && v >= 0 && v <= 0xff) return v & 0x7f;
+    }
+    return null;
   }
 
   // Check if a paste operation is in progress

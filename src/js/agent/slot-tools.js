@@ -7,8 +7,8 @@
 
 // Slot metadata (matches slot-configuration-window.js)
 const SLOT_CONFIG = [
-  { slot: 1, compatible: ["ssc", "softcard"], fixed: false },
-  { slot: 2, compatible: ["ssc", "smartport", "softcard"], fixed: false },
+  { slot: 1, compatible: ["parallel", "ssc", "softcard"], fixed: false },
+  { slot: 2, compatible: ["parallel", "ssc", "smartport", "softcard"], fixed: false },
   { slot: 3, compatible: [], fixed: true },
   { slot: 4, compatible: ["mockingboard", "mouse", "smartport", "softcard"], fixed: false },
   { slot: 5, compatible: ["thunderclock", "smartport", "softcard"], fixed: false },
@@ -16,7 +16,7 @@ const SLOT_CONFIG = [
   { slot: 7, compatible: ["thunderclock", "smartport", "softcard"], fixed: false },
 ];
 
-const ALL_CARDS = ["disk2", "mockingboard", "thunderclock", "mouse", "smartport", "softcard", "ssc"];
+const ALL_CARDS = ["disk2", "mockingboard", "thunderclock", "mouse", "smartport", "softcard", "ssc", "parallel"];
 
 function getWasm() {
   const wasmModule = window.emulator?.wasmModule;
@@ -43,8 +43,8 @@ async function setSlotCardWasm(wasmModule, slot, cardId) {
 }
 
 async function persistSlotConfig(wasmModule) {
+  const config = {};
   try {
-    const config = {};
     for (const cfg of SLOT_CONFIG) {
       if (!cfg.fixed) {
         config[cfg.slot] = await getSlotCard(wasmModule, cfg.slot);
@@ -58,8 +58,17 @@ async function persistSlotConfig(wasmModule) {
   // Refresh the slot configuration window UI if it exists
   const slotWindow = window.emulator?.windowManager?.getWindow("slot-configuration");
   if (slotWindow) {
-    slotWindow.loadSettings();
-    slotWindow.updateDisabledOptions();
+    if (typeof slotWindow.loadSettings === "function") slotWindow.loadSettings();
+    if (typeof slotWindow.updateDisabledOptions === "function") slotWindow.updateDisabledOptions();
+  }
+
+  // Refresh the printer interface gate. The slot-window UI path notifies the
+  // printer via onSlotsApplied (main.js); the agent path must do it too, or a
+  // card installed via slotsInstallCard leaves the printer's bus availability
+  // (DMP/FX-80 over parallel, IW-I/II over SSC) stale until a full page reload.
+  const printerManager = window.emulator?.printerManager;
+  if (printerManager && typeof printerManager.updateSlots === "function") {
+    printerManager.updateSlots(config);
   }
 }
 
@@ -174,6 +183,9 @@ export const slotTools = {
     await setSlotCardWasm(wasmModule, slot, card);
     await persistSlotConfig(wasmModule);
     wasmModule._reset();
+    // Slot config drives mouse-capture enable; re-arm it like the Slot Config
+    // UI does, or ⌥-click stays gated off after an agent install/remove/move.
+    try { await window.emulator?.updateMouseHandlerState?.(); } catch (e) { /* non-fatal */ }
 
     const displaced = currentCard !== "empty" ? currentCard : null;
     let message = `${card} installed in slot ${slot}. Emulator reset.`;
@@ -228,6 +240,9 @@ export const slotTools = {
     await setSlotCardWasm(wasmModule, slot, "empty");
     await persistSlotConfig(wasmModule);
     wasmModule._reset();
+    // Slot config drives mouse-capture enable; re-arm it like the Slot Config
+    // UI does, or ⌥-click stays gated off after an agent install/remove/move.
+    try { await window.emulator?.updateMouseHandlerState?.(); } catch (e) { /* non-fatal */ }
 
     return {
       success: true,
@@ -293,6 +308,9 @@ export const slotTools = {
     await setSlotCardWasm(wasmModule, toSlot, card);
     await persistSlotConfig(wasmModule);
     wasmModule._reset();
+    // Slot config drives mouse-capture enable; re-arm it like the Slot Config
+    // UI does, or ⌥-click stays gated off after an agent install/remove/move.
+    try { await window.emulator?.updateMouseHandlerState?.(); } catch (e) { /* non-fatal */ }
 
     return {
       success: true,

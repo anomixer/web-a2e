@@ -47,9 +47,10 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 - `cards/disk2/` - Disk II controller card
 - `cards/mockingboard/` - AY-3-8910 sound chip + VIA 6522 timer + Mockingboard card
 - `cards/mouse/` - Apple Mouse Interface Card
+- `cards/parallel/` - Centronics parallel card (drives Epson FX-80 and Apple DMP)
 - `cards/smartport/` - SmartPort hard drive controller (2 block devices, self-built ROM)
 - `cards/softcard/` - Microsoft Z-80 SoftCard with Z80 CPU emulation
-- `cards/ssc/` - Super Serial Card with ACIA 6551
+- `cards/ssc/` - Super Serial Card with ACIA 6551 (drives ImageWriter I and ImageWriter II)
 - `cards/thunderclock/` - Thunderclock Plus real-time clock card
 - `filesystem/` - DOS 3.3 and ProDOS filesystem parsers
 - `basic/` - Applesoft and Integer BASIC detokenizer and tokenizer
@@ -147,6 +148,7 @@ Single global `Emulator` instance in C++ (`wasm_interface.cpp`). WASM runs insid
 - `341-0027.bin` (256 bytes Disk II ROM)
 - `Thunderclock Plus ROM.bin` (2KB Thunderclock card ROM)
 - `Apple Mouse Interface Card ROM - 342-0270-C.bin` (2KB Mouse Interface Card ROM)
+- `Apple Parallel Interface Card ROM - 341-0057.bin` (512 bytes; upper half is 341-0005 "Parallel Printer" firmware)
 
 ## Code Organization
 
@@ -165,6 +167,7 @@ src/
 │   │   ├── disk2/         # Disk II controller card
 │   │   ├── mockingboard/  # AY-3-8910 + VIA 6522 + Mockingboard card
 │   │   ├── mouse/         # Apple Mouse Interface Card
+│   │   ├── parallel/      # Centronics parallel card
 │   │   ├── smartport/     # SmartPort hard drive controller
 │   │   ├── softcard/      # Microsoft Z-80 SoftCard
 │   │   │   └── z80/       # Z80 CPU emulation core
@@ -248,9 +251,10 @@ class ExpansionCard {
 - `Disk2Card` (`cards/disk2/`) - Wraps Disk2Controller (slot 6)
 - `MockingboardCard` (`cards/mockingboard/`) - Dual AY-3-8910 + VIA 6522, stereo output (slot 4)
 - `MouseCard` (`cards/mouse/`) - Apple Mouse Interface Card via MC6821 PIA command protocol (slot 4)
+- `ParallelCard` (`cards/parallel/`) - Centronics parallel port; drives Epson FX-80 and Apple DMP virtual printers (slots 1–2)
 - `SmartPortCard` (`cards/smartport/`) - SmartPort hard drive controller, 2 block devices, self-built ROM (user-configurable slot)
 - `SoftCardZ80` (`cards/softcard/`) - Microsoft Z-80 SoftCard with Z80 CPU emulation (`cards/softcard/z80/`)
-- `SSCCard` (`cards/ssc/`) - Super Serial Card with ACIA 6551
+- `SSCCard` (`cards/ssc/`) - Super Serial Card with ACIA 6551; drives ImageWriter I and ImageWriter II virtual printers (slots 1–2)
 - `ThunderclockCard` (`cards/thunderclock/`) - ProDOS-compatible real-time clock (slots 5, 7)
 - `NoSlotClock` - DS1215 real-time clock piggybacking on $C300 ROM (not a slot card; toggle in Expansion Slots UI)
 
@@ -424,6 +428,7 @@ Registered in `agent-tools.js`, organized by category:
 - `basicProgramLoadFromMemory` / `basicProgramLoadIntoEmulator` — transfer between editor and emulator
 - `basicProgramRun` / `basicProgramPause` / `basicProgramNew` / `basicProgramRenumber` / `basicProgramFormat`
 - `basicProgramGet` / `basicProgramSet` / `basicProgramLineCount`
+- `basicProgramLoadFile` — load a sandbox file into the editor server-side (source bypasses LLM context); pairs with `save_to from:"basic-editor"`
 - `saveBasicInEditorToLocal` — export from editor
 
 **Assembler** (`assembler-tools.js`)
@@ -431,6 +436,7 @@ Registered in `agent-tools.js`, organized by category:
 - `asmWrite` — load assembled code into memory
 - `asmLoadExample` — load template program
 - `asmNew` / `asmGet` / `asmSet` — editor operations
+- `asmLoadFile` — load a sandbox file into the editor server-side (source bypasses LLM context); pairs with `save_to from:"asm-editor"`
 - `asmGetStatus` — compilation status (origin, size, errors)
 - `directExecuteAssemblyAt` — execute at address with optional return address
 

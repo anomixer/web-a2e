@@ -44,8 +44,14 @@ Sets PC to the specified address and executes. Address supports hex (`"$0800"`) 
 - `"auto"` (default) - captures current PC as return address (returns to whatever was running)
 - `"monitor"` - return to Apple II monitor ($FF69)
 - `"basic"` - return to Applesoft BASIC prompt ($E003)
+- `"halt"` / `"spin"` - writes a tiny `JMP self` pad and returns the RTS into it, so the CPU loops forever and **never re-enters BASIC/ProDOS**. Use this to freeze RAM after a routine finishes (e.g. verify graphics pages with a screenshot + readback before the OS clobbers $2000/$4000). The pad defaults to $03C0 (free page-3 scratch); override with `haltAddr`. Break the spin by issuing the next `directExecuteAssemblyAt`.
 - `"$AABB"` - hex address
 - `12345` - decimal address
+
+```
+emma_command({ command: "directExecuteAssemblyAt", params: { addr: "$6000", returnTo: "halt" } })
+emma_command({ command: "directExecuteAssemblyAt", params: { addr: "$6000", returnTo: "halt", haltAddr: "$0340" } })
+```
 
 **Load example program:**
 ```
@@ -76,6 +82,12 @@ Returns the assembly status (none/ok/error), status text, origin address, and as
 emma_command({ command: "asmSet", params: { source: "ORG $0800\nLDA #$00\nRTS" } })
 ```
 Replaces the entire assembly source code in the editor.
+
+**Load assembly source from a file (no source in context):**
+```
+emma_command({ command: "asmLoadFile", params: { path: "[t]/asm/prog.s" } })
+```
+Loads a sandbox file straight into the editor server-side; only { filename, lines, bytes } is returned, so the source never enters the LLM context. Prefer this over load_file + asmSet when you don't need to read the source. Save counterpart: save_to({ from: "asm-editor", whereTo, direct: true }).
 
 **Get assembly source for saving:**
 ```

@@ -569,6 +569,24 @@ export class UIController {
         this.refocusCanvas();
       });
     }
+
+    const printerBtn = document.getElementById("btn-printer");
+    if (printerBtn) {
+      printerBtn.addEventListener("click", () => {
+        this.windowManager.toggleWindow("printer-output");
+        this.closeAllMenus();
+        this.refocusCanvas();
+      });
+    }
+
+    const printBrowserBtn = document.getElementById("btn-print-browser");
+    if (printBrowserBtn) {
+      printBrowserBtn.addEventListener("click", () => {
+        this.windowManager.toggleWindow("print-browser");
+        this.closeAllMenus();
+        this.refocusCanvas();
+      });
+    }
   }
 
 
@@ -1060,6 +1078,17 @@ export class UIController {
         this.diskManager.setSeekSoundEnabled(enabled);
         this.diskManager.setMotorSoundEnabled(enabled);
         localStorage.setItem("a2e-drive-sounds", enabled);
+      });
+    }
+
+    // Printer sounds toggle. PrinterSound reads a2e-printer-sounds live from
+    // localStorage (same pattern as the main volume/mute keys), so this toggle
+    // only has to persist the flag — no object to plumb through.
+    const printerSoundsToggle = document.getElementById("printer-sounds-toggle");
+    if (printerSoundsToggle) {
+      printerSoundsToggle.checked = localStorage.getItem("a2e-printer-sounds") !== "false";
+      printerSoundsToggle.addEventListener("change", (e) => {
+        localStorage.setItem("a2e-printer-sounds", e.target.checked);
       });
     }
 

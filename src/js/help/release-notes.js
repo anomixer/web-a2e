@@ -11,6 +11,23 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "June 21, 2026",
+    features: [
+      {
+        title: "Virtual dot-matrix printer",
+        description:
+          "Added an emulated printer peripheral with four period-correct models: ImageWriter II (colour ribbon), ImageWriter I, Epson FX-80 (Roman/Italic fonts, international character sets), and Apple DMP. Output renders to an on-screen sheet of fanfold paper with carriage sweep, impact sounds, and PNG/PDF export.",
+      },
+      {
+        title: "Parallel Card (Centronics)",
+        description:
+          "Added an Apple Parallel Interface Card using the authentic 341-0005 firmware. Install in slot 1 or 2 to enable the Epson FX-80 and Apple DMP. The Super Serial Card (SSC) in slot 1 or 2 enables the ImageWriter I and ImageWriter II.",
+      },
+    ],
+    fixes: [],
+    improvements: [],
+  },
+  {
     week: "March 23, 2026",
     features: [
       {

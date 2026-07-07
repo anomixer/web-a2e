@@ -24,6 +24,7 @@ import "../css/basic-debugger.css";
 import "../css/assembler-editor.css";
 import "../css/release-notes.css";
 import "../css/file-explorer.css";
+import "../css/printer.css";
 import "../css/documentation.css";
 import "../css/window-switcher.css";
 import "../css/docking.css";
@@ -50,6 +51,9 @@ import { ThemeManager } from "./ui/theme-manager.js";
 import { showToast } from "./ui/toast.js";
 import { SlotConfigurationWindow } from "./ui/slot-configuration-window.js";
 import { SerialConnectionWindow } from "./serial/serial-connection-window.js";
+import { PrinterWindow } from "./printer/printer-window.js";
+import { PrinterManager } from "./printer/printer-manager.js";
+import { PrintBrowserWindow } from "./printer/print-browser-window.js";
 import { HayesModem } from "./serial/hayes-modem.js";
 import { WindowSwitcher } from "./ui/window-switcher.js";
 import { StateManager } from "./state/state-manager.js";
@@ -107,9 +111,12 @@ class AppleIIeEmulator {
     this.showLoading(true);
 
     try {
-      // Load WASM module in a Web Worker via proxy
+      // Load WASM module in a Web Worker via proxy.
+      // Cache-bust the loader AND the .wasm fetch: in dev use a per-load token
+      // so rebuilds are always picked up; in prod key off the app version.
       this.wasmModule = new WasmProxy();
-      await this.wasmModule.init('/a2e.js');
+      const wasmBust = import.meta.env.DEV ? Date.now() : VERSION;
+      await this.wasmModule.init(`/a2e.js?v=${wasmBust}`);
 
       // Set up renderer
       const canvas = document.getElementById("screen");
@@ -305,7 +312,11 @@ class AppleIIeEmulator {
           }
         },
       );
-      slotConfigWindow.create();
+      // Awaited: create() restores the saved slot cards into WASM via
+      // applyInitialSettings(). updateMouseHandlerState() below reads those slots
+      // to arm ⌥-click capture — if we don't wait, it races the restore, sees an
+      // empty slot 4, and leaves mouse capture disabled until the next slot edit.
+      await slotConfigWindow.create();
       this.windowManager.register(slotConfigWindow);
 
       // Release notes window
@@ -377,6 +388,33 @@ class AppleIIeEmulator {
       const serialConnectionWindow = new SerialConnectionWindow(this.modem);
       serialConnectionWindow.create();
       this.windowManager.register(serialConnectionWindow);
+
+      // Printer window
+      const printerManager = new PrinterManager(
+        this.wasmModule,
+        () => this.audioDriver?.audioContext || null,
+      );
+      const printerWindow  = new PrinterWindow(printerManager);
+      printerWindow.create();
+      this.windowManager.register(printerWindow);
+      this.printerManager = printerManager;
+      this.printerWindow  = printerWindow;
+      // Install the printer output callback at startup so PR#n capture works
+      // even when the Printer window is closed. The worker WASM is already
+      // ready here (wasmModule.init() was awaited earlier), so the RPC lands.
+      printerManager.init().catch((e) => console.warn("printer init failed:", e));
+      // Sync interface availability from the already-applied slot config, then
+      // keep it live as the user changes cards in Expansion Slots.
+      printerManager.updateSlots(slotConfigWindow.slotAssignments);
+      slotConfigWindow.onSlotsApplied = (assignments) => printerManager.updateSlots(assignments);
+
+      // Print Browser — manages the pages auto-captured to IndexedDB by the
+      // printer window. Reads the store; can also send a stored job back to the
+      // printer window's paper (re-preview / extend), hence the window ref.
+      const printBrowserWindow = new PrintBrowserWindow(printerWindow);
+      printBrowserWindow.create();
+      this.windowManager.register(printBrowserWindow);
+      this.printBrowserWindow = printBrowserWindow;
 
       // Set up UI controller
       this.uiController = new UIController({

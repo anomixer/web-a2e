@@ -14,6 +14,7 @@ import {
   MSG_RPC_RESULT, MSG_RPC_BATCH_RESULT, MSG_RPC_ERROR,
   MSG_READY, MSG_AUDIO_SAMPLES, MSG_FRAME_READY,
   MSG_AUDIO_CONFIG, MSG_FRAMEBUFFER_CONFIG, MSG_REQUEST_SAMPLES,
+  MSG_PRINTER_BYTE,
 } from './rpc-protocol.js';
 
 // Functions that don't need return values — fire and forget
@@ -47,6 +48,7 @@ const FIRE_AND_FORGET = new Set([
   '_loadAsmIntoMemory',
   '_serialReceive',
   '_setSerialTxCallback',
+  '_setParallelTxCallback',
   '_setMonochrome',
   '_enableNoSlotClock',
   '_reset',
@@ -175,6 +177,11 @@ export class WasmProxy {
         if (this.onFrameReady) {
           this.onFrameReady(new Uint8Array(msg.framebuffer));
         }
+        break;
+      }
+
+      case MSG_PRINTER_BYTE: {
+        if (this.onPrinterByte) this.onPrinterByte(msg.byte);
         break;
       }
     }

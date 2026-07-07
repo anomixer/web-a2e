@@ -31,6 +31,8 @@ emma_command({ command: "getDiskFileContent", params: { drive: 0, filename: "HEL
 ```
 Reads a file from the disk. Set `isBinary: false` for text files to get plain text content, or `isBinary: true` (default) for binary files to get base64-encoded data. For ProDOS, can use full path like "SUBDIR/FILE". Text files (TXT, BAS) should use `isBinary: false`.
 
+⚠️ If your goal is to **load the file into emulator memory** (the common case — BLOAD-style), do NOT use this: it returns base64 through the LLM. Use `directLoadFileAt({ address, filename, drive })` instead — it reads the same disk file server-side and writes it straight to memory. Reserve `getDiskFileContent` for when you actually need to read/inspect the bytes yourself or save them to a host file.
+
 **Save disk file to local filesystem (MCP tool):**
 ```
 save_disk_file({ path: "~/Documents/file.bin", contentBase64: "<base64 data>", overwrite: false })

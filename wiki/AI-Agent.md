@@ -459,11 +459,33 @@ Run $0800 and return to monitor
 Set PC to $0800 but don't execute yet
 ```
 
+**Execute, then freeze the CPU (verify graphics safely):**
+```
+Run the dump routine at $6000 and halt the CPU afterwards so the screen RAM stays frozen
+```
+The routine's RTS lands in a `JMP self` spin loop, so the emulator never returns to BASIC/ProDOS and the graphics pages aren't clobbered — handy for screenshotting or reading back a HiRes page after a routine finishes.
+
 ### Memory Operations
 
-**Load binary file to memory:**
+**Load binary file to memory (sandbox/host file):**
 ```
-Load the file ~/program.bin into memory at address $2000
+Load the file [t]/program.bin into memory at address $2000
+```
+
+**Load a file from the mounted disk straight to memory:**
+```
+Load HGR.ART from the disk in drive 1 into memory at $6000
+```
+Reads the disk file and writes it to memory without round-tripping the bytes through the conversation.
+
+**Copy a block of memory:**
+```
+Copy $2000 bytes from $2000 to $4000
+```
+
+**Blank / fill a block of memory:**
+```
+Fill $2000 bytes at $2000 with zero
 ```
 
 **Save memory range to file:**

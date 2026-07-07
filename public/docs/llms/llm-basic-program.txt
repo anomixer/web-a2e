@@ -133,6 +133,12 @@ emma_command({ command: "basicProgramSet", params: { program: "full program text
 ```
 Replace the entire program with new content.
 
+**Load program from a file (no source in context):**
+```
+emma_command({ command: "basicProgramLoadFile", params: { path: "[t]/printer/test.bas" } })
+```
+Loads a sandbox file straight into the editor server-side; only { filename, lines, bytes } is returned, so the program text never enters the LLM context. Prefer this over load_file + basicProgramSet when you don't need to read the program. Save counterpart: save_to({ from: "basic-editor", whereTo, direct: true }).
+
 ### Breakpoint and Debugging Operations
 
 **List all breakpoints:**

@@ -166,6 +166,66 @@ export const assemblerTools = {
   },
 
   /**
+   * Load an assembly source file from a sandbox path straight into the
+   * editor WITHOUT routing the source through the LLM context. The MCP
+   * load_file call runs server-side (mirrors driveInsertDisc), so only the
+   * line count comes back — use this instead of load_file + asmSet when you
+   * don't need to read the source yourself.
+   * @param {string} path - Sandbox path, e.g. "[t]/asm/prog.s"
+   */
+  asmLoadFile: async (args) => {
+    const { path } = args;
+
+    if (!path) {
+      throw new Error("path parameter is required");
+    }
+
+    const windowManager = window.emulator?.windowManager;
+    if (!windowManager) {
+      throw new Error("Window manager not available");
+    }
+
+    const asmWindow = windowManager.getWindow("assembler-editor");
+    if (!asmWindow) {
+      throw new Error("Assembler window not found");
+    }
+
+    const agentManager = window.emulator?.agentManager;
+    if (!agentManager) {
+      throw new Error("Agent manager not available");
+    }
+
+    // Read the file as text server-side; content stays out of LLM context.
+    const result = await agentManager.callMCPTool("load_file", { path, binary: false });
+    if (!result || !result.success) {
+      throw new Error(result?.error || `Failed to load file: ${path}`);
+    }
+
+    const source = result.content ?? "";
+    const filename = path.split("/").pop();
+    if (asmWindow.textarea) {
+      asmWindow.textarea.value = source;
+      asmWindow.currentFileName = filename;
+      asmWindow._fileHandle = null;
+      if (asmWindow.updateTitle) asmWindow.updateTitle(filename);
+      asmWindow.updateHighlighting();
+      asmWindow.validateAllLines();
+      asmWindow.encodeAllLineBytes();
+      asmWindow.updateGutter();
+    }
+
+    const lines = source ? source.split(/\r?\n/).length : 0;
+
+    return {
+      success: true,
+      filename,
+      lines,
+      bytes: result.size,
+      message: `Loaded ${filename} into assembler editor (${lines} lines)`,
+    };
+  },
+
+  /**
    * Get assembly source content from editor (used with save file MCP tool)
    */
   saveAsmInEditorToLocal: async (args) => {
@@ -292,10 +352,42 @@ export const assemblerTools = {
     // Pause first to ensure clean state
     wasmModule._setPaused(true);
 
-    // Push return address onto stack if specified
+    // Push return address onto stack so an RTS lands somewhere defined.
     const { returnTo = "auto" } = args;
     let returnAddr = null;
-    if (returnTo !== undefined) {
+
+    // "halt"/"spin": instead of returning to BASIC/monitor, land the RTS in a
+    // tiny JMP-self pad so the CPU loops forever and NEVER re-enters
+    // BASIC/ProDOS. That freezes RAM after the routine finishes, so you can
+    // verify graphics pages (or any memory) without the OS clobbering them.
+    // Pad defaults to $03C0 (free page-3 scratch); override with haltAddr.
+    const isHalt = typeof returnTo === "string" &&
+      ["halt", "spin"].includes(returnTo.trim().toLowerCase());
+    if (isHalt) {
+      let haltAddr = 0x03c0;
+      if (args.haltAddr !== undefined) {
+        const h = args.haltAddr;
+        if (typeof h === "string") {
+          const t = h.trim();
+          haltAddr = t.startsWith("$")
+            ? parseInt(t.substring(1), 16)
+            : t.toLowerCase().startsWith("0x")
+              ? parseInt(t, 16)
+              : parseInt(t, 10);
+        } else {
+          haltAddr = h;
+        }
+        if (isNaN(haltAddr)) {
+          throw new Error(`Invalid haltAddr: ${args.haltAddr}`);
+        }
+      }
+      haltAddr &= 0xffff;
+      // JMP haltAddr  (4C lo hi) — infinite self-loop
+      wasmModule._writeMemory(haltAddr, 0x4c);
+      wasmModule._writeMemory((haltAddr + 1) & 0xffff, haltAddr & 0xff);
+      wasmModule._writeMemory((haltAddr + 2) & 0xffff, (haltAddr >> 8) & 0xff);
+      returnAddr = haltAddr;
+    } else if (returnTo !== undefined) {
       const NAMED_RETURNS = {
         "monitor": 0xFF69,
         "basic": 0xE003,
@@ -320,7 +412,9 @@ export const assemblerTools = {
       if (isNaN(returnAddr)) {
         throw new Error(`Invalid returnTo address: ${returnTo}`);
       }
+    }
 
+    if (returnAddr !== null) {
       // RTS pops address and adds 1, so push (returnAddr - 1)
       const rtsAddr = (returnAddr - 1) & 0xFFFF;
       const sp = await wasmModule._getSP();
@@ -339,7 +433,11 @@ export const assemblerTools = {
     const returnHex = returnAddr !== null
       ? "$" + returnAddr.toString(16).toUpperCase().padStart(4, "0")
       : null;
-    const returnMsg = returnHex ? `, return to ${returnHex}` : "";
+    const returnMsg = returnHex
+      ? isHalt
+        ? `, halt-spin at ${returnHex}`
+        : `, return to ${returnHex}`
+      : "";
     const statusMsg = paused
       ? `PC set to ${addrHex} (paused${returnMsg})`
       : `Executing at ${addrHex}${returnMsg}`;
@@ -350,6 +448,7 @@ export const assemblerTools = {
       addressHex: addrHex,
       returnTo: returnAddr,
       returnToHex: returnHex,
+      halt: isHalt,
       paused: paused,
       message: statusMsg,
     };

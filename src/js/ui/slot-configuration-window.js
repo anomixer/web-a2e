@@ -37,6 +37,7 @@ export class SlotConfigurationWindow extends BaseWindow {
       { id: "smartport", name: "SmartPort", color: "red" },
       { id: "softcard", name: "Z-80 SoftCard", color: "cyan" },
       { id: "ssc", name: "Super Serial Card", color: "yellow" },
+      { id: "parallel", name: "Parallel Card", color: "teal" },
     ];
 
     // Card icon SVGs (simple representations)
@@ -48,6 +49,7 @@ export class SlotConfigurationWindow extends BaseWindow {
       smartport: `<svg viewBox="0 0 24 24" width="20" height="20"><rect x="4" y="3" width="16" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="7" y="6" width="10" height="3" rx="0.5" fill="none" stroke="currentColor" stroke-width="0.8"/><rect x="7" y="11" width="10" height="3" rx="0.5" fill="none" stroke="currentColor" stroke-width="0.8"/><circle cx="12" cy="18" r="1" fill="currentColor"/></svg>`,
       softcard: `<svg viewBox="0 0 24 24" width="20" height="20"><rect x="3" y="5" width="18" height="14" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><text x="12" y="14" text-anchor="middle" font-size="7" font-weight="bold" fill="currentColor">Z80</text><line x1="6" y1="5" x2="6" y2="3" stroke="currentColor" stroke-width="1"/><line x1="9" y1="5" x2="9" y2="3" stroke="currentColor" stroke-width="1"/><line x1="12" y1="5" x2="12" y2="3" stroke="currentColor" stroke-width="1"/><line x1="15" y1="5" x2="15" y2="3" stroke="currentColor" stroke-width="1"/><line x1="18" y1="5" x2="18" y2="3" stroke="currentColor" stroke-width="1"/><line x1="6" y1="19" x2="6" y2="21" stroke="currentColor" stroke-width="1"/><line x1="9" y1="19" x2="9" y2="21" stroke="currentColor" stroke-width="1"/><line x1="12" y1="19" x2="12" y2="21" stroke="currentColor" stroke-width="1"/><line x1="15" y1="19" x2="15" y2="21" stroke="currentColor" stroke-width="1"/><line x1="18" y1="19" x2="18" y2="21" stroke="currentColor" stroke-width="1"/></svg>`,
       ssc: `<svg viewBox="0 0 24 24" width="20" height="20"><rect x="4" y="6" width="16" height="12" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><text x="12" y="14" text-anchor="middle" font-size="5" font-weight="bold" fill="currentColor">RS232</text><circle cx="7" cy="20" r="1" fill="currentColor"/><circle cx="12" cy="20" r="1" fill="currentColor"/><circle cx="17" cy="20" r="1" fill="currentColor"/><circle cx="9.5" cy="22" r="1" fill="currentColor"/><circle cx="14.5" cy="22" r="1" fill="currentColor"/></svg>`,
+      parallel: `<svg viewBox="0 0 24 24" width="20" height="20"><rect x="2" y="7" width="20" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="5" y1="11" x2="5" y2="13" stroke="currentColor" stroke-width="1"/><line x1="7" y1="11" x2="7" y2="13" stroke="currentColor" stroke-width="1"/><line x1="9" y1="11" x2="9" y2="13" stroke="currentColor" stroke-width="1"/><line x1="11" y1="11" x2="11" y2="13" stroke="currentColor" stroke-width="1"/><line x1="13" y1="11" x2="13" y2="13" stroke="currentColor" stroke-width="1"/><line x1="15" y1="11" x2="15" y2="13" stroke="currentColor" stroke-width="1"/><line x1="17" y1="11" x2="17" y2="13" stroke="currentColor" stroke-width="1"/><line x1="19" y1="11" x2="19" y2="13" stroke="currentColor" stroke-width="1"/></svg>`,
     };
 
     // Slot metadata
@@ -55,13 +57,13 @@ export class SlotConfigurationWindow extends BaseWindow {
       {
         slot: 1,
         label: "Slot 1",
-        available: ["ssc", "softcard"],
+        available: ["parallel", "ssc", "softcard"],
         note: "Printer / Serial",
       },
       {
         slot: 2,
         label: "Slot 2",
-        available: ["ssc", "smartport", "softcard"],
+        available: ["parallel", "ssc", "smartport", "softcard"],
         note: "Serial / Modem",
       },
       {
@@ -538,6 +540,8 @@ export class SlotConfigurationWindow extends BaseWindow {
     this.hasChanges = false;
     this.updateUI();
 
+    if (this.onSlotsApplied) this.onSlotsApplied({ ...this.slotAssignments });
+
     if (this.onResetCallback) {
       this.onResetCallback();
     } else if (this.wasmModule && this.wasmModule._reset) {
@@ -549,7 +553,7 @@ export class SlotConfigurationWindow extends BaseWindow {
 
   async applyInitialSettings() {
     const saved = this.loadSettingsFromStorage();
-    const config = saved || { 5: "smartport", 7: "thunderclock" };
+    const config = saved || { 4: "mockingboard", 5: "smartport", 6: "disk2", 7: "thunderclock" };
     if (this.wasmModule && this.wasmModule._setSlotCard) {
       for (const [slot, cardId] of Object.entries(config)) {
         const slotNum = parseInt(slot, 10);
