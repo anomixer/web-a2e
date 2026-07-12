@@ -98,6 +98,14 @@ export class DocumentationWindow extends BaseWindow {
             </svg>
             Display
           </button>
+          <button data-section="workspace">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="18" rx="2"/>
+              <line x1="3" y1="9" x2="21" y2="9"/>
+              <line x1="9" y1="21" x2="9" y2="9"/>
+            </svg>
+            Workspace
+          </button>
           <button data-section="disks">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="2" y="6" width="20" height="12" rx="2"/>
@@ -113,6 +121,17 @@ export class DocumentationWindow extends BaseWindow {
               <circle cx="12" cy="14" r="3"/>
             </svg>
             SmartPort
+          </button>
+          <button data-section="expansion">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="4" width="18" height="12" rx="1"/>
+              <line x1="7" y1="20" x2="7" y2="16"/>
+              <line x1="12" y1="20" x2="12" y2="16"/>
+              <line x1="17" y1="20" x2="17" y2="16"/>
+              <line x1="7" y1="8" x2="7" y2="12"/>
+              <line x1="12" y1="8" x2="12" y2="12"/>
+            </svg>
+            Expansion
           </button>
           <button data-section="file-explorer">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -206,7 +225,8 @@ export class DocumentationWindow extends BaseWindow {
           <li><strong>Video:</strong> All Apple //e display modes including Double Hi-Res</li>
           <li><strong>Storage:</strong> Two Disk II floppy drives, SmartPort hard drives</li>
           <li><strong>Audio:</strong> Speaker with accurate timing, Mockingboard (dual AY-3-8910)</li>
-          <li><strong>Expansion:</strong> Mockingboard, Mouse Card, Thunderclock Plus, SmartPort</li>
+          <li><strong>Expansion:</strong> Disk II, Mockingboard, Mouse Card, Thunderclock Plus, Super Serial Card, Parallel Card, Microsoft Z-80 SoftCard, SmartPort, and a No-Slot Clock</li>
+          <li><strong>Peripherals:</strong> Virtual dot-matrix printer, joystick / paddles, and physical game controllers</li>
           <li><strong>ROM:</strong> Apple //e Enhanced ROM set</li>
         </ul>
 
@@ -348,6 +368,13 @@ export class DocumentationWindow extends BaseWindow {
 
         <h4>Paste Support</h4>
         <p>You can paste text into the emulator using <kbd>Ctrl</kbd>+<kbd>V</kbd>. The emulator will type the text character by character at the appropriate speed. This is useful for entering BASIC programs.</p>
+
+        <h4>Joystick, Paddles &amp; Game Controllers</h4>
+        <p>Open <strong>View &gt; Joystick / Paddles</strong> for an on-screen controller with a draggable pad, PDL0/PDL1 gauges, and button 0/1 (Open/Closed Apple) indicators.</p>
+        <ul>
+          <li><strong>Physical controllers:</strong> Enable the <strong>Gamepad</strong> toggle to use a connected game controller via the browser Gamepad API. The left stick maps to the paddles and the A/B buttons to Apple buttons 0/1, with an adjustable deadzone.</li>
+          <li><strong>Cursor keys as joystick:</strong> A <strong>JOY</strong> toggle in the screen window's title bar remaps the arrow keys to full-deflection joystick input for games that expect a joystick. The label highlights green while active, and the setting is remembered between sessions.</li>
+        </ul>
       </section>
 
       <!-- Display Settings Section -->
@@ -408,6 +435,44 @@ export class DocumentationWindow extends BaseWindow {
         <p>Toggle between US and UK character sets using the switch in the screen window header. The UK set replaces some symbols with British variants.</p>
       </section>
 
+      <!-- Workspace Section -->
+      <section id="doc-workspace" class="documentation-section">
+        <h3>Workspace &amp; Windows</h3>
+        <p>Every tool &mdash; the screen, disk drives, debuggers, editors &mdash; lives in a moveable, resizable window. The workspace can either float those windows freely or dock them into a tiled layout, controlled from the <strong>View</strong> menu.</p>
+
+        <h4>Layout Modes</h4>
+        <p>Choose a layout from the <strong>Layout</strong> row in the View menu. Each layout remembers its own window arrangement:</p>
+        <ul>
+          <li><strong>Window:</strong> Free-floating windows you can move and overlap anywhere.</li>
+          <li><strong>Play:</strong> A clean arrangement focused on the screen and drives &mdash; the default for new users.</li>
+          <li><strong>Code:</strong> A layout tuned for the BASIC and assembler editors.</li>
+          <li><strong>Debug:</strong> A layout that surfaces the CPU debugger and memory tools.</li>
+        </ul>
+
+        <h4>Docking</h4>
+        <p>In the tiled layouts, drag a window by its title bar over another window to reveal <strong>drop zones</strong>. Drop it against an edge to split the space, or onto the centre to stack windows as tabs. Drag the dividers between panes to resize them. This binary-tree docking works like a modern IDE, so you can build whatever arrangement suits your task.</p>
+
+        <h4>Window Switcher &amp; Cycling</h4>
+        <ul>
+          <li><kbd>Ctrl</kbd>+<kbd>\`</kbd> &mdash; open the window switcher overlay.</li>
+          <li><kbd>Option</kbd>+<kbd>Tab</kbd> / <kbd>Option</kbd>+<kbd>Shift</kbd>+<kbd>Tab</kbd> &mdash; cycle forward / backward through open windows.</li>
+        </ul>
+        <p>Window positions, sizes, and stacking order are saved between sessions, so your workspace reopens exactly as you left it.</p>
+
+        <h4>Full-Page &amp; Fullscreen Modes</h4>
+        <p>Click the <strong>Full Page</strong> button for an immersive, chrome-free view. The header bar auto-hides to maximise screen space (you can also force this with <strong>View &gt; Auto-hide Header</strong>), and a compact toolbar with Power, Ctrl+Reset, Reboot, and Exit appears when you move the pointer to the top. Press <kbd>Ctrl</kbd>+<kbd>Escape</kbd> to exit.</p>
+
+        <h4>Slide-Out Drive Popouts</h4>
+        <p>In full-page and fullscreen modes the disk drives slide out as popout panels from the edge of the screen. Use <strong>View &gt; Popout Side</strong> to place them on the left or right.</p>
+
+        <h4>Reset Defaults</h4>
+        <p>To start fresh, use <strong>File &gt; Reset Defaults&hellip;</strong> to restore the default window layout and settings.</p>
+
+        <div class="info-box tip">
+          <p><strong>Tip:</strong> All windows can be moved and resized in any layout mode. If a window disappears off-screen, reopen it from its menu &mdash; it will re-centre in the viewport.</p>
+        </div>
+      </section>
+
       <!-- Disk Drives Section -->
       <section id="doc-disks" class="documentation-section">
         <h3>Disk Drives</h3>
@@ -418,13 +483,14 @@ export class DocumentationWindow extends BaseWindow {
           <div class="format-item"><code>.DSK</code><span>DOS 3.3 sector order (140KB)</span></div>
           <div class="format-item"><code>.DO</code><span>DOS order (same as .DSK)</span></div>
           <div class="format-item"><code>.PO</code><span>ProDOS sector order (140KB)</span></div>
+          <div class="format-item"><code>.NIB</code><span>Nibble image (raw GCR)</span></div>
           <div class="format-item"><code>.WOZ</code><span>WOZ format with copy protection</span></div>
         </div>
 
         <h4>Drive Controls</h4>
         <ul>
           <li><strong>Insert:</strong> Load a disk image from your computer</li>
-          <li><strong>Recent:</strong> Quick access to recently used disks (per drive)</li>
+          <li><strong>Recent:</strong> Quick access to recently used disks (per drive). The dropdown also has a built-in <strong>Library</strong> section for one-click loading of bundled disk images (cached locally for instant reuse)</li>
           <li><strong>Blank:</strong> Create a new formatted blank disk</li>
           <li><strong>Eject:</strong> Remove the disk (prompts to save if modified)</li>
           <li><strong>Browse:</strong> Open the file explorer to view disk contents</li>
@@ -486,6 +552,46 @@ export class DocumentationWindow extends BaseWindow {
 
         <div class="info-box tip">
           <p><strong>Tip:</strong> SmartPort drives provide much larger storage than floppy disks and are commonly used with ProDOS.</p>
+        </div>
+      </section>
+
+      <!-- Expansion Cards Section -->
+      <section id="doc-expansion" class="documentation-section">
+        <h3>Expansion Slots &amp; Cards</h3>
+        <p>Like a real Apple //e, the emulator has seven expansion slots you can populate with peripheral cards. Open <strong>View &gt; Expansion Slots</strong> to configure them.</p>
+
+        <h4>The Slots Window</h4>
+        <p>The window shows a tray of <strong>available cards</strong> above a <strong>motherboard</strong> with slots 1&ndash;7. <strong>Drag a card</strong> from the tray into a slot to install it, or drag it out to remove it. Each slot notes any restrictions (some cards only fit certain slots). Slot&nbsp;6 is fixed to the Disk II controller, and slot&nbsp;3 is the built-in 80-column card.</p>
+        <p>Card changes reconfigure the hardware, so click <strong>Apply &amp; Reset</strong> to restart the machine with the new configuration.</p>
+
+        <h4>Available Cards</h4>
+        <ul>
+          <li><strong>Disk II:</strong> Floppy drive controller (slot 6 by default).</li>
+          <li><strong>Mockingboard:</strong> Dual AY-3-8910 sound chips for rich stereo music (slot 4 by default).</li>
+          <li><strong>Thunderclock Plus:</strong> ProDOS-compatible real-time clock.</li>
+          <li><strong>Mouse Card:</strong> Apple Mouse Interface Card.</li>
+          <li><strong>SmartPort:</strong> Hard-drive controller for two ProDOS block devices.</li>
+          <li><strong>Super Serial Card (SSC):</strong> Serial port with an ACIA 6551 &mdash; drives the ImageWriter printers and provides modem/serial connectivity (slots 1&ndash;2).</li>
+          <li><strong>Parallel Card:</strong> Centronics parallel port &mdash; drives the Epson FX-80 and Apple DMP printers (slots 1&ndash;2).</li>
+          <li><strong>Z-80 SoftCard:</strong> Microsoft Z-80 SoftCard with a full Z80 CPU for running CP/M software.</li>
+        </ul>
+
+        <h4>No-Slot Clock (DS1215)</h4>
+        <p>The <strong>Other Hardware</strong> area of the Slots window has a toggle for the DS1215 No-Slot Clock &mdash; a ProDOS-compatible real-time clock that piggybacks on the 80-column firmware ROM at $C300 without occupying an expansion slot. Enable it for automatic date/time stamping in ProDOS.</p>
+
+        <h4>Serial Port &amp; Modem</h4>
+        <p>With a Super Serial Card installed, open <strong>View &gt; Serial Port&hellip;</strong> to connect the Apple //e to the outside world. A built-in Hayes-compatible modem emulation (AT command set) runs over the card's ACIA 6551 and a WebSocket-to-TCP proxy, letting classic terminal and BBS software dial remote services.</p>
+        <ul>
+          <li>Enter a <strong>Host</strong> and <strong>Port</strong> (Telnet defaults to 23).</li>
+          <li>Click <strong>Connect</strong> to open the link; the status indicator shows the connection state.</li>
+          <li>Run a terminal program on the //e and dial with standard <code>ATDT</code> commands.</li>
+        </ul>
+
+        <h4>Running CP/M (Z-80 SoftCard)</h4>
+        <p>Install the <strong>Z-80 SoftCard</strong> to run CP/M software. The card adds a real Z80 CPU with the same address translation as the original hardware, switching between the 6502 and Z80 via I/O and memory access. Boot a CP/M disk (the built-in Disk Library includes a Microsoft CP/M SoftCard disk) to start CP/M.</p>
+
+        <div class="info-box info">
+          <p><strong>Note:</strong> After changing slot assignments you must click <strong>Apply &amp; Reset</strong>. Because this resets the machine, apply your slot changes before loading disks or running programs.</p>
         </div>
       </section>
 
@@ -596,6 +702,7 @@ export class DocumentationWindow extends BaseWindow {
           <li><strong>Volume Slider:</strong> Adjust master volume (0-100%)</li>
           <li><strong>Mute Toggle:</strong> Quickly mute/unmute all sound</li>
           <li><strong>Drive Sounds:</strong> Enable/disable disk drive sound effects</li>
+          <li><strong>Printer Sounds:</strong> Enable/disable the printer's impact and carriage sound effects</li>
         </ul>
 
         <h4>Sound Sources</h4>
@@ -619,20 +726,21 @@ export class DocumentationWindow extends BaseWindow {
         <p>The emulator includes a faithful dot-matrix printer that catches output from your Apple II programs and renders it to an on-screen sheet of fanfold paper, dot by dot, in true carriage travel order. Open it from <strong>View &gt; Printer...</strong> in the toolbar.</p>
 
         <h4>Printer Models</h4>
-        <p>Pick a model from the <strong>model</strong> selector in the printer toolbar. Each emulates its real protocol, fonts, and timing.</p>
+        <p>Pick a model from the <strong>model</strong> selector in the printer toolbar. Four period-correct models are emulated, each reproducing its real protocol, fonts, character sets, and timing.</p>
         <ul>
-          <li><strong>ImageWriter II:</strong> Apple's colour-capable 9-pin printer. Draft, correspondence, and NLQ fonts, MouseText, and a four-band colour ribbon.</li>
-          <li><strong>ImageWriter I:</strong> The earlier black-only ImageWriter. Single correspondence font.</li>
-          <li><strong>Epson FX-80:</strong> The classic ESC/P 9-pin printer used by countless non-Apple programs. Black-only, Roman and Italic fonts.</li>
+          <li><strong>ImageWriter II:</strong> Apple's colour-capable 9-pin printer &mdash; the only model with a four-band colour ribbon. Draft, correspondence, and NLQ (near-letter-quality) fonts, proportional NLQ, half-height and super/subscript text, and MouseText.</li>
+          <li><strong>ImageWriter I:</strong> The earlier black-only ImageWriter. Single correspondence font plus a proportional face; no NLQ, colour, or MouseText.</li>
+          <li><strong>Epson FX-80:</strong> The classic ESC/P 9-pin printer used by countless non-Apple programs. Black-only, Roman and Italic faces, Pica/Elite/Compressed pitches, emphasised/double-strike, and eight international character sets.</li>
+          <li><strong>Apple DMP:</strong> Apple's Dot Matrix Printer (a rebadged C.&nbsp;Itoh 8510). Black-only, single print face, Pica- and Elite-proportional modes; no NLQ or MouseText.</li>
         </ul>
 
         <h4>Connecting From the Apple II</h4>
-        <p>The printer attaches through an interface card, just like real hardware. Install one in the <strong>Expansion Slots</strong> window:</p>
+        <p>The printer attaches through an interface card, just like real hardware. Neither interface card is installed by default &mdash; add one in the <strong>Expansion Slots</strong> window (slot&nbsp;1 or&nbsp;2). The emulator enforces the same card-to-printer pairing as real hardware:</p>
         <ul>
-          <li><strong>ImageWriter I / II:</strong> typically a serial card (Super Serial Card).</li>
-          <li><strong>Epson FX-80:</strong> a parallel (Centronics) card.</li>
+          <li><strong>Super Serial Card (SSC):</strong> drives the <strong>ImageWriter I</strong> and <strong>ImageWriter II</strong>.</li>
+          <li><strong>Parallel (Centronics) Card:</strong> drives the <strong>Epson FX-80</strong> and <strong>Apple DMP</strong>.</li>
         </ul>
-        <p>Then send output to that slot from your program &mdash; for example <code>PR#1</code> from Applesoft (or <code>PRINT CHR$(4)"PR#1"</code> under ProDOS / BASIC.SYSTEM) to route printing to slot&nbsp;1. The cards are generic byte transports; the printer model alone interprets the data stream.</p>
+        <p>Only the models supported by the installed card can be selected; the others are disabled until you fit the matching card. Then send output to that slot from your program &mdash; for example <code>PR#1</code> from Applesoft (or <code>PRINT CHR$(4)"PR#1"</code> under ProDOS / BASIC.SYSTEM) to route printing to slot&nbsp;1. The cards are generic byte transports; the printer model alone interprets the data stream.</p>
 
         <h4>Toolbar Controls</h4>
         <ul>
@@ -640,7 +748,7 @@ export class DocumentationWindow extends BaseWindow {
           <li><strong>Model:</strong> Switch the emulated printer (clears the current sheet).</li>
           <li><strong>Ribbon:</strong> Choose B/W or Colour. The colour option only appears for the ImageWriter II.</li>
           <li><strong>Paper size:</strong> Choose from standard presets (11&Prime;, 12&Prime;, Legal, A4, and more) or drag the paper edges to set a custom size. The dropdown updates to show the current dimensions when a custom size is in use.</li>
-          <li><strong>PNG:</strong> Export the printed output as a PNG image.</li>
+          <li><strong>PNG:</strong> Export the printed output as an image &mdash; a single PNG for one sheet, or a ZIP of per-page PNGs (plus a joined <code>full.png</code>) for multi-page output.</li>
           <li><strong>PDF:</strong> Print or save the output as a PDF (one sheet per page).</li>
         </ul>
 
@@ -651,15 +759,24 @@ export class DocumentationWindow extends BaseWindow {
             <tr><th>Button</th><th>Function</th></tr>
           </thead>
           <tbody>
-            <tr><td>Fit</td><td>Toggle fit-to-width versus actual size</td></tr>
+            <tr><td>Fit</td><td>Toggle fit-to-width versus actual size (1:1)</td></tr>
+            <tr><td>Rulers</td><td>Show or hide the inch rulers</td></tr>
             <tr><td>TOP</td><td>Reseat the head at the top of the first page</td></tr>
             <tr><td>FF</td><td>Form feed to the next page top</td></tr>
             <tr><td>LF&#9650; / LF&#9660;</td><td>Line feed up (reverse) / down (advance) one line</td></tr>
-            <tr><td>Auto LF</td><td>DIP SW2-1 &mdash; automatic line feed on carriage return</td></tr>
-            <tr><td>Dump Screen</td><td>Print the current //e screen as a graphics bit-image dump</td></tr>
-            <tr><td>Clear</td><td>Clear the printed output</td></tr>
+            <tr><td>Settings</td><td>Per-model DIP switches (see below)</td></tr>
+            <tr><td>Dump Screen</td><td>Print the current //e screen as a graphics bit-image dump. <strong>Long-press</strong> for a reverse-video (inverted) dump; on the ImageWriter II with a colour ribbon the dump prints in colour</td></tr>
+            <tr><td>Clear</td><td>Clear the printed output (the current sheet is saved to Print History first)</td></tr>
           </tbody>
         </table>
+
+        <h4>DIP Switch Settings</h4>
+        <p>The <strong>Settings</strong> block in the operator panel exposes the DIP switches for the selected model, matching the real printer's power-on configuration:</p>
+        <ul>
+          <li><strong>ImageWriter I / II:</strong> Auto LF only.</li>
+          <li><strong>Epson FX-80:</strong> Auto LF, <em>Slashed zero</em> (print 0 as &Oslash;), and power-on <em>Pitch</em> (Pica 10&nbsp;cpi, Elite 12&nbsp;cpi, or Compressed 17&nbsp;cpi).</li>
+          <li><strong>Apple DMP:</strong> Auto LF and a <em>Proportional</em> toggle (power on in Elite-proportional mode).</li>
+        </ul>
 
         <h4>Auto Line Feed</h4>
         <p>The <strong>Auto LF</strong> toggle decides what a carriage return does, exactly like the real DIP switch:</p>
@@ -676,29 +793,33 @@ export class DocumentationWindow extends BaseWindow {
         </ul>
         <p>The dropdown shows the active preset name, or displays the exact dimensions (e.g. <em>8.5&Prime;&times;11&Prime;</em>) when a custom size is in use. Programs can also set the form length via printer control codes; the page-break handle tracks those changes automatically.</p>
 
-        <h4>Ruler</h4>
-        <p>A ruler runs along the left edge of the paper showing inch markings. It is always visible when the ruler toggle is on and appears automatically during a resize drag even when hidden, so you can read the exact position while adjusting the paper. The ruler origin (0) is at the top of the printable body; tractor-strip margins are shown outside that range.</p>
+        <h4>Rulers</h4>
+        <p>Inch rulers run along the <strong>top</strong> and <strong>left</strong> edges of the paper. Toggle them with the <strong>Rulers</strong> button in the operator panel; they also appear automatically during a resize drag even when hidden, so you can read the exact position while adjusting the paper. The origin (0) is at the inner edge of the printable body; the sprocket tractor strips are shown dimmed outside that range, and the left ruler renumbers from 0 on each page so it lines up with the perforations.</p>
 
         <h4>Standard Paper Sizes</h4>
+        <p>The <strong>paper size</strong> dropdown offers six common continuous-stationery presets (dimensions are the printable body, tractor strips excluded):</p>
         <table class="key-table">
           <thead>
             <tr><th>Preset</th><th>Width</th><th>Height</th></tr>
           </thead>
           <tbody>
-            <tr><td>11 in (default)</td><td>8&Prime;</td><td>Standard fanfold</td></tr>
-            <tr><td>12 in</td><td>8&Prime;</td><td>Tall fanfold</td></tr>
-            <tr><td>14 in (Legal)</td><td>8.5&Prime;</td><td>US legal</td></tr>
-            <tr><td>A4 (11.69 in)</td><td>8.27&Prime;</td><td>ISO A4</td></tr>
+            <tr><td>Standard (default)</td><td>8.5&Prime;</td><td>11&Prime;</td></tr>
+            <tr><td>Legal</td><td>8.5&Prime;</td><td>14&Prime;</td></tr>
+            <tr><td>Narrow</td><td>4&Prime;</td><td>11&Prime;</td></tr>
+            <tr><td>Half</td><td>5.5&Prime;</td><td>8.5&Prime;</td></tr>
+            <tr><td>Index</td><td>3.5&Prime;</td><td>5&Prime;</td></tr>
+            <tr><td>Card</td><td>3.5&Prime;</td><td>2&Prime;</td></tr>
           </tbody>
         </table>
+        <p>Custom widths and form lengths set by dragging the paper edges are kept within the carriage limits of the selected model (for example the ImageWriter II accepts a 3&Prime;&ndash;9&Prime; body and a 1&Prime;&ndash;69&Prime; form length).</p>
 
         <h4>Print History &amp; Print Browser</h4>
         <p>Every page is captured automatically as it exits the printer and stored in your browser, so output survives closing the window or reloading the page. Open <strong>View &gt; Print Browser...</strong> to review your full print history:</p>
         <ul>
-          <li>Browse jobs and individual pages as thumbnails.</li>
-          <li>Re-preview any page on the virtual printer paper.</li>
-          <li>Export a single page or an entire job as PNG or PDF.</li>
-          <li>Download a complete job as a ZIP archive of per-page PNGs.</li>
+          <li>Browse jobs and individual pages as thumbnails, grouped by job (model, timestamp, and page count).</li>
+          <li><strong>Send a whole job back to the printer</strong> to re-preview it on the live paper &mdash; the model, ribbon, paper size, and head position are all restored so you can continue printing.</li>
+          <li>Export a single page as a PNG, or a whole job as a ZIP archive (per-page PNGs plus a joined <code>full.png</code> strip).</li>
+          <li>Print a page or an entire job to PDF (or a physical printer).</li>
           <li>Delete individual pages or whole jobs to free storage.</li>
         </ul>
 
@@ -869,6 +990,17 @@ export class DocumentationWindow extends BaseWindow {
           <li>Position, mode, and interrupt state</li>
         </ul>
 
+        <h4>Instruction Trace</h4>
+        <p>Open from <strong>Debug &gt; Instruction Trace</strong> to record a live, disassembled log of every instruction the CPU executes. The view auto-scrolls, aligns columns for readability, and can be cleared at any time &mdash; useful for following a routine step by step or capturing exactly what ran up to a crash.</p>
+
+        <h4>Rule Builder</h4>
+        <p>The <strong>Condition Rule Builder</strong> opens when you edit a breakpoint's condition (in the CPU Debugger's Breakpoints tab, or from a BASIC breakpoint). It provides a visual, C-style expression editor for complex conditional breakpoints:</p>
+        <ul>
+          <li>Build conditions from <strong>CPU registers and memory</strong> (e.g. <code>A==#$FF</code>, <code>PEEK($06)&gt;#$10</code>).</li>
+          <li>Build conditions from <strong>BASIC variables and arrays</strong> &mdash; simple variables (<code>SCORE&gt;=1000</code>), 1D arrays (<code>A(5)==42</code>), and 2D arrays (<code>G(2,3)==23</code>) &mdash; evaluated natively at every BASIC statement boundary.</li>
+          <li>Combine subjects and comparisons without hand-writing the whole expression.</li>
+        </ul>
+
         <div class="info-box tip">
           <p><strong>Tip:</strong> All debug windows can be moved and resized. Their positions and settings are saved between sessions.</p>
         </div>
@@ -894,6 +1026,15 @@ export class DocumentationWindow extends BaseWindow {
           <li><strong>Run:</strong> Execute the BASIC program</li>
           <li><strong>Pause:</strong> Pause execution</li>
           <li><strong>Step:</strong> Step through one BASIC line at a time</li>
+          <li><strong>Stop:</strong> Send Ctrl+C to break a running program (also unpauses the emulator so the keystroke is processed)</li>
+        </ul>
+
+        <h5>BASIC Debugging Features</h5>
+        <ul>
+          <li><strong>Breakpoints:</strong> Click the gutter next to a line to set a statement-level breakpoint. Add <strong>conditional</strong> breakpoints on BASIC variables and arrays via the Rule Builder, or condition-only rules (the <em>if&hellip;</em> button) that break wherever a condition becomes true. A triggered breakpoint pulses red.</li>
+          <li><strong>Variable Inspector:</strong> View the live values of the program's variables and arrays while it runs or is paused.</li>
+          <li><strong>Heat map:</strong> The <strong>Heat</strong> toggle colours the gutter (blue&rarr;red) to show how often each line executes, with smooth decay as activity moves on.</li>
+          <li><strong>Trace:</strong> The <strong>Trace</strong> toggle enables or disables current-line highlighting while the program runs, reducing visual noise for long programs.</li>
         </ul>
 
         <h5>Program Operations</h5>
