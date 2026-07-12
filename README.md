@@ -389,7 +389,7 @@ Requires WebAssembly, WebGL 2.0, Web Audio API (AudioWorklet), IndexedDB, and Se
 - **Configurable key bindings** — Allow remapping of Apple II keys and shortcuts
 
 ### Disk & Storage
-- **Improved WOZ copy protection compatibility** — Better support for timing-sensitive copy protection schemes (quarter-track stepping, weak/flux bits, cross-track sync)
+- **Further WOZ copy protection compatibility** — The stepper now uses the canonical four-magnet model and unformatted tracks return weak-bit noise; remaining work covers full quarter-track sub-positioning and cross-track sync
 - **2IMG format support** — Universal disk image format with metadata
 
 ### Development Tools

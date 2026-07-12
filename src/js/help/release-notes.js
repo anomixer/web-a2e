@@ -11,6 +11,23 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "July 12, 2026",
+    features: [],
+    fixes: [
+      {
+        title: "WOZ copy-protected disks that hung mid-load",
+        description:
+          "Rewrote the Disk II stepper motor to the canonical four-magnet model. The head position now stays in sync through recalibration and non-overlapping seek routines, so disks that step the head without overlapping phases (e.g. subLOGIC's Flight Simulator II) no longer stall while loading.",
+      },
+      {
+        title: "Reading unformatted tracks no longer freezes the drive",
+        description:
+          "When the head is parked over an empty or unformatted track — as some protection checks do by seeking to the inner head stop — the drive now returns random weak-bit noise like real hardware instead of a frozen data register. Fixes disks such as Elite that hung after seeking to track 39.",
+      },
+    ],
+    improvements: [],
+  },
+  {
     week: "June 21, 2026",
     features: [
       {
