@@ -1403,18 +1403,46 @@ export class BasicProgramWindow extends BaseWindow {
     this.updateStats();
   }
 
+  _applyOpenedFile(text) {
+    this.textarea.value = text;
+    this.updateGutter();
+    this.updateHighlighting();
+    this.updateStats();
+  }
+
   async openFile() {
+    // Safari and Firefox lack the File System Access API; fall back to a
+    // hidden <input type="file"> when showOpenFilePicker is unavailable.
+    if (typeof window.showOpenFilePicker !== "function") {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = ".bas,.txt,text/plain";
+      input.style.display = "none";
+      input.addEventListener("change", async () => {
+        const file = input.files && input.files[0];
+        if (file) {
+          try {
+            this._fileHandle = null;
+            this._applyOpenedFile(await file.text());
+          } catch (err) {
+            console.error("Failed to open file:", err);
+          }
+        }
+        input.remove();
+      });
+      document.body.appendChild(input);
+      input.click();
+      return;
+    }
+
     try {
       const [handle] = await window.showOpenFilePicker({
         types: [{ description: "BASIC source files", accept: { "text/plain": [".bas", ".txt"] } }],
         multiple: false,
       });
       const file = await handle.getFile();
-      this.textarea.value = await file.text();
       this._fileHandle = handle;
-      this.updateGutter();
-      this.updateHighlighting();
-      this.updateStats();
+      this._applyOpenedFile(await file.text());
     } catch (err) {
       if (err.name !== "AbortError") console.error("Failed to open file:", err);
     }
@@ -1423,6 +1451,26 @@ export class BasicProgramWindow extends BaseWindow {
   async saveFile() {
     const content = this.textarea.value;
     if (!content.trim()) return;
+
+    // Safari and Firefox lack the File System Access API; fall back to a
+    // plain anchor download when showSaveFilePicker is unavailable.
+    if (typeof window.showSaveFilePicker !== "function") {
+      try {
+        const blob = new Blob([content], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = "program.bas";
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        console.error("Failed to save file:", err);
+      }
+      return;
+    }
+
     try {
       if (!this._fileHandle) {
         this._fileHandle = await window.showSaveFilePicker({

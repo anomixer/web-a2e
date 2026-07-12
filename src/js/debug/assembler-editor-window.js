@@ -2512,7 +2512,45 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
   /**
    * Open a file from the local filesystem using the host file picker
    */
+  // Apply a loaded file's text to the editor. Shared by both the File System
+  // Access path and the <input type="file"> fallback.
+  _applyOpenedFile(name, text) {
+    this.textarea.value = text;
+    this.currentFileName = name;
+    this.updateTitle(`Assembler - ${name}`);
+    this.updateHighlighting();
+    this.validateAllLines();
+    this.encodeAllLineBytes();
+    this.updateGutter();
+    this.setStatus(`Opened: ${name}`, true);
+  }
+
   async openFile() {
+    // Safari and Firefox lack the File System Access API; fall back to a
+    // hidden <input type="file"> when showOpenFilePicker is unavailable.
+    if (typeof window.showOpenFilePicker !== "function") {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = ".s,.asm,.a65,.txt,text/plain";
+      input.style.display = "none";
+      input.addEventListener("change", async () => {
+        const file = input.files && input.files[0];
+        if (file) {
+          try {
+            const text = await file.text();
+            this._fileHandle = null;
+            this._applyOpenedFile(file.name, text);
+          } catch (err) {
+            this.setStatus("Failed to open file", false);
+          }
+        }
+        input.remove();
+      });
+      document.body.appendChild(input);
+      input.click();
+      return;
+    }
+
     try {
       const [handle] = await window.showOpenFilePicker({
         types: [
@@ -2525,15 +2563,8 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
       });
       const file = await handle.getFile();
       const text = await file.text();
-      this.textarea.value = text;
-      this.currentFileName = file.name;
       this._fileHandle = handle;
-      this.updateTitle(`Assembler - ${file.name}`);
-      this.updateHighlighting();
-      this.validateAllLines();
-      this.encodeAllLineBytes();
-      this.updateGutter();
-      this.setStatus(`Opened: ${file.name}`, true);
+      this._applyOpenedFile(file.name, text);
     } catch (err) {
       if (err.name !== "AbortError") {
         this.setStatus("Failed to open file", false);
@@ -2548,6 +2579,30 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
     const content = this.textarea.value;
     if (!content.trim()) {
       this.setStatus("Nothing to save", false);
+      return;
+    }
+
+    // Safari and Firefox don't implement the File System Access API, so
+    // window.showSaveFilePicker is undefined there. Fall back to a plain
+    // anchor download in that case.
+    if (typeof window.showSaveFilePicker !== "function") {
+      const filename = this.currentFileName || "untitled.s";
+      try {
+        const blob = new Blob([content], { type: "text/plain" });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = filename;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(url);
+        this.currentFileName = filename;
+        this.updateTitle(`Assembler - ${filename}`);
+        this.setStatus(`Downloaded: ${filename}`, true);
+      } catch (err) {
+        this.setStatus("Failed to save file", false);
+      }
       return;
     }
 
