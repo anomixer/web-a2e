@@ -2,11 +2,15 @@
 // Enables offline functionality by caching app assets
 
 // IMPORTANT: Bump this version when WASM or core JS files change
-const CACHE_VERSION = 3.4;
+const CACHE_VERSION = 3.5;
 const CACHE_NAME = `a2e-cache-v${CACHE_VERSION}`;
 
-// Files that should always be fetched fresh (network-first)
-const NETWORK_FIRST_FILES = ["/a2e.js", "/a2e.wasm"];
+// Files that should always be fetched fresh (network-first).
+// index.html is included so a redeploy is always picked up even if the cache
+// version was not bumped: a cache-first index.html can otherwise pin a browser
+// to a stale build (and its stale hashed bundle) indefinitely. Offline still
+// works because network-first falls back to the cache on fetch failure.
+const NETWORK_FIRST_FILES = ["/", "/index.html", "/a2e.js", "/a2e.wasm"];
 
 // Assets to cache on install
 const PRECACHE_ASSETS = [
