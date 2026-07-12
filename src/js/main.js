@@ -705,7 +705,12 @@ const isInstalled = window.matchMedia("(display-mode: standalone)").matches || n
 if ("serviceWorker" in navigator && isInstalled) {
   window.addEventListener("load", () => {
     navigator.serviceWorker
-      .register("/sw.js")
+      // updateViaCache: "none" forces the browser to revalidate sw.js on every
+      // navigation instead of serving it from the HTTP cache. Without this,
+      // Safari (especially as an installed PWA) can keep an old worker — and its
+      // stale asset cache — for a long time after a redeploy, so bumping
+      // CACHE_VERSION never takes effect.
+      .register("/sw.js", { updateViaCache: "none" })
       .then((registration) => {
         console.log("Service Worker registered:", registration.scope);
 
