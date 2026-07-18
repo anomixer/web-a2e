@@ -76,6 +76,7 @@
     /* Glassmorphism / overlay semantic tokens */
     --glass-bg: rgba(13, 17, 23, 0.85);
     --glass-bg-solid: rgba(13, 17, 23, 0.95);
+    --menu-bg-opaque: rgb(18, 23, 30);
     --glass-bg-header: rgba(33, 38, 45, 0.6);
     --glass-border: rgba(48, 54, 61, 0.6);
     --glass-border-light: rgba(48, 54, 61, 0.4);
@@ -270,6 +271,7 @@ html[data-theme="light"] {
     /* Glassmorphism */
     --glass-bg: rgba(255, 255, 255, 0.92);
     --glass-bg-solid: rgba(255, 255, 255, 0.97);
+    --menu-bg-opaque: rgb(255, 255, 255);
     --glass-bg-header: rgba(246, 248, 250, 0.8);
     --glass-border: rgba(208, 215, 222, 0.8);
     --glass-border-light: rgba(208, 215, 222, 0.6);

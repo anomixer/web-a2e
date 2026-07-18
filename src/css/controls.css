@@ -283,9 +283,9 @@
     top: calc(100% + 4px);
     left: 0;
     min-width: 200px;
-    background: var(--glass-bg);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    background: var(--menu-bg-opaque);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-md);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
