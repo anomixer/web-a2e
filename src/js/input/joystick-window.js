@@ -7,6 +7,26 @@
 
 import { BaseWindow } from "../windows/base-window.js";
 
+// Soft switch state bits for the Apple buttons, matching soft-switch-window.js.
+const BTN0_BIT = 24; // $C061 Open Apple
+const BTN1_BIT = 25; // $C062 Closed Apple
+
+// Fast enough to feel instant on a key press without polling every frame.
+const BUTTON_POLL_MS = 50;
+
+/**
+ * Extract the two Apple button states from a soft switch word.
+ *
+ * @param {number} state  Low 32 bits from _getSoftSwitchState()
+ * @returns {{button0: boolean, button1: boolean}}
+ */
+export function buttonsFromSoftSwitchState(state) {
+  return {
+    button0: (state & (1 << BTN0_BIT)) !== 0,
+    button1: (state & (1 << BTN1_BIT)) !== 0,
+  };
+}
+
 export class JoystickWindow extends BaseWindow {
   constructor(wasmModule) {
     super({
@@ -22,12 +42,58 @@ export class JoystickWindow extends BaseWindow {
     this.isDraggingKnob = false;
     this.knobX = 0.5; // 0-1 range, 0.5 = center
     this.knobY = 0.5;
-    this.button0Pressed = false;
+    this.button0Pressed = false; // mouse is holding this button down
     this.button1Pressed = false;
+    this.buttonPollTimer = null;
     this.gamepadHandler = null;
     this.cursorKeysEnabled = localStorage.getItem("joystick-cursor-keys") === "true";
     this.cursorKeysState = { left: false, right: false, up: false, down: false };
     this.onCursorKeysChanged = null; // callback when toggle changes
+  }
+
+  /**
+   * Reflect the emulator's real button state on the PB0/PB1 LEDs.
+   *
+   * The LEDs used to be driven purely by mouse events on these buttons, so
+   * pressing Open or Closed Apple on the keyboard — or a gamepad button — lit
+   * nothing. Reading $C061/$C062 back means the indicators show the actual
+   * hardware state whatever pressed it.
+   *
+   * Bits 24 and 25 of the soft switch state are BTN0 and BTN1, the same source
+   * the Soft Switch Monitor reads, so this needs no new WASM export.
+   */
+  async updateButtonIndicators() {
+    if (!this.isVisible || !this.wasmModule) return;
+
+    const { button0, button1 } = buttonsFromSoftSwitchState(
+      await this.wasmModule._getSoftSwitchState(),
+    );
+
+    this.button0Element?.classList.toggle("pressed", button0);
+    this.button1Element?.classList.toggle("pressed", button1);
+  }
+
+  startButtonPolling() {
+    if (this.buttonPollTimer) return;
+    this.buttonPollTimer = setInterval(() => this.updateButtonIndicators(), BUTTON_POLL_MS);
+  }
+
+  stopButtonPolling() {
+    if (!this.buttonPollTimer) return;
+    clearInterval(this.buttonPollTimer);
+    this.buttonPollTimer = null;
+  }
+
+  show() {
+    super.show();
+    this.startButtonPolling();
+  }
+
+  hide() {
+    // Nothing to poll for while hidden, and a held button would otherwise stay
+    // lit behind the scenes.
+    this.stopButtonPolling();
+    super.hide();
   }
 
   renderContent() {
