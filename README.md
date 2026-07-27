@@ -69,7 +69,21 @@ Open http://localhost:3000 in your browser.
 npm run build         # Full production build (WASM + Vite bundle)
 npm run clean         # Clean build artifacts
 npm run deploy        # Deploy to VPS via rsync
+npm test              # Run the JavaScript test suite (Vitest)
+npm run check         # Consistency checks + JavaScript tests
 ```
+
+`npm run check` runs three guards before the tests:
+
+- **`check:exports`** — every `EMSCRIPTEN_KEEPALIVE` function matches the
+  `EXPORTED_FUNCTIONS` list in `CMakeLists.txt`, in both directions. A missing
+  entry is dead-stripped by the linker and fails at runtime; a stale one is a
+  leftover.
+- **`check:core-purity`** — `src/core/` contains no host-platform dependencies.
+  Platform glue belongs in `src/bindings/`.
+- **`check:basic-tokens`** — `src/js/utils/basic-tokens.js` is still in step with
+  `src/core/basic/basic_tokens.hpp`, which generates it
+  (`npm run generate:basic-tokens`).
 
 ## Usage
 
@@ -269,6 +283,16 @@ Agent capabilities include: emulator power/reset, BASIC program editing and exec
 See the [AI Agent wiki page](wiki/AI-Agent.md) for full details.
 
 ## Testing
+
+### JavaScript Tests
+
+Vitest, covering the printer emulation, the Applesoft listing parser, and input
+mapping:
+
+```bash
+npm test              # single run
+npm run test:watch    # re-run on change
+```
 
 ### CPU Compliance Tests
 
