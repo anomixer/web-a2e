@@ -5,6 +5,10 @@
  *  Mike Daley <michael_daley@icloud.com>
  */
 
+// How often to re-check a paste queue that is stalled because the emulator
+// is paused. Long enough not to busy-wait, short enough to feel immediate.
+const PAUSED_POLL_MS = 50;
+
 export class InputHandler {
   constructor(wasmModule) {
     this.wasmModule = wasmModule;
@@ -20,6 +24,7 @@ export class InputHandler {
     this.pasteQueue = [];
     this.pasteTimer = null;
     this.pasteSpeedUp = false; // whether we've set a speed multiplier for paste
+    this.pasteMultiplier = 1;  // boost the current queue asked for
     this.savedSpeedMultiplier = 1; // speed before paste started
 
     // MessageChannel for zero-delay batch scheduling (avoids setTimeout's ~4ms minimum)
@@ -203,6 +208,26 @@ export class InputHandler {
       return;
     }
 
+    // Nothing can drain while the emulator is paused: _runCycles is a no-op and
+    // the keyboard strobe never clears, so the loop below would spin its whole
+    // time budget and reschedule with the speed boost still applied. A
+    // breakpoint hit mid-queue therefore left the multiplier at 8x, and the
+    // emulator sprinted as soon as it was continued. Drop the boost while
+    // paused and check back periodically instead of spinning.
+    if (this.wasmModule._isPaused && (await this.wasmModule._isPaused())) {
+      this.restorePasteSpeed();
+      this.pasteTimer = setTimeout(() => {
+        this.pasteTimer = null;
+        this.processPasteQueue();
+      }, PAUSED_POLL_MS);
+      return;
+    }
+
+    // Re-apply the boost if a pause dropped it.
+    if (!this.pasteSpeedUp && this.pasteMultiplier > 1) {
+      await this.setPasteSpeed(this.pasteMultiplier);
+    }
+
     const BOOST_BATCH = 500; // small cycle batch for immediate key processing
     const TIME_BUDGET_MS = 30;
     const batchEnd = performance.now() + TIME_BUDGET_MS;
@@ -261,8 +286,10 @@ export class InputHandler {
 
   // Cancel any pending paste operation
   cancelPaste() {
+    if (typeof this.pasteTimer === "number") clearTimeout(this.pasteTimer);
     this.pasteTimer = null;
     this.pasteQueue = [];
+    this.pasteMultiplier = 1;
     this.restorePasteSpeed();
     if (this.pasteOnComplete) {
       this.pasteOnComplete(true); // true = cancelled
@@ -279,6 +306,7 @@ export class InputHandler {
   //   ordinary paste passes braces through literally.
   async queueTextInput(text, { speedMultiplier = 8, onStart = null, onComplete = null, parseTokens = false } = {}) {
     this.pasteOnComplete = onComplete;
+    this.pasteMultiplier = speedMultiplier;
     await this.setPasteSpeed(speedMultiplier);
 
     if (parseTokens) {
