@@ -16,7 +16,6 @@
  * - TXTPTR ($7A-$7B): Pointer to current position in program text
  */
 
-import { APPLESOFT_TOKENS } from "../utils/basic-tokens.js";
 import { indexBasicListing } from "../utils/basic-listing.js";
 
 export class BasicProgramParser {
@@ -275,147 +274,53 @@ export class BasicProgramParser {
 
   /**
    * Get current statement info for the given line and TXTPTR.
-   * Uses the cached program buffer from the last getLines() call for fast local access.
-   * Returns {statementIndex, statementCount, statementStart, statementEnd}
-   * where statementStart/End are character offsets in the detokenized text
+   *
+   * Returns {statementIndex, statementCount}, or null when TXTPTR is not
+   * within this line. The former statementStart/statementEnd character offsets
+   * are gone — they were computed on every call and read by nothing.
+   *
+   * @param {number} lineNumber
+   * @param {number} txtptr
+   * @returns {Promise<{statementIndex: number, statementCount: number}|null>}
    */
   async getCurrentStatementInfo(lineNumber, txtptr) {
     const line = await this.findLine(lineNumber);
     if (!line) return null;
 
-    // Use cached program bytes if available, otherwise load them
+    // Cached program bytes are needed for the containment check below.
     if (!this._programBytes) {
       const { txttab, vartab } = await this._readPointers();
       if (txttab === 0 || vartab === 0 || txttab >= vartab) return null;
       await this._loadProgramBytes(txttab, vartab);
     }
 
-    // Find end of this line's tokens from cached buffer
     const nextPtr = this._readWordCached(line.address);
     const tokenStart = line.tokenAddress;
-    const tokenEnd = nextPtr - 1; // -1 for null terminator
+    const tokenEnd = nextPtr - 1; // -1 for the null terminator
 
-    // If TXTPTR is outside this line, return null
-    if (txtptr < tokenStart || txtptr > tokenEnd) {
-      return null;
-    }
+    // TXTPTR outside this line means execution is not on it.
+    if (txtptr < tokenStart || txtptr > tokenEnd) return null;
 
-    // Parse tokenized bytes to find statement boundaries (colons not in quotes/REM/DATA)
-    const statementBoundaries = [0]; // Start positions in detokenized text
-    let inQuote = false;
-    let inRem = false;
-    let inData = false;
-    let detokenizedPos = 0;
-    let currentStatementIndex = 0;
+    // The colon scan lives in the core, where it also decides which statement a
+    // breakpoint fires on. Doing it here as well meant the highlight and the
+    // breakpoint could disagree — and the two JS scans disagreed with each
+    // other, since only this one treated colons inside DATA specially.
+    const [statementIndex, statementCount] = await this.wasmModule.batch([
+      ["_getBasicStatementIndexForLine", lineNumber, txtptr],
+      ["_getBasicStatementCountForLine", lineNumber],
+    ]);
 
-    for (let addr = tokenStart; addr < tokenEnd; addr++) {
-      const byte = this._peekCached(addr);
-
-      // Track if we've passed TXTPTR
-      if (addr === txtptr) {
-        currentStatementIndex = statementBoundaries.length - 1;
-      }
-
-      // Handle quotes
-      if (byte === 0x22) { // Quote
-        inQuote = !inQuote;
-        detokenizedPos++;
-        continue;
-      }
-
-      // Inside quote or REM - just count characters
-      if (inQuote || inRem) {
-        detokenizedPos++;
-        continue;
-      }
-
-      // Token range: $80-$EA
-      if (byte >= 0x80 && byte <= 0xea) {
-        const token = this._getTokenString(byte);
-        if (token) {
-          detokenizedPos += token.length;
-          if (byte === 0xb2) inRem = true; // REM
-          if (byte === 0x83) inData = true; // DATA
-          continue;
-        }
-      }
-
-      // Colon outside quotes/REM marks statement boundary
-      if (byte === 0x3a && !inData) { // Colon
-        detokenizedPos++;
-        statementBoundaries.push(detokenizedPos);
-        continue;
-      }
-
-      // Inside DATA - colons end DATA mode
-      if (inData && byte === 0x3a) {
-        inData = false;
-      }
-
-      detokenizedPos++;
-    }
-
-    // Add end position
-    statementBoundaries.push(line.text.length);
-
-    // Handle case where TXTPTR is at or past the last checked position
-    if (txtptr >= tokenEnd) {
-      currentStatementIndex = statementBoundaries.length - 2;
-    }
-
-    return {
-      statementIndex: currentStatementIndex,
-      statementCount: statementBoundaries.length - 1,
-      statementStart: statementBoundaries[currentStatementIndex] || 0,
-      statementEnd: statementBoundaries[currentStatementIndex + 1] || line.text.length,
-    };
+    return { statementIndex, statementCount };
   }
 
   /**
-   * Get the number of statements in a given line (colons + 1, respecting quotes/REM/DATA)
+   * Get the number of statements in a given line (colons + 1, respecting
+   * quotes and REM)
    * @param {number} lineNumber
    * @returns {Promise<number>} statement count (1 if no colons)
    */
   async getStatementCount(lineNumber) {
-    const line = await this.findLine(lineNumber);
-    if (!line) return 1;
-
-    // Use cached program bytes if available, otherwise load them
-    if (!this._programBytes) {
-      const { txttab, vartab } = await this._readPointers();
-      if (txttab === 0 || vartab === 0 || txttab >= vartab) return 1;
-      await this._loadProgramBytes(txttab, vartab);
-    }
-
-    const nextPtr = this._readWordCached(line.address);
-    const tokenStart = line.tokenAddress;
-    const tokenEnd = nextPtr - 1;
-
-    let colonCount = 0;
-    let inQuote = false;
-    let inRem = false;
-
-    for (let addr = tokenStart; addr < tokenEnd; addr++) {
-      const byte = this._peekCached(addr);
-      if (byte === 0) break;
-      if (inRem) continue;
-      if (byte === 0x22) { inQuote = !inQuote; continue; }
-      if (inQuote) continue;
-      if (byte === 0xB2) { inRem = true; continue; }
-      if (byte === 0x3A) colonCount++;
-    }
-
-    return colonCount + 1;
-  }
-
-  /**
-   * Get token string for a token byte
-   */
-  _getTokenString(byte) {
-    if (byte >= 0x80 && byte <= 0xea) {
-      return APPLESOFT_TOKENS[byte - 0x80] || null;
-    }
-    return null;
+    return this.wasmModule._getBasicStatementCountForLine(lineNumber);
   }
 
 }

@@ -2201,4 +2201,22 @@ void writeApplesoftFloat(int addr, double value) {
   }
 }
 
+
+// Statement geometry for a given line, used by the BASIC debugger window. The
+// JS parser used to walk the tokens itself; sharing the core's scan means the
+// highlighted statement and the statement a breakpoint fires on cannot
+// disagree.
+EMSCRIPTEN_KEEPALIVE
+int getBasicStatementCountForLine(int lineNumber) {
+  REQUIRE_EMULATOR_OR(1);
+  return g_emulator->getBasicStatementCountForLine(static_cast<uint16_t>(lineNumber));
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getBasicStatementIndexForLine(int lineNumber, int txtptr) {
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->getBasicStatementIndexForLine(static_cast<uint16_t>(lineNumber),
+                                                   static_cast<uint16_t>(txtptr));
+}
+
 } // extern "C"
