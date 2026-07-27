@@ -67,6 +67,11 @@ export const RELEASE_NOTES = [
     ],
     improvements: [
       {
+        title: "Joystick window shows live button state",
+        description:
+          "The PB0 and PB1 indicators now light for Open and Closed Apple however they are pressed — keyboard, on-screen button, or gamepad. Previously they only responded to clicking the on-screen buttons, so keyboard presses showed nothing.",
+      },
+      {
         title: "Faster BASIC variable inspector",
         description:
           "Variables and arrays are now read in bulk rather than a byte at a time. A thousand-element array previously took thousands of separate reads to display.",
