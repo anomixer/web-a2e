@@ -73,11 +73,8 @@ export default defineConfig({
           ],
           "file-explorer": [
             "/src/js/file-explorer/index.js",
-            "/src/js/file-explorer/dos33.js",
-            "/src/js/file-explorer/prodos.js",
             "/src/js/file-explorer/disassembler.js",
             "/src/js/file-explorer/file-viewer.js",
-            "/src/js/file-explorer/utils.js",
           ],
         },
       },

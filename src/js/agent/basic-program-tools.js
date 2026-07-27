@@ -6,7 +6,6 @@
  */
 
 import { BasicProgramParser } from "../debug/basic-program-parser.js";
-import { tokenizeProgram } from "../utils/basic-tokenizer.js";
 import { APPLESOFT_TOKENS } from "../utils/basic-tokens.js";
 
 export const basicProgramTools = {
@@ -62,7 +61,6 @@ export const basicProgramTools = {
       throw new Error("Emulator must be powered on");
     }
 
-    // Parse program text into lines (matches window's parseProgram method)
     let text = program.trim();
     if (!text) {
       throw new Error("No program text provided");
@@ -74,90 +72,35 @@ export const basicProgramTools = {
       .replace(/[\u00A0\u1680\u2000-\u200B\u202F\u205F\u3000]/g, ' ') // Unicode spaces → ASCII space
       .replace(/[^\x00-\x7F]/g, ''); // Remove any non-ASCII characters
 
-    // Debug: Log the character codes to detect encoding issues
-    console.log("[directWriteBasic] Input text:", text);
-    console.log("[directWriteBasic] First 50 char codes:",
-      text.substring(0, 50).split('').map((c, i) =>
-        `[${i}]=${c}:0x${c.charCodeAt(0).toString(16)}`
-      ).join(' ')
-    );
-
-    const lines = [];
-    const rawLines = text.split(/\r?\n/);
-
-    for (const rawLine of rawLines) {
-      // Preserve original case. The tokenizer case-folds keywords internally
-      // and keeps original case inside quotes / REM / DATA, so uppercasing the
-      // whole line here would corrupt lowercase string literals (e.g. ESC
-      // command bytes like "a1") into "A1".
-      const trimmed = rawLine.trim();
-      if (!trimmed) continue;
-
-      const match = trimmed.match(/^(\d+)\s*(.*)/);
-      if (!match) {
-        console.warn("Skipping line without line number:", rawLine);
-        continue;
-      }
-
-      const lineNum = parseInt(match[1], 10);
-      if (lineNum < 0 || lineNum > 63999) {
-        console.warn("Invalid line number:", lineNum);
-        continue;
-      }
-
-      // Normalize whitespace: replace multiple spaces with single space
-      // This matches ROM tokenizer behavior
-      const normalizedContent = (match[2] || "").replace(/\s+/g, " ");
-
-      lines.push({
-        lineNumber: lineNum,
-        content: normalizedContent,
-      });
+    // Tokenize and install via the C++ core (a2e::loadBasicProgram). It parses
+    // the source, sorts by line number, writes the tokenized program at TXTTAB
+    // and fixes up the Applesoft zero page pointers — including clearing the
+    // BASIC.SYSTEM TRCFLG save slot at $BE41, which the old JS path missed.
+    //
+    // Keyword case-folding happens inside the tokenizer, and text inside
+    // quotes / REM / DATA is emitted verbatim, so the source is passed through
+    // with its original case intact.
+    const byteLength = new TextEncoder().encode(text).length + 1;
+    const sourcePtr = await wasmModule._malloc(byteLength);
+    let lineCount;
+    try {
+      await wasmModule.stringToUTF8(text, sourcePtr, byteLength);
+      lineCount = await wasmModule._loadBasicProgram(sourcePtr);
+    } finally {
+      await wasmModule._free(sourcePtr);
     }
 
-    // Sort lines by line number (critical for proper BASIC program order)
-    lines.sort((a, b) => a.lineNumber - b.lineNumber);
-
-    if (lines.length === 0) {
+    if (lineCount < 0) {
+      throw new Error("Program too large: tokenized output would exceed $C000");
+    }
+    if (lineCount === 0) {
       throw new Error("No valid BASIC lines found");
     }
 
-    // Tokenize the program
-    const txttab = 0x0801;
-    const { bytes, endAddr } = tokenizeProgram(lines, txttab);
-
-    // Write tokenized program bytes into emulator memory
-    for (let i = 0; i < bytes.length; i++) {
-      wasmModule._writeMemory(txttab + i, bytes[i]);
-    }
-
-    // Helper to write a 16-bit little-endian pointer to zero page
-    const writePtr = (zpAddr, value) => {
-      wasmModule._writeMemory(zpAddr, value & 0xff);
-      wasmModule._writeMemory(zpAddr + 1, (value >> 8) & 0xff);
-    };
-
-    // Read MEMSIZE ($73) - the ROM sets FRETOP to this on CLR/NEW
-    const memsizeLo = await wasmModule._readMemory(0x73);
-    const memsizeHi = await wasmModule._readMemory(0x74);
-    const memsize = memsizeLo | (memsizeHi << 8);
-
-    // Update Applesoft zero page pointers
-    writePtr(0x67, txttab); // TXTTAB - start of program
-    writePtr(0x69, endAddr); // VARTAB - start of variable space
-    writePtr(0x6b, endAddr); // ARYTAB - start of array space
-    writePtr(0x6d, endAddr); // STREND - end of numeric storage
-    writePtr(0x6f, memsize); // FRETOP - end of string storage
-    writePtr(0xaf, endAddr); // PRGEND - end of program
-    writePtr(0xb8, txttab - 1); // TXTPTR - interpreter text pointer
-    wasmModule._writeMemory(0x76, 0xff); // CURLIN+1 = $FF (direct mode)
-    wasmModule._writeMemory(0xf2, 0x00); // TRCFLG - clear stale trace flag (#NN spam)
-
     return {
       success: true,
-      lines: lines.length,
-      bytes: bytes.length,
-      message: `Wrote ${lines.length} lines (${bytes.length} bytes) to memory`,
+      lines: lineCount,
+      message: `Wrote ${lineCount} lines to memory`,
     };
   },
 
