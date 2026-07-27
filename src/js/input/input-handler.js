@@ -123,6 +123,30 @@ export class InputHandler {
       return;
     }
 
+    // Joystick buttons: Left Alt → Button 0 (Open Apple), Right Alt → Button 1 (Closed Apple)
+    if (keyCode === 18 && !ctrl && !meta) {
+      const loc = event.location || 0;
+      if (loc === 1 || loc === 0) {
+        // Left Alt or unknown → Button 0
+        event.preventDefault();
+        this.wasmModule._setButton(0, true);
+        this.wasmModule._handleRawKeyDown(18, shift, ctrl, alt, meta, capsLock);
+        return;
+      }
+      if (loc === 2) {
+        // Right Alt → Button 1
+        event.preventDefault();
+        this.wasmModule._setButton(1, true);
+        this.wasmModule._handleRawKeyDown(91, shift, ctrl, alt, meta, capsLock);
+        return;
+      }
+    }
+    // Win / Context Menu → block, do nothing
+    if (keyCode === 91 || keyCode === 93) {
+      event.preventDefault();
+      return;
+    }
+
     // Prevent default for these keys when not using modifiers
     if (this.shouldPreventDefault(event)) {
       event.preventDefault();
@@ -152,6 +176,25 @@ export class InputHandler {
     const ctrl = event.ctrlKey;
     const alt = event.altKey;
     const meta = event.metaKey;
+
+    // Release joystick buttons
+    if (keyCode === 18) {
+      const loc = event.location || 0;
+      if (loc === 1 || loc === 0) {
+        this.wasmModule._setButton(0, false);
+        this.wasmModule._handleRawKeyUp(18, shift, ctrl, alt, meta);
+        return;
+      }
+      if (loc === 2) {
+        this.wasmModule._setButton(1, false);
+        this.wasmModule._handleRawKeyUp(91, shift, ctrl, alt, meta);
+        return;
+      }
+    }
+    // Win / Context Menu → ignore release
+    if (keyCode === 91 || keyCode === 93) {
+      return;
+    }
 
     // Check if cursor keys should act as joystick
     if (this.joystickWindow && this.joystickWindow.handleCursorKey(keyCode, false)) {
