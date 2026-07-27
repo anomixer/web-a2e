@@ -13,6 +13,7 @@
 #include "../core/filesystem/prodos.hpp"
 #include "../core/filesystem/pascal.hpp"
 #include "../core/basic/basic_detokenizer.hpp"
+#include "../core/basic/applesoft_vars.hpp"
 #include "../core/basic/basic_tokenizer.hpp"
 #include "../core/debug/debug_log.hpp"
 #include "../core/input/keyboard.hpp"
@@ -2031,6 +2032,173 @@ EMSCRIPTEN_KEEPALIVE
 bool isNoSlotClockEnabled() {
   REQUIRE_EMULATOR_OR(false);
   return g_emulator->isNoSlotClockEnabled();
+}
+
+
+// ============================================================================
+// Applesoft variable inspection
+//
+// The debugger used to walk VARTAB/ARYTAB from JavaScript with one _peekMemory
+// per byte — a 1000-element real array cost 5000 round trips through the
+// Worker. The walk now happens here and the results are cached until the next
+// refresh call, so the UI pays one call for the metadata and one bulk heapRead
+// for each array's values.
+// ============================================================================
+
+static std::vector<a2e::BasicVariableInfo> g_basicVars;
+static std::vector<a2e::BasicArrayInfo> g_basicArrays;
+// Array strings are handed over as one NUL-separated blob per array; these keep
+// the blobs alive for as long as the pointers handed to JS are valid.
+static std::vector<std::string> g_basicArrayStringBlobs;
+
+static a2e::VarMemReadFn emulatorReader() {
+  return [](uint16_t addr) -> uint8_t { return g_emulator->peekMemory(addr); };
+}
+
+EMSCRIPTEN_KEEPALIVE
+int refreshBasicVariables() {
+  REQUIRE_EMULATOR_OR(0);
+  g_basicVars = a2e::ApplesoftVarReader::readVariables(emulatorReader());
+  return static_cast<int>(g_basicVars.size());
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char* getBasicVariableName(int index) {
+  if (index < 0 || index >= (int)g_basicVars.size()) return "";
+  return g_basicVars[index].name.c_str();
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getBasicVariableType(int index) {
+  if (index < 0 || index >= (int)g_basicVars.size()) return 0;
+  return static_cast<int>(g_basicVars[index].type);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getBasicVariableAddress(int index) {
+  if (index < 0 || index >= (int)g_basicVars.size()) return 0;
+  return g_basicVars[index].address;
+}
+
+EMSCRIPTEN_KEEPALIVE
+double getBasicVariableReal(int index) {
+  if (index < 0 || index >= (int)g_basicVars.size()) return 0.0;
+  return g_basicVars[index].realValue;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getBasicVariableInt(int index) {
+  if (index < 0 || index >= (int)g_basicVars.size()) return 0;
+  return g_basicVars[index].intValue;
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char* getBasicVariableString(int index) {
+  if (index < 0 || index >= (int)g_basicVars.size()) return "";
+  return g_basicVars[index].stringValue.c_str();
+}
+
+EMSCRIPTEN_KEEPALIVE
+int refreshBasicArrays() {
+  REQUIRE_EMULATOR_OR(0);
+  g_basicArrays = a2e::ApplesoftVarReader::readArrays(emulatorReader());
+
+  // Flatten each array's strings into one NUL-separated blob so JS can fetch
+  // them with a single heapRead instead of a call per element.
+  g_basicArrayStringBlobs.clear();
+  g_basicArrayStringBlobs.reserve(g_basicArrays.size());
+  for (const auto& arr : g_basicArrays) {
+    std::string blob;
+    for (const auto& s : arr.stringValues) {
+      blob.append(s);
+      blob.push_back('\0');
+    }
+    g_basicArrayStringBlobs.push_back(std::move(blob));
+  }
+
+  return static_cast<int>(g_basicArrays.size());
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char* getBasicArrayName(int index) {
+  if (index < 0 || index >= (int)g_basicArrays.size()) return "";
+  return g_basicArrays[index].name.c_str();
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getBasicArrayType(int index) {
+  if (index < 0 || index >= (int)g_basicArrays.size()) return 0;
+  return static_cast<int>(g_basicArrays[index].type);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getBasicArrayAddress(int index) {
+  if (index < 0 || index >= (int)g_basicArrays.size()) return 0;
+  return g_basicArrays[index].address;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getBasicArrayNumDims(int index) {
+  if (index < 0 || index >= (int)g_basicArrays.size()) return 0;
+  return g_basicArrays[index].numDims;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getBasicArrayDim(int index, int dim) {
+  if (index < 0 || index >= (int)g_basicArrays.size()) return 0;
+  const auto& dims = g_basicArrays[index].dimensions;
+  if (dim < 0 || dim >= (int)dims.size()) return 0;
+  return dims[dim];
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getBasicArrayElementCount(int index) {
+  if (index < 0 || index >= (int)g_basicArrays.size()) return 0;
+  return static_cast<int>(g_basicArrays[index].elementCount);
+}
+
+// Bulk value access: JS reads elementCount doubles / int32s straight out of the
+// heap. Null when the array is of another type or the index is out of range.
+EMSCRIPTEN_KEEPALIVE
+const double* getBasicArrayReals(int index) {
+  if (index < 0 || index >= (int)g_basicArrays.size()) return nullptr;
+  const auto& values = g_basicArrays[index].realValues;
+  return values.empty() ? nullptr : values.data();
+}
+
+EMSCRIPTEN_KEEPALIVE
+const int32_t* getBasicArrayInts(int index) {
+  if (index < 0 || index >= (int)g_basicArrays.size()) return nullptr;
+  const auto& values = g_basicArrays[index].intValues;
+  return values.empty() ? nullptr : values.data();
+}
+
+// NUL-separated string blob plus its byte length, so JS can split it after one
+// heapRead. Element count still comes from getBasicArrayElementCount.
+EMSCRIPTEN_KEEPALIVE
+const char* getBasicArrayStrings(int index) {
+  if (index < 0 || index >= (int)g_basicArrayStringBlobs.size()) return nullptr;
+  return g_basicArrayStringBlobs[index].data();
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getBasicArrayStringsSize(int index) {
+  if (index < 0 || index >= (int)g_basicArrayStringBlobs.size()) return 0;
+  return static_cast<int>(g_basicArrayStringBlobs[index].size());
+}
+
+
+// Encode a double into Applesoft's 5-byte float and write it at `addr`. The
+// debugger's variable editor used to carry its own encoder; this keeps the one
+// in ApplesoftVars as the only implementation.
+EMSCRIPTEN_KEEPALIVE
+void writeApplesoftFloat(int addr, double value) {
+  REQUIRE_EMULATOR();
+  uint8_t bytes[a2e::APPLESOFT_FLOAT_SIZE];
+  a2e::ApplesoftVars::encodeFloat(value, bytes);
+  for (int i = 0; i < a2e::APPLESOFT_FLOAT_SIZE; i++) {
+    g_emulator->writeMemory(static_cast<uint16_t>(addr + i), bytes[i]);
+  }
 }
 
 } // extern "C"
