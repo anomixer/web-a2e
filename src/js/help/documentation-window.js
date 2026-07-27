@@ -311,7 +311,7 @@ export class DocumentationWindow extends BaseWindow {
           </thead>
           <tbody>
             <tr><td><kbd>Alt</kbd> (Left)</td><td>Open Apple (&#63743;)</td><td>Modifier key, joystick button 0</td></tr>
-            <tr><td><kbd>Alt</kbd> (Right) / <kbd>Win</kbd></td><td>Closed Apple</td><td>Modifier key, joystick button 1</td></tr>
+            <tr><td><kbd>Alt</kbd> (Right)</td><td>Closed Apple</td><td>Modifier key, joystick button 1</td></tr>
             <tr><td><kbd>Ctrl</kbd></td><td>Control</td><td>Control key modifier</td></tr>
             <tr><td><kbd>Ctrl</kbd>+<kbd>Pause/Break</kbd></td><td>Reset</td><td>Warm reset (Ctrl+Reset)</td></tr>
           </tbody>

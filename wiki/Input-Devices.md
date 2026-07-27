@@ -21,8 +21,8 @@ The emulator translates browser keycodes to Apple II ASCII codes in real time. A
 
 | Host Key | Apple II Function |
 |----------|-------------------|
-| Alt (Option) | Open Apple button |
-| Meta (Cmd/Win) | Closed Apple button |
+| Left Alt (Option) | Open Apple button |
+| Right Alt (Option) | Closed Apple button |
 | Shift | Shift (uppercase, shifted symbols) |
 | Ctrl | Control (generates control characters Ctrl+A through Ctrl+Z) |
 | Caps Lock | Uppercase letters (matches Apple II behavior) |
