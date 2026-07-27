@@ -17,6 +17,7 @@
  */
 
 import { APPLESOFT_TOKENS } from "../utils/basic-tokens.js";
+import { indexBasicListing } from "../utils/basic-listing.js";
 
 export class BasicProgramParser {
   constructor(wasmModule) {
@@ -52,6 +53,30 @@ export class BasicProgramParser {
     const mainRAMPtr = await this.wasmModule._getMainRAM();
     this._programBytes = await this.wasmModule.heapRead(mainRAMPtr + txttab, vartab - txttab);
     this._programBase = txttab;
+    this._programAddr = mainRAMPtr + txttab;
+    this._programSize = vartab - txttab;
+  }
+
+  /**
+   * Detokenize the whole program with the C++ core and index it by line number.
+   *
+   * The program is already in the WASM heap, so its address goes straight to
+   * the detokenizer — nothing is copied out and back, and one call replaces a
+   * per-line JS decode. Keyed by line number rather than position so a
+   * disagreement about where the program ends cannot silently shift every
+   * line's text by one.
+   *
+   * @returns {Promise<Map<number, string>>}
+   */
+  async _detokenizeProgram() {
+    const listingPtr = await this.wasmModule._detokenizeApplesoft(
+      this._programAddr,
+      this._programSize,
+      false, // no DOS 3.3 length header: this is live memory, not a file
+    );
+    const listing = await this.wasmModule.UTF8ToString(listingPtr);
+
+    return indexBasicListing(listing);
   }
 
   /**
@@ -103,6 +128,10 @@ export class BasicProgramParser {
     // Read entire program in one round-trip
     await this._loadProgramBytes(txttab, vartab);
 
+    // Line text comes from the core; the walk below still supplies the byte
+    // addresses that breakpoints and statement lookup need.
+    const textByLine = await this._detokenizeProgram();
+
     let offset = 0;
     let safetyCount = 0;
     const maxLines = 10000;
@@ -118,14 +147,7 @@ export class BasicProgramParser {
       const lineNumber = (programBytes[offset + 3] << 8) | programBytes[offset + 2];
       const textStart = offset + 4;
 
-      // Find null terminator of tokenized text
-      let textEnd = textStart;
-      while (textEnd < nextOffset && programBytes[textEnd] !== 0) {
-        textEnd++;
-      }
-
-      const tokenBytes = programBytes.slice(textStart, textEnd);
-      const text = this._detokenize(tokenBytes);
+      const text = textByLine.get(lineNumber) ?? "";
 
       lines.push({
         lineNumber,
@@ -394,116 +416,6 @@ export class BasicProgramParser {
       return APPLESOFT_TOKENS[byte - 0x80] || null;
     }
     return null;
-  }
-
-  /**
-   * Detokenize Applesoft BASIC tokens with proper spacing
-   */
-  _detokenize(bytes) {
-    let result = "";
-    let inQuote = false;
-    let inRem = false;
-    let inData = false;
-
-    // Helper to check if character is alphanumeric
-    const isAlphaNum = (c) => /[A-Za-z0-9]/.test(c);
-
-    for (let i = 0; i < bytes.length; i++) {
-      const byte = bytes[i];
-
-      // Inside quote or REM/DATA - output as character (no spacing changes)
-      if (inQuote || inRem) {
-        if (byte === 0x22) inQuote = false; // End quote
-        result += String.fromCharCode(byte & 0x7f);
-        continue;
-      }
-
-      // Check for quote start
-      if (byte === 0x22) {
-        inQuote = true;
-        result += '"';
-        continue;
-      }
-
-      // Token range: $80-$EA
-      if (byte >= 0x80 && byte <= 0xea) {
-        const token = APPLESOFT_TOKENS[byte - 0x80];
-        if (token) {
-          // Add space before token if last char is alphanumeric
-          const lastChar = result.length > 0 ? result[result.length - 1] : "";
-          if (isAlphaNum(lastChar)) {
-            result += " ";
-          }
-
-          result += token;
-
-          // Check for REM or DATA
-          if (byte === 0xb2) inRem = true; // REM
-          if (byte === 0x83) inData = true; // DATA
-
-          // Add space after token if next byte isn't a space and token ends with a letter
-          const nextByte = i + 1 < bytes.length ? bytes[i + 1] : 0;
-          if (nextByte !== 0x20 && nextByte !== 0 && isAlphaNum(token[token.length - 1])) {
-            result += " ";
-          }
-          continue;
-        }
-      }
-
-      // Inside DATA - colons end DATA mode
-      if (inData && byte === 0x3a) {
-        inData = false;
-      }
-
-      // Regular character
-      const char = String.fromCharCode(byte & 0x7f);
-
-      // Consume contiguous number (digits + optional decimal point)
-      if (byte >= 0x30 && byte <= 0x39) {
-        const lastChar = result.length > 0 ? result[result.length - 1] : "";
-        if (isAlphaNum(lastChar)) {
-          result += " ";
-        }
-        result += char;
-        while (i + 1 < bytes.length) {
-          const next = bytes[i + 1];
-          if ((next >= 0x30 && next <= 0x39) || next === 0x2e) {
-            result += String.fromCharCode(next);
-            i++;
-          } else {
-            break;
-          }
-        }
-        continue;
-      }
-
-      // Consume contiguous variable name (letters + digits + $ + %)
-      const isLetter = (byte >= 0x41 && byte <= 0x5a) || (byte >= 0x61 && byte <= 0x7a);
-      if (isLetter) {
-        const lastChar = result.length > 0 ? result[result.length - 1] : "";
-        if (isAlphaNum(lastChar)) {
-          result += " ";
-        }
-        result += char;
-        while (i + 1 < bytes.length) {
-          const next = bytes[i + 1];
-          const nextIsLetter =
-            (next >= 0x41 && next <= 0x5a) || (next >= 0x61 && next <= 0x7a);
-          const nextIsDigit = next >= 0x30 && next <= 0x39;
-          if (nextIsLetter || nextIsDigit || next === 0x24 || next === 0x25) {
-            result += String.fromCharCode(next);
-            i++;
-          } else {
-            break;
-          }
-        }
-        continue;
-      }
-
-      result += char;
-    }
-
-    return result;
   }
 
 }

@@ -1,117 +1,121 @@
 /*
  * basic-tokens.js - Applesoft BASIC token definitions
  *
+ * GENERATED FILE - DO NOT EDIT.
+ * Source: src/core/basic/basic_tokens.hpp
+ * Regenerate with: npm run generate:basic-tokens
+ *
  * Written by
  *  Mike Daley <michael_daley@icloud.com>
  */
 
 // Applesoft BASIC tokens - array index = token value - 0x80
 export const APPLESOFT_TOKENS = [
-  "END",      // $80
-  "FOR",      // $81
-  "NEXT",     // $82
-  "DATA",     // $83
-  "INPUT",    // $84
-  "DEL",      // $85
-  "DIM",      // $86
-  "READ",     // $87
-  "GR",       // $88
-  "TEXT",     // $89
-  "PR#",      // $8A
-  "IN#",      // $8B
-  "CALL",     // $8C
-  "PLOT",     // $8D
-  "HLIN",     // $8E
-  "VLIN",     // $8F
-  "HGR2",     // $90
-  "HGR",      // $91
-  "HCOLOR=",  // $92
-  "HPLOT",    // $93
-  "DRAW",     // $94
-  "XDRAW",    // $95
-  "HTAB",     // $96
-  "HOME",     // $97
-  "ROT=",     // $98
-  "SCALE=",   // $99
-  "SHLOAD",   // $9A
-  "TRACE",    // $9B
-  "NOTRACE",  // $9C
-  "NORMAL",   // $9D
-  "INVERSE",  // $9E
-  "FLASH",    // $9F
-  "COLOR=",   // $A0
-  "POP",      // $A1
-  "VTAB",     // $A2
-  "HIMEM:",   // $A3
-  "LOMEM:",   // $A4
-  "ONERR",    // $A5
-  "RESUME",   // $A6
-  "RECALL",   // $A7
-  "STORE",    // $A8
-  "SPEED=",   // $A9
-  "LET",      // $AA
-  "GOTO",     // $AB
-  "RUN",      // $AC
-  "IF",       // $AD
-  "RESTORE",  // $AE
-  "&",        // $AF - Ampersand (machine language hook)
-  "GOSUB",    // $B0
-  "RETURN",   // $B1
-  "REM",      // $B2
-  "STOP",     // $B3
-  "ON",       // $B4
-  "WAIT",     // $B5
-  "LOAD",     // $B6
-  "SAVE",     // $B7
-  "DEF",      // $B8
-  "POKE",     // $B9
-  "PRINT",    // $BA
-  "CONT",     // $BB
-  "LIST",     // $BC
-  "CLEAR",    // $BD
-  "GET",      // $BE
-  "NEW",      // $BF
-  "TAB(",     // $C0
-  "TO",       // $C1
-  "FN",       // $C2
-  "SPC(",     // $C3
-  "THEN",     // $C4
-  "AT",       // $C5
-  "NOT",      // $C6
-  "STEP",     // $C7
-  "+",        // $C8
-  "-",        // $C9
-  "*",        // $CA
-  "/",        // $CB
-  "^",        // $CC
-  "AND",      // $CD
-  "OR",       // $CE
-  ">",        // $CF
-  "=",        // $D0
-  "<",        // $D1
-  "SGN",      // $D2
-  "INT",      // $D3
-  "ABS",      // $D4
-  "USR",      // $D5
-  "FRE",      // $D6
-  "SCRN(",    // $D7
-  "PDL",      // $D8
-  "POS",      // $D9
-  "SQR",      // $DA
-  "RND",      // $DB
-  "LOG",      // $DC
-  "EXP",      // $DD
-  "COS",      // $DE
-  "SIN",      // $DF
-  "TAN",      // $E0
-  "ATN",      // $E1
-  "PEEK",     // $E2
-  "LEN",      // $E3
-  "STR$",     // $E4
-  "VAL",      // $E5
-  "ASC",      // $E6
-  "CHR$",     // $E7
-  "LEFT$",    // $E8
-  "RIGHT$",   // $E9
-  "MID$",     // $EA
+  "END"    , // $80
+  "FOR"    , // $81
+  "NEXT"   , // $82
+  "DATA"   , // $83
+  "INPUT"  , // $84
+  "DEL"    , // $85
+  "DIM"    , // $86
+  "READ"   , // $87
+  "GR"     , // $88
+  "TEXT"   , // $89
+  "PR#"    , // $8A
+  "IN#"    , // $8B
+  "CALL"   , // $8C
+  "PLOT"   , // $8D
+  "HLIN"   , // $8E
+  "VLIN"   , // $8F
+  "HGR2"   , // $90
+  "HGR"    , // $91
+  "HCOLOR=", // $92
+  "HPLOT"  , // $93
+  "DRAW"   , // $94
+  "XDRAW"  , // $95
+  "HTAB"   , // $96
+  "HOME"   , // $97
+  "ROT="   , // $98
+  "SCALE=" , // $99
+  "SHLOAD" , // $9A
+  "TRACE"  , // $9B
+  "NOTRACE", // $9C
+  "NORMAL" , // $9D
+  "INVERSE", // $9E
+  "FLASH"  , // $9F
+  "COLOR=" , // $A0
+  "POP"    , // $A1
+  "VTAB"   , // $A2
+  "HIMEM:" , // $A3
+  "LOMEM:" , // $A4
+  "ONERR"  , // $A5
+  "RESUME" , // $A6
+  "RECALL" , // $A7
+  "STORE"  , // $A8
+  "SPEED=" , // $A9
+  "LET"    , // $AA
+  "GOTO"   , // $AB
+  "RUN"    , // $AC
+  "IF"     , // $AD
+  "RESTORE", // $AE
+  "&"      , // $AF
+  "GOSUB"  , // $B0
+  "RETURN" , // $B1
+  "REM"    , // $B2
+  "STOP"   , // $B3
+  "ON"     , // $B4
+  "WAIT"   , // $B5
+  "LOAD"   , // $B6
+  "SAVE"   , // $B7
+  "DEF"    , // $B8
+  "POKE"   , // $B9
+  "PRINT"  , // $BA
+  "CONT"   , // $BB
+  "LIST"   , // $BC
+  "CLEAR"  , // $BD
+  "GET"    , // $BE
+  "NEW"    , // $BF
+  "TAB("   , // $C0
+  "TO"     , // $C1
+  "FN"     , // $C2
+  "SPC("   , // $C3
+  "THEN"   , // $C4
+  "AT"     , // $C5
+  "NOT"    , // $C6
+  "STEP"   , // $C7
+  "+"      , // $C8
+  "-"      , // $C9
+  "*"      , // $CA
+  "/"      , // $CB
+  "^"      , // $CC
+  "AND"    , // $CD
+  "OR"     , // $CE
+  ">"      , // $CF
+  "="      , // $D0
+  "<"      , // $D1
+  "SGN"    , // $D2
+  "INT"    , // $D3
+  "ABS"    , // $D4
+  "USR"    , // $D5
+  "FRE"    , // $D6
+  "SCRN("  , // $D7
+  "PDL"    , // $D8
+  "POS"    , // $D9
+  "SQR"    , // $DA
+  "RND"    , // $DB
+  "LOG"    , // $DC
+  "EXP"    , // $DD
+  "COS"    , // $DE
+  "SIN"    , // $DF
+  "TAN"    , // $E0
+  "ATN"    , // $E1
+  "PEEK"   , // $E2
+  "LEN"    , // $E3
+  "STR$"   , // $E4
+  "VAL"    , // $E5
+  "ASC"    , // $E6
+  "CHR$"   , // $E7
+  "LEFT$"  , // $E8
+  "RIGHT$" , // $E9
+  "MID$"   , // $EA
 ];

@@ -6,7 +6,7 @@
  */
 
 import { BasicProgramParser } from "../debug/basic-program-parser.js";
-import { APPLESOFT_TOKENS } from "../utils/basic-tokens.js";
+import { parseBasicListing } from "../utils/basic-listing.js";
 
 export const basicProgramTools = {
   /**
@@ -982,113 +982,18 @@ async function _readBasicFromMemory(wasmModule) {
     return [];
   }
 
-  // Read entire program in one round-trip
+  // Detokenize with the C++ core (a2e::BasicDetokenizer). The program is
+  // already sitting in the WASM heap, so its address is handed straight to the
+  // detokenizer — nothing is copied out and back, and the only data crossing
+  // the Worker boundary is the finished listing.
   const mainRAMPtr = await wasmModule._getMainRAM();
-  const programBytes = await wasmModule.heapRead(mainRAMPtr + txttab, vartab - txttab);
+  const listingPtr = await wasmModule._detokenizeApplesoft(
+    mainRAMPtr + txttab,
+    vartab - txttab,
+    false, // no DOS 3.3 length header: this is live memory, not a file
+  );
+  const listing = await wasmModule.UTF8ToString(listingPtr);
 
-  const lines = [];
-  let offset = 0;
-  let safety = 0;
-
-  while (offset + 4 <= programBytes.length && safety++ < 10000) {
-    const nextPtr = (programBytes[offset + 1] << 8) | programBytes[offset];
-    if (nextPtr === 0) break;
-
-    const nextOffset = nextPtr - txttab;
-    if (nextOffset <= offset || nextOffset > programBytes.length) break;
-
-    const lineNumber = (programBytes[offset + 3] << 8) | programBytes[offset + 2];
-
-    // Find null terminator of tokenized text
-    let textEnd = offset + 4;
-    while (textEnd < nextOffset && programBytes[textEnd] !== 0) {
-      textEnd++;
-    }
-
-    const tokenBytes = programBytes.slice(offset + 4, textEnd);
-    const text = _detokenizeApplesoft(tokenBytes);
-
-    lines.push({ lineNumber, address: txttab + offset, text });
-    offset = nextOffset;
-  }
-
-  return lines;
+  return parseBasicListing(listing);
 }
 
-/**
- * Detokenize Applesoft BASIC token bytes to a text string.
- */
-function _detokenizeApplesoft(bytes) {
-  const isAlphaNum = (c) => /[A-Za-z0-9]/.test(c);
-  let result = "";
-  let inQuote = false;
-  let inRem = false;
-
-  for (let i = 0; i < bytes.length; i++) {
-    const byte = bytes[i];
-
-    if (inQuote || inRem) {
-      if (byte === 0x22) inQuote = false;
-      result += String.fromCharCode(byte & 0x7f);
-      continue;
-    }
-
-    if (byte === 0x22) {
-      inQuote = true;
-      result += '"';
-      continue;
-    }
-
-    if (byte >= 0x80 && byte <= 0xea) {
-      const token = APPLESOFT_TOKENS[byte - 0x80];
-      if (token) {
-        const lastChar = result.length > 0 ? result[result.length - 1] : "";
-        if (isAlphaNum(lastChar)) result += " ";
-        result += token;
-        if (byte === 0xb2) inRem = true;
-        const nextByte = i + 1 < bytes.length ? bytes[i + 1] : 0;
-        if (nextByte !== 0x20 && nextByte !== 0 && isAlphaNum(token[token.length - 1])) {
-          result += " ";
-        }
-        continue;
-      }
-    }
-
-    const char = String.fromCharCode(byte & 0x7f);
-
-    if (byte >= 0x30 && byte <= 0x39) {
-      const lastChar = result.length > 0 ? result[result.length - 1] : "";
-      if (isAlphaNum(lastChar)) result += " ";
-      result += char;
-      while (i + 1 < bytes.length) {
-        const next = bytes[i + 1];
-        if ((next >= 0x30 && next <= 0x39) || next === 0x2e) {
-          result += String.fromCharCode(next);
-          i++;
-        } else break;
-      }
-      continue;
-    }
-
-    const isLetter = (byte >= 0x41 && byte <= 0x5a) || (byte >= 0x61 && byte <= 0x7a);
-    if (isLetter) {
-      const lastChar = result.length > 0 ? result[result.length - 1] : "";
-      if (isAlphaNum(lastChar)) result += " ";
-      result += char;
-      while (i + 1 < bytes.length) {
-        const next = bytes[i + 1];
-        const nextIsLetter = (next >= 0x41 && next <= 0x5a) || (next >= 0x61 && next <= 0x7a);
-        const nextIsDigit = next >= 0x30 && next <= 0x39;
-        if (nextIsLetter || nextIsDigit || next === 0x24 || next === 0x25) {
-          result += String.fromCharCode(next);
-          i++;
-        } else break;
-      }
-      continue;
-    }
-
-    result += char;
-  }
-
-  return result;
-}
