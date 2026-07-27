@@ -37,7 +37,7 @@ The emulator translates modern keyboard input to Apple IIe key codes. Standard a
 | Your Keyboard | Apple //e Key | Notes |
 |---------------|---------------|-------|
 | Left Alt | Open Apple | Modifier key, joystick button 0 |
-| Right Alt / Windows key | Closed Apple (Solid Apple) | Modifier key, joystick button 1 |
+| Right Alt | Closed Apple (Solid Apple) | Modifier key, joystick button 1 |
 | Ctrl | Control | Control key modifier |
 | Shift | Shift | Shift modifier |
 | Caps Lock | Caps Lock | Tracked and sent to the emulator core |

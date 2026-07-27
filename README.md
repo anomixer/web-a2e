@@ -88,7 +88,7 @@ npm run deploy        # Deploy to VPS via rsync
 | Backspace | Delete (left arrow) |
 | Arrow Keys | Arrow Keys |
 | Left Alt | Open Apple (joystick button 0) |
-| Right Alt / Win | Closed Apple (joystick button 1) |
+| Right Alt | Closed Apple (joystick button 1) |
 | Ctrl+Letter | Control characters |
 | Escape | ESC |
 | Enter | Return |

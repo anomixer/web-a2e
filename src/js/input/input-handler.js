@@ -9,6 +9,13 @@
 // is paused. Long enough not to busy-wait, short enough to feel immediate.
 const PAUSED_POLL_MS = 50;
 
+// Right Alt reports location 2; left reports 1, and 0 means the browser did not
+// say, which we treat as left. Both sides share keyCode 18, so this is the only
+// thing separating Open Apple from Closed Apple.
+export function isRightAlt(event) {
+  return event.location === 2;
+}
+
 export class InputHandler {
   constructor(wasmModule) {
     this.wasmModule = wasmModule;
@@ -123,23 +130,24 @@ export class InputHandler {
       return;
     }
 
-    // Joystick buttons: Left Alt → Button 0 (Open Apple), Right Alt → Button 1 (Closed Apple)
-    if (keyCode === 18 && !ctrl && !meta) {
-      const loc = event.location || 0;
-      if (loc === 1 || loc === 0) {
-        // Left Alt or unknown → Button 0
-        event.preventDefault();
-        this.wasmModule._setButton(0, true);
-        this.wasmModule._handleRawKeyDown(18, shift, ctrl, alt, meta, capsLock);
-        return;
-      }
-      if (loc === 2) {
-        // Right Alt → Button 1
-        event.preventDefault();
-        this.wasmModule._setButton(1, true);
-        this.wasmModule._handleRawKeyDown(91, shift, ctrl, alt, meta, capsLock);
-        return;
-      }
+    // Joystick buttons: Left Alt → Button 0 (Open Apple), Right Alt → Button 1
+    // (Closed Apple). keyCode is 18 for both sides and event.key is "Alt" for
+    // both on US layouts, so event.location is the only reliable discriminator.
+    //
+    // The core owns the button state: handleRawKeyDown maps 18 to Open Apple
+    // and 91 to Closed Apple, then copies both into buttonState_ itself
+    // (emulator.cpp), so no separate _setButton call is needed here.
+    if (keyCode === 18) {
+      // Alt on its own would otherwise focus the browser menu bar. Combinations
+      // are left alone: Ctrl+Alt is AltGr on European layouts, and swallowing it
+      // would interfere with typing accented characters.
+      if (!ctrl && !meta) event.preventDefault();
+
+      this.wasmModule._handleRawKeyDown(
+        isRightAlt(event) ? 91 : 18,
+        shift, ctrl, alt, meta, capsLock,
+      );
+      return;
     }
     // Win / Context Menu → block, do nothing
     if (keyCode === 91 || keyCode === 93) {
@@ -177,19 +185,13 @@ export class InputHandler {
     const alt = event.altKey;
     const meta = event.metaKey;
 
-    // Release joystick buttons
+    // Release joystick buttons — mirrors the keydown mapping above.
     if (keyCode === 18) {
-      const loc = event.location || 0;
-      if (loc === 1 || loc === 0) {
-        this.wasmModule._setButton(0, false);
-        this.wasmModule._handleRawKeyUp(18, shift, ctrl, alt, meta);
-        return;
-      }
-      if (loc === 2) {
-        this.wasmModule._setButton(1, false);
-        this.wasmModule._handleRawKeyUp(91, shift, ctrl, alt, meta);
-        return;
-      }
+      this.wasmModule._handleRawKeyUp(
+        isRightAlt(event) ? 91 : 18,
+        shift, ctrl, alt, meta,
+      );
+      return;
     }
     // Win / Context Menu → ignore release
     if (keyCode === 91 || keyCode === 93) {
