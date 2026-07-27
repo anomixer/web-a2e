@@ -144,17 +144,17 @@ void keyUp(int keycode) {
 
 EMSCRIPTEN_KEEPALIVE
 int handleRawKeyDown(int browserKeycode, bool shift, bool ctrl, bool alt,
-                     bool meta, bool capsLock) {
+                     bool meta, bool capsLock, int keyLocation) {
   REQUIRE_EMULATOR_OR(-1);
   return g_emulator->handleRawKeyDown(browserKeycode, shift, ctrl, alt, meta,
-                                      capsLock);
+                                      capsLock, keyLocation);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void handleRawKeyUp(int browserKeycode, bool shift, bool ctrl, bool alt,
-                    bool meta) {
+                    bool meta, int keyLocation) {
   REQUIRE_EMULATOR();
-  g_emulator->handleRawKeyUp(browserKeycode, shift, ctrl, alt, meta);
+  g_emulator->handleRawKeyUp(browserKeycode, shift, ctrl, alt, meta, keyLocation);
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -2217,6 +2217,16 @@ int getBasicStatementIndexForLine(int lineNumber, int txtptr) {
   REQUIRE_EMULATOR_OR(0);
   return g_emulator->getBasicStatementIndexForLine(static_cast<uint16_t>(lineNumber),
                                                    static_cast<uint16_t>(txtptr));
+}
+
+
+// Release every held modifier. The host calls this when it loses keyboard
+// focus: a key held across an app switch never delivers its key-up, which
+// would otherwise leave an Apple button latched until it was pressed again.
+EMSCRIPTEN_KEEPALIVE
+void releaseModifiers() {
+  REQUIRE_EMULATOR();
+  g_emulator->releaseModifiers();
 }
 
 } // extern "C"
