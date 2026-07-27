@@ -15,6 +15,11 @@ export const RELEASE_NOTES = [
     features: [],
     fixes: [
       {
+        title: "Apple buttons could stick down",
+        description:
+          "Releasing right Alt while Ctrl was held cleared the wrong button, and holding a key while switching to another window never released it at all — either way the button stayed pressed until it was tapped again. Key handling now derives the buttons from which keys are actually held rather than toggling them, so a missed or misreported release cannot latch one on. Note that macOS browsers report nothing when one of two held Option keys is released, so that button stays down until the second key is released; this cannot be detected by a web page.",
+      },
+      {
         title: "Left and right Alt now select different Apple keys",
         description:
           "Left Alt is Open Apple and right Alt is Closed Apple, matching AppleWin and Apple2TS. Both sides report the same key code, so the two are told apart by which side of the keyboard the key is on. The Windows and Context Menu keys are no longer mapped, as the operating system intercepts them before the browser sees them. Contributed by @anomixer.",
