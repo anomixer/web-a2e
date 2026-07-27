@@ -5,6 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "check:exports": "scripts/check-exports.sh",
+    "check:core-purity": "scripts/check-core-purity.sh",
+    "check": "npm run check:exports && npm run check:core-purity && npm test",
     "build": "npm run build:wasm && vite build",
     "build:wasm": "mkdir -p build && cd build && emcmake cmake .. && emmake make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu)",
     "preview": "vite preview",
@@ -14,6 +19,7 @@
   },
   "devDependencies": {
     "vite": "^7.3.1",
+    "vitest": "^4.1.10",
     "ws": "^8.19.0"
   }
 }

@@ -14,6 +14,7 @@
 #include "../core/filesystem/pascal.hpp"
 #include "../core/basic/basic_detokenizer.hpp"
 #include "../core/basic/basic_tokenizer.hpp"
+#include "../core/debug/debug_log.hpp"
 #include "../core/input/keyboard.hpp"
 #include <cstdlib>
 #include <cstring>
@@ -35,6 +36,13 @@ extern "C" {
 EMSCRIPTEN_KEEPALIVE
 void init() {
   if (!g_emulator) {
+    // Route core debug tracing to the browser console. The core itself has no
+    // idea a console exists — it formats into a2e::debugLog() and this binding,
+    // as the platform layer, decides where the text goes.
+    a2e::setDebugLogSink([](const char *message) {
+      EM_ASM({ console.log(UTF8ToString($0)); }, message);
+    });
+
     g_emulator = new a2e::Emulator();
     g_emulator->init();
     // Install the parallel (Centronics) printer tx callback at construction so
