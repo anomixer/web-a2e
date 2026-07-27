@@ -15,11 +15,38 @@ npm run dev           # Start dev server at localhost:3000 (hot-reload for JS on
 npm run build         # Full production build (WASM + Vite bundle)
 npm run clean         # Clean build artifacts
 npm run deploy        # Deploy to VPS via rsync
+npm test              # JavaScript tests (Vitest)
+npm run check         # check:exports + check:core-purity + check:basic-tokens + npm test
+npm run generate:basic-tokens  # Regenerate src/js/utils/basic-tokens.js from C++
 ```
 
 ## Testing
 
-All tests use the Catch2 framework and are built/run via CMake's native build:
+### JavaScript (Vitest)
+
+`npm test` runs `tests/js/`. Config is in `vitest.config.js`, kept separate from
+`vite.config.js` so the app build settings do not obscure test failures. The
+modules under test are pure logic and run in plain node — a new DOM dependency
+in one of them is a smell, not a reason to add jsdom.
+
+Covers the printer emulation (characterization tests capturing the event stream
+from `PrinterBase.setEventSink()`), the Applesoft listing parser, and input
+mapping.
+
+### Consistency checks
+
+`npm run check` runs three guards, each verified to fail when violated:
+
+- `scripts/check-exports.sh` — `EMSCRIPTEN_KEEPALIVE` functions vs the
+  `EXPORTED_FUNCTIONS` list in `CMakeLists.txt`, both directions
+- `scripts/check-core-purity.sh` — no host-platform dependencies in `src/core/`
+  (matches code, not comments, so docs may name what they warn about)
+- `scripts/generate-basic-tokens.mjs --check` — the generated JS token table is
+  in step with `src/core/basic/basic_tokens.hpp`
+
+### C++ (Catch2)
+
+All C++ tests use the Catch2 framework and are built/run via CMake's native build:
 
 ```bash
 mkdir -p build-native && cd build-native
@@ -53,8 +80,10 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 - `cards/ssc/` - Super Serial Card with ACIA 6551 (drives ImageWriter I and ImageWriter II)
 - `cards/thunderclock/` - Thunderclock Plus real-time clock card
 - `filesystem/` - DOS 3.3 and ProDOS filesystem parsers
-- `basic/` - Applesoft and Integer BASIC detokenizer and tokenizer
-- `debug/` - Condition evaluator for breakpoint expressions (supports BV/BA/BA2 for BASIC variable/array reads)
+- `basic/` - Applesoft and Integer BASIC detokenizer, tokenizer, token tables, and
+  variable representation (`applesoft_vars` — MBF floats, name/type decoding,
+  VARTAB/ARYTAB walking)
+- `debug/` - Condition evaluator for breakpoint expressions (supports BV/BA/BA2 for BASIC variable/array reads), and `debug_log` (host-installed log sink; the core never writes to a console itself)
 - `noslot_clock.cpp` - DS1215 No-Slot Clock (ProDOS RTC at $C300)
 - `emulator.cpp` - Core coordinator
 - `emulator/emulator_state.cpp` - State serialization (exportState/importState)
@@ -174,8 +203,8 @@ src/
 │   │   ├── ssc/           # Super Serial Card + ACIA 6551
 │   │   └── thunderclock/  # Thunderclock Plus real-time clock
 │   ├── filesystem/     # DOS 3.3 and ProDOS parsers
-│   ├── basic/          # BASIC tokenizer and detokenizer
-│   ├── debug/          # Condition evaluator
+│   ├── basic/          # BASIC tokenizer, detokenizer, Applesoft variable model
+│   ├── debug/          # Condition evaluator, host debug log sink
 │   ├── emulator/       # Split emulator implementation files
 │   │   ├── emulator_state.cpp  # State serialization (exportState/importState)
 │   │   └── emulator_debug.cpp  # Debug facilities (breakpoints, watchpoints, trace, beam)

@@ -11,6 +11,84 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "July 27, 2026",
+    features: [],
+    fixes: [
+      {
+        title: "Left and right Alt now select different Apple keys",
+        description:
+          "Left Alt is Open Apple and right Alt is Closed Apple, matching AppleWin and Apple2TS. Both sides report the same key code, so the two are told apart by which side of the keyboard the key is on. The Windows and Context Menu keys are no longer mapped, as the operating system intercepts them before the browser sees them. Contributed by @anomixer.",
+      },
+      {
+        title: "Closed Apple could stick down",
+        description:
+          "Releasing right Alt while Ctrl was held released Open Apple instead, leaving Closed Apple pressed until the key was tapped again.",
+      },
+      {
+        title: "The emulator ran fast after continuing from a breakpoint",
+        description:
+          "Typing text into the emulator temporarily runs it at 8x. A breakpoint hit while characters were still queued left that speed-up in place, so the emulator sprinted as soon as it was resumed.",
+      },
+      {
+        title: "BASIC listings indented everything after a one-line FOR/NEXT",
+        description:
+          "A line that both opened and closed a loop, such as FOR I = 1 TO 5 : NEXT, left every following line indented for the rest of the listing.",
+      },
+      {
+        title: "BASIC listings stopped at 4096 lines",
+        description:
+          "Longer programs were silently truncated part way through. Listings are now limited only by the overall output size.",
+      },
+      {
+        title: "Statement highlighting disagreed with statement breakpoints",
+        description:
+          "On lines containing DATA, the highlighted statement and the statement a breakpoint stopped on were counted by different rules and could differ. Both now use the same one.",
+      },
+      {
+        title: "Programs loaded into memory could start with tracing switched on",
+        description:
+          "Under ProDOS, a stale trace flag survived and printed a line number before every statement. Multiple spaces inside string literals were also collapsed when loading.",
+      },
+      {
+        title: "Menus let screen text bleed through",
+        description:
+          "Menu backgrounds are now opaque.",
+      },
+      {
+        title: "Redeploys were not always picked up",
+        description:
+          "The service worker now revalidates the page on each load, so a new version appears without clearing the browser cache.",
+      },
+      {
+        title: "Open and Save in the editors on Safari and Firefox",
+        description:
+          "Both now fall back to a download and file picker where the File System Access API is unavailable.",
+      },
+    ],
+    improvements: [
+      {
+        title: "Faster BASIC variable inspector",
+        description:
+          "Variables and arrays are now read in bulk rather than a byte at a time. A thousand-element array previously took thousands of separate reads to display.",
+      },
+      {
+        title: "Formatted BASIC listings",
+        description:
+          "Listings shown in the BASIC window and returned to AI agents now carry FOR/NEXT indentation and spacing around operators.",
+      },
+      {
+        title: "More documentation",
+        description:
+          "Added Workspace, Expansion Slots, and Joystick/Paddles sections to the in-app help.",
+      },
+      {
+        title: "Consolidated Applesoft handling",
+        description:
+          "Tokenizing, detokenizing, variable decoding, and statement parsing now have a single implementation shared by the emulator and its tools, with automated tests covering each. Several of the fixes above came from removing duplicates that had drifted apart.",
+      },
+    ],
+  },
+  {
     week: "July 12, 2026",
     features: [],
     fixes: [
