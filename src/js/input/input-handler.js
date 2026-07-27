@@ -12,6 +12,40 @@ const PAUSED_POLL_MS = 50;
 // Right Alt reports location 2; left reports 1, and 0 means the browser did not
 // say, which we treat as left. Both sides share keyCode 18, so this is the only
 // thing separating Open Apple from Closed Apple.
+const ALT_SIDES = ["left", "right"];
+
+// Apple button keycodes as the core understands them: 18 is Open Apple, 91 is
+// Closed Apple.
+const ALT_KEYCODE = { left: 18, right: 91 };
+
+/**
+ * Work out which Alt sides should now be reported as released.
+ *
+ * Browsers do not reliably attribute a keyup to the correct side when both Alt
+ * keys are held — the released key can arrive with the other side's location,
+ * or none at all. Trusting a single keyup therefore clears the wrong Apple
+ * button and leaves the released one latched.
+ *
+ * So rather than toggling one side, every Alt release recomputes what is still
+ * held and releases everything else. Releasing an already-released button is a
+ * no-op in the core, which makes this self-correcting: the next Alt event fixes
+ * any earlier mis-attribution.
+ *
+ * @param {Set<string>} sidesDown        sides currently believed to be held
+ * @param {string} releasedSide          side this keyup reported
+ * @param {boolean} anyAltStillHeld      event.altKey at keyup time
+ * @returns {{held: Set<string>, release: string[]}}
+ */
+export function reconcileAltRelease(sidesDown, releasedSide, anyAltStillHeld) {
+  const held = new Set(sidesDown);
+  held.delete(releasedSide);
+
+  // altKey false means no Alt remains down at all, whatever we thought.
+  if (!anyAltStillHeld) held.clear();
+
+  return { held, release: ALT_SIDES.filter((side) => !held.has(side)) };
+}
+
 export function isRightAlt(event) {
   return event.location === 2;
 }
@@ -32,6 +66,7 @@ export class InputHandler {
     this.pasteTimer = null;
     this.pasteSpeedUp = false; // whether we've set a speed multiplier for paste
     this.pasteMultiplier = 1;  // boost the current queue asked for
+    this.altSidesDown = new Set(); // which Alt keys we believe are held
     this.savedSpeedMultiplier = 1; // speed before paste started
 
     // MessageChannel for zero-delay batch scheduling (avoids setTimeout's ~4ms minimum)
@@ -103,6 +138,10 @@ export class InputHandler {
       }
     });
 
+    // A key held while switching away never delivers its keyup, which would
+    // otherwise leave an Apple button latched until it was pressed again.
+    window.addEventListener("blur", () => this.releaseAllAltButtons());
+
     // Paste event listener
     document.addEventListener("paste", (e) => {
       if (
@@ -143,8 +182,10 @@ export class InputHandler {
       // would interfere with typing accented characters.
       if (!ctrl && !meta) event.preventDefault();
 
+      const side = isRightAlt(event) ? "right" : "left";
+      this.altSidesDown.add(side);
       this.wasmModule._handleRawKeyDown(
-        isRightAlt(event) ? 91 : 18,
+        ALT_KEYCODE[side],
         shift, ctrl, alt, meta, capsLock,
       );
       return;
@@ -176,6 +217,14 @@ export class InputHandler {
     this.wasmModule._handleRawKeyDown(keyCode, shift, ctrl, alt, meta, capsLock);
   }
 
+  /** Drop both Apple buttons and forget which Alt keys we thought were held. */
+  releaseAllAltButtons() {
+    this.altSidesDown.clear();
+    for (const side of ALT_SIDES) {
+      this.wasmModule._handleRawKeyUp(ALT_KEYCODE[side], false, false, false, false);
+    }
+  }
+
   handleKeyUp(event) {
     const keyCode = event.keyCode || event.which;
 
@@ -185,12 +234,19 @@ export class InputHandler {
     const alt = event.altKey;
     const meta = event.metaKey;
 
-    // Release joystick buttons — mirrors the keydown mapping above.
+    // Release joystick buttons. Both sides are reconciled rather than toggling
+    // the one this event named — see reconcileAltRelease.
     if (keyCode === 18) {
-      this.wasmModule._handleRawKeyUp(
-        isRightAlt(event) ? 91 : 18,
-        shift, ctrl, alt, meta,
+      const { held, release } = reconcileAltRelease(
+        this.altSidesDown,
+        isRightAlt(event) ? "right" : "left",
+        alt,
       );
+      this.altSidesDown = held;
+
+      for (const side of release) {
+        this.wasmModule._handleRawKeyUp(ALT_KEYCODE[side], shift, ctrl, alt, meta);
+      }
       return;
     }
     // Win / Context Menu → ignore release
