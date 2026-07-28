@@ -14,6 +14,7 @@ A cycle-accurate Apple //e Enhanced emulator running in the browser using WebAss
 - **Expansion cards** — Mockingboard sound card, Thunderclock Plus, Apple Mouse Interface Card, SmartPort hard drive, Super Serial Card, Parallel Card (Centronics), Microsoft Z-80 SoftCard, No-Slot Clock (DS1215)
 - **Virtual dot-matrix printer** — ImageWriter II (colour), ImageWriter I, Epson FX-80, and Apple DMP with period-correct fonts, sounds, and PNG/PDF export
 - **File explorer** — Browse DOS 3.3 and ProDOS disk contents with BASIC detokenizer and disassembler
+- **Shareable links** — Pass a disk image URL in the address (`?disk=`) to open the emulator with it already loaded
 - **Save states** — Autosave slot plus 5 manual save slots, stored in IndexedDB
 - **Built-in debugger** — CPU debugger, memory browser, heat map, soft switch monitor, BASIC conditional breakpoints, and more
 - **Light/Dark/System themes** — Switchable colour scheme with Apple rainbow logo accent palette
