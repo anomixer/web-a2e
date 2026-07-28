@@ -149,6 +149,34 @@ export function parseMediaParams(search, base) {
 }
 
 /**
+ * Does this look like a path on someone's own machine rather than a web URL?
+ *
+ * A pasted `/Users/me/Downloads/x.dsk` resolves as a relative URL and the dev
+ * server answers with its own index.html, so the failure surfaces as a corrupt
+ * disk image rather than as the mistake it is. Detecting the shape lets the
+ * error say what actually went wrong. This only ever adds an explanation to a
+ * fetch that already failed, so a site genuinely serving files from such a path
+ * is not blocked by it.
+ *
+ * @param {string} url - Absolute URL, already resolved
+ * @returns {boolean}
+ */
+export function looksLikeLocalPath(url) {
+  let pathname;
+  try {
+    ({ pathname } = new URL(url));
+  } catch {
+    return false;
+  }
+
+  return (
+    /^\/(Users|home|root|mnt|media|var|tmp)\//i.test(pathname) ||
+    /^\/[A-Za-z]:/.test(pathname) || // Windows drive letter, e.g. C:\disks
+    pathname.includes("\\")
+  );
+}
+
+/**
  * @param {{floppies: Array, hardDrives: Array}} parsed
  * @returns {boolean} True when the URL asks for any media at all
  */

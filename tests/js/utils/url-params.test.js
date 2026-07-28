@@ -11,6 +11,7 @@ import {
   resolveMediaUrl,
   filenameFromUrl,
   hasMediaParams,
+  looksLikeLocalPath,
 } from "../../../src/js/utils/url-params.js";
 
 const BASE = "https://emulator.example/index.html";
@@ -74,6 +75,25 @@ describe("filenameFromUrl", () => {
 
   it("strips any path from the override", () => {
     expect(filenameFromUrl("https://host/x", "../../etc/demo.dsk")).toBe("demo.dsk");
+  });
+});
+
+describe("looksLikeLocalPath", () => {
+  // These resolve as relative URLs and the dev server answers with its own
+  // index.html, so without this the failure reads as a corrupt disk image.
+  it.each([
+    ["/Users/me/Downloads/demo.dsk"],
+    ["/home/me/demo.dsk"],
+    ["/root/demo.dsk"],
+    ["/tmp/demo.dsk"],
+    ["/C:/disks/demo.dsk"],
+  ])("recognises %s as a local path", (path) => {
+    expect(looksLikeLocalPath(new URL(path, BASE).href)).toBe(true);
+  });
+
+  it("leaves ordinary web paths alone", () => {
+    expect(looksLikeLocalPath("https://emulator.example/disks/demo.dsk")).toBe(false);
+    expect(looksLikeLocalPath("https://host/games/a.dsk")).toBe(false);
   });
 });
 

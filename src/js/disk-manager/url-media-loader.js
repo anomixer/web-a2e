@@ -8,6 +8,7 @@
 import {
   parseMediaParams,
   hasMediaParams,
+  looksLikeLocalPath,
   MAX_FLOPPY_BYTES,
   MAX_HARD_DRIVE_BYTES,
 } from "../utils/url-params.js";
@@ -67,7 +68,36 @@ async function fetchImage(url, maxBytes) {
     throw new Error(`image is too large (${Math.round(data.length / 1048576)}MB)`);
   }
 
+  // A wrong path usually still returns 200, because servers answer with their
+  // own page rather than a 404 — this app's dev server included. Without this
+  // check the HTML reaches the core and is reported as an unreadable disk
+  // image, which sends the reader looking in entirely the wrong place.
+  const contentType = (response.headers.get("content-type") || "").toLowerCase();
+  const startsAsHtml = /^\s*<(!doctype|html)/i.test(
+    String.fromCharCode(...data.slice(0, 64)),
+  );
+  if (contentType.startsWith("text/html") || startsAsHtml) {
+    throw new Error(describeHtmlResponse(url));
+  }
+
   return data;
+}
+
+/**
+ * Explain a web page arriving where a disk image was expected.
+ *
+ * @param {string} url - The URL that was fetched
+ * @returns {string}
+ */
+function describeHtmlResponse(url) {
+  if (looksLikeLocalPath(url)) {
+    return (
+      "that looks like a file on your own computer. A web page cannot read " +
+      "local files — use the Insert button or drag the file onto a drive. " +
+      "URL parameters need an address the browser can fetch."
+    );
+  }
+  return "the server returned a web page, not a disk image — check the address";
 }
 
 /**

@@ -148,7 +148,15 @@ export class DiskManager {
         this.setDiskName(driveNum, name);
         if (this.onDiskLoaded) this.onDiskLoaded(driveNum, name);
       },
-      onError: (error) => showToast(error, "error"),
+      // loadDiskFromData's own message says "restore", which belongs to the
+      // session-restore path it was written for and misdescribes what the
+      // reader just did. The data arrived intact and the core refused it, so
+      // say that instead.
+      onError: () =>
+        showToast(
+          `${filename} is not a disk image the emulator can read`,
+          "error",
+        ),
     });
     return inserted;
   }

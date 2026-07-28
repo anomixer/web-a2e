@@ -528,6 +528,7 @@ export class DocumentationWindow extends BaseWindow {
           <li><code>?name=</code> &mdash; the filename to use when the URL has none, e.g. a download link ending in <code>?id=…</code>. Needed for <code>.nib</code> and <code>.2mg</code>, which cannot be identified from their contents</li>
         </ul>
         <p>Example: <code>?disk=https://example.com/demo.dsk</code></p>
+        <p>A path on your own machine, such as <code>/Users/you/Downloads/demo.dsk</code>, will not work &mdash; a web page cannot read local files. Use <strong>Insert</strong> or drag the file onto a drive for those.</p>
         <p>Disks loaded this way are <strong>not</strong> saved to your browser storage or your Recent list, so a link someone sends you never replaces the disks in your own drives &mdash; open the plain address again and everything is back as it was. Autosave pauses for the session for the same reason.</p>
 
         <div class="info-box tip">

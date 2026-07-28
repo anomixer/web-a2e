@@ -150,6 +150,8 @@ https://your-emulator/?disk=https://example.com/demo.dsk
 
 Relative paths work too, for images hosted alongside the emulator: `?disk=/disks/demo.dsk`
 
+A path on your own machine (`/Users/you/Downloads/demo.dsk`) will not work — a web page cannot read local files. Use **Insert** or drag the file onto a drive for those.
+
 Notes:
 - Disks loaded this way are **not** written to browser storage or the Recent list, and autosave pauses for the session. A link someone shares can't replace the disks in your own drives — reopen the plain address and your session is intact.
 - **The host must send `Access-Control-Allow-Origin`.** This is the main practical limit, and it is decided by the host, not the emulator — a browser cannot read a file the server declines to share, even though `curl` downloads it fine.
