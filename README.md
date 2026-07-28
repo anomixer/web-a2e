@@ -133,6 +133,29 @@ Each drive supports:
 
 Drag and drop disk files directly onto drives. Drive seek and motor sounds can be toggled on or off.
 
+### Sharing a Link
+
+A disk image URL can be passed in the address so a link opens with the disk already in the drive:
+
+| Parameter | Target |
+| --------- | ------ |
+| `?disk=` / `?disk1=` | Drive 1 |
+| `?disk2=` | Drive 2 |
+| `?hd=` / `?hd2=` | SmartPort devices 1 and 2 |
+| `?name=` | Filename to use when the URL has none (e.g. `download?id=…`) |
+
+```
+https://your-emulator/?disk=https://example.com/demo.dsk
+```
+
+Relative paths work too, for images hosted alongside the emulator: `?disk=/disks/demo.dsk`
+
+Notes:
+- Disks loaded this way are **not** written to browser storage or the Recent list, and autosave pauses for the session. A link someone shares can't replace the disks in your own drives — reopen the plain address and your session is intact.
+- The host must send CORS headers (`Access-Control-Allow-Origin`). Most public file hosts do; an ordinary web server usually does not.
+- `?name=` is required for `.nib` and `.2mg` images behind extensionless URLs, since those formats can't be identified from their contents.
+- The browser will not start audio without a user gesture, and the emulator's timing is driven by the audio clock, so the visitor still clicks Power once to boot.
+
 ### File Explorer
 
 Browse the contents of inserted disks:

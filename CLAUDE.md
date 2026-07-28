@@ -95,7 +95,7 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 - `worker/` - Web Worker infrastructure for WASM isolation (see Worker Architecture below)
 - `audio/` - Web Audio API driver and AudioWorklet
 - `display/` - WebGL renderer, CRT shader effects, display settings, screen window
-- `disk-manager/` - Disk drive UI, SmartPort hard drives, persistence, surface rendering, drive sounds
+- `disk-manager/` - Disk drive UI, SmartPort hard drives, persistence, surface rendering, drive sounds, URL-parameter media loading
 - `file-explorer/` - DOS 3.3 and ProDOS disk browser with disassembler
 - `debug/` - Debug window implementations (see Debugging section)
 - `help/` - Documentation and release notes windows
@@ -111,6 +111,17 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 Light, dark, and system-follow themes controlled by `ThemeManager` (`src/js/ui/theme-manager.js`). Sets `data-theme` attribute on `<html>` for CSS variable switching. All accent and syntax highlighting colours are derived from the six-stripe Apple rainbow logo palette (Green `#61BB46`, Yellow `#FDB827`, Orange `#F5821F`, Red `#E03A3E`, Purple `#963D97`, Blue `#009DDC`), with brightness adjusted per theme for contrast. Speaker, Mockingboard, and disk drive sound volumes are all wired to a single main volume slider with a unified mute toggle.
 
 Control sytles, sizes and layout must be consistent across the entire app.
+
+### URL Media Parameters
+
+`?disk=`, `?disk1=`, `?disk2=`, `?hd=`, `?hd2=` and `?name=` let a link open with images already inserted. Two modules:
+
+- `src/js/utils/url-params.js` — pure parsing and URL validation (http/https only; relative paths resolve against the page). Unit-tested in `tests/js/utils/url-params.test.js`.
+- `src/js/disk-manager/url-media-loader.js` — fetches (`credentials: "omit"`, size-capped) and inserts.
+
+`main.js` parses the URL *before* `DiskManager.init()` / `HardDriveManager.init()` and populates `urlOwnedDrives` / `urlOwnedDevices`, which those managers use to skip restoring persisted images into units a link is about to claim — otherwise the two loads race.
+
+Loads are transient: `DiskManager.loadDiskFromUrlData()` deliberately skips `saveDiskToStorage`/`addToRecentDisks`, and `StateManager.suspendAutoSave()` is called for the session so the periodic autosave cannot persist the URL disk by the back door. The stored autosave preference is untouched.
 
 ### Worker Architecture
 

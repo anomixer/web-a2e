@@ -65,6 +65,23 @@ export class StateManager {
   }
 
   /**
+   * Turn autosave off for this session only, leaving the stored preference
+   * alone so it comes back on the next visit.
+   *
+   * The toggle is unticked to match, otherwise the System menu would claim
+   * autosave is on while nothing is being written.
+   *
+   * @param {string} reason - Logged so the silence is explainable
+   */
+  suspendAutoSave(reason) {
+    if (!this.autoSaveEnabled) return;
+    this.autoSaveEnabled = false;
+    const toggle = document.getElementById("autosave-toggle");
+    if (toggle) toggle.checked = false;
+    console.log(`Autosave suspended for this session: ${reason}`);
+  }
+
+  /**
    * Set up auto-save functionality
    */
   setupAutoSave() {
