@@ -259,7 +259,7 @@ The MMU supports pluggable expansion cards matching real Apple IIe hardware. Car
 | 4    | $C0C0-$C0CF | $C400-$C4FF | Mockingboard                |
 | 5    | $C0D0-$C0DF | $C500-$C5FF | Thunderclock                |
 | 6    | $C0E0-$C0EF | $C600-$C6FF | Disk II                     |
-| 7    | $C0F0-$C0FF | $C700-$C7FF | Empty                       |
+| 7    | $C0F0-$C0FF | $C700-$C7FF | SmartPort                   |
 
 ### Card Interface Methods
 
