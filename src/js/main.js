@@ -42,6 +42,7 @@ import { DiskManager } from "./disk-manager/index.js";
 import { DiskDrivesWindow } from "./disk-manager/disk-drives-window.js";
 import { HardDriveManager } from "./disk-manager/hard-drive-manager.js";
 import { HardDriveWindow } from "./disk-manager/hard-drive-window.js";
+import { readUrlMedia, loadUrlMedia } from "./disk-manager/url-media-loader.js";
 import { FileExplorerWindow } from "./file-explorer/index.js";
 import { DisplaySettingsWindow, ScreenWindow } from "./display/index.js";
 import { DocumentationWindow, ReleaseNotesWindow } from "./help/index.js";
@@ -162,8 +163,16 @@ class AppleIIeEmulator {
       diskDrivesWindow.create();
       this.windowManager.register(diskDrivesWindow);
 
+      // Read any ?disk=/?hd= parameters before the managers restore their
+      // persisted images, so the units a link claims are left alone rather than
+      // being loaded and then immediately replaced.
+      this.urlMedia = readUrlMedia(window.location);
+
       // Set up disk manager (must be after disk drives window is created)
       this.diskManager = new DiskManager(this.wasmModule);
+      this.diskManager.urlOwnedDrives = new Set(
+        this.urlMedia.floppies.map((f) => f.unit),
+      );
       this.diskManager.init();
       this.diskManager.onDiskLoaded = () => {
         this.reminderController?.dismissBasicReminder();
@@ -178,6 +187,9 @@ class AppleIIeEmulator {
 
       this.hardDriveManager = new HardDriveManager(this.wasmModule);
       this.hardDriveManager.fileExplorer = this.fileExplorer;
+      this.hardDriveManager.urlOwnedDevices = new Set(
+        this.urlMedia.hardDrives.map((h) => h.unit),
+      );
       this.hardDriveManager.init();
 
 
@@ -473,6 +485,10 @@ class AppleIIeEmulator {
       // Start render loop
       this.startRenderLoop();
 
+      // Fetch anything the URL asked for. Done last so a slow or dead host
+      // delays only the disks, not the rest of the UI coming up.
+      await this.loadUrlMedia();
+
       this.showLoading(false);
       this.reminderController.showPowerReminder(true);
 
@@ -481,6 +497,30 @@ class AppleIIeEmulator {
       console.error("Failed to initialize emulator:", error);
       this.showLoading(false);
       showToast("Failed to initialize emulator: " + error.message, "error");
+    }
+  }
+
+  /**
+   * Fetch and insert the disk images named by URL parameters.
+   *
+   * These loads are transient by design (see DiskManager.loadDiskFromUrlData).
+   * Autosave is switched off for the session once one lands, because otherwise
+   * the periodic save would fold a stranger's disk into the visitor's own
+   * autosave slot — persisting through the back door what the drives went out
+   * of their way not to persist. The stored preference is left untouched, so
+   * autosave returns to normal on the next plain visit.
+   */
+  async loadUrlMedia() {
+    if (!this.urlMedia) return;
+
+    const loaded = await loadUrlMedia({
+      media: this.urlMedia,
+      diskManager: this.diskManager,
+      hardDriveManager: this.hardDriveManager,
+    });
+
+    if (loaded > 0) {
+      this.stateManager?.suspendAutoSave("disks were loaded from the URL");
     }
   }
 

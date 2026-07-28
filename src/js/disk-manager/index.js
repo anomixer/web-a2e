@@ -69,6 +69,9 @@ export class DiskManager {
     this.wasmModule = wasmModule;
     this.drives = [createDriveState(), createDriveState()];
 
+    /** @type {Set<number>} Drives a URL parameter will fill; skipped on restore */
+    this.urlOwnedDrives = new Set();
+
     // Save modal state
     this.pendingEjectDrive = null;
     this.saveModal = null;
@@ -121,10 +124,51 @@ export class DiskManager {
   }
 
   /**
+   * Insert a disk fetched from a URL parameter, without persisting it.
+   *
+   * Deliberately skips saveDiskToStorage/addToRecentDisks: a link someone else
+   * shared should not overwrite the disk this visitor had in the drive, nor
+   * push itself into their recents.
+   *
+   * @param {number} driveNum - Drive number (0 or 1)
+   * @param {string} filename - Display name for the disk
+   * @param {Uint8Array} data - The disk image data
+   * @returns {Promise<boolean>} True if the image was accepted
+   */
+  async loadDiskFromUrlData(driveNum, filename, data) {
+    let inserted = false;
+    await loadDiskFromData({
+      wasmModule: this.wasmModule,
+      drive: this.drives[driveNum],
+      driveNum,
+      filename,
+      data,
+      onSuccess: (name) => {
+        inserted = true;
+        this.setDiskName(driveNum, name);
+        if (this.onDiskLoaded) this.onDiskLoaded(driveNum, name);
+      },
+      // loadDiskFromData's own message says "restore", which belongs to the
+      // session-restore path it was written for and misdescribes what the
+      // reader just did. The data arrived intact and the core refused it, so
+      // say that instead.
+      onError: () =>
+        showToast(
+          `${filename} is not a disk image the emulator can read`,
+          "error",
+        ),
+    });
+    return inserted;
+  }
+
+  /**
    * Restore disks from IndexedDB that were inserted in a previous session
    */
   async restoreDisks() {
     for (let driveNum = 0; driveNum < 2; driveNum++) {
+      // A URL parameter is about to fill this drive; restoring first would just
+      // be overwritten, and the two loads would race.
+      if (this.urlOwnedDrives?.has(driveNum)) continue;
       try {
         const diskData = await loadDiskFromStorage(driveNum);
         if (diskData) {

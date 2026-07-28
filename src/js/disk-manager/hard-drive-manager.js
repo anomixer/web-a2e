@@ -55,6 +55,9 @@ export class HardDriveManager {
     this.canvas = null;
     this.activeDropdown = null;
     this.fileExplorer = null;
+
+    /** @type {Set<number>} Devices a URL parameter will fill; skipped on restore */
+    this.urlOwnedDevices = new Set();
   }
 
   init() {
@@ -297,6 +300,8 @@ export class HardDriveManager {
 
   async restoreImages() {
     for (let deviceNum = 0; deviceNum < 2; deviceNum++) {
+      // A URL parameter is about to fill this device; see DiskManager.restoreDisks
+      if (this.urlOwnedDevices?.has(deviceNum)) continue;
       try {
         const imageData = await loadImageFromStorage(deviceNum);
         if (imageData) {
