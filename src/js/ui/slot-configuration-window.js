@@ -58,13 +58,13 @@ export class SlotConfigurationWindow extends BaseWindow {
         slot: 1,
         label: "Slot 1",
         available: ["parallel", "ssc", "softcard"],
-        note: "Printer / Serial",
+        note: "Printer",
       },
       {
         slot: 2,
         label: "Slot 2",
         available: ["parallel", "ssc", "smartport", "softcard"],
-        note: "Serial / Modem",
+        note: "Modem / Serial",
       },
       {
         slot: 3,
@@ -77,20 +77,20 @@ export class SlotConfigurationWindow extends BaseWindow {
         slot: 4,
         label: "Slot 4",
         available: ["mockingboard", "mouse", "smartport", "softcard"],
-        note: "Sound / Mouse",
+        note: "Mouse / Sound",
       },
       {
         slot: 5,
         label: "Slot 5",
         available: ["thunderclock", "smartport", "softcard"],
-        note: "Clock / Drive",
+        note: "3.5\" Drives / Clock",
       },
-      { slot: 6, label: "Slot 6", available: ["disk2"], note: "Disk drives" },
+      { slot: 6, label: "Slot 6", available: ["disk2"], note: "5.25\" Drives" },
       {
         slot: 7,
         label: "Slot 7",
         available: ["thunderclock", "smartport", "softcard"],
-        note: "RAM / Clock",
+        note: "Hard Disk / Clock",
       },
     ];
 
@@ -553,7 +553,7 @@ export class SlotConfigurationWindow extends BaseWindow {
 
   async applyInitialSettings() {
     const saved = this.loadSettingsFromStorage();
-    const config = saved || { 4: "mockingboard", 5: "smartport", 6: "disk2", 7: "thunderclock" };
+    const config = saved || { 4: "mockingboard", 5: "thunderclock", 6: "disk2", 7: "smartport" };
     if (this.wasmModule && this.wasmModule._setSlotCard) {
       for (const [slot, cardId] of Object.entries(config)) {
         const slotNum = parseInt(slot, 10);

@@ -171,7 +171,7 @@ Cards are configured via **View > Expansion Slots**.
 | 4 | Mockingboard | Mouse Card, SmartPort, Z-80 SoftCard, Empty |
 | 5 | Thunderclock Plus | SmartPort, Z-80 SoftCard, Empty |
 | 6 | Disk II | Empty |
-| 7 | Empty | Thunderclock Plus, SmartPort, Z-80 SoftCard |
+| 7 | SmartPort | Thunderclock Plus, Z-80 SoftCard, Empty |
 
 **Mockingboard** — Dual AY-3-8910 sound chips with VIA 6522 timers. Stereo output with per-channel mute controls. All audio (speaker, Mockingboard, drive sounds) is unified under a single volume slider and mute toggle.
 
