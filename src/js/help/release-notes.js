@@ -11,6 +11,29 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "July 28, 2026",
+    features: [
+      {
+        title: "Share a link that opens with a disk already loaded",
+        description:
+          "Add a disk image URL to the address and the emulator starts with it in the drive: ?disk= for drive 1, ?disk2= for drive 2, ?hd= and ?hd2= for the SmartPort devices. Images hosted alongside the emulator can use a plain path, such as ?disk=/disks/demo.dsk. Disks loaded this way are not saved to your browser storage or your Recent list, and autosave pauses for the session, so a link someone sends you never replaces the disks in your own drives — open the plain address again and everything is as you left it. The file's host has to allow other sites to read it, which GitHub, Google Drive and Dropbox do but most classic archive mirrors do not; where a URL has no filename, ?name= supplies one, which .nib and .2mg images need.",
+      },
+    ],
+    fixes: [],
+    improvements: [
+      {
+        title: "Expansion slot hints follow Apple's slot assignments",
+        description:
+          "The hints beside each slot now match Apple's documented conventions — slot 1 printer, slot 2 modem, slot 4 mouse, slot 5 3.5\" drives, slot 7 hard disk — instead of listing secondary uses first. Slot 7 no longer suggests a RAM card, which the emulator does not offer.",
+      },
+      {
+        title: "SmartPort now starts in slot 7 and Thunderclock in slot 5",
+        description:
+          "Matches the conventional layout, where slot 7 is the hard disk and boot slot. Only affects a first visit; a slot layout you have already applied is left alone.",
+      },
+    ],
+  },
+  {
     week: "July 27, 2026",
     features: [],
     fixes: [
