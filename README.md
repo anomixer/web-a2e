@@ -152,7 +152,14 @@ Relative paths work too, for images hosted alongside the emulator: `?disk=/disks
 
 Notes:
 - Disks loaded this way are **not** written to browser storage or the Recent list, and autosave pauses for the session. A link someone shares can't replace the disks in your own drives — reopen the plain address and your session is intact.
-- The host must send CORS headers (`Access-Control-Allow-Origin`). Most public file hosts do; an ordinary web server usually does not.
+- **The host must send `Access-Control-Allow-Origin`.** This is the main practical limit, and it is decided by the host, not the emulator — a browser cannot read a file the server declines to share, even though `curl` downloads it fine.
+
+  | Works | Doesn't |
+  | ----- | ------- |
+  | GitHub raw / Pages, Google Drive, Dropbox | Asimov (`asimov.applefritter.com`) |
+  | Anything hosted alongside the emulator (`?disk=/disks/x.dsk`) | Most classic archive mirrors and plain Apache/nginx sites |
+
+  To share something from an archive that refuses, re-host the image somewhere CORS-friendly and link that.
 - `?name=` is required for `.nib` and `.2mg` images behind extensionless URLs, since those formats can't be identified from their contents.
 - The browser will not start audio without a user gesture, and the emulator's timing is driven by the audio clock, so the visitor still clicks Power once to boot.
 

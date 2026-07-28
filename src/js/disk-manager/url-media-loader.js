@@ -27,11 +27,28 @@ import { showToast } from "../ui/toast.js";
  * @returns {Promise<Uint8Array>}
  */
 async function fetchImage(url, maxBytes) {
-  const response = await fetch(url, {
-    credentials: "omit",
-    mode: "cors",
-    redirect: "follow",
-  });
+  let response;
+  try {
+    response = await fetch(url, {
+      credentials: "omit",
+      mode: "cors",
+      redirect: "follow",
+    });
+  } catch (error) {
+    // fetch rejects with an opaque TypeError for both a missing host and a
+    // CORS refusal, and the browser deliberately withholds which. In practice
+    // it is nearly always CORS — plenty of Apple II archives serve the file
+    // happily to curl but send no Access-Control-Allow-Origin — so name that
+    // first rather than making the reader guess from "Failed to fetch".
+    if (error instanceof TypeError) {
+      throw new Error(
+        `${new URL(url).host} refused the request. It most likely does not ` +
+          `allow other sites to read its files (no CORS headers); the host ` +
+          `being down would look the same.`,
+      );
+    }
+    throw error;
+  }
 
   if (!response.ok) {
     throw new Error(`server returned ${response.status} ${response.statusText}`);

@@ -535,7 +535,8 @@ export class DocumentationWindow extends BaseWindow {
         </div>
 
         <div class="info-box">
-          <p><strong>Note:</strong> The file's host must allow cross-origin requests (send an <code>Access-Control-Allow-Origin</code> header). Most public file hosts do; an ordinary web server usually does not, and the browser will block the fetch with no way for the emulator to work around it.</p>
+          <p><strong>Note:</strong> The file's host must allow other sites to read it (an <code>Access-Control-Allow-Origin</code> header). This is the host's decision, not the emulator's &mdash; a browser cannot fetch a file the server declines to share, even one that downloads perfectly in another tab.</p>
+          <p>GitHub, Google Drive, Dropbox and images hosted alongside the emulator work. Most classic archive mirrors &mdash; Asimov among them &mdash; do not. Re-host the image somewhere that allows it and link that instead.</p>
         </div>
       </section>
 
