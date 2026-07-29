@@ -112,6 +112,29 @@
     color: var(--text-muted);
 }
 
+/* The scroll container fills the leftover height with flex: 1, which needs a
+   flex parent to grow into. .debug-window-content is display:block by default,
+   so the container had NO definite height and sized itself to its own content
+   instead — and since recalcVisibleRows() derives the row count from that
+   height, the two fed each other: render N rows, container becomes N rows tall,
+   measure N rows. It latched on the first measurement (4px of scrollbar padding
+   with an empty view, floored to one row) and the window showed a single row of
+   memory forever.
+   The docking layout already made this element a flex column, which is why the
+   bug only showed for a floating window. Same fix as .documentation-window. */
+#memory-browser .debug-window-content {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Toolbar, region label and column header keep their natural height so the
+   scroll container gets everything that is left. */
+#memory-browser .mem-browser-toolbar,
+#memory-browser .mem-browser-region,
+#memory-browser .mem-browser-header {
+    flex-shrink: 0;
+}
+
 .mem-browser-scroll-container {
     display: flex;
     flex: 1;
