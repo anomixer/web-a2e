@@ -73,20 +73,19 @@
     --selection-highlight: rgba(24, 171, 234, 0.35);
     --selection-copy-flash: rgba(110, 201, 79, 0.5);
 
-    /* Glassmorphism / overlay semantic tokens */
-    /* Every frosted surface reads its blur from these two tokens rather than
-       hard-coding one, so transparency can be switched off in a single place.
-       This matters more than it looks: these panels float over the emulator
-       canvas, which repaints 60 times a second, so the compositor must re-run
-       the blur over the full area of every open window on every frame whether
-       or not the window's own content changed. Blur cost rises faster than
-       linearly with radius, which is why the panel radius is modest. */
-    --glass-backdrop: blur(6px);
-    --glass-backdrop-strong: blur(12px);
-    --glass-bg: rgba(13, 17, 23, 0.85);
-    --glass-bg-solid: rgba(13, 17, 23, 0.95);
+    /* Window and panel surfaces.
+       These are fully opaque and carry no backdrop blur. They used to be
+       translucent with a backdrop-filter, which looked good but was expensive
+       in a way that never showed up in a JS profile: the panels sit over the
+       emulator canvas, which repaints 60 times a second, so the compositor had
+       to re-run the blur across the full area of every open window on every
+       frame — whether or not that window's own content had changed. Opaque
+       rects cost nothing to composite.
+       The names are kept because ~90 rules reference them. */
+    --glass-bg: rgb(13, 17, 23);
+    --glass-bg-solid: rgb(13, 17, 23);
     --menu-bg-opaque: rgb(18, 23, 30);
-    --glass-bg-header: rgba(33, 38, 45, 0.6);
+    --glass-bg-header: rgb(33, 38, 45);
     --glass-border: rgba(48, 54, 61, 0.6);
     --glass-border-light: rgba(48, 54, 61, 0.4);
     --glass-border-subtle: rgba(48, 54, 61, 0.3);
@@ -277,11 +276,11 @@ html[data-theme="light"] {
     --selection-highlight: rgba(0, 111, 163, 0.2);
     --selection-copy-flash: rgba(58, 125, 41, 0.3);
 
-    /* Glassmorphism */
-    --glass-bg: rgba(255, 255, 255, 0.92);
-    --glass-bg-solid: rgba(255, 255, 255, 0.97);
+    /* Window and panel surfaces — opaque, see the dark theme note above */
+    --glass-bg: rgb(255, 255, 255);
+    --glass-bg-solid: rgb(255, 255, 255);
     --menu-bg-opaque: rgb(255, 255, 255);
-    --glass-bg-header: rgba(246, 248, 250, 0.8);
+    --glass-bg-header: rgb(246, 248, 250);
     --glass-border: rgba(208, 215, 222, 0.8);
     --glass-border-light: rgba(208, 215, 222, 0.6);
     --glass-border-subtle: rgba(208, 215, 222, 0.4);
@@ -433,31 +432,6 @@ html[data-theme="light"] {
     --mem-separator: #afb8c1;
     --mem-scrollbar-thumb: rgba(0, 111, 163, 0.3);
     --mem-scrollbar-thumb-hover: rgba(0, 111, 163, 0.5);
-}
-
-/* ─── Reduced transparency ───────────────────────────────────────────────
-   Turns every frosted panel opaque and drops the backdrop filters entirely.
-   This is the single biggest GPU saving available on a busy desktop: with the
-   filters gone the compositor stops re-blurring each floating window over the
-   emulator canvas 60 times a second, and the panels become cheap opaque rects.
-   Honoured automatically when the OS asks for reduced transparency, and
-   available as an explicit toggle in Display Settings. */
-html[data-reduce-transparency="true"] {
-    --glass-backdrop: none;
-    --glass-backdrop-strong: none;
-    --glass-bg: var(--glass-bg-solid);
-    --glass-bg-header: var(--bg-medium);
-    --menu-bg-opaque: var(--bg-medium);
-}
-
-@media (prefers-reduced-transparency: reduce) {
-    html:not([data-reduce-transparency="false"]) {
-        --glass-backdrop: none;
-        --glass-backdrop-strong: none;
-        --glass-bg: var(--glass-bg-solid);
-        --glass-bg-header: var(--bg-medium);
-        --menu-bg-opaque: var(--bg-medium);
-    }
 }
 
 /* Utility classes */

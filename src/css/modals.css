@@ -16,7 +16,6 @@
     justify-content: center;
     gap: var(--space-lg);
     z-index: 1000;
-    backdrop-filter: var(--glass-backdrop);
 }
 
 #loading.hidden {
@@ -304,7 +303,6 @@ dialog.modal {
 
 dialog.modal::backdrop {
     background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: var(--glass-backdrop);
 }
 
 /* Legacy div modal support (for backward compatibility) */
@@ -331,7 +329,6 @@ div.modal.hidden {
     right: 0;
     bottom: 0;
     background: rgba(0, 0, 0, 0.7);
-    backdrop-filter: var(--glass-backdrop);
 }
 
 .modal-content {
@@ -478,8 +475,6 @@ div.modal.hidden {
     line-height: 1.4;
     max-width: 420px;
     text-align: center;
-    backdrop-filter: var(--glass-backdrop);
-    -webkit-backdrop-filter: var(--glass-backdrop);
     box-shadow: var(--shadow-lg);
     opacity: 0;
     transform: translateY(-12px);
