@@ -284,8 +284,6 @@
     left: 0;
     min-width: 200px;
     background: var(--menu-bg-opaque);
-    backdrop-filter: var(--glass-backdrop-strong);
-    -webkit-backdrop-filter: var(--glass-backdrop-strong);
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-md);
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);

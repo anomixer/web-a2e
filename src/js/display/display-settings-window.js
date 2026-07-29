@@ -53,9 +53,6 @@ export class DisplaySettingsWindow extends BaseWindow {
       burnIn: 0,
       overscan: 0,
       sharpPixels: false,
-      // Opaque window panels instead of frosted glass. Null means "follow the
-      // OS preference"; true/false is an explicit user override.
-      reduceTransparency: null,
       // Color bleed (vertical inter-scanline blending)
       colorBleed: 0,
       // NTSC fringing (shader-based)
@@ -175,13 +172,6 @@ export class DisplaySettingsWindow extends BaseWindow {
             <span class="toggle-slider"></span>
           </label>
         </div>
-        <div class="setting-row toggle-row">
-          <label title="Make window panels opaque instead of frosted. Frosted panels must be re-blurred over the emulator screen every frame, which is expensive with several windows open.">Reduce Transparency</label>
-          <label class="toggle">
-            <input type="checkbox" id="ds-reduceTransparency" ${this._reduceTransparencyActive() ? "checked" : ""}>
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
       </div>`;
 
     // NTSC Effects sliders (shader-based)
@@ -270,18 +260,6 @@ export class DisplaySettingsWindow extends BaseWindow {
       });
     }
 
-    // Reduce transparency toggle
-    const transparencyToggle = this.contentElement.querySelector(
-      "#ds-reduceTransparency",
-    );
-    if (transparencyToggle) {
-      transparencyToggle.addEventListener("change", (e) => {
-        this.settings.reduceTransparency = e.target.checked;
-        this.applyReduceTransparency();
-        this.saveSettings();
-      });
-    }
-
     // Color Bleed slider (shader-based)
     const colorBleedInput =
       this.contentElement.querySelector("#ds-colorBleed");
@@ -324,10 +302,6 @@ export class DisplaySettingsWindow extends BaseWindow {
   create() {
     super.create();
     this.loadSettings();
-    // Transparency affects the whole chrome, not just the emulator screen, so
-    // apply it here rather than waiting for applyAllSettings() — the user may
-    // never open this window, and the frosted panels are on screen from boot.
-    this.applyReduceTransparency();
     this.setupContentEventListeners();
     // applyAllSettings() is called by main.js after initialization
   }
@@ -405,15 +379,6 @@ export class DisplaySettingsWindow extends BaseWindow {
       this.renderer.setNearestFilter(this.settings.sharpPixels);
     }
 
-    // Apply reduced transparency
-    const transparencyToggle = this.contentElement.querySelector(
-      "#ds-reduceTransparency",
-    );
-    if (transparencyToggle) {
-      transparencyToggle.checked = this._reduceTransparencyActive();
-    }
-    this.applyReduceTransparency();
-
     // Apply color bleed settings (shader-based)
     {
       const input = this.contentElement.querySelector("#ds-colorBleed");
@@ -432,37 +397,6 @@ export class DisplaySettingsWindow extends BaseWindow {
     this.settings = { ...this.defaults };
     this.applyAllSettings();
     this.saveSettings();
-  }
-
-  /**
-   * Whether frosted panels are currently switched off, taking the OS
-   * preference as the default when the user has not chosen explicitly.
-   */
-  _reduceTransparencyActive() {
-    if (this.settings.reduceTransparency !== null) {
-      return this.settings.reduceTransparency;
-    }
-    return (
-      typeof matchMedia === "function" &&
-      matchMedia("(prefers-reduced-transparency: reduce)").matches
-    );
-  }
-
-  /**
-   * Publish the transparency choice to CSS.
-   *
-   * The attribute is only set when the user has made an explicit choice —
-   * leaving it absent lets the prefers-reduced-transparency media query in
-   * base.css decide, and setting it to "false" is what opts back out of that
-   * query for a user who wants the frosted look despite the OS preference.
-   */
-  applyReduceTransparency() {
-    const choice = this.settings.reduceTransparency;
-    if (choice === null || choice === undefined) {
-      delete document.documentElement.dataset.reduceTransparency;
-    } else {
-      document.documentElement.dataset.reduceTransparency = String(choice);
-    }
   }
 
   saveSettings() {
