@@ -11,6 +11,18 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "July 29, 2026",
+    features: [],
+    fixes: [
+      {
+        title: "The emulator could freeze after loading a saved state",
+        description:
+          "Loading a state left the screen stuck on the restored image with no sound, and nothing typed had any effect until the page was clicked. Restoring used to switch the emulator off and on again, which rebuilds the sound system — and the sound card is what paces the emulator, so when the browser held it back until the next click, the machine sat there doing nothing. A machine that is already on now keeps running through the restore. Loading a state from a file also reported success even when the file could not be read.",
+      },
+    ],
+    improvements: [],
+  },
+  {
     week: "July 28, 2026",
     features: [
       {

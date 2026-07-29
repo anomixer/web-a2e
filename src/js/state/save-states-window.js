@@ -356,7 +356,7 @@ export class SaveStatesWindow extends BaseWindow {
 
   handleLoadFromFile(file) {
     const reader = new FileReader();
-    reader.onload = () => {
+    reader.onload = async () => {
       const data = new Uint8Array(reader.result);
 
       // Validate magic bytes
@@ -370,7 +370,7 @@ export class SaveStatesWindow extends BaseWindow {
         return;
       }
 
-      const ok = this.stateManager.restoreFromFileData(data);
+      const ok = await this.stateManager.restoreFromFileData(data);
       if (ok) {
         this.uiController.showNotification("State loaded from file");
         this.uiController.refocusCanvas();

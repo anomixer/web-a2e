@@ -223,14 +223,21 @@ export class StateManager {
       return false;
     }
 
-    // Power cycle: stop and restart the emulator for a clean slate
-    const wasRunning = this.emulator.isRunning();
-    if (wasRunning) {
-      this.emulator.stop();
+    // No power cycle for a machine that is already on. importState() resets the
+    // core itself before unpacking, so stopping and restarting here would only
+    // rebuild the audio stack — and the AudioWorklet is the emulation clock. A
+    // fresh AudioContext built this far from the click that asked for the
+    // restore comes up suspended in some browsers, and AudioDriver.start() then
+    // waits for the *next* click before it builds a worklet. Nothing requests
+    // samples in the meantime, so the emulator sits there looking frozen.
+    const poweredOnHere = !this.emulator.isRunning();
+    if (poweredOnHere) {
+      await this.emulator.start();
+    } else {
+      // start() would have done this. A paste still feeding keys would type
+      // into the restored machine.
+      this.emulator.inputHandler?.cancelPaste();
     }
-
-    // Start fresh
-    this.emulator.start();
 
     // Copy state data to WASM memory
     const statePtr = await this.wasmModule._malloc(stateData.length);
@@ -261,7 +268,12 @@ export class StateManager {
       }
       return true;
     } else {
-      this.emulator.stop();
+      // Only undo the power-on we did ourselves. A machine that was already
+      // running is left alone: importState() rejects a bad magic or version
+      // before it resets anything, so there is nothing to recover from.
+      if (poweredOnHere) {
+        await this.emulator.stop();
+      }
       return false;
     }
   }

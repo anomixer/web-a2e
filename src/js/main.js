@@ -613,49 +613,57 @@ class AppleIIeEmulator {
     this._renderFrameCount = 0;
     this._cachedIsPaused = false;
 
+    // Every await in here is a Worker round-trip, and a single rejection would
+    // otherwise skip the requestAnimationFrame below and kill the loop for good
+    // — a black, unrecoverable screen from one transient RPC error. Log it and
+    // keep drawing instead.
     const render = async () => {
-      this._renderFrameCount++;
-      this.windowManager.updateAll(this.wasmModule);
+      try {
+        this._renderFrameCount++;
+        this.windowManager.updateAll(this.wasmModule);
 
-      // Throttle disk LED updates to ~15fps (every 4th frame)
-      if (this._renderFrameCount % 4 === 0) {
-        this.diskManager.drivesWindowVisible = this.windowManager.isWindowVisible('disk-drives');
-        this.diskManager.updateLEDs();
-        if (this.hardDriveManager) {
-          this.hardDriveManager.updateLEDs();
+        // Throttle disk LED updates to ~15fps (every 4th frame)
+        if (this._renderFrameCount % 4 === 0) {
+          this.diskManager.drivesWindowVisible = this.windowManager.isWindowVisible('disk-drives');
+          this.diskManager.updateLEDs();
+          if (this.hardDriveManager) {
+            this.hardDriveManager.updateLEDs();
+          }
         }
-      }
 
-      // Poll pause state from Worker (async, cached for this frame)
-      if (this.running) {
-        this._cachedIsPaused = await this.wasmModule._isPaused();
-      }
-      const isPaused = this.running && this._cachedIsPaused;
+        // Poll pause state from Worker (async, cached for this frame)
+        if (this.running) {
+          this._cachedIsPaused = await this.wasmModule._isPaused();
+        }
+        const isPaused = this.running && this._cachedIsPaused;
 
-      // Beam crosshair overlay — only when CPU debugger is open and CPU is paused
-      if (isPaused && this.cpuDebuggerWindow && this.cpuDebuggerWindow.isVisible) {
-        const [scanline, hPos] = await this.wasmModule.batch([
-          ['_getBeamScanline'], ['_getBeamHPos']
-        ]);
-        this.renderer.setParam("beamY", scanline < 192 ? (scanline + 0.5) / 192.0 : -1.0);
-        this.renderer.setParam("beamX", hPos >= 25 ? (hPos - 25) / 40.0 : -1.0);
-      } else {
-        this.renderer.setParam("beamY", -1.0);
-        this.renderer.setParam("beamX", -1.0);
-      }
-
-      if (this.frameReady) {
-        this.frameReady = false;
-        this.renderFrame();
-      } else if (!this.running || isPaused) {
-        if (isPaused) {
-          await this.wasmModule._forceRenderFrame();
-          // After forcing render, the Worker will send a framebuffer via onFrameReady
-          // On next frame we'll pick it up. For now, re-draw with what we have.
-          this.renderFrame();
+        // Beam crosshair overlay — only when CPU debugger is open and CPU is paused
+        if (isPaused && this.cpuDebuggerWindow && this.cpuDebuggerWindow.isVisible) {
+          const [scanline, hPos] = await this.wasmModule.batch([
+            ['_getBeamScanline'], ['_getBeamHPos']
+          ]);
+          this.renderer.setParam("beamY", scanline < 192 ? (scanline + 0.5) / 192.0 : -1.0);
+          this.renderer.setParam("beamX", hPos >= 25 ? (hPos - 25) / 40.0 : -1.0);
         } else {
-          this.renderer.draw();
+          this.renderer.setParam("beamY", -1.0);
+          this.renderer.setParam("beamX", -1.0);
         }
+
+        if (this.frameReady) {
+          this.frameReady = false;
+          this.renderFrame();
+        } else if (!this.running || isPaused) {
+          if (isPaused) {
+            await this.wasmModule._forceRenderFrame();
+            // After forcing render, the Worker will send a framebuffer via onFrameReady
+            // On next frame we'll pick it up. For now, re-draw with what we have.
+            this.renderFrame();
+          } else {
+            this.renderer.draw();
+          }
+        }
+      } catch (error) {
+        console.error("Render loop error:", error);
       }
 
       requestAnimationFrame(render);
