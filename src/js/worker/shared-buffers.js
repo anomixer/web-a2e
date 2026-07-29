@@ -9,6 +9,12 @@
 export const FB_WIDTH = 560;
 export const FB_HEIGHT = 384;
 export const FB_BYTES = FB_WIDTH * FB_HEIGHT * 4; // 860,160 bytes RGBA
+// Two frames are allocated and written alternately: the Worker fills the half
+// the renderer is not reading, so a frame can never be torn by a write landing
+// mid-upload. Which half holds the newest complete frame is published in the
+// control block as CTRL_FRAME_INDEX.
+export const FB_SLOTS = 2;
+export const FB_TOTAL_BYTES = FB_BYTES * FB_SLOTS;
 
 // --- Audio ring buffer (Phase 2) ---
 // Layout: [writePos:i32][readPos:i32][ringData:f32[RING_SIZE]]
@@ -39,6 +45,7 @@ export const CTRL_BP_HIT = 12;
 export const CTRL_BP_ADDR = 13;
 export const CTRL_TOTAL_CYCLES_LO = 14;
 export const CTRL_TOTAL_CYCLES_HI = 15;
+export const CTRL_FRAME_INDEX = 16;                 // which framebuffer half holds the newest frame
 export const CTRL_BLOCK_INTS = 64;                  // 256 bytes
 export const CTRL_BLOCK_BYTES = CTRL_BLOCK_INTS * 4;
 
@@ -63,7 +70,7 @@ export function allocateSharedBuffers() {
   }
   return {
     audio: new SharedArrayBuffer(AUDIO_BUFFER_TOTAL),
-    framebuffer: new SharedArrayBuffer(FB_BYTES),
+    framebuffer: new SharedArrayBuffer(FB_TOTAL_BYTES),
     control: new SharedArrayBuffer(CTRL_BLOCK_BYTES),
   };
 }

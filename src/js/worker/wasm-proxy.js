@@ -14,7 +14,7 @@ import {
   MSG_RPC_RESULT, MSG_RPC_BATCH_RESULT, MSG_RPC_ERROR,
   MSG_READY, MSG_AUDIO_SAMPLES, MSG_FRAME_READY,
   MSG_AUDIO_CONFIG, MSG_FRAMEBUFFER_CONFIG, MSG_REQUEST_SAMPLES,
-  MSG_PRINTER_BYTE,
+  MSG_PRINTER_BYTE, MSG_PAUSE_STATE,
 } from './rpc-protocol.js';
 
 // Functions that don't need return values — fire and forget
@@ -65,6 +65,10 @@ export class WasmProxy {
     this.pendingCalls = new Map(); // id → { resolve, reject }
     this.onAudioSamples = null;   // callback(Float32Array)
     this.onFrameReady = null;     // callback(Uint8Array)
+    // Locally cached pause state, pushed by the Worker on every change. Read
+    // this synchronously instead of awaiting _isPaused() in per-frame code.
+    this.isPaused = false;
+    this.onPauseChanged = null;   // callback(boolean)
     this._ready = false;
     this._readyPromise = null;
     this._readyResolve = null;
@@ -122,7 +126,16 @@ export class WasmProxy {
     this.worker = new Worker(workerPath);
 
     this.worker.onmessage = (event) => this._handleMessage(event.data);
-    this.worker.onerror = (err) => console.error('Worker error:', err);
+    // Log the actual failure, not the bare ErrorEvent — an uncaught throw in
+    // the Worker is otherwise reported as an opaque "ErrorEvent" with no
+    // message, file or line, which is close to useless when debugging.
+    this.worker.onerror = (err) => {
+      console.error(
+        `Worker error: ${err.message || err.type} ` +
+        `(${err.filename || '?'}:${err.lineno || '?'}:${err.colno || '?'})`,
+        err.error || '',
+      );
+    };
 
     // Send init message
     this.worker.postMessage({ type: MSG_INIT, wasmUrl });
@@ -182,6 +195,12 @@ export class WasmProxy {
 
       case MSG_PRINTER_BYTE: {
         if (this.onPrinterByte) this.onPrinterByte(msg.byte);
+        break;
+      }
+
+      case MSG_PAUSE_STATE: {
+        this.isPaused = msg.paused;
+        if (this.onPauseChanged) this.onPauseChanged(msg.paused);
         break;
       }
     }
@@ -248,6 +267,18 @@ export class WasmProxy {
   }
 
   /**
+   * Call a WASM function that returns a char* and get the decoded string back
+   * in one round-trip. The naive form — await the call, then await
+   * UTF8ToString(ptr) — costs two, and the pointer is meaningless on this
+   * thread anyway.
+   * @param {string} fn - WASM function name, e.g. '_disassembleRange'
+   * @returns {Promise<string>}
+   */
+  callString(fn, ...args) {
+    return this._call('__callString', [fn, ...args]);
+  }
+
+  /**
    * Read bytes from WASM heap.
    * @returns {Promise<Uint8Array>}
    */
@@ -257,11 +288,20 @@ export class WasmProxy {
 
   /**
    * Write bytes to WASM heap.
+   *
+   * The payload is copied into a fresh Uint8Array and transferred. Boxing it
+   * into a plain Array first (as this used to) turned a 140KB disk image into
+   * a 140,000-element array of doubles to structured-clone, and whole save
+   * states into several megabytes — a visible hitch on insert and restore.
+   * The copy is deliberate: transferring would detach the caller's buffer.
    * @param {number} ptr - WASM heap pointer
    * @param {Uint8Array|Array} data - Data to write
    */
   heapWrite(ptr, data) {
-    return this._call('__heapWrite', [ptr, Array.from(data)]);
+    const bytes = data instanceof Uint8Array
+      ? new Uint8Array(data)
+      : Uint8Array.from(data);
+    return this.transfer('__heapWrite', [ptr, bytes.buffer], 1);
   }
 
   /**
@@ -274,7 +314,7 @@ export class WasmProxy {
 
   /**
    * Read Uint32 values from WASM heap.
-   * @returns {Promise<Array<number>>}
+   * @returns {Promise<Uint32Array>}
    */
   heapReadU32(ptr, count) {
     return this._call('__heapU32Read', [ptr, count]);
@@ -282,7 +322,7 @@ export class WasmProxy {
 
   /**
    * Read Uint16 values from WASM heap.
-   * @returns {Promise<Array<number>>}
+   * @returns {Promise<Uint16Array>}
    */
   heapReadU16(ptr, count) {
     return this._call('__heapU16Read', [ptr, count]);
@@ -317,10 +357,13 @@ export class WasmProxy {
 
   /**
    * Configure shared framebuffer and control block (Phase 3).
+   * @param {SharedArrayBuffer} sharedFramebuffer - holds FB_SLOTS frames
+   * @param {SharedArrayBuffer} sharedControl - Int32 status block
+   * @param {number} slotBytes - size of one frame within the framebuffer
    */
-  configureSharedBuffers(sharedFramebuffer, sharedControl) {
+  configureSharedBuffers(sharedFramebuffer, sharedControl, slotBytes) {
     this.worker.postMessage(
-      { type: MSG_FRAMEBUFFER_CONFIG, sharedFramebuffer, sharedControl },
+      { type: MSG_FRAMEBUFFER_CONFIG, sharedFramebuffer, sharedControl, slotBytes },
     );
   }
 

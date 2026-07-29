@@ -74,6 +74,15 @@
     --selection-copy-flash: rgba(110, 201, 79, 0.5);
 
     /* Glassmorphism / overlay semantic tokens */
+    /* Every frosted surface reads its blur from these two tokens rather than
+       hard-coding one, so transparency can be switched off in a single place.
+       This matters more than it looks: these panels float over the emulator
+       canvas, which repaints 60 times a second, so the compositor must re-run
+       the blur over the full area of every open window on every frame whether
+       or not the window's own content changed. Blur cost rises faster than
+       linearly with radius, which is why the panel radius is modest. */
+    --glass-backdrop: blur(6px);
+    --glass-backdrop-strong: blur(12px);
     --glass-bg: rgba(13, 17, 23, 0.85);
     --glass-bg-solid: rgba(13, 17, 23, 0.95);
     --menu-bg-opaque: rgb(18, 23, 30);
@@ -424,6 +433,31 @@ html[data-theme="light"] {
     --mem-separator: #afb8c1;
     --mem-scrollbar-thumb: rgba(0, 111, 163, 0.3);
     --mem-scrollbar-thumb-hover: rgba(0, 111, 163, 0.5);
+}
+
+/* ─── Reduced transparency ───────────────────────────────────────────────
+   Turns every frosted panel opaque and drops the backdrop filters entirely.
+   This is the single biggest GPU saving available on a busy desktop: with the
+   filters gone the compositor stops re-blurring each floating window over the
+   emulator canvas 60 times a second, and the panels become cheap opaque rects.
+   Honoured automatically when the OS asks for reduced transparency, and
+   available as an explicit toggle in Display Settings. */
+html[data-reduce-transparency="true"] {
+    --glass-backdrop: none;
+    --glass-backdrop-strong: none;
+    --glass-bg: var(--glass-bg-solid);
+    --glass-bg-header: var(--bg-medium);
+    --menu-bg-opaque: var(--bg-medium);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+    html:not([data-reduce-transparency="false"]) {
+        --glass-backdrop: none;
+        --glass-backdrop-strong: none;
+        --glass-bg: var(--glass-bg-solid);
+        --glass-bg-header: var(--bg-medium);
+        --menu-bg-opaque: var(--bg-medium);
+    }
 }
 
 /* Utility classes */

@@ -412,18 +412,43 @@ export class WebGLRenderer {
   updateTexture(data) {
     const gl = this.gl;
 
+    // Frames normally arrive as a view onto a SharedArrayBuffer and upload
+    // straight from it. Current browsers accept a shared view here, but the
+    // restriction was only lifted relatively recently — so if one refuses,
+    // fall back permanently to a single reusable staging copy rather than
+    // throwing a frame away. The staging buffer is allocated once, so even the
+    // fallback stays allocation-free per frame.
+    if (this._needsTextureStaging) {
+      data = this._stageTextureData(data);
+    }
+
     gl.bindTexture(gl.TEXTURE_2D, this.texture);
-    gl.texSubImage2D(
-      gl.TEXTURE_2D,
-      0,
-      0,
-      0,
-      this.width,
-      this.height,
-      gl.RGBA,
-      gl.UNSIGNED_BYTE,
-      data,
-    );
+    try {
+      gl.texSubImage2D(
+        gl.TEXTURE_2D,
+        0,
+        0,
+        0,
+        this.width,
+        this.height,
+        gl.RGBA,
+        gl.UNSIGNED_BYTE,
+        data,
+      );
+    } catch (e) {
+      if (this._needsTextureStaging) throw e;
+      console.warn("WebGL rejected a shared texture source; staging copies instead", e);
+      this._needsTextureStaging = true;
+      this.updateTexture(data);
+    }
+  }
+
+  _stageTextureData(data) {
+    if (!this._textureStaging || this._textureStaging.length !== data.length) {
+      this._textureStaging = new Uint8Array(data.length);
+    }
+    this._textureStaging.set(data);
+    return this._textureStaging;
   }
 
   updateSelectionTexture(canvas) {

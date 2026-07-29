@@ -30,6 +30,10 @@ const LIBRARY_ICON = `<svg width="10" height="10" viewBox="0 0 24 24" fill="none
 const CHEVRON_RIGHT = `<svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`;
 const CHEVRON_LEFT = `<svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>`;
 
+// Drive LEDs only need to read as "flickering" — 10 Hz is plenty, and the sync
+// is skipped entirely while both panels are shut.
+const UPDATE_EVERY_N_FRAMES = 6;
+
 export class FullscreenDrivePopouts {
   constructor(diskManager, hardDriveManager) {
     this.diskManager = diskManager;
@@ -43,6 +47,9 @@ export class FullscreenDrivePopouts {
     this._hdEjectBtns = [null, null];
     this._driveLeds = [null, null];
     this._hdLeds = [null, null];
+    this._driveLedSources = [null, null];   // cached .disk-track elements
+    this._driveLedState = [null, null];      // last written LED state, to skip no-op writes
+    this._hdLedState = [null, null];
     this._boundUpdate = null;
     this._activeDropdown = null;
     this._side = localStorage.getItem("a2e-popout-side") || "left";
@@ -66,13 +73,33 @@ export class FullscreenDrivePopouts {
     };
     document.addEventListener("click", this._onDocumentClick);
 
-    // Periodic UI sync (LED + names) — piggyback on rAF
+    // Periodic UI sync (LED + names) — piggyback on rAF, but only do the work
+    // when a panel is actually slid open. This used to run every frame for the
+    // whole session, walking the drive DOM with closest()/querySelector() and
+    // rewriting .disabled + classList on eight elements 60 times a second while
+    // both panels were shut and nothing could be seen.
+    this._frame = 0;
     this._boundUpdate = () => {
-      this._updateDriveInfo();
-      this._updateSmartPortInfo();
       this._rafId = requestAnimationFrame(this._boundUpdate);
+      if (++this._frame % UPDATE_EVERY_N_FRAMES) return;
+      if (!this._isOpen()) return;
+      this._syncNow();
     };
     this._rafId = requestAnimationFrame(this._boundUpdate);
+  }
+
+  _isOpen() {
+    return (
+      this._floppyWrapper?.classList.contains("open") ||
+      this._hdWrapper?.classList.contains("open")
+    );
+  }
+
+  // Refresh both panels immediately — used when one slides open, so the first
+  // frame the user sees is current rather than up to UPDATE_EVERY_N_FRAMES stale.
+  _syncNow() {
+    this._updateDriveInfo();
+    this._updateSmartPortInfo();
   }
 
   destroy() {
@@ -135,6 +162,7 @@ export class FullscreenDrivePopouts {
     wrapper.addEventListener("mouseenter", () => {
       clearTimeout(this._closeTimers[type]);
       wrapper.classList.add("open");
+      this._syncNow();   // opening panel shows current state, not the last sync
     });
     wrapper.addEventListener("mouseleave", () => {
       this._closeTimers[type] = setTimeout(() => {
@@ -502,12 +530,22 @@ export class FullscreenDrivePopouts {
       }
 
       const hasDisc = !!drive.filename;
-      this._driveEjectBtns[i].disabled = !hasDisc;
+      if (this._driveEjectBtns[i].disabled === hasDisc) {
+        this._driveEjectBtns[i].disabled = !hasDisc;
+      }
 
-      // LED: mirror the existing drive LED state
-      const origLed = drive.nameLabel?.closest(".disk-drive")?.querySelector(".disk-track");
-      const isActive = origLed && origLed.classList.contains("active");
-      this._driveLeds[i].classList.toggle("active", !!isActive);
+      // LED: mirror the existing drive LED state. The source element is cached —
+      // re-walking closest()/querySelector() on every sync was the bulk of the cost.
+      let origLed = this._driveLedSources[i];
+      if (!origLed || !origLed.isConnected) {
+        origLed = drive.nameLabel?.closest(".disk-drive")?.querySelector(".disk-track") || null;
+        this._driveLedSources[i] = origLed;
+      }
+      const isActive = !!origLed && origLed.classList.contains("active");
+      if (this._driveLedState[i] !== isActive) {
+        this._driveLedState[i] = isActive;
+        this._driveLeds[i].classList.toggle("active", isActive);
+      }
     }
   }
 
@@ -524,11 +562,16 @@ export class FullscreenDrivePopouts {
       }
 
       const hasImage = !!device.filename;
-      this._hdEjectBtns[i].disabled = !hasImage;
+      if (this._hdEjectBtns[i].disabled === hasImage) {
+        this._hdEjectBtns[i].disabled = !hasImage;
+      }
 
       // LED
       const isActive = device.activityFrames > 0;
-      this._hdLeds[i].classList.toggle("active", !!isActive);
+      if (this._hdLedState[i] !== isActive) {
+        this._hdLedState[i] = isActive;
+        this._hdLeds[i].classList.toggle("active", isActive);
+      }
     }
   }
 

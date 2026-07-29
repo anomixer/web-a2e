@@ -32,6 +32,9 @@ export class AudioDriver {
     this.useWorklet = typeof AudioWorkletNode !== "undefined";
     this.scriptProcessor = null;
 
+    // Set by setSharedAudioBuffer() when SharedArrayBuffer is available.
+    this.sharedAudioBuffer = null;
+
     // Sync C++ audio state with saved JS settings (fire-and-forget via proxy)
     this.wasmModule._setAudioVolume(this.volume);
     this.wasmModule._setAudioMuted(this.muted);
@@ -118,8 +121,25 @@ export class AudioDriver {
       }
     };
 
+    // Hand over the shared ring before starting, so the very first process()
+    // call already reads from it rather than the postMessage fallback.
+    if (this.sharedAudioBuffer) {
+      this.workletNode.port.postMessage({
+        type: "shared-audio",
+        buffer: this.sharedAudioBuffer,
+      });
+    }
+
     this.workletNode.connect(this.gainNode);
     this.workletNode.port.postMessage({ type: "start" });
+  }
+
+  /**
+   * Give the driver a SharedArrayBuffer ring to use instead of relaying sample
+   * data through postMessage. Must be called before start().
+   */
+  setSharedAudioBuffer(buffer) {
+    this.sharedAudioBuffer = buffer;
   }
 
   startWithScriptProcessor() {
@@ -152,11 +172,17 @@ export class AudioDriver {
    * @param {Float32Array} samples - Interleaved stereo samples
    */
   relaySamples(samples) {
+    // In shared mode the Worker writes straight into the ring the worklet
+    // reads; nothing should be arriving here at all.
+    if (this.sharedAudioBuffer) return;
+
     if (this.workletNode && this.workletNode.port) {
+      // Transfer rather than clone — this is the fallback path, but there is
+      // no reason for it to copy 12KB of audio on every refill either.
       this.workletNode.port.postMessage({
         type: "samples",
         data: samples,
-      });
+      }, [samples.buffer]);
     } else if (this.scriptProcessor) {
       // Append to ScriptProcessor buffer
       const newBuf = new Float32Array(this._spBuffer.length - this._spReadPos + samples.length);

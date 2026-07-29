@@ -265,11 +265,41 @@ export class HardDriveManager {
     device.infoLabel.textContent = "";
   }
 
+  /**
+   * Refresh the SmartPort activity LEDs.
+   *
+   * Called ~15 times a second from the render loop. Previously it made two
+   * sequential worker round-trips and rewrote classList on both LEDs on every
+   * tick — even with no images mounted and the machine powered off. Now it
+   * makes one batched call, does nothing at all when there is nothing that
+   * could light up, and only touches the DOM when a LED actually changes.
+   */
   async updateLEDs() {
-    if (!this.wasmModule._getSmartPortActivity) return;
+    if (this._ledUpdatePending) return;
 
-    const hasActivity = await this.wasmModule._getSmartPortActivity(0);
-    const isWrite = await this.wasmModule._getSmartPortActivityWrite(0);
+    // No image mounted means no device can report activity, so there is
+    // nothing to poll for. Clear once on the way into that state.
+    const anyMounted = this.devices.some((d) => d.filename);
+    const running = this.isRunningCallback ? this.isRunningCallback() : true;
+    if (!anyMounted || !running) {
+      if (!this._ledsSettled) {
+        this._ledsSettled = true;
+        for (let i = 0; i < 2; i++) this._applyLedState(i, false);
+      }
+      return;
+    }
+    this._ledsSettled = false;
+
+    let hasActivity, isWrite;
+    this._ledUpdatePending = true;
+    try {
+      [hasActivity, isWrite] = await this.wasmModule.batch([
+        ['_getSmartPortActivity', 0],
+        ['_getSmartPortActivityWrite', 0],
+      ]);
+    } finally {
+      this._ledUpdatePending = false;
+    }
 
     for (let i = 0; i < 2; i++) {
       const device = this.devices[i];
@@ -280,21 +310,33 @@ export class HardDriveManager {
       }
 
       if (device.activityFrames > 0) {
-        if (device.ledEl) {
-          device.ledEl.classList.add("active");
-        }
+        this._applyLedState(i, true);
         if (!hasActivity) {
           device.activityFrames--;
         }
       } else {
-        if (device.ledEl) {
-          device.ledEl.classList.remove("active", "write");
-        }
+        this._applyLedState(i, false);
       }
     }
 
     if (hasActivity) {
       this.wasmModule._clearSmartPortActivity();
+    }
+  }
+
+  /**
+   * Drive one activity LED, skipping the DOM write when nothing changed.
+   * Re-toggling an unchanged class still invalidates style and repaints the
+   * window (and re-blurs its backdrop-filter) on every tick.
+   */
+  _applyLedState(index, active) {
+    const device = this.devices[index];
+    if (!device.ledEl || device.ledActive === active) return;
+    device.ledActive = active;
+    if (active) {
+      device.ledEl.classList.add("active");
+    } else {
+      device.ledEl.classList.remove("active", "write");
     }
   }
 

@@ -290,9 +290,7 @@ export class DockManager {
     // Transfer drag to the floating window so user continues dragging
     const win = this.windowManager.getWindow(windowId);
     if (win) {
-      win.isDragging = true;
-      win.element.classList.add('dragging');
-      win.dragOffset = { x: 100, y: 15 };
+      win.beginExternalDrag(100, 15);
     }
   }
 

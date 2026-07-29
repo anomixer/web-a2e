@@ -524,17 +524,62 @@ export class DiskManager {
 
   // Drive state and LED updates
 
+  /**
+   * Refresh drive LEDs, track readouts and surface animation.
+   *
+   * Called ~15 times a second from the render loop. It used to issue up to
+   * eleven SEQUENTIAL worker round-trips per call — selected drive, both motor
+   * states, then track/head/write-mode per drive — every one of them stealing
+   * time from the emulation running on that same worker thread. It now issues
+   * exactly one batched round-trip, skips the per-drive reads for empty
+   * drives, and stops entirely while the machine is powered off.
+   */
   async updateLEDs() {
-    // Update drive images and track display based on motor state
-    if (!this.wasmModule._getDiskMotorOn) return;
+    // The render loop does not await this, so without a guard a slow round-trip
+    // would let requests stack up faster than the Worker can answer them.
+    if (this._ledUpdatePending) return;
 
-    const selectedDrive = this.wasmModule._getSelectedDrive
-      ? await this.wasmModule._getSelectedDrive()
-      : 0;
+    // Nothing to poll while the machine is off, but run one final pass on the
+    // transition so the LEDs and track readouts settle instead of freezing lit.
+    const running = this.isRunningCallback ? this.isRunningCallback() : true;
+    if (!running) {
+      if (this._ledsSettled) return;
+      this._ledsSettled = true;
+    } else {
+      this._ledsSettled = false;
+    }
+
+    // One batch for everything. Per-drive reads are only worth making for a
+    // drive that actually has a disk in it.
+    const calls = [
+      ['_getSelectedDrive'],
+      ['_getDiskMotorOn', 0],
+      ['_getDiskMotorOn', 1],
+    ];
+    const driveDataIndex = [-1, -1];
+    for (let driveNum = 0; driveNum < 2; driveNum++) {
+      if (this.drives[driveNum].filename === null) continue;
+      driveDataIndex[driveNum] = calls.length;
+      calls.push(
+        ['_getDiskTrack', driveNum],
+        ['_getDiskHeadPosition', driveNum],
+        ['_getDiskWriteMode', driveNum],
+      );
+    }
+
+    let results;
+    this._ledUpdatePending = true;
+    try {
+      results = await this.wasmModule.batch(calls);
+    } finally {
+      this._ledUpdatePending = false;
+    }
+
+    const selectedDrive = results[0];
+    const motorState = [results[1], results[2]];
 
     // Check if any motor is running for motor sound
-    const anyMotorOn =
-      await this.wasmModule._getDiskMotorOn(0) || await this.wasmModule._getDiskMotorOn(1);
+    const anyMotorOn = motorState[0] || motorState[1];
     if (anyMotorOn && !this.sounds.motorRunning) {
       this.sounds.startMotorSound();
     } else if (!anyMotorOn && this.sounds.motorRunning) {
@@ -543,18 +588,29 @@ export class DiskManager {
 
     for (let driveNum = 0; driveNum < 2; driveNum++) {
       const drive = this.drives[driveNum];
-      const motorOn = await this.wasmModule._getDiskMotorOn(driveNum);
+      const motorOn = motorState[driveNum];
       const isActive = motorOn && driveNum === selectedDrive;
       const hasDisk = drive.filename !== null;
+      const base = driveDataIndex[driveNum];
 
       // Update track display and check for seek
       let track = 0;
       let quarterTrack = 0;
       let isWriteMode = false;
       if (drive.trackLabel) {
-        if (hasDisk && this.wasmModule._getDiskTrack) {
-          track = await this.wasmModule._getDiskTrack(driveNum);
-          drive.trackLabel.textContent = `T${track.toString().padStart(2, "0")}`;
+        if (hasDisk && base >= 0) {
+          track = results[base];
+          quarterTrack = results[base + 1];
+          isWriteMode = results[base + 2];
+          drive.lastHeadPosition = quarterTrack;
+
+          // Writing textContent replaces the text node and dirties layout even
+          // when the string is identical, and the track rarely changes between
+          // ticks — so compare first.
+          const trackText = `T${track.toString().padStart(2, "0")}`;
+          if (drive.trackLabel.textContent !== trackText) {
+            drive.trackLabel.textContent = trackText;
+          }
 
           // Check for track change and play seek sound (only on whole track changes)
           if (isActive && drive.lastTrack >= 0 && track !== drive.lastTrack) {
@@ -596,17 +652,8 @@ export class DiskManager {
             drive.maxAccessCount = newMax;
           }
 
-          // Get head position
-          if (this.wasmModule._getDiskHeadPosition) {
-            quarterTrack = await this.wasmModule._getDiskHeadPosition(driveNum);
-            drive.lastHeadPosition = quarterTrack;
-          }
-
-          // Get write mode
-          if (this.wasmModule._getDiskWriteMode) {
-            isWriteMode = await this.wasmModule._getDiskWriteMode(driveNum);
-          }
-        } else {
+        } else if (drive.lastTrack !== -1) {
+          // Only rewrite the empty-drive placeholder on the transition into it.
           drive.trackLabel.textContent = "T--";
           drive.trackLabel.classList.remove("active");
           drive.lastTrack = -1;
