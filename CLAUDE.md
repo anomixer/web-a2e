@@ -112,6 +112,8 @@ Light, dark, and system-follow themes controlled by `ThemeManager` (`src/js/ui/t
 
 Control sytles, sizes and layout must be consistent across the entire app.
 
+**Window surfaces are opaque and carry no `backdrop-filter`.** Use the `--glass-bg`, `--glass-bg-solid` and `--glass-bg-header` tokens for any window, panel, menu or popout background; they are fully opaque in both themes despite the legacy names. Do not reintroduce translucency or blur on these surfaces: they sit over a canvas that repaints 60 times a second, so a backdrop filter forces the compositor to re-blur the full area of every open window on every frame regardless of whether its content changed. Translucency is still correct for two things — dimming scrims behind modals and the window switcher, and accent-tinted inner chips (CPU flags, soft switch badges) layered on an already-opaque window.
+
 ### URL Media Parameters
 
 `?disk=`, `?disk1=`, `?disk2=`, `?hd=`, `?hd2=` and `?name=` let a link open with images already inserted. Two modules:
@@ -131,33 +133,50 @@ The WASM emulator runs in a dedicated Web Worker to keep the main thread free:
 Main Thread                    Worker Thread                AudioWorklet Thread
 -----------                    -------------                -------------------
 WasmProxy (ES6 Proxy)  ←msg→  emulator-worker.js           audio-worklet.js
-  - WebGL renderer               - WASM module                - ring buffer playback
-  - Debug windows                 - audio generation           - requests samples
-  - Input capture                 - framebuffer copy             when buffer low
+  - WebGL renderer               - WASM module                - reads shared ring
+  - Debug windows                 - audio generation           - requests refill
+  - Input capture                 - framebuffer write            when buffer low
   - Agent tools                   - RPC handler
+        ↑                               ↓                            ↑
+        └──── SharedArrayBuffer: framebuffer (2 slots) + control ─────┘
+                             audio ring buffer
 ```
 
 - `src/js/worker/wasm-proxy.js` — ES6 Proxy intercepts `_functionName()` calls and sends async RPC to Worker. Fire-and-forget calls (input, control) skip waiting for responses.
 - `src/js/worker/emulator-worker.js` — Classic Worker (not module, for `importScripts` compatibility). Loads WASM, handles RPC, generates audio samples on request.
 - `src/js/worker/rpc-protocol.js` — Shared message type constants.
-- `src/js/worker/shared-buffers.js` — SharedArrayBuffer layouts for future phases.
+- `src/js/worker/shared-buffers.js` — SharedArrayBuffer layouts, allocation and control-block offsets.
 
 Key patterns:
 - **Fire-and-forget**: Input/control calls (`_keyDown`, `_setPaused`, `_writeMemory`, etc.) post to Worker without waiting for a response.
-- **Batch queries**: `wasmProxy.batch([['_getPC'], ['_getA'], ...])` collapses multiple reads into one round-trip.
-- **Heap access**: Direct `HEAPU8`/`HEAPF32` access is forbidden from the main thread. Use `wasmProxy.heapRead(ptr, size)`, `heapWrite(ptr, data)`, `heapReadU32()`, `heapReadF32()`, `heapDataViewU32()` instead.
+- **Batch queries**: `wasmProxy.batch([['_getPC'], ['_getA'], ...])` collapses multiple reads into one round-trip. Prefer ONE batch per window update — the Worker services RPCs on the same thread that runs the emulation, so sequential round-trips directly steal emulation time. `CPUDebuggerWindow.update()` is the reference example: a single 25-call batch, indexed via `UPDATE_BATCH`.
+- **String returns**: `wasmProxy.callString(fn, ...args)` calls a `char*`-returning export and decodes it in the Worker, so a string costs one round-trip instead of two.
+- **Heap access**: Direct `HEAPU8`/`HEAPF32` access is forbidden from the main thread. Use `wasmProxy.heapRead(ptr, size)`, `heapWrite(ptr, data)`, `heapReadU32()`, `heapReadF32()`, `heapDataViewU32()` instead. These return **typed arrays** and transfer their buffers; never box heap data into plain Arrays.
 - **Transferable**: Disk images sent to Worker via `wasmProxy.transfer()` for zero-copy ownership transfer.
+- **Pushed pause state**: The Worker posts `MSG_PAUSE_STATE` whenever pause changes, cached on `wasmProxy.isPaused`. Per-frame code reads that synchronously instead of awaiting `_isPaused()`.
+- **Bulk work belongs in C++**: A loop that would make one RPC per iteration should become one export. `_disassembleRange` and `_getBasicHeatMapData` exist for this reason.
+
+### Shared Memory Transport
+
+When `SharedArrayBuffer` is available (requires the COOP/COEP headers Vite sets), `main.js:setupSharedBuffers()` allocates three buffers and both the framebuffer and audio bypass `postMessage` entirely:
+
+- **Framebuffer** — double-buffered (`FB_SLOTS`). The Worker writes the slot the renderer is not reading and publishes the index via `CTRL_FRAME_INDEX` + `CTRL_FRAME_READY`; `pollSharedFrame()` claims it with `Atomics.exchange`. This replaced allocating a fresh 860KB array every frame.
+- **Audio ring** — the AudioWorklet reads generated samples directly, so the main thread is no longer in the audio critical path. Only the small refill request still routes through it.
+- **Control block** — Int32 status fields (see `CTRL_*` in `shared-buffers.js`). Currently only pause and frame state are consumed; the register fields are groundwork for removing debug-window RPCs.
+
+The `postMessage` path remains as a fallback and must keep working — do not delete it.
 
 ### Audio-Driven Timing
 
 The emulator uses Web Audio API for precise timing:
 
 1. AudioWorklet `process()` fires at 48kHz hardware rate
-2. When ring buffer runs low, AudioWorklet requests samples from main thread
+2. When the ring buffer runs low, the AudioWorklet requests samples from the main thread
 3. Main thread forwards request to Worker via `MSG_REQUEST_SAMPLES`
 4. Worker generates samples (running ~21.3 CPU cycles per sample)
-5. Worker posts samples + framebuffer back to main thread
-6. Main thread relays samples to AudioWorklet ring buffer
+5. Worker writes them into the shared audio ring, which the AudioWorklet reads directly
+
+Sample *data* therefore never crosses the main thread; only the refill request does. Without `SharedArrayBuffer` the Worker falls back to posting samples for the main thread to relay, which works but puts a busy main thread in the audio path — and because audio paces the emulation, that shows up as speed instability rather than just crackle.
 
 This ensures consistent speed driven by the audio hardware clock.
 

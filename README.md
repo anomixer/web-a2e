@@ -250,6 +250,12 @@ A floating joystick window provides visual paddle/joystick controls that map to 
 +---------------------------------------------+
 ```
 
+The emulator core runs in a dedicated Web Worker, and where the browser allows
+`SharedArrayBuffer` the screen and audio travel through shared memory rather than
+being copied between threads — so the main thread never sits in the audio path
+and no memory is allocated per frame. The emulator falls back to message passing
+automatically if shared memory is unavailable.
+
 ### Audio-Driven Timing
 
 The emulator uses Web Audio API to drive timing:

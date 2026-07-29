@@ -15,12 +15,43 @@ export const RELEASE_NOTES = [
     features: [],
     fixes: [
       {
+        title: "The Memory Browser only showed a single row",
+        description:
+          "Opening the Memory Browser as a floating window showed one row of memory no matter how large you made it. The list works out how many rows to draw by measuring the space available, but that space was being decided by how much had already been drawn — so one row measured as room for one row, and it never recovered. It now fills the window and follows it as you resize. Docked in a workspace it was always fine, which is why it went unnoticed.",
+      },
+      {
+        title: "Run to Cursor never stopped",
+        description:
+          "Right-clicking a line and choosing Run to Cursor set the breakpoint and then quietly removed it again a fraction of a second later, so the program ran on forever. The debugger was watching the program counter a few dozen times a second to spot arrival, and in a loop it would catch the target address while the processor was still running and treat that as having arrived. It now waits for the emulator itself to report that it has halted. Step Over and Step Out were leaning on the same unreliable check and are steadier for it.",
+      },
+      {
+        title: "The installed app did not work offline",
+        description:
+          "Installing the emulator as an app appeared to work but it could not start without a network connection. The list of files to store for offline use still named stylesheets that no longer exist under those names, and storing that list fails completely if any single file is missing — so nothing was ever stored. The list is now correct, includes files that were missing outright (the emulator's worker and the screen shaders, both required to start), works out the bundled files for itself so it cannot fall out of date again, and tolerates a missing file rather than giving up on everything.",
+      },
+      {
         title: "The emulator could freeze after loading a saved state",
         description:
           "Loading a state left the screen stuck on the restored image with no sound, and nothing typed had any effect until the page was clicked. Restoring used to switch the emulator off and on again, which rebuilds the sound system — and the sound card is what paces the emulator, so when the browser held it back until the next click, the machine sat there doing nothing. A machine that is already on now keeps running through the restore. Loading a state from a file also reported success even when the file could not be read.",
       },
     ],
-    improvements: [],
+    improvements: [
+      {
+        title: "Debug windows no longer slow the machine down",
+        description:
+          "The emulator runs on a separate thread, and every question a debug window asked it had to wait in the same queue as the emulation itself — so watching the machine actually slowed it down, sometimes enough to make the sound crackle. The CPU Debugger was the worst offender, asking around 120 separate questions every time it redrew its disassembly, thirty times a second; it now asks once. The disk lights, the Stack Viewer and the Memory Browser were tidied up the same way, and nothing is asked at all while the machine is switched off.",
+      },
+      {
+        title: "Smoother picture and less stuttering",
+        description:
+          "Each frame of the screen was being copied into a brand new block of memory and handed across to be drawn, roughly fifty megabytes a second of throwaway work that the browser periodically had to stop and clean up — the cause of the occasional hitch. The picture and the sound now travel through memory shared between the threads instead, which also takes the sound out of the main thread's hands so a busy interface can no longer interrupt it. Drawing also happens at the right moment in the frame now rather than just after it.",
+      },
+      {
+        title: "Windows are solid instead of frosted",
+        description:
+          "Window and panel backgrounds are now opaque. The frosted glass effect meant the screen behind every open window had to be blurred again for every frame the emulator drew, whether or not anything in the window had changed — expensive with several windows open, and text sat on a busy background. Windows also move and resize more smoothly, as dragging no longer re-measures the page on every mouse movement.",
+      },
+    ],
   },
   {
     week: "July 28, 2026",
