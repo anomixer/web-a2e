@@ -27,6 +27,9 @@ const DEFAULT_PX_PER_INCH = 120;
 const RULER_TOP_H = 22;          // top ruler height, px — internal raster == CSS display
                                  // height so ticks/labels draw with no vertical squish
 const RULER_LEFT_W = 21;        // left ruler width, px — internal raster == CSS display
+// Frames a sizer will wait for the paper canvas to gain a measurable box before
+// giving up. Re-armed by show()/resize — see _deferLayout.
+const MAX_LAYOUT_RETRIES = 120;
 // The dot grid is anisotropic: the horizontal canvas raster (_ppi, default 120)
 // across vs V_RASTER (72, the 9-pin row pitch) down. Painting 1:1 makes an
 // 8×11" page look square. The live vertical stretch (_ppi / V_RASTER, via
@@ -603,7 +606,7 @@ export class PrinterWindow extends BaseWindow {
     if (!sl && !sr) return;
     const g  = this._platen;
     const sc = this._rulerScale();
-    if (!sc || !g?.tractorPx) { requestAnimationFrame(() => this._styleSprocketHoles()); return; }
+    if (!sc || !g?.tractorPx) { this._deferLayout("sprockets", () => this._styleSprocketHoles()); return; }
     const W = g.tractorPx * sc.sx;           // ½" strip in display px
     const P = W;                              // vertical pitch ½" == strip width
     const R = 0.157 * W;                      // 4 mm-⌀ hole radius over the ½" strip
@@ -616,6 +619,52 @@ export class PrinterWindow extends BaseWindow {
       s.style.backgroundRepeat   = "repeat-y";
       s.style.backgroundPosition = "center top";
     }
+  }
+
+  // Re-run a sizer once the paper canvas has a measurable on-screen box.
+  //
+  // The sizers below all need _rulerScale(), which is null until layout has run —
+  // and stays null for as long as the window is hidden, since display:none makes
+  // every getBoundingClientRect() return zeros. They used to retry unconditionally
+  // on the next animation frame, so the calls _initCanvas() makes at construction
+  // (the window starts hidden) span four permanent 60 fps loops that forced a
+  // layout every frame for the whole session, whether or not the printer was ever
+  // opened. Retries are now deduped by key, only run while the window is visible,
+  // and give up after MAX_LAYOUT_RETRIES frames; show() and the resize observer
+  // re-arm them, which covers every case where the box can start existing.
+  _deferLayout(key, fn) {
+    if (!this._deferredLayout) {
+      this._deferredLayout = new Map();
+      this._layoutRetries = new Map();
+    }
+    const attempts = (this._layoutRetries.get(key) || 0) + 1;
+    if (attempts > MAX_LAYOUT_RETRIES) return;
+    this._layoutRetries.set(key, attempts);
+    this._deferredLayout.set(key, fn);
+    this._scheduleDeferredLayout();
+  }
+
+  _scheduleDeferredLayout() {
+    if (this._layoutRAF || !this.isVisible) return;
+    if (!this._deferredLayout?.size) return;
+    this._layoutRAF = requestAnimationFrame(() => {
+      this._layoutRAF = null;
+      const work = [...this._deferredLayout.values()];
+      this._deferredLayout.clear();
+      for (const fn of work) fn();
+    });
+  }
+
+  // Anything that can give the canvas a box again (being shown, being resized)
+  // clears the give-up counters and flushes whatever was left pending.
+  _rearmDeferredLayout() {
+    this._layoutRetries?.clear();
+    this._scheduleDeferredLayout();
+  }
+
+  show() {
+    super.show();
+    this._rearmDeferredLayout();
   }
 
   // Display scale of the paper canvas: how many on-screen px per internal canvas
@@ -640,7 +689,7 @@ export class PrinterWindow extends BaseWindow {
     const rt = this.elements?.rulerTop;
     if (!rt) return;
     const sc = this._rulerScale();
-    if (!sc) { requestAnimationFrame(() => this._sizeTopRuler()); return; }
+    if (!sc) { this._deferLayout("rulerTop", () => this._sizeTopRuler()); return; }
     rt.width  = Math.max(1, Math.round(sc.dw));
     rt.height = RULER_TOP_H;
     rt.style.width = ""; rt.style.height = "";   // raster == display, crisp
@@ -741,7 +790,7 @@ export class PrinterWindow extends BaseWindow {
     const rl = this.elements?.rulerLeft;
     if (!rl) return;
     const sc = this._rulerScale();
-    if (!sc) { requestAnimationFrame(() => this._sizeLeftRuler()); return; }
+    if (!sc) { this._deferLayout("rulerLeft", () => this._sizeLeftRuler()); return; }
     rl.width  = RULER_LEFT_W;
     rl.height = Math.max(1, Math.round(sc.dh));
     rl.style.width = ""; rl.style.height = "";   // raster == display, crisp
@@ -1124,6 +1173,7 @@ export class PrinterWindow extends BaseWindow {
     // (panel pin/resize, fit toggle, window resize all alter canvas clientHeight).
     this._headResizeObs = new ResizeObserver(() => {
       if (!this._canvasMode) return;
+      this._rearmDeferredLayout();   // a resize can be what finally gives the canvas a box
       if (this._headCanvasY != null) this._updateHeadMarker(this._headCanvasY);
       this._styleSprocketHoles();   // holes are display-px sized → rescale on resize
       // Rulers raster at the canvas's DISPLAY size; when the sheet box changes
@@ -2311,7 +2361,7 @@ export class PrinterWindow extends BaseWindow {
     const h  = this.elements?.lengthHandle;
     if (!h) return;
     const sc = this._rulerScale();
-    if (!sc) { requestAnimationFrame(() => this._sizeLengthHandle()); return; }
+    if (!sc) { this._deferLayout("lengthHandle", () => this._sizeLengthHandle()); return; }
     h.style.top = `${Math.round(this._pageHeightPx() * sc.sy)}px`;
   }
 

@@ -38,9 +38,9 @@
     padding: 4px 6px;
     background: var(--input-bg-dark);
     border-radius: 3px;
-    transition: all 0.1s;
 }
 
+/* See debug-windows.css — no transition, VBLBAR flips constantly. */
 .switch-badge {
     min-width: 60px;
     padding: 2px 6px;
@@ -51,7 +51,6 @@
     border: 1px solid var(--badge-dim-border);
     border-radius: 3px;
     color: var(--text-muted);
-    transition: all 0.15s;
 }
 
 .switch-badge.active {

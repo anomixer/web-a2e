@@ -23,6 +23,7 @@ const MSG_READY = 'ready';
 const MSG_AUDIO_SAMPLES = 'audio-samples';
 const MSG_FRAME_READY = 'frame-ready';
 const MSG_PRINTER_BYTE = 'printer-byte';
+const MSG_PAUSE_STATE = 'pause-state';
 
 // Shared buffer constants (mirrored from shared-buffers.js)
 const AUDIO_WRITE_POS_OFFSET = 0;
@@ -46,6 +47,7 @@ const CTRL_BP_HIT = 12;
 const CTRL_BP_ADDR = 13;
 const CTRL_TOTAL_CYCLES_LO = 14;
 const CTRL_TOTAL_CYCLES_HI = 15;
+const CTRL_FRAME_INDEX = 16;
 
 let wasmModule = null;
 
@@ -57,6 +59,8 @@ let sharedAudioReadPos = null;
 
 let sharedFramebuffer = null;
 let sharedFramebufferU8 = null;
+let sharedFramebufferSlotBytes = 0;
+let fbWriteSlot = 0;
 
 let sharedControl = null;
 let sharedControlI32 = null;
@@ -84,33 +88,93 @@ function execCall(fn, args) {
 
   // Special heap/string operations for cross-thread data access
   switch (fn) {
+    // Heap reads all return a copy detached from the WASM heap (which can be
+    // reallocated under us) as a TYPED array, transferred back to the caller.
+    // These used to hand back Array.from(...) — a boxed JS array of doubles,
+    // structured-cloned rather than transferred, which turned a 256KB read into
+    // multiple megabytes of serialization on both threads.
     case '__heapRead':
-      return Array.from(new Uint8Array(wasmModule.HEAPU8.buffer, args[0], args[1]));
+      return new Uint8Array(wasmModule.HEAPU8.buffer, args[0], args[1]).slice();
     case '__heapWrite':
       wasmModule.HEAPU8.set(new Uint8Array(args[1]), args[0]);
       return true;
     case '__heapReadF32':
-      return Array.from(new Float32Array(wasmModule.HEAPF32.buffer, args[0], args[1]));
+      return new Float32Array(wasmModule.HEAPF32.buffer, args[0], args[1]).slice();
     case '__stringToUTF8':
       wasmModule.stringToUTF8(args[0], args[1], args[2]);
       return true;
     case '__UTF8ToString':
       return wasmModule.UTF8ToString(args[0]);
+    case '__callString': {
+      // Call a WASM function that returns a char* and decode it here, so a
+      // string result costs one round-trip instead of two (call, then
+      // UTF8ToString on the returned pointer).
+      var strFn = wasmModule[args[0]];
+      if (typeof strFn !== 'function') {
+        throw new Error('Unknown function: ' + args[0]);
+      }
+      var ptr = strFn.apply(wasmModule, args.slice(1));
+      return ptr ? wasmModule.UTF8ToString(ptr) : '';
+    }
     case '__heapU8Slice': {
       const slice = new Uint8Array(wasmModule.HEAPU8.buffer, args[0], args[1]).slice();
       return slice;
     }
     case '__heapU32Read':
-      return Array.from(new Uint32Array(wasmModule.HEAPU8.buffer, args[0], args[1]));
+      return new Uint32Array(wasmModule.HEAPU8.buffer, args[0], args[1]).slice();
     case '__heapI32Read':
-      return Array.from(new Int32Array(wasmModule.HEAPU8.buffer, args[0], args[1]));
+      return new Int32Array(wasmModule.HEAPU8.buffer, args[0], args[1]).slice();
     case '__heapU16Read':
-      return Array.from(new Uint16Array(wasmModule.HEAPU8.buffer, args[0], args[1]));
+      return new Uint16Array(wasmModule.HEAPU8.buffer, args[0], args[1]).slice();
     case '__heapDataViewU32':
       return new DataView(wasmModule.HEAPU8.buffer).getUint32(args[0], true);
     default:
       throw new Error('Unknown function: ' + fn);
   }
+}
+
+// Last pause state pushed to the main thread. Kept so the render loop can read
+// pause state from a local cache instead of awaiting _isPaused() every frame —
+// that await put a full worker round-trip in front of every GL draw, pushing
+// the draw out of its requestAnimationFrame task and off the vsync deadline.
+var lastReportedPaused = -1;
+
+/**
+ * Push pause state to the main thread, but only when it actually changes.
+ *
+ * Called from the RPC path (so an explicit _setPaused is reflected at once)
+ * and from the audio/frame path (so a breakpoint hit, which originates inside
+ * the worker, is reflected within a sample request).
+ */
+function reportPauseState() {
+  if (!wasmModule) return;
+  var paused = wasmModule._isPaused() ? 1 : 0;
+  if (paused === lastReportedPaused) return;
+  lastReportedPaused = paused;
+  if (sharedControlI32) {
+    Atomics.store(sharedControlI32, CTRL_IS_PAUSED, paused);
+  }
+  self.postMessage({ type: MSG_PAUSE_STATE, paused: paused === 1 });
+}
+
+/**
+ * Collect the ArrayBuffers of any typed arrays in an RPC result so they can be
+ * transferred rather than structured-cloned.
+ *
+ * Every typed array returned by execCall() is a fresh .slice() copy, never a
+ * live view onto the WASM heap, so handing ownership away is always safe here.
+ * A batch may mix plain numbers and typed arrays, hence the array walk.
+ */
+function collectTransferables(result) {
+  var out = [];
+  var values = Array.isArray(result) ? result : [result];
+  for (var i = 0; i < values.length; i++) {
+    var v = values[i];
+    if (v && v.buffer instanceof ArrayBuffer) {
+      out.push(v.buffer);
+    }
+  }
+  return out;
 }
 
 /**
@@ -170,12 +234,20 @@ function sendFramebuffer() {
   const fbSize = wasmModule._getFramebufferSize();
 
   if (sharedFramebufferU8) {
-    // Phase 3: copy to shared buffer, set atomic flag
-    sharedFramebufferU8.set(new Uint8Array(wasmModule.HEAPU8.buffer, fbPtr, fbSize));
+    // Shared path: write into whichever half the renderer is not reading, then
+    // publish it. No allocation and no postMessage — the postMessage path below
+    // allocated a fresh 860KB array on every single frame, roughly 51MB/s of
+    // garbage at 60fps and a reliable source of GC hitching.
+    sharedFramebufferU8.set(
+      new Uint8Array(wasmModule.HEAPU8.buffer, fbPtr, fbSize),
+      fbWriteSlot * sharedFramebufferSlotBytes
+    );
+    Atomics.store(sharedControlI32, CTRL_FRAME_INDEX, fbWriteSlot);
     Atomics.store(sharedControlI32, CTRL_FRAME_READY, 1);
+    fbWriteSlot = 1 - fbWriteSlot;
     updateControlBlock();
   } else {
-    // Phase 1: copy and post as Transferable
+    // Fallback: copy and post as Transferable
     const fb = new Uint8Array(fbSize);
     fb.set(new Uint8Array(wasmModule.HEAPU8.buffer, fbPtr, fbSize));
     self.postMessage(
@@ -203,9 +275,16 @@ function updateControlBlock() {
   sharedControlI32[CTRL_FRAME_CYCLE] = wasmModule._getFrameCycle();
   sharedControlI32[CTRL_BP_HIT] = wasmModule._isBreakpointHit();
   sharedControlI32[CTRL_BP_ADDR] = wasmModule._getBreakpointAddress();
+  // _getTotalCycles() is a uint64 and comes back as a BigInt, so it cannot be
+  // mixed with Number operators — `totalCycles | 0` threw on every frame. Split
+  // it into the two halves the control block is laid out for rather than
+  // truncating it to 32 bits.
   const totalCycles = wasmModule._getTotalCycles();
-  sharedControlI32[CTRL_TOTAL_CYCLES_LO] = totalCycles | 0;
-  sharedControlI32[CTRL_TOTAL_CYCLES_HI] = 0;
+  const cycles = typeof totalCycles === 'bigint'
+    ? totalCycles
+    : BigInt(Math.floor(totalCycles || 0));
+  sharedControlI32[CTRL_TOTAL_CYCLES_LO] = Number(cycles & 0xFFFFFFFFn) | 0;
+  sharedControlI32[CTRL_TOTAL_CYCLES_HI] = Number((cycles >> 32n) & 0xFFFFFFFFn) | 0;
 }
 
 /**
@@ -217,6 +296,7 @@ function updateControlBlock() {
  */
 function handleSampleRequest(count) {
   if (!wasmModule) return;
+  reportPauseState();
   if (wasmModule._isPaused()) {
     // Send empty samples so the AudioWorklet clears its pendingRequest flag.
     // Without this, the worklet permanently stops requesting samples after a
@@ -261,15 +341,13 @@ self.onmessage = function(event) {
     case MSG_RPC_CALL:
       try {
         var result = execCall(msg.fn, msg.args);
-        // For __heapU8Slice, transfer the ArrayBuffer
-        if (msg.fn === '__heapU8Slice' && result && result.buffer) {
-          self.postMessage(
-            { type: MSG_RPC_RESULT, id: msg.id, result: result },
-            [result.buffer]
-          );
-        } else {
-          self.postMessage({ type: MSG_RPC_RESULT, id: msg.id, result: result });
-        }
+        self.postMessage(
+          { type: MSG_RPC_RESULT, id: msg.id, result: result },
+          collectTransferables(result)
+        );
+        // Catches _setPaused / _stepInstruction / _reset without the main
+        // thread having to ask what they did.
+        reportPauseState();
       } catch (err) {
         self.postMessage({ type: MSG_RPC_ERROR, id: msg.id, error: err.message });
       }
@@ -278,7 +356,10 @@ self.onmessage = function(event) {
     case MSG_RPC_BATCH:
       try {
         var results = msg.calls.map(function(c) { return execCall(c.fn, c.args); });
-        self.postMessage({ type: MSG_RPC_BATCH_RESULT, id: msg.id, results: results });
+        self.postMessage(
+          { type: MSG_RPC_BATCH_RESULT, id: msg.id, results: results },
+          collectTransferables(results)
+        );
       } catch (err) {
         self.postMessage({ type: MSG_RPC_ERROR, id: msg.id, error: err.message });
       }
@@ -307,6 +388,8 @@ self.onmessage = function(event) {
     case MSG_FRAMEBUFFER_CONFIG:
       sharedFramebuffer = msg.sharedFramebuffer;
       sharedFramebufferU8 = new Uint8Array(sharedFramebuffer);
+      sharedFramebufferSlotBytes = msg.slotBytes;
+      fbWriteSlot = 0;
       sharedControl = msg.sharedControl;
       sharedControlI32 = new Int32Array(sharedControl);
       break;

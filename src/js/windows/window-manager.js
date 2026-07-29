@@ -272,10 +272,18 @@ export class WindowManager {
   }
 
   /**
-   * Update all visible and paneled windows
+   * Update all visible and paneled windows.
+   *
+   * update() is async and is deliberately not awaited — the render loop must
+   * not block on a Worker round-trip. That makes an overlap guard essential:
+   * if a window's update takes longer than its interval, the next frame would
+   * start another one before the first finished and the backlog would grow
+   * without limit, each pending update holding its own DOM work. Windows are
+   * skipped while one of their updates is still in flight.
    */
   updateAll(wasmModule) {
     this._frameCounter = (this._frameCounter || 0) + 1;
+    if (!this._updatesInFlight) this._updatesInFlight = new Set();
 
     // Ensure docked active-tab windows have correct isVisible each frame,
     // since other code paths (restoreState, hide) may have reset it.
@@ -284,11 +292,26 @@ export class WindowManager {
     }
 
     for (const window of this.windows.values()) {
-      if (window.isVisible || this._paneledWindows.has(window.id)) {
-        const interval = window.updateEveryNFrames || 4;
-        if (interval === 1 || this._frameCounter % interval === 0) {
-          window.update(wasmModule);
-        }
+      if (!window.isVisible && !this._paneledWindows.has(window.id)) continue;
+
+      const interval = window.updateEveryNFrames || 4;
+      if (interval !== 1 && this._frameCounter % interval !== 0) continue;
+      if (this._updatesInFlight.has(window.id)) continue;
+
+      let result;
+      try {
+        result = window.update(wasmModule);
+      } catch (e) {
+        console.error(`Window "${window.id}" update failed:`, e);
+        continue;
+      }
+
+      // Synchronous updates return undefined and need no tracking.
+      if (result && typeof result.then === 'function') {
+        this._updatesInFlight.add(window.id);
+        result
+          .catch((e) => console.error(`Window "${window.id}" update failed:`, e))
+          .finally(() => this._updatesInFlight.delete(window.id));
       }
     }
   }

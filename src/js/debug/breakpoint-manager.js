@@ -234,21 +234,81 @@ export class BreakpointManager {
   /**
    * Check if temp breakpoint was hit (call in update loop)
    */
-  async checkTemp(pc) {
-    // Check C++ temp breakpoint first
+  async checkTemp() {
+    let hit = false, isPaused = false, bpHit = false, bpAddr = 0;
     try {
-      if (await this.wasmModule._isTempBreakpointHit()) {
-        this.tempBreakpoint = null;
-        return true;
-      }
+      [hit, isPaused, bpHit, bpAddr] = await this.wasmModule.batch([
+        ['_isTempBreakpointHit'],
+        ['_isPaused'],
+        ['_isBreakpointHit'],
+        ['_getBreakpointAddress'],
+      ]);
     } catch (e) {
       /* ignore */
     }
-    if (this.tempBreakpoint !== null && pc === this.tempBreakpoint) {
-      this.clearTemp();
-      return true;
-    }
-    return false;
+    return this.checkTempWithState(hit, isPaused, bpHit, bpAddr);
+  }
+
+  /**
+   * Decide whether the core has halted on our temporary breakpoint, using only
+   * signals the core sets when it actually stopped.
+   *
+   * This deliberately does NOT compare a polled PC against the target. It used
+   * to, and that was the bug behind "run to cursor never stops": the debugger
+   * samples PC at ~30Hz while the CPU runs at ~1MHz, so in any loop a sample
+   * lands on the target address while execution is still in flight — and the
+   * clearTemp() that followed issued _removeBreakpoint(), deleting the
+   * breakpoint out from under the running CPU. The mirror-image failure was
+   * arming a temp breakpoint on the address we were already parked on, where
+   * the very first poll matched before execution had even resumed.
+   *
+   * breakpointHit_ / breakpointAddress_ are set by the core at the moment it
+   * halts and never by a manual pause, so matching on them is exact and
+   * race-free. All three temp-breakpoint users are covered: run-to-cursor
+   * registers a real user breakpoint, and stepOver/stepOut go through the core's
+   * own temp breakpoint, which also populates these two fields on hit.
+   *
+   * The CPU debugger reads all four values as part of one consolidated
+   * per-update batch, so it must not spend another round-trip here.
+   *
+   * @param {boolean} tempBreakpointHit - value of _isTempBreakpointHit()
+   * @param {boolean} isPaused - value of _isPaused()
+   * @param {boolean} bpHit - value of _isBreakpointHit()
+   * @param {number} bpAddr - value of _getBreakpointAddress()
+   * @returns {boolean} true if this stop is our temp breakpoint
+   */
+  checkTempWithState(tempBreakpointHit, isPaused, bpHit, bpAddr) {
+    if (this.tempBreakpoint === null) return false;
+
+    const hit =
+      tempBreakpointHit || (isPaused && bpHit && bpAddr === this.tempBreakpoint);
+    if (!hit) return false;
+
+    // Remember where we stopped before disarming. The core leaves
+    // breakpointHit_ set for as long as it stays paused, so the debugger's next
+    // update re-examines the same hit — by which time the temp breakpoint is
+    // gone and the address looks like an unknown breakpoint, which the caller
+    // would resume past. isTempStop() lets it recognise the stop it already
+    // accepted.
+    this._tempStopAddr = this.tempBreakpoint;
+    this.clearTemp();
+    return true;
+  }
+
+  /**
+   * True if bpAddr is the temp-breakpoint stop we have already accepted and are
+   * still sitting on. Cleared by clearTempStop() once execution resumes.
+   */
+  isTempStop(bpAddr) {
+    return this._tempStopAddr !== null && this._tempStopAddr !== undefined &&
+           bpAddr === this._tempStopAddr;
+  }
+
+  /**
+   * Forget the accepted temp stop — call when execution resumes.
+   */
+  clearTempStop() {
+    this._tempStopAddr = null;
   }
 
   /**

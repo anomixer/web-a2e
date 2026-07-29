@@ -23,3 +23,4 @@ export const MSG_AUDIO_SAMPLES = 'audio-samples';   // { samples } (Phase 1 post
 export const MSG_FRAME_READY = 'frame-ready';       // { framebuffer } (Phase 1 postMessage framebuffer)
 export const MSG_HEAP_ACCESS = 'heap-access';       // { id, data } — result of heap read operations
 export const MSG_PRINTER_BYTE = 'printer-byte';     // { byte } — printer output byte from Worker
+export const MSG_PAUSE_STATE = 'pause-state';       // { paused } — pushed on change so the render loop never awaits _isPaused

@@ -425,6 +425,18 @@ export class SoftSwitchWindow extends BaseWindow {
       });
     }
 
+    // Cache badge elements once. update() runs ~15x/second, so resolving 35
+    // querySelectors per tick — and touching classList on badges that have not
+    // changed — was invalidating style/paint for the whole window every tick.
+    this.badges = [];
+    for (const group of this.switchGroups) {
+      for (const sw of group.switches) {
+        const el = this.contentElement.querySelector(`#sw-${sw.id}`);
+        if (el) this.badges.push({ bit: sw.bit, el });
+      }
+    }
+    this.lastStateLow = null;
+    this.lastStateHigh = null;
   }
 
   /**
@@ -432,27 +444,43 @@ export class SoftSwitchWindow extends BaseWindow {
    */
   async update(wasmModule) {
     this.wasmModule = wasmModule;
+    if (!this.badges) return;
 
-    // Get both low and high 32-bit parts of the state
-    const [stateLow, stateHigh] = await wasmModule.batch([
-      ['_getSoftSwitchState'],
-      ['_getSoftSwitchStateHigh'],
-    ]);
+    // One RPC in flight at a time: update() is fired from the render loop
+    // without being awaited, so a slow round-trip would otherwise let requests
+    // stack up faster than the Worker can answer them.
+    if (this._updatePending) return;
+    this._updatePending = true;
 
-    for (const group of this.switchGroups) {
-      for (const sw of group.switches) {
-        let isOn;
-        if (sw.bit < 32) {
-          isOn = (stateLow & (1 << sw.bit)) !== 0;
-        } else {
-          isOn = (stateHigh & (1 << (sw.bit - 32))) !== 0;
-        }
+    let stateLow, stateHigh;
+    try {
+      // Get both low and high 32-bit parts of the state
+      [stateLow, stateHigh] = await wasmModule.batch([
+        ['_getSoftSwitchState'],
+        ['_getSoftSwitchStateHigh'],
+      ]);
+    } finally {
+      this._updatePending = false;
+    }
 
-        const badge = this.contentElement.querySelector(`#sw-${sw.id}`);
-        if (badge) {
-          badge.classList.toggle("active", isOn);
-        }
-      }
+    // Nothing changed — skip the DOM entirely. Without this, re-toggling the
+    // same classes repaints the window (and its backdrop-filter) every tick.
+    if (stateLow === this.lastStateLow && stateHigh === this.lastStateHigh) {
+      return;
+    }
+
+    const changedLow = this.lastStateLow === null ? ~0 : stateLow ^ this.lastStateLow;
+    const changedHigh = this.lastStateHigh === null ? ~0 : stateHigh ^ this.lastStateHigh;
+    this.lastStateLow = stateLow;
+    this.lastStateHigh = stateHigh;
+
+    for (const { bit, el } of this.badges) {
+      const [state, changed, mask] =
+        bit < 32
+          ? [stateLow, changedLow, 1 << bit]
+          : [stateHigh, changedHigh, 1 << (bit - 32)];
+      if ((changed & mask) === 0) continue;
+      el.classList.toggle("active", (state & mask) !== 0);
     }
   }
 }

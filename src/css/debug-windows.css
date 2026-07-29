@@ -6,8 +6,8 @@
 .debug-window {
     position: fixed;
     background: var(--glass-bg);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: var(--glass-backdrop);
+    -webkit-backdrop-filter: var(--glass-backdrop);
     border: 1px solid var(--glass-border);
     border-radius: var(--radius-md);
     box-shadow: var(--shadow-window);
@@ -1542,9 +1542,11 @@
     padding: 4px 6px;
     background: var(--input-bg-dark);
     border-radius: 3px;
-    transition: all 0.1s;
 }
 
+/* No transition on the badges: VBLBAR flips on nearly every sample, and an
+   animated box-shadow repaints the window (and re-blurs its backdrop-filter)
+   for the whole transition duration. Toggling instantly costs one paint. */
 .switch-badge {
     min-width: 60px;
     padding: 2px 6px;
@@ -1555,7 +1557,6 @@
     border: 1px solid var(--badge-dim-border);
     border-radius: 3px;
     color: var(--text-muted);
-    transition: all 0.15s;
 }
 
 .switch-badge.active {
@@ -5446,7 +5447,7 @@ input.rb-detail {
     align-items: center;
     justify-content: center;
     background: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(4px);
+    backdrop-filter: var(--glass-backdrop);
     z-index: 200;
 }
 

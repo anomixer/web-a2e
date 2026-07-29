@@ -52,26 +52,29 @@ export class StackViewerWindow extends BaseWindow {
     this.contentDiv = this.contentElement.querySelector(".stack-content");
   }
 
-  async analyzeReturnAddress(lowByte, highByte) {
-    // Return addresses on 6502 are pushed as addr-1 (JSR pushes PC+2, which points to last byte of JSR)
+  /**
+   * Return address arithmetic, with no I/O.
+   *
+   * 6502 return addresses are pushed as addr-1 (JSR pushes PC+2, which points
+   * at the last byte of the JSR).
+   */
+  returnAddressOf(lowByte, highByte) {
     const retAddr = ((highByte << 8) | lowByte) + 1;
+    return retAddr > 0xffff ? null : retAddr;
+  }
 
-    if (retAddr > 0xffff) return null;
-
-    // Try to disassemble the instruction at the return address
-    const disasmPtr = await this.wasmModule._disassembleAt(retAddr);
-    if (disasmPtr) {
-      const disasmStr = await this.wasmModule.UTF8ToString(disasmPtr);
-      // Extract just the instruction mnemonic
-      const match = disasmStr.match(/:\s*[0-9A-F ]+\s+(\w+)/);
-      if (match) {
-        return {
-          addr: retAddr,
-          instr: match[1],
-        };
-      }
-    }
-    return { addr: retAddr, instr: "???" };
+  /**
+   * Pull the mnemonic out of an already-fetched disassembly line.
+   *
+   * This used to be an async method that disassembled one address per call —
+   * two round-trips each, inside the render loop, once per return address on
+   * the stack. A deep stack made that dozens of sequential round-trips per
+   * tick. The disassembly for every return address is now fetched in one
+   * batch and this just parses the result.
+   */
+  mnemonicOf(disasmStr) {
+    const match = disasmStr && disasmStr.match(/:\s*[0-9A-F ]+\s+(\w+)/);
+    return match ? match[1] : "???";
   }
 
   async isLikelyReturnAddress(sp, wasmModule) {
@@ -148,24 +151,35 @@ export class StackViewerWindow extends BaseWindow {
       }
     }
 
-    // Build stack view (from top of stack down to SP)
-    let html = "";
+    // Disassemble every detected return address in ONE batch, rather than two
+    // round-trips per address from inside the render loop below.
+    const retAddrByIndex = new Map();
+    const disasmCalls = [];
+    const disasmIndexes = [];
+    for (let i = 0xff; i > sp; i--) {
+      if (i <= sp + 1 || !jsrMap.has(i)) continue;
+      const retAddr = this.returnAddressOf(stackBytes[0xff - (i - 1)], stackBytes[0xff - i]);
+      if (retAddr === null) continue;
+      retAddrByIndex.set(i, retAddr);
+      disasmIndexes.push(i);
+      disasmCalls.push(['__callString', '_disassembleAt', retAddr]);
+    }
+    const disasmResults = disasmCalls.length > 0 ? await wasmModule.batch(disasmCalls) : [];
+    const mnemonicByIndex = new Map();
+    disasmIndexes.forEach((i, n) => {
+      mnemonicByIndex.set(i, this.mnemonicOf(disasmResults[n]));
+    });
+
+    // Build the row data, then apply it in place — see _renderRows().
+    const rows = [];
     let skipReturnAddr = false;
 
     for (let i = 0xff; i > sp; i--) {
       const addr = 0x100 + i;
       const value = stackBytes[0xff - i];
       const isSP = i === sp + 1; // Current top of stack
-
-      // Try to detect return addresses (pairs of bytes)
-      let returnInfo = null;
-      let isReturnAddr = false;
-
-      if (i > sp + 1 && jsrMap.has(i)) {
-        const prevValue = stackBytes[0xff - (i - 1)];
-        isReturnAddr = true;
-        returnInfo = await this.analyzeReturnAddress(prevValue, value);
-      }
+      const retAddr = retAddrByIndex.get(i);
+      const isReturnAddr = retAddr !== undefined;
 
       const classes = ["stack-entry"];
       if (isSP) classes.push("stack-top");
@@ -178,31 +192,92 @@ export class StackViewerWindow extends BaseWindow {
       }
 
       let infoStr = "";
-      if (isReturnAddr && returnInfo) {
-        infoStr = `→ $${this.formatHex(returnInfo.addr, 4)} (${returnInfo.instr})`;
+      if (isReturnAddr) {
+        infoStr = `→ $${this.formatHex(retAddr, 4)} (${mnemonicByIndex.get(i)})`;
       } else if (value >= 0x20 && value < 0x7f) {
         infoStr = `'${String.fromCharCode(value)}'`;
       }
 
-      html += `
-        <div class="${classes.join(" ")}">
-          <span class="stack-addr">$${this.formatHex(addr, 4)}</span>
-          <span class="stack-value">$${this.formatHex(value, 2)}</span>
-          <span class="stack-info-text">${infoStr}</span>
-        </div>
-      `;
+      rows.push({
+        className: classes.join(" "),
+        addr: `$${this.formatHex(addr, 4)}`,
+        value: `$${this.formatHex(value, 2)}`,
+        info: infoStr,
+      });
     }
 
-    // Add empty stack marker if stack is empty
-    if (stackDepth === 0) {
-      html = '<div class="stack-empty">Stack is empty</div>';
-    }
-
-    this.contentDiv.innerHTML = html;
+    this._renderRows(rows);
     this.previousSP = sp;
 
     // Build call stack summary
     await this.updateCallStack(wasmModule, sp);
+  }
+
+  /**
+   * Apply row data to the DOM, reusing the existing elements.
+   *
+   * This ran as `contentDiv.innerHTML = html` on every tick, which discards and
+   * re-parses every row — a full style recalc, layout and paint for the window
+   * (and, for a floating window, a backdrop re-blur) 15 times a second even
+   * when a single byte changed. Rows are now created only when the stack depth
+   * changes, and their text is written only where it differs.
+   */
+  _renderRows(rows) {
+    if (!this._rowPool) this._rowPool = [];
+    const pool = this._rowPool;
+
+    if (rows.length === 0) {
+      if (this.contentDiv.firstElementChild?.className !== "stack-empty") {
+        this.contentDiv.replaceChildren();
+        const empty = document.createElement("div");
+        empty.className = "stack-empty";
+        empty.textContent = "Stack is empty";
+        this.contentDiv.appendChild(empty);
+        pool.length = 0;
+      }
+      return;
+    }
+
+    // Depth changed — rebuild the pool. Cheap relative to doing it every tick.
+    if (pool.length !== rows.length) {
+      pool.length = 0;
+      const fragment = document.createDocumentFragment();
+      for (let i = 0; i < rows.length; i++) {
+        const row = document.createElement("div");
+        const addrSpan = document.createElement("span");
+        addrSpan.className = "stack-addr";
+        const valueSpan = document.createElement("span");
+        valueSpan.className = "stack-value";
+        const infoSpan = document.createElement("span");
+        infoSpan.className = "stack-info-text";
+        row.append(addrSpan, valueSpan, infoSpan);
+        fragment.appendChild(row);
+        pool.push({ row, addrSpan, valueSpan, infoSpan, last: {} });
+      }
+      this.contentDiv.replaceChildren(fragment);
+    }
+
+    for (let i = 0; i < rows.length; i++) {
+      const data = rows[i];
+      const el = pool[i];
+      const last = el.last;
+      if (last.className !== data.className) {
+        el.row.className = data.className;
+        last.className = data.className;
+      }
+      if (last.addr !== data.addr) {
+        el.addrSpan.textContent = data.addr;
+        last.addr = data.addr;
+      }
+      if (last.value !== data.value) {
+        el.valueSpan.textContent = data.value;
+        last.value = data.value;
+      }
+      if (last.info !== data.info) {
+        el.infoSpan.textContent = data.info;
+        last.info = data.info;
+      }
+    }
   }
 
   /**

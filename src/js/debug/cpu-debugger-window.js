@@ -10,6 +10,14 @@ import { getSymbolInfo, getCategoryClass, ALL_SYMBOLS } from "./symbols.js";
 import { BreakpointManager } from "./breakpoint-manager.js";
 import { LabelManager } from "./label-manager.js";
 
+// How often the 64K profiling table is re-read for the disassembly heat
+// overlay. See updateProfileData().
+const PROFILE_REFRESH_MS = 250;
+
+// Disassembly view geometry.
+const DISASM_TOTAL_LINES = 24;
+const DISASM_LINES_BEFORE = 6;
+
 /**
  * CPUDebuggerWindow - CPU registers, disassembly, and breakpoints
  */
@@ -791,10 +799,56 @@ export class CPUDebuggerWindow extends BaseWindow {
   async update(wasmModule) {
     this.wasmModule = wasmModule;
 
-    const [pc, isPaused] = await this.wasmModule.batch([
+    // ONE round-trip for the whole window.
+    //
+    // This used to be eight: a [_getPC,_isPaused] batch, then checkTemp, then
+    // updateRegisters, updateFlags, updateIRQState, updateDisassembly and
+    // updateBeamHitHighlight each awaiting their own. At ~30fps that was ~240
+    // round-trips a second, every one of them queued on the worker thread that
+    // is also running the emulator.
+    //
+    // A few entries here are only meaningful under conditions we cannot know
+    // until the results come back (the beam readouts matter only while paused,
+    // the breakpoint addresses only on a hit). Fetching them unconditionally
+    // costs a handful of trivial WASM getters inside a message we are already
+    // sending; splitting the batch to avoid them would cost a second
+    // round-trip, which is far more expensive.
+    const S = CPUDebuggerWindow.UPDATE_BATCH;
+    const results = await this.wasmModule.batch([
       ['_getPC'],
       ['_isPaused'],
+      ['_isTempBreakpointHit'],
+      ['_getP'],
+      ['_isIRQPending'],
+      ['_isNMIPending'],
+      ['_isNMIEdge'],
+      ['_getA'],
+      ['_getX'],
+      ['_getY'],
+      ['_getSP'],
+      ['_getTotalCycles'],
+      ['_isBreakpointHit'],
+      ['_getBreakpointAddress'],
+      ['_isWatchpointHit'],
+      ['_getWatchpointAddress'],
+      ['_isBeamBreakpointHit'],
+      ['_getBeamBreakpointHitId'],
+      ['_getFrameCycle'],
+      ['_getBeamScanline'],
+      ['_getBeamHPos'],
+      ['_getBeamColumn'],
+      ['_isInVBL'],
+      ['_isInHBLANK'],
+      // Negative centre address means "use the current PC" — see the
+      // _disassembleRange export. Passing pc explicitly is impossible here
+      // because we do not have it until this very batch returns.
+      ['__callString', '_disassembleRange',
+        this.disasmViewAddress !== null ? this.disasmViewAddress : -1,
+        DISASM_LINES_BEFORE, DISASM_TOTAL_LINES],
     ]);
+
+    const pc = results[S.PC];
+    const isPaused = results[S.IS_PAUSED];
 
     // Update status indicator
     const statusEl = this.contentElement.querySelector("#dbg-status");
@@ -816,16 +870,17 @@ export class CPUDebuggerWindow extends BaseWindow {
       }
     }
 
-    // Check temp breakpoint
-    await this.bpManager.checkTemp(pc);
+    // Check temp breakpoint. The return value matters: a temp breakpoint
+    // (run-to-cursor, step over/out) is not in the JS breakpoint map, so the
+    // conditional-breakpoint check below would fail to recognise it, decide it
+    // was a stale hit, and resume — undoing the stop we just made.
+    const tempHit = this.bpManager.checkTempWithState(
+      results[S.TEMP_BP_HIT], isPaused, results[S.BP_HIT], results[S.BP_ADDR],
+    );
 
     // Check if a watchpoint was hit - evaluate conditions/hit counts (range-aware)
-    if (
-      isPaused &&
-      this.wasmModule._isWatchpointHit &&
-      await this.wasmModule._isWatchpointHit()
-    ) {
-      const wpAddr = await this.wasmModule._getWatchpointAddress();
+    if (isPaused && results[S.WP_HIT]) {
+      const wpAddr = results[S.WP_ADDR];
       const entry = this.bpManager.findByAddress(wpAddr);
       if (entry) {
         if (!await this.bpManager.shouldBreakEntry(entry)) {
@@ -843,24 +898,28 @@ export class CPUDebuggerWindow extends BaseWindow {
       }
     }
 
-    // Check conditional breakpoint evaluation
-    if (
-      isPaused &&
-      this.wasmModule._isBreakpointHit &&
-      await this.wasmModule._isBreakpointHit()
-    ) {
-      const bpAddr = await this.wasmModule._getBreakpointAddress();
-      if (!await this.bpManager.shouldBreak(bpAddr)) {
+    // Check conditional breakpoint evaluation. A temp breakpoint has no
+    // condition or hit count to evaluate — arriving at it IS the stop — so it
+    // bypasses this and simply stays paused.
+    if (isPaused && results[S.BP_HIT]) {
+      const bpAddr = results[S.BP_ADDR];
+      // tempHit is only true on the update that first sees the stop; isTempStop
+      // covers every later update that re-examines the same still-set hit.
+      if (tempHit || this.bpManager.isTempStop(bpAddr)) {
+        this._hitBpAddr = bpAddr;
+      } else if (!await this.bpManager.shouldBreak(bpAddr)) {
         // Condition not met - resume execution
         this.wasmModule._setPaused(false);
         return;
+      } else {
+        this._hitBpAddr = bpAddr;
       }
-      this._hitBpAddr = bpAddr;
     }
 
     // Clear hit address when running
     if (!isPaused) {
       this._hitBpAddr = -1;
+      this.bpManager.clearTempStop();
     }
 
     // If PC changed, snap disassembly back to follow PC
@@ -868,19 +927,66 @@ export class CPUDebuggerWindow extends BaseWindow {
       this.disasmViewAddress = null;
     }
 
-    await this.updateRegisters();
-    await this.updateFlags();
-    await this.updateIRQState();
+    // Resolves without a round-trip when handed batch results; awaited only so
+    // a throw surfaces rather than becoming an unhandled rejection.
+    await this.updateRegisters(results);
+    this.updateFlags(results[S.P]);
+    this.updateIRQState([
+      results[S.IRQ_PENDING],
+      results[S.NMI_PENDING],
+      results[S.NMI_EDGE],
+    ]);
     if (isPaused) {
-      await this.updateScanline();
+      this.updateScanline([
+        results[S.FRAME_CYCLE],
+        results[S.BEAM_SCANLINE],
+        results[S.BEAM_HPOS],
+        results[S.BEAM_COLUMN],
+        results[S.IN_VBL],
+        results[S.IN_HBLANK],
+      ]);
     } else {
       this.clearScanline();
     }
-    await this.updateDisassembly();
+    this.renderDisassembly(results[S.DISASM], pc, isPaused);
     await this.updateWatchList();
-    await this.updateBeamHitHighlight();
+    this.updateBeamHitHighlight(
+      isPaused && results[S.BEAM_BP_HIT] ? results[S.BEAM_BP_HIT_ID] : -1,
+    );
     this.updateBreakpointHitHighlight();
   }
+
+  /**
+   * Index of each value in the single per-update batch issued by update().
+   * Must stay in step with the array passed to wasmModule.batch() there.
+   */
+  static UPDATE_BATCH = {
+    PC: 0,
+    IS_PAUSED: 1,
+    TEMP_BP_HIT: 2,
+    P: 3,
+    IRQ_PENDING: 4,
+    NMI_PENDING: 5,
+    NMI_EDGE: 6,
+    A: 7,
+    X: 8,
+    Y: 9,
+    SP: 10,
+    TOTAL_CYCLES: 11,
+    BP_HIT: 12,
+    BP_ADDR: 13,
+    WP_HIT: 14,
+    WP_ADDR: 15,
+    BEAM_BP_HIT: 16,
+    BEAM_BP_HIT_ID: 17,
+    FRAME_CYCLE: 18,
+    BEAM_SCANLINE: 19,
+    BEAM_HPOS: 20,
+    BEAM_COLUMN: 21,
+    IN_VBL: 22,
+    IN_HBLANK: 23,
+    DISASM: 24,
+  };
 
   /**
    * Register definitions for display and editing
@@ -895,14 +1001,26 @@ export class CPUDebuggerWindow extends BaseWindow {
   ];
 
   /**
-   * Update CPU register display
+   * Update CPU register display.
+   *
+   * Values come from update()'s single batch. Called on its own from the
+   * register-edit commit path, where batchResults is omitted and the values
+   * are fetched — that is a one-off on user input, not a per-frame cost.
+   * @param {Array} [batchResults] - results array from update()
    */
-  async updateRegisters() {
-    const defs = CPUDebuggerWindow.REGISTER_DEFS.filter(
-      ({ fn }) => this.wasmModule[fn]
-    );
-    const batchCalls = defs.map(({ fn }) => [fn]);
-    const values = await this.wasmModule.batch(batchCalls);
+  async updateRegisters(batchResults) {
+    const S = CPUDebuggerWindow.UPDATE_BATCH;
+    const defs = CPUDebuggerWindow.REGISTER_DEFS;
+    const values = batchResults
+      ? [
+          batchResults[S.A],
+          batchResults[S.X],
+          batchResults[S.Y],
+          batchResults[S.SP],
+          batchResults[S.PC],
+          batchResults[S.TOTAL_CYCLES],
+        ]
+      : await this.wasmModule.batch(defs.map(({ fn }) => [fn]));
 
     defs.forEach(({ id, digits }, i) => {
       const elem = this.contentElement.querySelector(`#${id}`);
@@ -913,9 +1031,13 @@ export class CPUDebuggerWindow extends BaseWindow {
       const text =
         digits > 0 ? this.formatHex(value, digits) : value.toString();
 
-      // Highlight changes
+      // Nothing changed — skip the DOM entirely rather than rewriting the same
+      // string and dirtying layout for six elements every frame.
       const prevVal = this.previousRegisters[id];
-      if (prevVal !== undefined && prevVal !== text) {
+      if (prevVal === text) return;
+
+      // Highlight changes
+      if (prevVal !== undefined) {
         elem.classList.remove("changed");
         // Force reflow to restart animation
         void elem.offsetWidth;
@@ -1228,18 +1350,13 @@ export class CPUDebuggerWindow extends BaseWindow {
   /**
    * Lightweight hit highlight update — toggles .hit class without rebuilding DOM
    */
-  async updateBeamHitHighlight() {
+  /**
+   * @param {number} hitId - id of the beam breakpoint currently hit, or -1.
+   *                         Resolved by update() from its single batch.
+   */
+  updateBeamHitHighlight(hitId) {
     const list = this.contentElement.querySelector("#beam-list");
     if (!list) return;
-
-    const isPaused = await this.wasmModule._isPaused();
-    let hitId = -1;
-    if (isPaused && this.wasmModule._isBeamBreakpointHit) {
-      const isHit = await this.wasmModule._isBeamBreakpointHit();
-      if (isHit) {
-        hitId = await this.wasmModule._getBeamBreakpointHitId();
-      }
-    }
 
     if (hitId === this._lastBeamHitId) return;
     this._lastBeamHitId = hitId;
@@ -1314,8 +1431,10 @@ export class CPUDebuggerWindow extends BaseWindow {
   /**
    * Update CPU flags display
    */
-  async updateFlags() {
-    const p = await this.wasmModule._getP();
+  /**
+   * @param {number} p - status register, already fetched by update()
+   */
+  updateFlags(p) {
     const flags = [
       { id: "flag-n", bit: 0x80 },
       { id: "flag-v", bit: 0x40 },
@@ -1337,21 +1456,15 @@ export class CPUDebuggerWindow extends BaseWindow {
   /**
    * Update IRQ/NMI state indicators
    */
-  async updateIRQState() {
-    const indicators = [
-      { id: "irq-pending", fn: "_isIRQPending" },
-      { id: "nmi-pending", fn: "_isNMIPending" },
-      { id: "nmi-edge", fn: "_isNMIEdge" },
-    ];
-
-    const available = indicators.filter(({ fn }) => this.wasmModule[fn]);
-    if (available.length === 0) return;
-    const results = await this.wasmModule.batch(available.map(({ fn }) => [fn]));
-
-    available.forEach(({ id }, i) => {
+  /**
+   * @param {Array} states - [irqPending, nmiPending, nmiEdge], already fetched
+   */
+  updateIRQState(states) {
+    const ids = ["irq-pending", "nmi-pending", "nmi-edge"];
+    ids.forEach((id, i) => {
       const elem = this.contentElement.querySelector(`#${id}`);
       if (elem) {
-        elem.classList.toggle("active", results[i]);
+        elem.classList.toggle("active", !!states[i]);
       }
     });
   }
@@ -1376,15 +1489,12 @@ export class CPUDebuggerWindow extends BaseWindow {
    * Update scanline / beam position display.
    * Skips redundant DOM writes so browser title tooltips aren't interrupted.
    */
-  async updateScanline() {
-    const [frameCycle, scanline, hPos, col, inVBL, inHBLANK] = await this.wasmModule.batch([
-      ['_getFrameCycle'],
-      ['_getBeamScanline'],
-      ['_getBeamHPos'],
-      ['_getBeamColumn'],
-      ['_isInVBL'],
-      ['_isInHBLANK'],
-    ]);
+  /**
+   * @param {Array} beam - [frameCycle, scanline, hPos, col, inVBL, inHBLANK],
+   *                       already fetched by update()
+   */
+  updateScanline(beam) {
+    const [frameCycle, scanline, hPos, col, inVBL, inHBLANK] = beam;
 
     const els = this.getBeamElements();
 
@@ -1433,94 +1543,114 @@ export class CPUDebuggerWindow extends BaseWindow {
   }
 
   /**
-   * Find a good starting address for disassembly that aligns with instruction boundaries.
-   * Scans forward from a safe distance back to find valid instruction starts.
+   * Refresh the profiling heat data backing the disassembly overlay.
+   *
+   * This pulls the whole 64K cycle-count table, so it is throttled rather than
+   * run at the disassembly's ~30fps: at full rate it was re-reading 256KB
+   * thirty times a second purely to tint two dozen rows. 4Hz is well inside
+   * what reads as "live" for a heat overlay.
    */
-  async findDisasmStartAddress(pc, instructionsBefore) {
-    // Start from further back and scan forward to find instruction boundaries
-    const maxLookback = instructionsBefore * 3 + 10; // Max bytes to look back
-    let startAddr = Math.max(0, pc - maxLookback);
-
-    // Build a list of instruction addresses by scanning forward
-    const addresses = [];
-    let addr = startAddr;
-    while (addr <= pc + 100 && addr <= 0xffff) {
-      addresses.push(addr);
-      const opcode = await this.wasmModule._peekMemory(addr);
-      addr += this.getInstructionLength(opcode);
+  async updateProfileData() {
+    if (!this.profileEnabled || !this.wasmModule._getProfileCycles) {
+      this._profileMax = 0;
+      this._profilePtr = 0;
+      this._profileData = null;
+      return;
     }
 
-    // Find where PC falls in our list
-    const pcIndex = addresses.indexOf(pc);
-    if (pcIndex === -1) {
-      // PC not aligned - find closest address before PC
-      for (let i = addresses.length - 1; i >= 0; i--) {
-        if (addresses[i] <= pc) {
-          const startIndex = Math.max(0, i - instructionsBefore);
-          return addresses[startIndex];
-        }
+    const now = performance.now();
+    if (this._lastProfileRead && now - this._lastProfileRead < PROFILE_REFRESH_MS) {
+      return;
+    }
+    // Called without being awaited, so guard against a slow read overlapping
+    // the next one.
+    if (this._profileReadPending) return;
+    this._lastProfileRead = now;
+
+    let sampleData;
+    this._profileReadPending = true;
+    try {
+      this._profilePtr = await this.wasmModule._getProfileCycles();
+      if (!this._profilePtr) {
+        this._profileMax = 0;
+        this._profileData = null;
+        return;
       }
-      return Math.max(0, pc - 20);
+      sampleData = await this.wasmModule.heapReadU32(this._profilePtr, 65536);
+    } finally {
+      this._profileReadPending = false;
     }
 
-    // Return address that gives us instructionsBefore lines before PC
-    const startIndex = Math.max(0, pcIndex - instructionsBefore);
-    return addresses[startIndex];
+    // Normalise against a sample rather than a full scan — the max only needs
+    // to be representative, and every 64th entry is 1024 samples.
+    let max = 0;
+    for (let i = 0; i < 65536; i += 64) {
+      const v = sampleData[i];
+      if (v > max) max = v;
+    }
+    this._profileMax = max;
+    this._profileData = sampleData;
   }
 
   /**
-   * Update disassembly view
+   * Update disassembly view.
+   *
+   * The whole view is fetched in a single worker round-trip via
+   * _disassembleRange — see the comment on that export. Pass isPaused when the
+   * caller already knows it (update() does) to avoid one more round-trip.
    */
-  async updateDisassembly() {
+  async updateDisassembly(isPaused = null) {
+    const [pc, blob] = await this.wasmModule.batch([
+      ['_getPC'],
+      ['__callString', '_disassembleRange',
+        this.disasmViewAddress !== null ? this.disasmViewAddress : -1,
+        DISASM_LINES_BEFORE, DISASM_TOTAL_LINES],
+    ]);
+    if (isPaused === null) {
+      isPaused = await this.wasmModule._isPaused();
+    }
+    this.renderDisassembly(blob, pc, isPaused);
+  }
+
+  /**
+   * Render an already-fetched disassembly blob.
+   *
+   * Split out from updateDisassembly() so update() can render from its single
+   * consolidated batch without a second round-trip. Callers outside the update
+   * loop (scrolling the view, committing a register edit) use the async
+   * wrapper above.
+   *
+   * @param {string} blob - newline-separated lines from _disassembleRange
+   * @param {number} pc - program counter, for the current-line marker
+   * @param {boolean} isPaused - when running, keep the PC line scrolled into view
+   */
+  renderDisassembly(blob, pc, isPaused) {
     const view = this.contentElement.querySelector("#disasm-view");
     if (!view) return;
 
-    const pc = await this.wasmModule._getPC();
-    const totalLines = 24; // Total instructions to show
-    const linesBefore = 6; // Instructions to show before center
+    const disasmLines = blob ? blob.split("\n") : [];
 
-    // Cache profiling data if enabled
-    this._profileMax = 0;
-    this._profilePtr = 0;
-    if (this.profileEnabled && this.wasmModule._getProfileCycles) {
-      this._profilePtr = await this.wasmModule._getProfileCycles();
-      if (this._profilePtr) {
-        // Find max for normalization by sampling the profile array
-        const sampleIndices = [];
-        for (let i = 0; i < 65536; i += 64) {
-          sampleIndices.push(i);
-        }
-        const sampleData = await this.wasmModule.heapReadU32(this._profilePtr, 65536);
-        let max = 0;
-        for (let i = 0; i < 65536; i += 64) {
-          const v = sampleData[i];
-          if (v > max) max = v;
-        }
-        this._profileMax = max;
-        this._profileData = sampleData;
-      }
-    }
+    // Fire-and-forget: the heat overlay is throttled to 4Hz and applies from
+    // the previous read, so rendering never waits on it.
+    this.updateProfileData().catch((e) =>
+      console.warn("profile data refresh failed:", e),
+    );
 
-    // Use custom view address or PC
-    const centerAddr =
-      this.disasmViewAddress !== null ? this.disasmViewAddress : pc;
-
-    // Find aligned start address
-    const startAddr = await this.findDisasmStartAddress(centerAddr, linesBefore);
-
-    view.innerHTML = "";
-    let addr = startAddr;
+    const fragment = document.createDocumentFragment();
     let pcLineElement = null;
 
-    // Disassemble instructions
-    for (let i = 0; i < totalLines && addr <= 0xffff; i++) {
+    for (const disasm of disasmLines) {
+      // "AAAA: BB BB BB  MNEM OPERAND" — the address is the first four chars.
+      const addr = parseInt(disasm.substring(0, 4), 16);
+      if (Number.isNaN(addr)) continue;
+
       // Check for label at this address - show on its own line
       const labelInfo = this.labelManager.getLabel(addr);
       if (labelInfo && labelInfo.name) {
         const labelLine = document.createElement("div");
         labelLine.className = "cpu-disasm-label-line";
         labelLine.textContent = labelInfo.name + ":";
-        view.appendChild(labelLine);
+        fragment.appendChild(labelLine);
       }
 
       const line = document.createElement("div");
@@ -1557,10 +1687,6 @@ export class CPUDebuggerWindow extends BaseWindow {
       } else if (isBookmarked) {
         gutterSpan.innerHTML = '<span class="bm-star">★</span>';
       }
-
-      // Get disassembly from WASM
-      const disasmPtr = await this.wasmModule._disassembleAt(addr);
-      const disasm = await this.wasmModule.UTF8ToString(disasmPtr);
 
       // Parse: "AAAA: BB BB BB  MMM OPERAND"
       const addrPart = disasm.substring(0, 4);
@@ -1612,15 +1738,14 @@ export class CPUDebuggerWindow extends BaseWindow {
         line.appendChild(commentSpan);
       }
 
-      view.appendChild(line);
-
-      // Advance to next instruction
-      const opcode = await this.wasmModule._peekMemory(addr);
-      addr += this.getInstructionLength(opcode);
+      fragment.appendChild(line);
     }
 
+    // Single swap — the rows never exist half-built in the live tree.
+    view.replaceChildren(fragment);
+
     // Scroll to keep PC visible only while running — when paused, let user scroll freely
-    if (pcLineElement && !await this.wasmModule._isPaused()) {
+    if (pcLineElement && !isPaused) {
       const viewRect = view.getBoundingClientRect();
       const lineRect = pcLineElement.getBoundingClientRect();
 

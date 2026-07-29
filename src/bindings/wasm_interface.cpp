@@ -19,6 +19,8 @@
 #include "../core/input/keyboard.hpp"
 #include <cstdlib>
 #include <cstring>
+#include <string>
+#include <vector>
 #include <emscripten.h>
 
 // Global emulator instance
@@ -684,6 +686,79 @@ EMSCRIPTEN_KEEPALIVE
 const char *disassembleAt(uint16_t address) {
   REQUIRE_EMULATOR_OR("");
   return g_emulator->disassembleAt(address);
+}
+
+// Disassemble a run of instructions in a single call.
+//
+// The CPU debugger used to build this view from JavaScript with one
+// _peekMemory round-trip per byte of alignment lookback plus two more per
+// rendered line — roughly 120 worker round-trips per refresh, 30 times a
+// second. Every one of those stole time from the emulation running on that
+// same worker thread, so an open debugger measurably slowed the machine it was
+// inspecting. Both the alignment scan and the disassembly live here now: the
+// caller makes one call and splits the result on '\n'.
+//
+// centerAddr is snapped backwards onto an instruction boundary, then
+// instructionsBefore instructions of leading context are included. Each line
+// uses the same "AAAA: BB BB BB  MNEM OPERAND" format disassembleAt() emits,
+// so the caller can recover the address from the first four characters.
+//
+// A NEGATIVE centerAddr means "centre on the current PC". That exists so the
+// debugger can put this call in the same batch as the register reads: it would
+// otherwise have to fetch PC in one round-trip purely to compute the argument
+// for a second, which is the round-trip this export was written to remove.
+EMSCRIPTEN_KEEPALIVE
+const char *disassembleRange(int32_t centerAddrOrPC, int instructionsBefore,
+                             int count) {
+  static std::string buffer;
+  buffer.clear();
+  REQUIRE_EMULATOR_OR(buffer.c_str());
+  if (count <= 0) {
+    return buffer.c_str();
+  }
+  if (instructionsBefore < 0) {
+    instructionsBefore = 0;
+  }
+
+  const uint16_t centerAddr =
+      centerAddrOrPC < 0 ? g_emulator->getPC()
+                         : static_cast<uint16_t>(centerAddrOrPC & 0xFFFF);
+
+  // Instruction boundaries are not recoverable by scanning backwards, so start
+  // from a safe distance back and walk forward. Three bytes per instruction is
+  // the worst case; the +10 keeps a short lookback from landing mid-operand.
+  const int maxLookback = instructionsBefore * 3 + 10;
+  int scanAddr = static_cast<int>(centerAddr) - maxLookback;
+  if (scanAddr < 0) {
+    scanAddr = 0;
+  }
+
+  std::vector<uint16_t> boundaries;
+  while (scanAddr <= static_cast<int>(centerAddr)) {
+    boundaries.push_back(static_cast<uint16_t>(scanAddr));
+    scanAddr += a2e::getInstructionLength(
+        g_emulator->peekMemory(static_cast<uint16_t>(scanAddr)));
+  }
+
+  // The last boundary at or before centerAddr is the anchor; back up from
+  // there. If centerAddr was itself mid-instruction the anchor is the
+  // instruction containing it, which is what the old JS fallback did too.
+  size_t anchorIndex = boundaries.size() - 1;
+  size_t startIndex = anchorIndex > static_cast<size_t>(instructionsBefore)
+                          ? anchorIndex - static_cast<size_t>(instructionsBefore)
+                          : 0;
+
+  int addr = static_cast<int>(boundaries[startIndex]);
+  for (int i = 0; i < count && addr <= 0xFFFF; i++) {
+    if (i > 0) {
+      buffer.push_back('\n');
+    }
+    buffer += g_emulator->disassembleAt(static_cast<uint16_t>(addr));
+    addr += a2e::getInstructionLength(
+        g_emulator->peekMemory(static_cast<uint16_t>(addr)));
+  }
+
+  return buffer.c_str();
 }
 
 EMSCRIPTEN_KEEPALIVE

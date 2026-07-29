@@ -397,10 +397,10 @@ export class ScreenWindow extends BaseWindow {
     // Let the base class compute unconstrained new dimensions
     super.resize(e);
 
-    // Enforce aspect ratio on the content area (window height = content + header)
-    const headerHeight = this.headerElement
-      ? this.headerElement.offsetHeight
-      : 0;
+    // Enforce aspect ratio on the content area (window height = content + header).
+    // Header height is captured once per gesture rather than measured on every
+    // mousemove — see BaseWindow._captureGestureBounds().
+    const headerHeight = this._bounds?.headerHeight ?? 0;
 
     // Anchor edges: resizing from n keeps bottom fixed, from w keeps right fixed
     const bottom = this.currentY + this.currentHeight;
@@ -441,17 +441,33 @@ export class ScreenWindow extends BaseWindow {
       newLeft = right - newWidth;
     }
 
-    // Apply the aspect-corrected dimensions and position
-    this.element.style.width = `${newWidth}px`;
-    this.element.style.height = `${newHeight}px`;
-    this.element.style.left = `${newLeft}px`;
-    this.element.style.top = `${newTop}px`;
     this.currentWidth = newWidth;
     this.currentHeight = newHeight;
     this.currentX = newLeft;
     this.currentY = newTop;
 
-    this._fitCanvas();
+    // Replaces the write super.resize() scheduled with its unconstrained
+    // dimensions — _scheduleGestureWrite keeps only the latest write, so the
+    // aspect-corrected values are the ones that land. _fitCanvas() rides along
+    // inside the same frame so its clientWidth read happens once per frame
+    // immediately after the style write, instead of once per pointer event.
+    this._scheduleGestureWrite(() => {
+      this.element.style.width = `${newWidth}px`;
+      this.element.style.height = `${newHeight}px`;
+      this.element.style.left = `${newLeft}px`;
+      this.element.style.top = `${newTop}px`;
+      this._fitCanvas();
+    });
+  }
+
+  /**
+   * Header height is needed by the aspect-ratio maths on every resize step.
+   */
+  _captureGestureBounds() {
+    super._captureGestureBounds();
+    this._bounds.headerHeight = this.headerElement
+      ? this.headerElement.offsetHeight
+      : 0;
   }
 
   /**

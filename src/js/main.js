@@ -37,6 +37,12 @@ import { DEFAULT_LAYOUT } from "./config/default-layout.js";
 import { WebGLRenderer } from "./display/webgl-renderer.js";
 import { AudioDriver } from "./audio/audio-driver.js";
 import { WasmProxy } from "./worker/wasm-proxy.js";
+import {
+  allocateSharedBuffers,
+  FB_BYTES,
+  CTRL_FRAME_READY,
+  CTRL_FRAME_INDEX,
+} from "./worker/shared-buffers.js";
 import { InputHandler, TextSelection, JoystickWindow, MouseHandler, GamepadHandler } from "./input/index.js";
 import { DiskManager } from "./disk-manager/index.js";
 import { DiskDrivesWindow } from "./disk-manager/disk-drives-window.js";
@@ -132,8 +138,11 @@ class AppleIIeEmulator {
         this.wasmModule.requestSamples(count);
       };
 
-      // Connect Worker audio samples to AudioDriver relay
       this.frameReady = false;
+      this.setupSharedBuffers();
+
+      // Fallback transport, used when SharedArrayBuffer is unavailable (no
+      // COOP/COEP headers). Both paths end up setting _lastFramebuffer.
       this.wasmModule.onAudioSamples = (samples) => {
         this.audioDriver.relaySamples(samples);
       };
@@ -170,6 +179,7 @@ class AppleIIeEmulator {
 
       // Set up disk manager (must be after disk drives window is created)
       this.diskManager = new DiskManager(this.wasmModule);
+      this.diskManager.isRunningCallback = () => this.running;
       this.diskManager.urlOwnedDrives = new Set(
         this.urlMedia.floppies.map((f) => f.unit),
       );
@@ -186,6 +196,7 @@ class AppleIIeEmulator {
       this.diskManager.fileExplorer = this.fileExplorer;
 
       this.hardDriveManager = new HardDriveManager(this.wasmModule);
+      this.hardDriveManager.isRunningCallback = () => this.running;
       this.hardDriveManager.fileExplorer = this.fileExplorer;
       this.hardDriveManager.urlOwnedDevices = new Set(
         this.urlMedia.hardDrives.map((h) => h.unit),
@@ -603,23 +614,101 @@ class AppleIIeEmulator {
     return this._screenshotCanvas.toDataURL("image/png");
   }
 
+  /**
+   * Set up the SharedArrayBuffer transport for audio and video, when the page
+   * is cross-origin isolated enough to allow it.
+   *
+   * Without this the Worker allocates and posts a fresh 860KB framebuffer every
+   * frame, and every audio sample batch is relayed worklet → main → Worker →
+   * main → worklet, putting the main thread in the audio critical path. With
+   * it, both travel through shared memory and neither allocates.
+   *
+   * Failure is not fatal: leaving _sharedControl null keeps the postMessage
+   * path, which stays fully functional.
+   */
+  setupSharedBuffers() {
+    this._sharedControl = null;
+    this._sharedFrameViews = null;
+
+    const buffers = allocateSharedBuffers();
+    if (!buffers) {
+      console.info("SharedArrayBuffer unavailable — using postMessage transport");
+      return;
+    }
+
+    this._sharedControl = new Int32Array(buffers.control);
+    // One view per slot, created once, so picking up a frame costs no allocation.
+    this._sharedFrameViews = [
+      new Uint8Array(buffers.framebuffer, 0, FB_BYTES),
+      new Uint8Array(buffers.framebuffer, FB_BYTES, FB_BYTES),
+    ];
+
+    this.audioDriver.setSharedAudioBuffer(buffers.audio);
+    this.wasmModule.configureSharedAudio(buffers.audio);
+    this.wasmModule.configureSharedBuffers(
+      buffers.framebuffer,
+      buffers.control,
+      FB_BYTES,
+    );
+  }
+
+  /**
+   * Pick up a completed frame from the shared framebuffer, if one is waiting.
+   * Clearing the flag with exchange means we never re-upload the same frame.
+   */
+  pollSharedFrame() {
+    if (!this._sharedControl) return;
+    if (Atomics.exchange(this._sharedControl, CTRL_FRAME_READY, 0) !== 1) return;
+    const slot = Atomics.load(this._sharedControl, CTRL_FRAME_INDEX);
+    this._lastFramebuffer = this._sharedFrameViews[slot] || this._sharedFrameViews[0];
+    this.frameReady = true;
+  }
+
   renderFrame() {
     if (!this._lastFramebuffer) return;
     this.renderer.updateTexture(this._lastFramebuffer);
     this.renderer.draw();
   }
 
+  /**
+   * Refresh the beam crosshair overlay parameters.
+   *
+   * Deliberately not awaited by the render loop: this is a Worker round-trip,
+   * and the result only feeds two shader uniforms that are read on the *next*
+   * draw anyway. Awaiting it would put a round-trip in front of the draw for
+   * the sake of a one-frame-fresher crosshair.
+   */
+  _refreshBeamOverlay() {
+    if (this._beamQueryInFlight) return;
+    this._beamQueryInFlight = true;
+    this.wasmModule
+      .batch([['_getBeamScanline'], ['_getBeamHPos']])
+      .then(([scanline, hPos]) => {
+        this.renderer.setParam("beamY", scanline < 192 ? (scanline + 0.5) / 192.0 : -1.0);
+        this.renderer.setParam("beamX", hPos >= 25 ? (hPos - 25) / 40.0 : -1.0);
+      })
+      .catch(() => { /* transient RPC error — crosshair just stays put */ })
+      .finally(() => { this._beamQueryInFlight = false; });
+  }
+
   startRenderLoop() {
     this._renderFrameCount = 0;
-    this._cachedIsPaused = false;
+    this._beamQueryInFlight = false;
 
-    // Every await in here is a Worker round-trip, and a single rejection would
-    // otherwise skip the requestAnimationFrame below and kill the loop for good
-    // — a black, unrecoverable screen from one transient RPC error. Log it and
-    // keep drawing instead.
-    const render = async () => {
+    // This callback is SYNCHRONOUS by design. It used to await _isPaused() (and
+    // the beam registers) before drawing, which meant the actual
+    // texSubImage2D/drawArrays ran in a microtask after a Worker round-trip
+    // rather than inside the rAF task — so a busy Worker, which is exactly the
+    // Worker running the emulator, pushed frames past their vsync deadline.
+    // Pause state now arrives pushed from the Worker (MSG_PAUSE_STATE) and
+    // everything else here is either fire-and-forget or fired without awaiting.
+    //
+    // A throw would skip the reschedule below and kill the loop for good — a
+    // black, unrecoverable screen from one transient error — so keep drawing.
+    const render = () => {
       try {
         this._renderFrameCount++;
+        this.pollSharedFrame();
         this.windowManager.updateAll(this.wasmModule);
 
         // Throttle disk LED updates to ~15fps (every 4th frame)
@@ -631,19 +720,11 @@ class AppleIIeEmulator {
           }
         }
 
-        // Poll pause state from Worker (async, cached for this frame)
-        if (this.running) {
-          this._cachedIsPaused = await this.wasmModule._isPaused();
-        }
-        const isPaused = this.running && this._cachedIsPaused;
+        const isPaused = this.running && this.wasmModule.isPaused;
 
         // Beam crosshair overlay — only when CPU debugger is open and CPU is paused
         if (isPaused && this.cpuDebuggerWindow && this.cpuDebuggerWindow.isVisible) {
-          const [scanline, hPos] = await this.wasmModule.batch([
-            ['_getBeamScanline'], ['_getBeamHPos']
-          ]);
-          this.renderer.setParam("beamY", scanline < 192 ? (scanline + 0.5) / 192.0 : -1.0);
-          this.renderer.setParam("beamX", hPos >= 25 ? (hPos - 25) / 40.0 : -1.0);
+          this._refreshBeamOverlay();
         } else {
           this.renderer.setParam("beamY", -1.0);
           this.renderer.setParam("beamX", -1.0);
@@ -654,9 +735,9 @@ class AppleIIeEmulator {
           this.renderFrame();
         } else if (!this.running || isPaused) {
           if (isPaused) {
-            await this.wasmModule._forceRenderFrame();
-            // After forcing render, the Worker will send a framebuffer via onFrameReady
-            // On next frame we'll pick it up. For now, re-draw with what we have.
+            // Fire-and-forget: the Worker answers with a framebuffer via
+            // onFrameReady, which the next frame picks up. Redraw what we have.
+            this.wasmModule._forceRenderFrame();
             this.renderFrame();
           } else {
             this.renderer.draw();

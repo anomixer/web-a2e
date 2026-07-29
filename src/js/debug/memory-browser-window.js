@@ -335,7 +335,9 @@ export class MemoryBrowserWindow extends BaseWindow {
   async update(wasmModule) {
     if (!this.isVisible || !this.contentDiv) return;
     this.recalcVisibleRows();
-    const isPaused = await wasmModule._isPaused();
+    // Read the locally cached pause state the Worker pushes on change, rather
+    // than spending a round-trip per tick purely to discover we should bail.
+    const isPaused = wasmModule.isPaused;
     if (!isPaused && !this.forceRefresh) return;
     this.forceRefresh = false;
 
@@ -350,18 +352,27 @@ export class MemoryBrowserWindow extends BaseWindow {
     }
     const memValues = await wasmModule.batch(batchCalls);
 
-    let html = "";
+    const pool = this._ensureRowPool();
+
     let memIdx = 0;
+    let usedRows = 0;
     for (let row = 0; row < this.visibleRows; row++) {
       const rowAddr = this.baseAddress + row * this.bytesPerRow;
       if (rowAddr >= 0x10000) break;
 
-      html += `<div class="mem-row"><span class="mem-addr">${this.formatAddr(rowAddr)}</span><span class="mem-separator">:</span>`;
+      const rowEl = pool[row];
+      usedRows++;
+
+      const addrText = this.formatAddr(rowAddr);
+      if (rowEl.last.addr !== addrText) {
+        rowEl.addrSpan.textContent = addrText;
+        rowEl.last.addr = addrText;
+      }
 
       // Hex bytes
-      for (let col = 0; col < this.bytesPerRow; col++) {
-        if (col === 8) html += " ";
-
+      let ascii = "";
+      let col = 0;
+      for (; col < this.bytesPerRow; col++) {
         const addr = rowAddr + col;
         if (addr >= 0x10000) break;
 
@@ -392,24 +403,104 @@ export class MemoryBrowserWindow extends BaseWindow {
           }
         }
 
-        html += `<span class="${byteClass}" data-addr="${addr}">${this.formatHex(value, 2)}</span>`;
+        const byteEl = rowEl.byteSpans[col];
+        const byteLast = rowEl.last.bytes[col];
+        const text = this.formatHex(value, 2);
+        if (byteLast.text !== text) {
+          byteEl.textContent = text;
+          byteLast.text = text;
+        }
+        if (byteLast.cls !== byteClass) {
+          byteEl.className = byteClass;
+          byteLast.cls = byteClass;
+        }
+        if (byteLast.addr !== addr) {
+          byteEl.dataset.addr = addr;
+          byteLast.addr = addr;
+        }
+        if (byteEl.hidden) byteEl.hidden = false;
+
+        const ch = value & 0x7f;
+        ascii += ch >= 0x20 && ch < 0x7f ? String.fromCharCode(ch) : ".";
         memIdx++;
       }
 
-      // ASCII
-      html += '<span class="mem-ascii">';
-      const asciiStart = row * this.bytesPerRow;
-      for (let col = 0; col < this.bytesPerRow; col++) {
-        const addr = rowAddr + col;
-        if (addr >= 0x10000) break;
-        const value = memValues[asciiStart + col];
-        const ch = value & 0x7f;
-        html += ch >= 0x20 && ch < 0x7f ? String.fromCharCode(ch) : ".";
+      // Past the end of the address space on the final row
+      for (let c = col; c < this.bytesPerRow; c++) {
+        if (!rowEl.byteSpans[c].hidden) rowEl.byteSpans[c].hidden = true;
       }
-      html += "</span></div>";
+
+      if (rowEl.last.ascii !== ascii) {
+        rowEl.asciiSpan.textContent = ascii;
+        rowEl.last.ascii = ascii;
+      }
+      if (rowEl.el.hidden) rowEl.el.hidden = false;
     }
 
-    this.contentDiv.innerHTML = html;
+    for (let row = usedRows; row < pool.length; row++) {
+      if (!pool[row].el.hidden) pool[row].el.hidden = true;
+    }
+  }
+
+  /**
+   * Build (or rebuild) the reusable row elements.
+   *
+   * The view used to be re-serialised into contentDiv.innerHTML on every tick,
+   * discarding and re-parsing well over a thousand nodes and forcing a full
+   * style recalc, layout and paint each time — while paused, which is exactly
+   * when the user is staring at it and almost nothing is changing. Rows are now
+   * built once per view shape and only the cells that actually differ get
+   * written.
+   */
+  _ensureRowPool() {
+    const shape = `${this.visibleRows}x${this.bytesPerRow}`;
+    if (this._rowPool && this._rowPoolShape === shape) {
+      return this._rowPool;
+    }
+
+    this._rowPoolShape = shape;
+    this._rowPool = [];
+    const fragment = document.createDocumentFragment();
+
+    for (let row = 0; row < this.visibleRows; row++) {
+      const el = document.createElement("div");
+      el.className = "mem-row";
+
+      const addrSpan = document.createElement("span");
+      addrSpan.className = "mem-addr";
+      const separator = document.createElement("span");
+      separator.className = "mem-separator";
+      separator.textContent = ":";
+      el.append(addrSpan, separator);
+
+      const byteSpans = [];
+      const bytes = [];
+      for (let col = 0; col < this.bytesPerRow; col++) {
+        // Half-way gap, previously a bare space in the markup
+        if (col === 8) el.appendChild(document.createTextNode(" "));
+        const byteSpan = document.createElement("span");
+        byteSpan.className = "mem-byte";
+        el.appendChild(byteSpan);
+        byteSpans.push(byteSpan);
+        bytes.push({ text: null, cls: null, addr: null });
+      }
+
+      const asciiSpan = document.createElement("span");
+      asciiSpan.className = "mem-ascii";
+      el.appendChild(asciiSpan);
+
+      fragment.appendChild(el);
+      this._rowPool.push({
+        el,
+        addrSpan,
+        asciiSpan,
+        byteSpans,
+        last: { addr: null, ascii: null, bytes },
+      });
+    }
+
+    this.contentDiv.replaceChildren(fragment);
+    return this._rowPool;
   }
 
   getState() {

@@ -209,9 +209,51 @@ export class BaseWindow {
       }
     }, true);
 
-    // Global mouse events for drag/resize
+    // Drag/resize listeners are attached only for the duration of a gesture —
+    // see _attachGestureListeners(). They used to be registered on document at
+    // construction and left there for the life of the session, so with ~26
+    // windows every single mousemove event fanned out to 26 handlers that
+    // almost always had nothing to do.
+  }
+
+  /**
+   * Start listening for the mouse events that drive an in-progress
+   * drag or resize.
+   */
+  _attachGestureListeners() {
+    if (this._gestureListenersAttached) return;
+    this._gestureListenersAttached = true;
     document.addEventListener("mousemove", this.handleMouseMove);
     document.addEventListener("mouseup", this.handleMouseUp);
+  }
+
+  _detachGestureListeners() {
+    if (!this._gestureListenersAttached) return;
+    this._gestureListenersAttached = false;
+    document.removeEventListener("mousemove", this.handleMouseMove);
+    document.removeEventListener("mouseup", this.handleMouseUp);
+  }
+
+  /**
+   * Snapshot everything a drag or resize needs to clamp against, once, at the
+   * start of the gesture.
+   *
+   * drag() and resize() used to re-query header/footer and read offsetHeight /
+   * offsetWidth on every mousemove, interleaved with style writes — a forced
+   * synchronous layout per pointer event, at pointer rate. None of these values
+   * can change mid-gesture, so reading them once removes the thrash entirely.
+   */
+  _captureGestureBounds() {
+    const header = document.querySelector("header");
+    const footer = document.querySelector("footer");
+    this._bounds = {
+      minTop: (!header || isHeaderHidden()) ? 0 : header.offsetHeight,
+      footerHeight: footer ? footer.offsetHeight : 0,
+      viewportWidth: window.innerWidth,
+      viewportHeight: window.innerHeight,
+      elementWidth: this.element.offsetWidth,
+      elementHeight: this.element.offsetHeight,
+    };
   }
 
   /**
@@ -236,10 +278,16 @@ export class BaseWindow {
    * Handle mouse up to end drag/resize
    */
   handleMouseUp(e) {
+    this._detachGestureListeners();
     if (this.isDragging || this.isResizing) {
       const wasDragging = this.isDragging;
+      // Commit the last position before clearing gesture state, otherwise a
+      // mousemove that landed between animation frames would be dropped and
+      // the window would settle a few pixels behind the cursor.
+      this._flushGestureWrite();
       this.isDragging = false;
       this.isResizing = false;
+      this._bounds = null;
       this.element.classList.remove("dragging", "resizing");
 
       // Notify dock manager of drag end (before clearing state)
@@ -263,32 +311,54 @@ export class BaseWindow {
       x: e.clientX - rect.left,
       y: e.clientY - rect.top,
     };
+    this._captureGestureBounds();
+    this._attachGestureListeners();
     e.preventDefault();
   }
 
   /**
-   * Handle drag movement
+   * Begin a drag that was started elsewhere — undocking a tab hands the
+   * in-progress gesture over to the newly floating window.
+   *
+   * This exists because drag listeners are now attached per-gesture: setting
+   * isDragging from outside is no longer enough to make the window follow the
+   * cursor, it also has to pick up the listeners and bounds that startDrag()
+   * would have established.
+   */
+  beginExternalDrag(offsetX, offsetY) {
+    this.isDragging = true;
+    this.element.classList.add("dragging");
+    this.dragOffset = { x: offsetX, y: offsetY };
+    this._captureGestureBounds();
+    this._attachGestureListeners();
+  }
+
+  /**
+   * Handle drag movement.
+   *
+   * Positions are computed here from cached bounds but written in a
+   * requestAnimationFrame, so a high-rate pointer (120Hz+ trackpads are
+   * routine) produces at most one style write and one layout per displayed
+   * frame rather than one per event.
    */
   drag(e) {
+    const b = this._bounds;
     let x = e.clientX - this.dragOffset.x;
     let y = e.clientY - this.dragOffset.y;
 
-    // Get header and footer heights to prevent dragging under/over them
-    const header = document.querySelector("header");
-    const footer = document.querySelector("footer");
-    const minY = (!header || isHeaderHidden()) ? 0 : header.offsetHeight;
-    const footerHeight = footer ? footer.offsetHeight : 0;
-
     // Keep window on screen, below header, and above footer
-    const maxX = window.innerWidth - this.element.offsetWidth;
-    const maxY = window.innerHeight - footerHeight - this.element.offsetHeight;
+    const maxX = b.viewportWidth - b.elementWidth;
+    const maxY = b.viewportHeight - b.footerHeight - b.elementHeight;
     x = Math.max(0, Math.min(x, maxX));
-    y = Math.max(minY, Math.min(y, maxY));
+    y = Math.max(b.minTop, Math.min(y, maxY));
 
-    this.element.style.left = `${x}px`;
-    this.element.style.top = `${y}px`;
     this.currentX = x;
     this.currentY = y;
+
+    this._scheduleGestureWrite(() => {
+      this.element.style.left = `${x}px`;
+      this.element.style.top = `${y}px`;
+    });
 
     // Update edge distances after drag
     this.updateEdgeDistances();
@@ -298,13 +368,49 @@ export class BaseWindow {
   }
 
   /**
+   * Coalesce the style writes of a gesture into one per animation frame.
+   */
+  _scheduleGestureWrite(write) {
+    this._pendingGestureWrite = write;
+    if (this._gestureRAF) return;
+    this._gestureRAF = requestAnimationFrame(() => {
+      this._gestureRAF = null;
+      const pending = this._pendingGestureWrite;
+      this._pendingGestureWrite = null;
+      if (pending) pending();
+    });
+  }
+
+  /**
+   * Flush any coalesced gesture write immediately. Called when the gesture
+   * ends so the final position is committed even if the last mousemove landed
+   * between animation frames.
+   */
+  _flushGestureWrite() {
+    if (this._gestureRAF) {
+      cancelAnimationFrame(this._gestureRAF);
+      this._gestureRAF = null;
+    }
+    const pending = this._pendingGestureWrite;
+    this._pendingGestureWrite = null;
+    if (pending) pending();
+  }
+
+  /**
    * Update tracked distances from right and bottom edges
    */
   updateEdgeDistances() {
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
-    const footer = document.querySelector("footer");
-    const footerHeight = footer ? footer.offsetHeight : 0;
+    // Mid-gesture the cached footer height is authoritative and avoids a
+    // forced layout on every pointer event.
+    let footerHeight;
+    if (this._bounds && (this.isDragging || this.isResizing)) {
+      footerHeight = this._bounds.footerHeight;
+    } else {
+      const footer = document.querySelector("footer");
+      footerHeight = footer ? footer.offsetHeight : 0;
+    }
     const maxBottom = viewportHeight - footerHeight;
     const centerX = this.currentX + this.currentWidth / 2;
     const centerY = this.currentY + this.currentHeight / 2;
@@ -346,6 +452,8 @@ export class BaseWindow {
       left: rect.left,
       top: rect.top,
     };
+    this._captureGestureBounds();
+    this._attachGestureListeners();
     e.preventDefault();
     e.stopPropagation();
   }
@@ -358,12 +466,10 @@ export class BaseWindow {
     const dy = e.clientY - this.resizeStart.y;
     const dir = this.resizeDirection;
 
-    // Get header and footer heights for bounds checking
-    const header = document.querySelector("header");
-    const footer = document.querySelector("footer");
-    const minTop = (!header || isHeaderHidden()) ? 0 : header.offsetHeight;
-    const footerHeight = footer ? footer.offsetHeight : 0;
-    const maxBottom = window.innerHeight - footerHeight;
+    // Bounds were captured once at startResize — see _captureGestureBounds().
+    const b = this._bounds;
+    const minTop = b.minTop;
+    const maxBottom = b.viewportHeight - b.footerHeight;
 
     let newWidth = this.resizeStart.width;
     let newHeight = this.resizeStart.height;
@@ -413,14 +519,19 @@ export class BaseWindow {
       newTop = Math.max(minTop, Math.min(newTop, maxBottom - newHeight));
     }
 
-    this.element.style.width = `${newWidth}px`;
-    this.element.style.height = `${newHeight}px`;
-    this.element.style.left = `${newLeft}px`;
-    this.element.style.top = `${newTop}px`;
     this.currentWidth = newWidth;
     this.currentHeight = newHeight;
     this.currentX = newLeft;
     this.currentY = newTop;
+
+    this._scheduleGestureWrite(() => {
+      this.element.style.width = `${newWidth}px`;
+      this.element.style.height = `${newHeight}px`;
+      this.element.style.left = `${newLeft}px`;
+      this.element.style.top = `${newTop}px`;
+      // Content that needs to react to its new box (canvas rasters, rulers)
+      // listens via ResizeObserver, which fires off the write above.
+    });
   }
 
   /**
@@ -739,8 +850,11 @@ export class BaseWindow {
    * Clean up event listeners and remove element from DOM
    */
   destroy() {
-    document.removeEventListener("mousemove", this.handleMouseMove);
-    document.removeEventListener("mouseup", this.handleMouseUp);
+    this._detachGestureListeners();
+    if (this._gestureRAF) {
+      cancelAnimationFrame(this._gestureRAF);
+      this._gestureRAF = null;
+    }
     if (this.element && this.element.parentNode) {
       this.element.parentNode.removeChild(this.element);
     }
