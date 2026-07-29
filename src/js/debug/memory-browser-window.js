@@ -324,12 +324,20 @@ export class MemoryBrowserWindow extends BaseWindow {
     if (!this.contentDiv) return;
     const container = this.contentDiv.parentElement;
     if (!container) return;
-    const height = container.clientHeight;
-    if (height > 0) {
-      // Each row is ~17px (11px font * 1.4 line-height + 2px padding)
-      const rowHeight = 17;
-      this.visibleRows = Math.max(1, Math.floor(height / rowHeight));
-    }
+
+    // Each row is ~17px (11px font * 1.4 line-height + 2px padding)
+    const rowHeight = 17;
+    const rows = Math.floor(container.clientHeight / rowHeight);
+
+    // Ignore a measurement that cannot fit a single row. The container is laid
+    // out to a definite height, so this only happens before layout has run or
+    // while the window is collapsed — and trusting it is dangerous: the row
+    // count drives how much gets rendered, so a bogus small value can become
+    // self-fulfilling and stick. Keeping the previous value means the view
+    // simply re-measures on the next tick.
+    if (rows < 1) return;
+
+    this.visibleRows = rows;
   }
 
   async update(wasmModule) {
