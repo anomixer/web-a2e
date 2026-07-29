@@ -2,7 +2,7 @@
 // Enables offline functionality by caching app assets
 
 // IMPORTANT: Bump this version when WASM or core JS files change
-const CACHE_VERSION = 3.6;
+const CACHE_VERSION = 3.7;
 const CACHE_NAME = `a2e-cache-v${CACHE_VERSION}`;
 
 // Files that should always be fetched fresh (network-first).
@@ -12,43 +12,101 @@ const CACHE_NAME = `a2e-cache-v${CACHE_VERSION}`;
 // works because network-first falls back to the cache on fetch failure.
 const NETWORK_FIRST_FILES = ["/", "/index.html", "/a2e.js", "/a2e.wasm"];
 
-// Assets to cache on install
+// Assets to cache on install.
+//
+// Only paths that genuinely exist in the build output, and only stable ones.
+// This list previously named ten /css/*.css files that Vite does not emit — it
+// bundles every stylesheet into one hashed /assets/main-<hash>.css — so the
+// install always failed. cache.addAll() rejects if a SINGLE entry 404s, which
+// meant one stale path silently disabled offline support entirely.
+//
+// Two rules keep that from recurring:
+//   1. Hashed bundles are never listed here. They are discovered from
+//      index.html at install time by findHashedAssets(), so a new build's
+//      hashes need no edit to this file.
+//   2. Precaching is per-entry and tolerant (see precache()), so a missing
+//      asset costs that one asset instead of all offline support.
 const PRECACHE_ASSETS = [
   "/",
   "/index.html",
   "/manifest.json",
+  // Emulator core. emulator-worker.js was missing and is not optional: the
+  // whole emulator runs inside it.
   "/a2e.js",
   "/a2e.wasm",
   "/audio-worklet.js",
-  "/css/base.css",
-  "/css/layout.css",
-  "/css/monitor.css",
-  "/css/disk-drives.css",
-  "/css/controls.css",
-  "/css/modals.css",
-  "/css/debug-windows.css",
-  "/css/file-explorer.css",
-  "/css/documentation.css",
-  "/css/responsive.css",
+  "/emulator-worker.js",
+  // Fetched at runtime by WebGLRenderer.init(), which throws without them —
+  // so an offline launch failed before drawing anything.
+  "/shaders/vertex.glsl",
+  "/shaders/crt.glsl",
+  "/shaders/burnin.glsl",
+  "/shaders/edge.glsl",
+  // Chrome images referenced from CSS/markup rather than the bundle graph.
+  "/assets/apple-logo.png",
   "/assets/drive-open.png",
+  "/assets/drive-closed.png",
+  "/assets/drive-open-light-on.png",
+  "/assets/drive-closed-light-on.png",
+  // Disk library index, so the library UI is browsable offline. The disk
+  // images themselves are deliberately left to on-demand caching.
+  "/disks/library.json",
 ];
+
+/**
+ * Find this build's hashed bundle URLs by reading index.html.
+ *
+ * Vite emits /assets/main-<hash>.js, the lazy chunks and the single bundled
+ * stylesheet, all with content hashes that change every build. Hard-coding them
+ * is what rotted this list in the first place; parsing the document that
+ * references them cannot go stale.
+ */
+async function findHashedAssets() {
+  try {
+    const response = await fetch("/index.html", { cache: "no-store" });
+    if (!response.ok) return [];
+    const html = await response.text();
+    const urls = new Set();
+    const pattern = /(?:src|href)="(\/assets\/[^"]+)"/g;
+    let match;
+    while ((match = pattern.exec(html)) !== null) {
+      urls.add(match[1]);
+    }
+    return [...urls];
+  } catch (error) {
+    console.warn("[SW] Could not read index.html for hashed assets:", error);
+    return [];
+  }
+}
+
+/**
+ * Cache each asset independently so one failure cannot fail the install.
+ */
+async function precache() {
+  const cache = await caches.open(CACHE_NAME);
+  const hashed = await findHashedAssets();
+  const assets = [...PRECACHE_ASSETS, ...hashed];
+
+  const results = await Promise.allSettled(
+    assets.map((asset) => cache.add(asset)),
+  );
+
+  const failed = assets.filter((_, i) => results[i].status === "rejected");
+  if (failed.length) {
+    console.warn("[SW] Could not precache:", failed);
+  }
+  console.log(
+    `[SW] Precached ${assets.length - failed.length}/${assets.length} assets ` +
+      `(${hashed.length} hashed)`,
+  );
+}
 
 // Install event - cache core assets
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches
-      .open(CACHE_NAME)
-      .then((cache) => {
-        console.log("[SW] Precaching app assets");
-        return cache.addAll(PRECACHE_ASSETS);
-      })
-      .then(() => {
-        // Activate immediately without waiting
-        return self.skipWaiting();
-      })
-      .catch((error) => {
-        console.error("[SW] Precache failed:", error);
-      }),
+    // Activate immediately without waiting, even if some assets could not be
+    // cached — a partial cache still beats no service worker.
+    precache().then(() => self.skipWaiting()),
   );
 });
 
@@ -167,8 +225,10 @@ self.addEventListener("fetch", (event) => {
 
 // Determine if a URL should be cached dynamically
 function shouldCache(url) {
-  // Cache JS bundles (Vite generates hashed names)
-  if (url.includes("/assets/") && url.endsWith(".js")) {
+  // Cache JS and CSS bundles (Vite generates hashed names). CSS was omitted
+  // here, so the one stylesheet the app has was never cached by either path —
+  // an offline launch came up unstyled.
+  if (url.includes("/assets/") && (url.endsWith(".js") || url.endsWith(".css"))) {
     return true;
   }
   // Cache images
@@ -177,6 +237,10 @@ function shouldCache(url) {
   }
   // Cache WASM
   if (url.endsWith(".wasm")) {
+    return true;
+  }
+  // Cache shaders — fetched at runtime during renderer init
+  if (url.endsWith(".glsl")) {
     return true;
   }
   return false;
