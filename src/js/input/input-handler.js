@@ -75,28 +75,25 @@ export class InputHandler {
       setTimeout(() => this.canvas.focus(), 100);
     }
 
-    // Keyboard event listeners - attach to canvas for better focus control
-    this.canvas.addEventListener("keydown", (e) => this.handleKeyDown(e));
-    this.canvas.addEventListener("keyup", (e) => this.handleKeyUp(e));
+    // A single document-level pair of listeners, deliberately. Listening on the
+    // canvas as well would double every keystroke: a key press targets the
+    // focused canvas, runs the canvas listener in the target phase, then bubbles
+    // to document where the guard below is true by definition — so every key
+    // reached the emulator twice, and any per-key side effect (the Cursor Keys
+    // joystick update, for one) ran twice with it.
+    //
+    // Document is the one that has to stay: it also covers the case where focus
+    // has drifted to <body>, which the canvas listener never sees.
+    const focusIsOurs = () =>
+      document.activeElement === this.canvas ||
+      document.activeElement === document.body;
 
-    // Also listen on document but only process if canvas has focus or no other element does
     document.addEventListener("keydown", (e) => {
-      // Only handle if canvas has focus or the active element is body
-      if (
-        document.activeElement === this.canvas ||
-        document.activeElement === document.body
-      ) {
-        this.handleKeyDown(e);
-      }
+      if (focusIsOurs()) this.handleKeyDown(e);
     });
 
     document.addEventListener("keyup", (e) => {
-      if (
-        document.activeElement === this.canvas ||
-        document.activeElement === document.body
-      ) {
-        this.handleKeyUp(e);
-      }
+      if (focusIsOurs()) this.handleKeyUp(e);
     });
 
     // A key held while switching away never delivers its keyup, which would
