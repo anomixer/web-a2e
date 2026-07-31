@@ -78,6 +78,17 @@ float hash12(vec2 p) {
     return fract((p3.x + p3.y) * p3.z);
 }
 
+// 3D -> 1D hash. The static uses this with the frame counter as the third
+// component so every frame is an independent noise field. Feeding the frame in
+// as an offset added to the 2D coordinate instead (the old approach) only
+// translates one fixed field, which reads as rows of grain sliding across the
+// screen rather than as snow.
+float hash13(vec3 p3) {
+    p3 = fract(p3 * 0.1031);
+    p3 += dot(p3, p3.zyx + 31.32);
+    return fract((p3.x + p3.y) * p3.z);
+}
+
 float rgb2grey(vec3 v) {
     return dot(v, vec3(0.21, 0.72, 0.07));
 }
@@ -168,28 +179,22 @@ vec2 applyJitter(vec2 uv, float time) {
 float staticNoise(vec2 uv, float time) {
     if (u_staticNoise < 0.001) return 0.0;
 
-    // Blocky TV static - sized for authentic CRT look
-    vec2 blockSize = vec2(1.0, 1.0);
-    vec2 pixelCoord = floor(uv * u_textureSize / blockSize);
+    vec2 grain = floor(uv * u_textureSize);
 
-    // Animate the noise - change every frame
-    vec2 noiseCoord = pixelCoord + vec2(
-        floor(time * 30.0) * 17.0,
-        floor(time * 30.0) * 31.0
-    );
+    // Wrapped frame counter. Keeping the hash inputs small matters: the old
+    // code added frame * 31 to the coordinate, so after a minute on screen the
+    // inputs were in the tens of thousands and fract() had lost enough low bits
+    // to make the field visibly repeat.
+    float frame = mod(floor(time * 30.0), 1024.0);
 
-    float noise = hash12(noiseCoord);
-
-    // Add some scanline-like horizontal banding for authenticity
-    float scanBand = hash12(vec2(pixelCoord.y, floor(time * 15.0)));
-    noise = mix(noise, scanBand, 0.3);
+    float noise = hash13(vec3(grain, frame));
 
     // Slight vignette on the noise
     vec2 cc = uv - 0.5;
     float dist = length(cc);
     float vignette = 1.0 - dist * 0.5;
 
-    return noise * u_staticNoise * vignette;
+    return (noise - 0.5) * u_staticNoise * vignette;
 }
 
 // ============================================
@@ -197,45 +202,61 @@ float staticNoise(vec2 uv, float time) {
 // ============================================
 
 vec3 noSignalStatic(vec2 uv, float time) {
-    // Blocky TV static - sized for authentic CRT look
-    vec2 blockSize = vec2(2.0, 2.0);
-    vec2 pixelCoord = floor(uv * u_textureSize / blockSize);
+    // Grain cell. Roughly one source texel wide and one tall — fine enough that
+    // no repeating structure is legible, which is the whole point of snow.
+    vec2 grain = floor(uv * u_textureSize);
 
-    // Animate for that classic TV static feel
-    float frameTime = floor(time * 50.0);
-    vec2 noiseCoord = pixelCoord + vec2(frameTime * 17.0, frameTime * 31.0);
+    // Wrapped frame counter, fed to the hash as a third dimension so each frame
+    // is an independent field rather than the previous one slid sideways.
+    float frame = mod(floor(time * 50.0), 1024.0);
 
-    // Base noise
-    float noise = hash12(noiseCoord);
+    // Three horizontally adjacent taps. A real tuner's video path is band
+    // limited horizontally, so snow grains come out slightly wider than they
+    // are tall; this is the only horizontal correlation the effect should have,
+    // and it is sub-grain rather than the row-wide banding it replaces.
+    float n0 = hash13(vec3(grain, frame));
+    float n1 = hash13(vec3(grain - vec2(1.0, 0.0), frame));
+    float n2 = hash13(vec3(grain + vec2(1.0, 0.0), frame));
+    float noise = n0 * 0.6 + (n1 + n2) * 0.2;
 
-    // Horizontal banding - occasional brighter/darker scanlines
-    float bandNoise = hash12(vec2(pixelCoord.y * 0.1, frameTime * 0.5));
-    float band = smoothstep(0.4, 0.7, bandNoise);
-    noise = mix(noise * 0.7, noise * 1.2, band);
+    // A flat uniform random reads as grey mush. Expanding around the midpoint
+    // separates the hot specks from the dark gaps the way real snow does.
+    noise = clamp((noise - 0.5) * 1.7 + 0.5, 0.0, 1.0);
+    noise = noise * noise * (3.0 - 2.0 * noise);
 
-    // Occasional horizontal interference lines
-    float lineNoise = hash12(vec2(frameTime, 0.0));
-    if (lineNoise > 0.95) {
-        float lineY = hash12(vec2(frameTime, 1.0));
-        float lineDist = abs(uv.y - lineY);
-        if (lineDist < 0.02) {
-            noise = mix(noise, 1.0, (0.02 - lineDist) / 0.02 * 0.5);
-        }
+    // Faint chroma speckle — analog snow on a colour set is never pure grey.
+    vec3 chroma = vec3(
+        hash13(vec3(grain, frame + 137.0)),
+        hash13(vec3(grain, frame + 271.0)),
+        hash13(vec3(grain, frame + 419.0))
+    ) - 0.5;
+
+    // Inverted polarity: a white field peppered with black grains rather than a
+    // dark field with bright specks.
+    float lum = 1.0 - noise;
+
+    // Bias towards white so the black grains stay a minority speckle instead of
+    // taking half the screen.
+    lum = pow(lum, 0.6);
+
+    // Occasional interference bar, drifting rather than teleporting so it reads
+    // as a rolling fault in the signal instead of a flashing row. Pulls towards
+    // black, matching the polarity of the grains.
+    float burst = hash13(vec3(0.0, 0.0, floor(time * 1.5)));
+    if (burst > 0.90) {
+        float barY = fract(hash13(vec3(1.0, 0.0, floor(time * 1.5))) + time * 0.35);
+        float barDist = abs(uv.y - barY);
+        float bar = 1.0 - smoothstep(0.0, 0.015, barDist);
+        lum = mix(lum, lum * 0.4, bar);
     }
 
     // Slight brightness variation over time
-    float brightnessFlicker = 0.85 + hash12(vec2(frameTime * 0.1, 0.0)) * 0.3;
-    noise *= brightnessFlicker;
+    lum *= 0.9 + hash13(vec3(2.0, 0.0, floor(time * 12.0))) * 0.2;
 
-    // Vignette
-    vec2 cc = uv - 0.5;
-    float dist = length(cc);
-    float vignette = 1.0 - dist * 0.0;
-    noise *= vignette;
+    lum = clamp(lum, 0.0, 1.0);
 
-    // Clamp and return grayscale - reduced brightness for less dazzling effect
-    noise = clamp(noise, 0.0, 1.0) * 0.25;
-    return vec3(noise);
+    // Chroma rides on the dark grains, where a real set shows it most.
+    return vec3(lum) + chroma * 0.1 * (1.0 - lum);
 }
 
 // ============================================
@@ -760,8 +781,10 @@ void main() {
     if (u_noSignal > 0.5) {
         vec3 staticColor = noSignalStatic(curvedUV, u_time);
 
-        // Apply scanlines to static for authentic look
-        staticColor *= scanlines(curvedUV);
+        // Apply scanlines to static, but at half strength. At full strength the
+        // scanline comb is the strongest horizontal signal on screen and the
+        // snow underneath it just reads as texture on a striped field.
+        staticColor *= mix(1.0, scanlines(curvedUV), 0.5);
 
         // Apply vignette
         staticColor *= vignette(curvedUV);
