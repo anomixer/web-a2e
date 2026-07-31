@@ -6,6 +6,7 @@
  */
 
 import { VERSION } from "../config/version.js";
+import { buildNoSignalFrame } from "./no-signal-frame.js";
 
 export class WebGLRenderer {
   constructor(canvas) {
@@ -66,9 +67,6 @@ export class WebGLRenderer {
 
       // Screen border/overscan
       overscan: 0.0, // Border around display content (0.0 to 1.0)
-
-      // No signal mode (TV static when off)
-      noSignal: 0.0, // 1.0 = full static, 0.0 = normal display
 
       // Color bleed - vertical inter-scanline blending (CRT phosphor overlap)
       colorBleed: 0.8, // 0.0 to 1.0
@@ -244,7 +242,6 @@ export class WebGLRenderer {
       ambientLight: gl.getUniformLocation(this.program, "u_ambientLight"),
       burnIn: gl.getUniformLocation(this.program, "u_burnIn"),
       overscan: gl.getUniformLocation(this.program, "u_overscan"),
-      noSignal: gl.getUniformLocation(this.program, "u_noSignal"),
       colorBleed: gl.getUniformLocation(this.program, "u_colorBleed"),
       ntscFringing: gl.getUniformLocation(this.program, "u_ntscFringing"),
       monochromeMode: gl.getUniformLocation(this.program, "u_monochromeMode"),
@@ -413,6 +410,11 @@ export class WebGLRenderer {
 
   updateTexture(data) {
     const gl = this.gl;
+
+    // While the no-signal screen is up it owns the texture. A frame can still
+    // arrive from the Worker just after power-off; without this it would land
+    // on top of the message and leave the last emulator frame frozen on screen.
+    if (this._noSignal && data !== this._noSignalFrame) return;
 
     // Frames normally arrive as a view onto a SharedArrayBuffer and upload
     // straight from it. Current browsers accept a shared view here, but the
@@ -600,7 +602,6 @@ export class WebGLRenderer {
       gl.uniform1f(this.uniforms.ambientLight, this.crtParams.ambientLight);
       gl.uniform1f(this.uniforms.burnIn, this.crtParams.burnIn);
       gl.uniform1f(this.uniforms.overscan, this.crtParams.overscan);
-      gl.uniform1f(this.uniforms.noSignal, this.crtParams.noSignal);
       gl.uniform1f(this.uniforms.colorBleed, this.crtParams.colorBleed);
       gl.uniform1f(this.uniforms.ntscFringing, this.crtParams.ntscFringing);
       gl.uniform1i(this.uniforms.monochromeMode, this.crtParams.monochromeMode);
@@ -729,9 +730,22 @@ export class WebGLRenderer {
     }
   }
 
-  // Set no-signal mode (TV static when emulator is off)
+  /**
+   * Enter or leave the powered-off "no signal" screen.
+   *
+   * The message is uploaded as the source texture rather than drawn by the
+   * shader, so it picks up the whole CRT chain — RGB shift, colour bleed, NTSC
+   * fringing, scanlines, mask, glow — and reads as a composite signal. Leaving
+   * the mode uploads nothing: the first real frame overwrites it.
+   */
   setNoSignal(enabled) {
-    this.setParam("noSignal", enabled ? 1.0 : 0.0);
+    this._noSignal = enabled;
+    if (!enabled) return;
+
+    if (!this._noSignalFrame) {
+      this._noSignalFrame = buildNoSignalFrame(this.width, this.height);
+    }
+    this.updateTexture(this._noSignalFrame);
   }
 
   resize(width, height) {

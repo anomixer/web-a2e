@@ -32,7 +32,6 @@ uniform float u_glowingLine;
 uniform float u_ambientLight;
 uniform float u_burnIn;
 uniform float u_overscan;
-uniform float u_noSignal;
 
 // NTSC fringing effect
 uniform float u_ntscFringing;
@@ -78,11 +77,11 @@ float hash12(vec2 p) {
     return fract((p3.x + p3.y) * p3.z);
 }
 
-// 3D -> 1D hash. The static uses this with the frame counter as the third
+// 3D -> 1D hash. The grain effect uses this with the frame counter as the third
 // component so every frame is an independent noise field. Feeding the frame in
 // as an offset added to the 2D coordinate instead (the old approach) only
 // translates one fixed field, which reads as rows of grain sliding across the
-// screen rather than as snow.
+// screen rather than as noise.
 float hash13(vec3 p3) {
     p3 = fract(p3 * 0.1031);
     p3 += dot(p3, p3.zyx + 31.32);
@@ -195,68 +194,6 @@ float staticNoise(vec2 uv, float time) {
     float vignette = 1.0 - dist * 0.5;
 
     return (noise - 0.5) * u_staticNoise * vignette;
-}
-
-// ============================================
-// No signal TV static (full screen)
-// ============================================
-
-vec3 noSignalStatic(vec2 uv, float time) {
-    // Grain cell. Roughly one source texel wide and one tall — fine enough that
-    // no repeating structure is legible, which is the whole point of snow.
-    vec2 grain = floor(uv * u_textureSize);
-
-    // Wrapped frame counter, fed to the hash as a third dimension so each frame
-    // is an independent field rather than the previous one slid sideways.
-    float frame = mod(floor(time * 50.0), 1024.0);
-
-    // Three horizontally adjacent taps. A real tuner's video path is band
-    // limited horizontally, so snow grains come out slightly wider than they
-    // are tall; this is the only horizontal correlation the effect should have,
-    // and it is sub-grain rather than the row-wide banding it replaces.
-    float n0 = hash13(vec3(grain, frame));
-    float n1 = hash13(vec3(grain - vec2(1.0, 0.0), frame));
-    float n2 = hash13(vec3(grain + vec2(1.0, 0.0), frame));
-    float noise = n0 * 0.6 + (n1 + n2) * 0.2;
-
-    // A flat uniform random reads as grey mush. Expanding around the midpoint
-    // separates the hot specks from the dark gaps the way real snow does.
-    noise = clamp((noise - 0.5) * 1.7 + 0.5, 0.0, 1.0);
-    noise = noise * noise * (3.0 - 2.0 * noise);
-
-    // Faint chroma speckle — analog snow on a colour set is never pure grey.
-    vec3 chroma = vec3(
-        hash13(vec3(grain, frame + 137.0)),
-        hash13(vec3(grain, frame + 271.0)),
-        hash13(vec3(grain, frame + 419.0))
-    ) - 0.5;
-
-    // Inverted polarity: a white field peppered with black grains rather than a
-    // dark field with bright specks.
-    float lum = 1.0 - noise;
-
-    // Bias towards white so the black grains stay a minority speckle instead of
-    // taking half the screen.
-    lum = pow(lum, 0.6);
-
-    // Occasional interference bar, drifting rather than teleporting so it reads
-    // as a rolling fault in the signal instead of a flashing row. Pulls towards
-    // black, matching the polarity of the grains.
-    float burst = hash13(vec3(0.0, 0.0, floor(time * 1.5)));
-    if (burst > 0.90) {
-        float barY = fract(hash13(vec3(1.0, 0.0, floor(time * 1.5))) + time * 0.35);
-        float barDist = abs(uv.y - barY);
-        float bar = 1.0 - smoothstep(0.0, 0.015, barDist);
-        lum = mix(lum, lum * 0.4, bar);
-    }
-
-    // Slight brightness variation over time
-    lum *= 0.9 + hash13(vec3(2.0, 0.0, floor(time * 12.0))) * 0.2;
-
-    lum = clamp(lum, 0.0, 1.0);
-
-    // Chroma rides on the dark grains, where a real set shows it most.
-    return vec3(lum) + chroma * 0.1 * (1.0 - lum);
 }
 
 // ============================================
@@ -776,29 +713,6 @@ void main() {
 
     // Check if we're in the margin area (outside content but inside screen)
     bool inMargin = contentUV.x < 0.0 || contentUV.x > 1.0 || contentUV.y < 0.0 || contentUV.y > 1.0;
-
-    // No signal mode - show TV static instead of emulator content
-    if (u_noSignal > 0.5) {
-        vec3 staticColor = noSignalStatic(curvedUV, u_time);
-
-        // Apply scanlines to static, but at half strength. At full strength the
-        // scanline comb is the strongest horizontal signal on screen and the
-        // snow underneath it just reads as texture on a striped field.
-        staticColor *= mix(1.0, scanlines(curvedUV), 0.5);
-
-        // Apply vignette
-        staticColor *= vignette(curvedUV);
-
-        // Apply edge fade for curved screens
-        if (u_curvature > 0.001) {
-            staticColor *= edgeFade(curvedUV);
-        }
-
-        float staticAlpha = cornerAlpha * edgeFactor;
-        staticColor = mix(bezel, staticColor, staticAlpha);
-        gl_FragColor = vec4(staticColor, 1.0);
-        return;
-    }
 
     // Get base color - dark bezel color for margin area, texture sample for content
     vec3 color;
