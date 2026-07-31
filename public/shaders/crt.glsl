@@ -16,6 +16,9 @@ uniform float u_scanlineIntensity;
 uniform float u_scanlineWidth;
 uniform float u_beamBloom;
 uniform float u_shadowMask;
+uniform float u_pixelRatio;
+// Mask geometry: 0 = aperture grille (stripes), 1 = shadow mask (dot triad)
+uniform int u_maskType;
 uniform float u_glowIntensity;
 uniform float u_glowSpread;
 uniform float u_brightness;
@@ -298,19 +301,64 @@ float scanlines(vec2 uv, float luma) {
 // Shadow mask
 // ============================================
 
-vec3 shadowMask(vec2 uv) {
+// The mask is a physical object: a perforated sheet a few millimetres behind
+// the glass, with a pitch fixed in millimetres. Two things follow, and both
+// were wrong before.
+//
+// It does not change size. The old code took its pitch from device pixels
+// (mod(pos.x, 3.0) on a coordinate scaled by u_resolution), so on a Retina
+// display the whole triad spanned three physical pixels and was effectively
+// invisible — which is why the slider appeared to do so much less than it
+// should — and the pattern resized whenever the window moved between monitors
+// of different density. Working in CSS pixels via u_pixelRatio pins the pitch
+// to a constant apparent size wherever the page is viewed.
+//
+// It does not move with the signal. The old call passed the beam-distorted UV,
+// so jitter and horizontal sync dragged the mask around with the picture. A
+// mask is glued to the tube; the raster slides behind it. Deriving position
+// from gl_FragCoord ties it to the physical screen and nothing else.
+//
+// MASK_PITCH is one full RGB triad. Three CSS pixels puts one phosphor stripe
+// per CSS pixel, fine enough to read as texture rather than as stripes.
+const float MASK_PITCH = 3.0;
+
+vec3 shadowMask() {
     if (u_shadowMask < 0.001) return vec3(1.0);
 
-    vec2 pos = uv * u_resolution;
-    int px = int(mod(pos.x, 3.0));
+    // Position on the glass, in CSS pixels.
+    vec2 pos = gl_FragCoord.xy / max(u_pixelRatio, 0.001);
 
     vec3 mask;
-    if (px == 0) {
-        mask = vec3(1.0, 0.7, 0.7);
-    } else if (px == 1) {
-        mask = vec3(0.7, 1.0, 0.7);
+
+    if (u_maskType == 1) {
+        // Dot triad, as the Apple Monitor //e and most consumer sets used.
+        // Triads sit on a staggered lattice — every other row is offset by half
+        // a triad — which is what stops a shadow mask reading as vertical
+        // stripes the way an aperture grille does.
+        float row = floor(pos.y / MASK_PITCH);
+        float stagger = mod(row, 2.0) * 0.5;
+        float idx = mod(floor(pos.x / (MASK_PITCH / 3.0) + stagger * 1.5), 3.0);
+
+        mask = vec3(0.7);
+        if (idx < 0.5) mask.r = 1.0;
+        else if (idx < 1.5) mask.g = 1.0;
+        else mask.b = 1.0;
+
+        // Gap between mask rows. Without it the triads merge vertically into
+        // continuous stripes and the stagger buys nothing.
+        float withinRow = fract(pos.y / MASK_PITCH);
+        float gap = smoothstep(0.0, 0.25, withinRow) * smoothstep(1.0, 0.75, withinRow);
+        mask *= mix(0.8, 1.0, gap);
     } else {
-        mask = vec3(0.7, 0.7, 1.0);
+        // Aperture grille: continuous vertical phosphor stripes, no horizontal
+        // structure. A Trinitron look rather than an Apple one, but it is what
+        // this shader has always drawn, so it stays the default.
+        float idx = mod(floor(pos.x / (MASK_PITCH / 3.0)), 3.0);
+
+        mask = vec3(0.7);
+        if (idx < 0.5) mask.r = 1.0;
+        else if (idx < 1.5) mask.g = 1.0;
+        else mask.b = 1.0;
     }
 
     return mix(vec3(1.0), mask, u_shadowMask);
@@ -802,7 +850,7 @@ void main() {
     color *= scanlines(curvedUV, rgb2grey(color));
 
     // Apply shadow mask
-    color *= shadowMask(curvedUV);
+    color *= shadowMask();
 
     // Apply color adjustments (brightness, contrast, saturation)
     color = adjustColor(color);

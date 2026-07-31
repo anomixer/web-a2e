@@ -42,6 +42,8 @@ export class WebGLRenderer {
       // How much a bright line's beam spot widens over a dark one's
       beamBloom: 0.6,
       shadowMask: 0.3,
+      // Mask geometry: 0 = aperture grille (stripes), 1 = shadow mask (triad)
+      maskType: 0,
 
       // Glow/bloom
       glowIntensity: 0.0,
@@ -230,6 +232,8 @@ export class WebGLRenderer {
       scanlineWidth: gl.getUniformLocation(this.program, "u_scanlineWidth"),
       beamBloom: gl.getUniformLocation(this.program, "u_beamBloom"),
       shadowMask: gl.getUniformLocation(this.program, "u_shadowMask"),
+      maskType: gl.getUniformLocation(this.program, "u_maskType"),
+      pixelRatio: gl.getUniformLocation(this.program, "u_pixelRatio"),
       glowIntensity: gl.getUniformLocation(this.program, "u_glowIntensity"),
       glowSpread: gl.getUniformLocation(this.program, "u_glowSpread"),
       brightness: gl.getUniformLocation(this.program, "u_brightness"),
@@ -578,6 +582,10 @@ export class WebGLRenderer {
       this.canvas.width,
       this.canvas.height,
     );
+    // Per-frame, not cached: dragging the window to a display of a different
+    // density changes this with no resize and no parameter change, and the mask
+    // pitch depends on it.
+    gl.uniform1f(this.uniforms.pixelRatio, window.devicePixelRatio || 1);
 
     // Static uniforms (only update when CRT parameters change)
     if (this._uniformsDirty !== false) {
@@ -591,6 +599,7 @@ export class WebGLRenderer {
       gl.uniform1f(this.uniforms.scanlineWidth, this.crtParams.scanlineWidth);
       gl.uniform1f(this.uniforms.beamBloom, this.crtParams.beamBloom);
       gl.uniform1f(this.uniforms.shadowMask, this.crtParams.shadowMask);
+      gl.uniform1i(this.uniforms.maskType, this.crtParams.maskType);
       gl.uniform1f(this.uniforms.glowIntensity, this.crtParams.glowIntensity);
       gl.uniform1f(this.uniforms.glowSpread, this.crtParams.glowSpread);
       gl.uniform1f(this.uniforms.brightness, this.crtParams.brightness);

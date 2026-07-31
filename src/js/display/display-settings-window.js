@@ -25,6 +25,11 @@ export class DisplaySettingsWindow extends BaseWindow {
     this.wasmModule = wasmModule;
 
     // Monochrome mode options
+    this.maskTypes = [
+      { value: 0, label: "Aperture Grille" },
+      { value: 1, label: "Shadow Mask" },
+    ];
+
     this.monochromeModes = [
       { value: 0, label: "Color" },
       { value: 1, label: "Green" },
@@ -41,6 +46,8 @@ export class DisplaySettingsWindow extends BaseWindow {
       // shows through the scanline comb, so it ships on rather than at zero.
       beamBloom: 60,
       shadowMask: 0,
+      // 0 = aperture grille (stripes), 1 = shadow mask (dot triad)
+      maskType: 0,
       phosphorGlow: 0,
       vignette: 0,
       brightness: 100,
@@ -159,6 +166,17 @@ export class DisplaySettingsWindow extends BaseWindow {
       <div class="settings-section">
         <div class="settings-section-title">Rendering</div>
         <div class="setting-row">
+          <label>Mask Type</label>
+          <select id="ds-maskType" class="settings-select">
+            ${this.maskTypes
+              .map(
+                (t) =>
+                  `<option value="${t.value}" ${this.settings.maskType === t.value ? "selected" : ""}>${t.label}</option>`,
+              )
+              .join("")}
+          </select>
+        </div>
+        <div class="setting-row">
           <label>Display Mode</label>
           <select id="ds-monochromeMode" class="settings-select">
             ${this.monochromeModes
@@ -231,6 +249,17 @@ export class DisplaySettingsWindow extends BaseWindow {
       colorPicker.addEventListener("input", (e) => {
         this.settings.bezelColor = e.target.value;
         this.applyBezelColor(e.target.value);
+        this.saveSettings();
+      });
+    }
+
+    // Mask type dropdown
+    const maskSelect = this.contentElement.querySelector("#ds-maskType");
+    if (maskSelect) {
+      maskSelect.addEventListener("change", (e) => {
+        const value = parseInt(e.target.value, 10);
+        this.settings.maskType = value;
+        this.applyToRenderer("maskType", value);
         this.saveSettings();
       });
     }
@@ -360,6 +389,13 @@ export class DisplaySettingsWindow extends BaseWindow {
     const colorPicker = this.contentElement.querySelector("#ds-bezelColor");
     if (colorPicker) colorPicker.value = this.settings.bezelColor;
     this.applyBezelColor(this.settings.bezelColor);
+
+    // Apply mask type
+    const maskTypeSelect = this.contentElement.querySelector("#ds-maskType");
+    if (maskTypeSelect) {
+      maskTypeSelect.value = this.settings.maskType;
+    }
+    this.applyToRenderer("maskType", this.settings.maskType);
 
     // Apply monochrome mode
     const monochromeSelect =
