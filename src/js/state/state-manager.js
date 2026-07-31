@@ -14,7 +14,6 @@ import {
   saveStateToStorage,
   loadStateFromStorage,
   hasSavedState,
-  getSavedStateTimestamp,
   saveStateToSlot,
   loadStateFromSlot,
 } from "./state-persistence.js";
@@ -135,54 +134,12 @@ export class StateManager {
       autosaveToggle.checked = this.autoSaveEnabled;
     }
 
-    // Update last saved time when system menu opens
-    const systemMenuContainer = document.getElementById("file-menu-container");
-    if (systemMenuContainer) {
-      const observer = new MutationObserver(() => {
-        if (systemMenuContainer.classList.contains("open")) {
-          this.updateLastSavedTime();
-        }
-      });
-      observer.observe(systemMenuContainer, { attributes: true, attributeFilter: ["class"] });
-    }
-
     // Auto-save toggle
     if (autosaveToggle) {
       autosaveToggle.addEventListener("change", () => {
         this.autoSaveEnabled = autosaveToggle.checked;
         localStorage.setItem("a2e-autosave-state", this.autoSaveEnabled);
       });
-    }
-  }
-
-  /**
-   * Update the "last saved" time display
-   */
-  async updateLastSavedTime() {
-    const lastSavedEl = document.getElementById("state-last-saved");
-    if (!lastSavedEl) return;
-
-    const timestamp = await getSavedStateTimestamp();
-    if (timestamp) {
-      const date = new Date(timestamp);
-      const now = new Date();
-      const diffMs = now - date;
-      const diffMins = Math.floor(diffMs / 60000);
-      const diffHours = Math.floor(diffMs / 3600000);
-
-      let timeStr;
-      if (diffMins < 1) {
-        timeStr = "just now";
-      } else if (diffMins < 60) {
-        timeStr = `${diffMins} minute${diffMins === 1 ? "" : "s"} ago`;
-      } else if (diffHours < 24) {
-        timeStr = `${diffHours} hour${diffHours === 1 ? "" : "s"} ago`;
-      } else {
-        timeStr = date.toLocaleDateString();
-      }
-      lastSavedEl.textContent = `Last saved: ${timeStr}`;
-    } else {
-      lastSavedEl.textContent = "No saved state";
     }
   }
 
