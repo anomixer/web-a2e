@@ -14,7 +14,11 @@ uniform float u_time;
 uniform float u_curvature;
 uniform float u_scanlineIntensity;
 uniform float u_scanlineWidth;
+uniform float u_beamBloom;
 uniform float u_shadowMask;
+uniform float u_pixelRatio;
+// Mask geometry: 0 = aperture grille (stripes), 1 = shadow mask (dot triad)
+uniform int u_maskType;
 uniform float u_glowIntensity;
 uniform float u_glowSpread;
 uniform float u_brightness;
@@ -32,7 +36,6 @@ uniform float u_glowingLine;
 uniform float u_ambientLight;
 uniform float u_burnIn;
 uniform float u_overscan;
-uniform float u_noSignal;
 
 // NTSC fringing effect
 uniform float u_ntscFringing;
@@ -78,11 +81,11 @@ float hash12(vec2 p) {
     return fract((p3.x + p3.y) * p3.z);
 }
 
-// 3D -> 1D hash. The static uses this with the frame counter as the third
+// 3D -> 1D hash. The grain effect uses this with the frame counter as the third
 // component so every frame is an independent noise field. Feeding the frame in
 // as an offset added to the 2D coordinate instead (the old approach) only
 // translates one fixed field, which reads as rows of grain sliding across the
-// screen rather than as snow.
+// screen rather than as noise.
 float hash13(vec3 p3) {
     p3 = fract(p3 * 0.1031);
     p3 += dot(p3, p3.zyx + 31.32);
@@ -198,76 +201,31 @@ float staticNoise(vec2 uv, float time) {
 }
 
 // ============================================
-// No signal TV static (full screen)
-// ============================================
-
-vec3 noSignalStatic(vec2 uv, float time) {
-    // Grain cell. Roughly one source texel wide and one tall — fine enough that
-    // no repeating structure is legible, which is the whole point of snow.
-    vec2 grain = floor(uv * u_textureSize);
-
-    // Wrapped frame counter, fed to the hash as a third dimension so each frame
-    // is an independent field rather than the previous one slid sideways.
-    float frame = mod(floor(time * 50.0), 1024.0);
-
-    // Three horizontally adjacent taps. A real tuner's video path is band
-    // limited horizontally, so snow grains come out slightly wider than they
-    // are tall; this is the only horizontal correlation the effect should have,
-    // and it is sub-grain rather than the row-wide banding it replaces.
-    float n0 = hash13(vec3(grain, frame));
-    float n1 = hash13(vec3(grain - vec2(1.0, 0.0), frame));
-    float n2 = hash13(vec3(grain + vec2(1.0, 0.0), frame));
-    float noise = n0 * 0.6 + (n1 + n2) * 0.2;
-
-    // A flat uniform random reads as grey mush. Expanding around the midpoint
-    // separates the hot specks from the dark gaps the way real snow does.
-    noise = clamp((noise - 0.5) * 1.7 + 0.5, 0.0, 1.0);
-    noise = noise * noise * (3.0 - 2.0 * noise);
-
-    // Faint chroma speckle — analog snow on a colour set is never pure grey.
-    vec3 chroma = vec3(
-        hash13(vec3(grain, frame + 137.0)),
-        hash13(vec3(grain, frame + 271.0)),
-        hash13(vec3(grain, frame + 419.0))
-    ) - 0.5;
-
-    // Inverted polarity: a white field peppered with black grains rather than a
-    // dark field with bright specks.
-    float lum = 1.0 - noise;
-
-    // Bias towards white so the black grains stay a minority speckle instead of
-    // taking half the screen.
-    lum = pow(lum, 0.6);
-
-    // Occasional interference bar, drifting rather than teleporting so it reads
-    // as a rolling fault in the signal instead of a flashing row. Pulls towards
-    // black, matching the polarity of the grains.
-    float burst = hash13(vec3(0.0, 0.0, floor(time * 1.5)));
-    if (burst > 0.90) {
-        float barY = fract(hash13(vec3(1.0, 0.0, floor(time * 1.5))) + time * 0.35);
-        float barDist = abs(uv.y - barY);
-        float bar = 1.0 - smoothstep(0.0, 0.015, barDist);
-        lum = mix(lum, lum * 0.4, bar);
-    }
-
-    // Slight brightness variation over time
-    lum *= 0.9 + hash13(vec3(2.0, 0.0, floor(time * 12.0))) * 0.2;
-
-    lum = clamp(lum, 0.0, 1.0);
-
-    // Chroma rides on the dark grains, where a real set shows it most.
-    return vec3(lum) + chroma * 0.1 * (1.0 - lum);
-}
-
-// ============================================
 // Flicker effect
 // ============================================
 
+// Brightness undulation, as a set whose field rate is beating slowly against
+// the mains shows it. Two things here are deliberate and must stay that way:
+//
+// The modulation is continuous and slow. It used to be a fresh random level
+// held for 1/15s — up to fifteen discontinuous whole-screen luminance steps a
+// second, right inside the 3-30Hz band that triggers photosensitive epilepsy.
+// The fastest component below is 1.25Hz, so under a flash per second even
+// counting each half cycle, well clear of the WCAG 2.3.1 limit of three.
+//
+// The amplitude is small. Peak to peak is 6% at the top of the slider, against
+// the 10% relative luminance change that WCAG counts as a general flash. The
+// old code reached 15%. Raising either of these puts the effect back over the
+// line, and the flicker slider is on during normal use rather than only while
+// the machine is off.
 float flicker(float time) {
     if (u_flicker < 0.001) return 1.0;
 
-    float noiseVal = hash12(vec2(floor(time * 15.0), 0.0));
-    return 1.0 + (noiseVal - 0.5) * u_flicker * 0.15;
+    // Incommensurate periods (~0.78Hz and ~1.25Hz) so the beat never settles
+    // into an obvious loop.
+    float wobble = sin(time * 4.90) * 0.6 + sin(time * 7.85) * 0.4;
+
+    return 1.0 + wobble * u_flicker * 0.03;
 }
 
 // ============================================
@@ -302,31 +260,105 @@ vec3 applyAmbientLight(vec3 color, vec2 uv) {
 // Scanline effect
 // ============================================
 
-float scanlines(vec2 uv) {
+// The beam is a Gaussian spot, and its diameter grows with beam current. A
+// bright line is therefore physically fatter than a dark one and fills more of
+// the gap to its neighbours, which is why white text on a CRT looks bolder than
+// the same glyphs in a screenshot and why dark areas keep a crisp line
+// structure that bright areas lose. The old fixed comb — a sin() raised to a
+// constant power — could not express that: it darkened every line by the same
+// fraction no matter what was on it, which reads as stripes laid over the
+// picture rather than as a raster.
+//
+// `luma` is the luminance actually being displayed at this fragment, so the
+// width responds to the final image (bleed, fringing and selection overlay
+// included) rather than to a raw texture sample.
+float scanlines(vec2 uv, float luma) {
     if (u_scanlineIntensity < 0.001) return 1.0;
 
-    float scanline = sin(uv.y * u_textureSize.y * PI) * 0.5 + 0.5;
-    scanline = pow(scanline, u_scanlineWidth * 2.0 + 0.5);
-    return mix(1.0, scanline, u_scanlineIntensity);
+    // The framebuffer is 560x384 — the Apple's 280x192 doubled — so a scanline
+    // pitch is two texel rows. This yields 192 lines, matching the real raster.
+    float linePos = uv.y * u_textureSize.y * 0.5;
+
+    // Distance from the centre of the nearest line, in pitch units.
+    float dist = fract(linePos) - 0.5;
+
+    // Spot size. The base is the user's scanline width; brightness widens it
+    // from there. sqrt() because perceived brightness runs ahead of beam
+    // current — mid tones should already be blooming, not just peak white.
+    float sigma = mix(0.18, 0.42, u_scanlineWidth);
+    sigma *= 1.0 + sqrt(clamp(luma, 0.0, 1.0)) * u_beamBloom * 1.6;
+
+    // Gaussian profile, peak 1.0 at the line centre. Never exceeding 1.0 means
+    // a bloomed line loses less to the gaps rather than being boosted above its
+    // own colour, so the effect cannot brighten the picture beyond the source.
+    float x = dist / sigma;
+    float profile = exp(-0.5 * x * x);
+
+    return mix(1.0, profile, u_scanlineIntensity);
 }
 
 // ============================================
 // Shadow mask
 // ============================================
 
-vec3 shadowMask(vec2 uv) {
+// The mask is a physical object: a perforated sheet a few millimetres behind
+// the glass, with a pitch fixed in millimetres. Two things follow, and both
+// were wrong before.
+//
+// It does not change size. The old code took its pitch from device pixels
+// (mod(pos.x, 3.0) on a coordinate scaled by u_resolution), so on a Retina
+// display the whole triad spanned three physical pixels and was effectively
+// invisible — which is why the slider appeared to do so much less than it
+// should — and the pattern resized whenever the window moved between monitors
+// of different density. Working in CSS pixels via u_pixelRatio pins the pitch
+// to a constant apparent size wherever the page is viewed.
+//
+// It does not move with the signal. The old call passed the beam-distorted UV,
+// so jitter and horizontal sync dragged the mask around with the picture. A
+// mask is glued to the tube; the raster slides behind it. Deriving position
+// from gl_FragCoord ties it to the physical screen and nothing else.
+//
+// MASK_PITCH is one full RGB triad. Three CSS pixels puts one phosphor stripe
+// per CSS pixel, fine enough to read as texture rather than as stripes.
+const float MASK_PITCH = 3.0;
+
+vec3 shadowMask() {
     if (u_shadowMask < 0.001) return vec3(1.0);
 
-    vec2 pos = uv * u_resolution;
-    int px = int(mod(pos.x, 3.0));
+    // Position on the glass, in CSS pixels.
+    vec2 pos = gl_FragCoord.xy / max(u_pixelRatio, 0.001);
 
     vec3 mask;
-    if (px == 0) {
-        mask = vec3(1.0, 0.7, 0.7);
-    } else if (px == 1) {
-        mask = vec3(0.7, 1.0, 0.7);
+
+    if (u_maskType == 1) {
+        // Dot triad, as the Apple Monitor //e and most consumer sets used.
+        // Triads sit on a staggered lattice — every other row is offset by half
+        // a triad — which is what stops a shadow mask reading as vertical
+        // stripes the way an aperture grille does.
+        float row = floor(pos.y / MASK_PITCH);
+        float stagger = mod(row, 2.0) * 0.5;
+        float idx = mod(floor(pos.x / (MASK_PITCH / 3.0) + stagger * 1.5), 3.0);
+
+        mask = vec3(0.7);
+        if (idx < 0.5) mask.r = 1.0;
+        else if (idx < 1.5) mask.g = 1.0;
+        else mask.b = 1.0;
+
+        // Gap between mask rows. Without it the triads merge vertically into
+        // continuous stripes and the stagger buys nothing.
+        float withinRow = fract(pos.y / MASK_PITCH);
+        float gap = smoothstep(0.0, 0.25, withinRow) * smoothstep(1.0, 0.75, withinRow);
+        mask *= mix(0.8, 1.0, gap);
     } else {
-        mask = vec3(0.7, 0.7, 1.0);
+        // Aperture grille: continuous vertical phosphor stripes, no horizontal
+        // structure. A Trinitron look rather than an Apple one, but it is what
+        // this shader has always drawn, so it stays the default.
+        float idx = mod(floor(pos.x / (MASK_PITCH / 3.0)), 3.0);
+
+        mask = vec3(0.7);
+        if (idx < 0.5) mask.r = 1.0;
+        else if (idx < 1.5) mask.g = 1.0;
+        else mask.b = 1.0;
     }
 
     return mix(vec3(1.0), mask, u_shadowMask);
@@ -777,29 +809,6 @@ void main() {
     // Check if we're in the margin area (outside content but inside screen)
     bool inMargin = contentUV.x < 0.0 || contentUV.x > 1.0 || contentUV.y < 0.0 || contentUV.y > 1.0;
 
-    // No signal mode - show TV static instead of emulator content
-    if (u_noSignal > 0.5) {
-        vec3 staticColor = noSignalStatic(curvedUV, u_time);
-
-        // Apply scanlines to static, but at half strength. At full strength the
-        // scanline comb is the strongest horizontal signal on screen and the
-        // snow underneath it just reads as texture on a striped field.
-        staticColor *= mix(1.0, scanlines(curvedUV), 0.5);
-
-        // Apply vignette
-        staticColor *= vignette(curvedUV);
-
-        // Apply edge fade for curved screens
-        if (u_curvature > 0.001) {
-            staticColor *= edgeFade(curvedUV);
-        }
-
-        float staticAlpha = cornerAlpha * edgeFactor;
-        staticColor = mix(bezel, staticColor, staticAlpha);
-        gl_FragColor = vec4(staticColor, 1.0);
-        return;
-    }
-
     // Get base color - dark bezel color for margin area, texture sample for content
     vec3 color;
     if (inMargin) {
@@ -838,10 +847,10 @@ void main() {
     }
 
     // Apply scanlines (use curvedUV for consistent scanlines across margin)
-    color *= scanlines(curvedUV);
+    color *= scanlines(curvedUV, rgb2grey(color));
 
     // Apply shadow mask
-    color *= shadowMask(curvedUV);
+    color *= shadowMask();
 
     // Apply color adjustments (brightness, contrast, saturation)
     color = adjustColor(color);

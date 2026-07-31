@@ -1,0 +1,175 @@
+/*
+ * no-signal-frame.js - Builds the "no signal" screen shown while the emulator
+ * is powered off.
+ *
+ * Written by
+ *  Mike Daley <michael_daley@icloud.com>
+ *
+ * This produces an ordinary RGBA framebuffer in the emulator's own 560x384
+ * layout, which the renderer uploads as the source texture. It therefore goes
+ * through the whole CRT chain — RGB shift, colour bleed, NTSC fringing,
+ * scanlines, shadow mask, glow — exactly as emulator video does, so the message
+ * reads as a composite signal rather than as text pasted over the screen.
+ *
+ * Everything here is static. It replaced a full-screen animated TV-static
+ * effect that regenerated at 50Hz with a 12Hz whole-screen brightness
+ * modulation on top: a full-field flash well inside the 3-30Hz band that
+ * triggers photosensitive epilepsy, and a WCAG 2.3.1 failure. Nothing drawn on
+ * this screen may animate.
+ */
+
+// 5x7 bitmap font, one entry per glyph, seven rows of five bits (MSB left).
+// Effectively uppercase-only — this is machine-generated video from an era that
+// was too — so callers pass strings already in the case they want drawn.
+const FONT = {
+  A: [0x0e, 0x11, 0x11, 0x1f, 0x11, 0x11, 0x11],
+  B: [0x1e, 0x11, 0x11, 0x1e, 0x11, 0x11, 0x1e],
+  C: [0x0e, 0x11, 0x10, 0x10, 0x10, 0x11, 0x0e],
+  D: [0x1e, 0x11, 0x11, 0x11, 0x11, 0x11, 0x1e],
+  E: [0x1f, 0x10, 0x10, 0x1e, 0x10, 0x10, 0x1f],
+  F: [0x1f, 0x10, 0x10, 0x1e, 0x10, 0x10, 0x10],
+  G: [0x0e, 0x11, 0x10, 0x17, 0x11, 0x11, 0x0f],
+  H: [0x11, 0x11, 0x11, 0x1f, 0x11, 0x11, 0x11],
+  I: [0x0e, 0x04, 0x04, 0x04, 0x04, 0x04, 0x0e],
+  J: [0x01, 0x01, 0x01, 0x01, 0x01, 0x11, 0x0e],
+  K: [0x11, 0x12, 0x14, 0x18, 0x14, 0x12, 0x11],
+  L: [0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x1f],
+  M: [0x11, 0x1b, 0x15, 0x15, 0x11, 0x11, 0x11],
+  N: [0x11, 0x19, 0x15, 0x13, 0x11, 0x11, 0x11],
+  O: [0x0e, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0e],
+  P: [0x1e, 0x11, 0x11, 0x1e, 0x10, 0x10, 0x10],
+  Q: [0x0e, 0x11, 0x11, 0x11, 0x15, 0x12, 0x0d],
+  R: [0x1e, 0x11, 0x11, 0x1e, 0x14, 0x12, 0x11],
+  S: [0x0f, 0x10, 0x10, 0x0e, 0x01, 0x01, 0x1e],
+  T: [0x1f, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04],
+  U: [0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0e],
+  V: [0x11, 0x11, 0x11, 0x11, 0x11, 0x0a, 0x04],
+  W: [0x11, 0x11, 0x11, 0x15, 0x15, 0x1b, 0x11],
+  X: [0x11, 0x11, 0x0a, 0x04, 0x0a, 0x11, 0x11],
+  Y: [0x11, 0x11, 0x0a, 0x04, 0x04, 0x04, 0x04],
+  Z: [0x1f, 0x01, 0x02, 0x04, 0x08, 0x10, 0x1f],
+  0: [0x0e, 0x11, 0x13, 0x15, 0x19, 0x11, 0x0e],
+  1: [0x04, 0x0c, 0x04, 0x04, 0x04, 0x04, 0x0e],
+  2: [0x0e, 0x11, 0x01, 0x02, 0x04, 0x08, 0x1f],
+  3: [0x1f, 0x02, 0x04, 0x02, 0x01, 0x11, 0x0e],
+  4: [0x02, 0x06, 0x0a, 0x12, 0x1f, 0x02, 0x02],
+  5: [0x1f, 0x10, 0x1e, 0x01, 0x01, 0x11, 0x0e],
+  6: [0x06, 0x08, 0x10, 0x1e, 0x11, 0x11, 0x0e],
+  7: [0x1f, 0x01, 0x02, 0x04, 0x08, 0x08, 0x08],
+  8: [0x0e, 0x11, 0x11, 0x0e, 0x11, 0x11, 0x0e],
+  9: [0x0e, 0x11, 0x11, 0x0f, 0x01, 0x02, 0x0c],
+  ".": [0x00, 0x00, 0x00, 0x00, 0x00, 0x0c, 0x0c],
+  ",": [0x00, 0x00, 0x00, 0x00, 0x0c, 0x04, 0x08],
+  "-": [0x00, 0x00, 0x00, 0x1f, 0x00, 0x00, 0x00],
+  "/": [0x01, 0x01, 0x02, 0x04, 0x08, 0x10, 0x10],
+  ":": [0x00, 0x0c, 0x0c, 0x00, 0x0c, 0x0c, 0x00],
+  "!": [0x04, 0x04, 0x04, 0x04, 0x04, 0x00, 0x04],
+  " ": [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
+  // Lowercase is limited to what the model name needs.
+  e: [0x00, 0x00, 0x0e, 0x11, 0x1f, 0x10, 0x0e],
+};
+
+const GLYPH_W = 5;
+const GLYPH_H = 7;
+
+// One logical Apple pixel is two framebuffer pixels across and two down, so a
+// character cell here matches the 7x8 cell of the real 40-column text screen.
+const PIXEL = 2;
+const CELL_W = 7 * PIXEL;
+const CELL_H = 8 * PIXEL;
+
+// Composite white is never paper white. This is the level the emulator's own
+// text output sits at, so the message matches what appears a moment later.
+const FG = [0xe8, 0xe8, 0xe8];
+const DIM = [0x8c, 0x8c, 0x8c];
+
+/**
+ * Build the powered-off screen.
+ *
+ * @param {number} width  framebuffer width in pixels (560)
+ * @param {number} height framebuffer height in pixels (384)
+ * @returns {Uint8Array} RGBA pixel data, width * height * 4 bytes
+ */
+export function buildNoSignalFrame(width = 560, height = 384) {
+  const buf = new Uint8Array(width * height * 4);
+
+  // Opaque black — the shader's vignette and bezel do the rest.
+  for (let i = 3; i < buf.length; i += 4) buf[i] = 0xff;
+
+  const plot = (x, y, rgb) => {
+    if (x < 0 || y < 0 || x >= width || y >= height) return;
+    const o = (y * width + x) * 4;
+    buf[o] = rgb[0];
+    buf[o + 1] = rgb[1];
+    buf[o + 2] = rgb[2];
+  };
+
+  const fillRect = (x, y, w, h, rgb) => {
+    for (let dy = 0; dy < h; dy++) {
+      for (let dx = 0; dx < w; dx++) plot(x + dx, y + dy, rgb);
+    }
+  };
+
+  // Draw text centred on the given framebuffer row, one character per cell.
+  const drawTextCentred = (text, top, rgb, scale = 1) => {
+    const cellW = CELL_W * scale;
+    const runW = text.length * cellW;
+    let x = Math.round((width - runW) / 2);
+    for (const ch of text) {
+      const glyph = FONT[ch] || FONT[" "];
+      for (let row = 0; row < GLYPH_H; row++) {
+        const bits = glyph[row];
+        for (let col = 0; col < GLYPH_W; col++) {
+          if (!(bits & (1 << (GLYPH_W - 1 - col)))) continue;
+          fillRect(
+            x + col * PIXEL * scale,
+            top + row * PIXEL * scale,
+            PIXEL * scale,
+            PIXEL * scale,
+            rgb,
+          );
+        }
+      }
+      x += cellW;
+    }
+  };
+
+  // IEC 5009 power symbol: a broken ring with a bar rising through the gap.
+  // Drawn from the distance field rather than with strokes so the edges land on
+  // whole framebuffer pixels and survive the shader's sampling without shimmer.
+  const drawPowerSymbol = (cx, cy, radius, thickness, rgb) => {
+    const inner = radius - thickness / 2;
+    const outer = radius + thickness / 2;
+    const extent = Math.ceil(outer);
+    // Half-angle of the gap at the top, measured from vertical.
+    const gap = 0.42;
+
+    for (let y = -extent; y <= extent; y++) {
+      for (let x = -extent; x <= extent; x++) {
+        const d = Math.sqrt(x * x + y * y);
+        if (d < inner || d > outer) continue;
+        // Screen y grows downward, so the top of the ring is negative y.
+        if (y < 0 && Math.abs(Math.atan2(x, -y)) < gap) continue;
+        plot(cx + x, cy + y, rgb);
+      }
+    }
+
+    // The bar rises through the gap and stops just short of the centre. Odd
+    // width so it straddles the centre column exactly.
+    const half = Math.floor(thickness / 2);
+    const barTop = Math.round(cy - radius - thickness);
+    const barBottom = Math.round(cy - radius * 0.1);
+    fillRect(cx - half, barTop, half * 2 + 1, barBottom - barTop, rgb);
+  };
+
+  // Vertical layout, top down: heading, message, power symbol. Rows are snapped
+  // to whole character cells so the text sits on the same grid the emulator's
+  // own text screen uses.
+  const cellRow = (row) => row * CELL_H;
+
+  drawTextCentred("NO SIGNAL", cellRow(6), FG, 2);
+  drawTextCentred("SWITCH ON THE APPLE //e TO START", cellRow(11), DIM);
+  drawPowerSymbol(Math.round(width / 2), cellRow(16), 18, 5, FG);
+
+  return buf;
+}

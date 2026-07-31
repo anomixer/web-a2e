@@ -296,6 +296,7 @@ class AppleIIeEmulator {
       });
       joystickWindow.onCursorKeysChanged = (enabled) => {
         this.screenWindow.setCursorKeysState(enabled);
+        this.uiController?.setCursorKeysMenuState(enabled);
       };
 
       const mockingboardWindow = new MockingboardWindow(this.wasmModule);

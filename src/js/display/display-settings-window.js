@@ -16,15 +16,96 @@ export class DisplaySettingsWindow extends BaseWindow {
       id: "display-settings",
       title: "Display Settings",
       minWidth: 260,
-      minHeight: 300,
+      minHeight: 240,
       defaultWidth: 300,
-      defaultHeight: 500,
+      // Sized for the collapsed window. Opening Advanced grows it to fit.
+      defaultHeight: 330,
     });
 
     this.renderer = renderer;
     this.wasmModule = wasmModule;
 
+    // Monitor presets. Each names a real thing a //e was plugged into, and
+    // sets the whole picture in one go — the sliders underneath are the
+    // advanced view of whatever the preset just chose.
+    //
+    // Presets deliberately do not touch brightness, contrast, saturation or the
+    // bezel. Those are the user's own calibration and framing, not properties
+    // of the monitor being imitated, and silently resetting them when someone
+    // switches preset would be obnoxious.
+    this.monitorPresets = [
+      {
+        id: "flat",
+        label: "Pixel Exact",
+        description: "No CRT simulation — sharp square pixels.",
+        values: {
+          curvature: 0, overscan: 0, scanlines: 0, beamBloom: 60,
+          shadowMask: 0, maskType: 0, phosphorGlow: 0, vignette: 0,
+          rgbOffset: 0, flicker: 0, staticNoise: 0, jitter: 0,
+          horizontalSync: 0, glowingLine: 0, ambientLight: 0, burnIn: 0,
+          colorBleed: 0, ntscFringing: 0, monochromeMode: 0, sharpPixels: true,
+        },
+      },
+      {
+        id: "composite",
+        label: "Composite Color",
+        description: "Colour TV or composite monitor — soft, with artefact fringing.",
+        values: {
+          curvature: 20, overscan: 0, scanlines: 30, beamBloom: 60,
+          // A consumer colour set used a dot triad, not a grille.
+          shadowMask: 30, maskType: 1, phosphorGlow: 15, vignette: 20,
+          rgbOffset: 6, flicker: 0, staticNoise: 0, jitter: 0,
+          horizontalSync: 0, glowingLine: 0, ambientLight: 0, burnIn: 10,
+          colorBleed: 80, ntscFringing: 60, monochromeMode: 0, sharpPixels: false,
+        },
+      },
+      {
+        id: "rgb",
+        label: "RGB Monitor",
+        description: "Separate colour signals — sharp, no composite artefacts.",
+        values: {
+          curvature: 10, overscan: 0, scanlines: 22, beamBloom: 45,
+          shadowMask: 22, maskType: 0, phosphorGlow: 8, vignette: 12,
+          rgbOffset: 0, flicker: 0, staticNoise: 0, jitter: 0,
+          horizontalSync: 0, glowingLine: 0, ambientLight: 0, burnIn: 5,
+          // No encoding to decode, so no fringing and almost no chroma bleed.
+          colorBleed: 15, ntscFringing: 0, monochromeMode: 0, sharpPixels: true,
+        },
+      },
+      {
+        id: "green",
+        label: "Monochrome Green",
+        description: "P1 phosphor — long persistence, no mask.",
+        values: {
+          curvature: 20, overscan: 0, scanlines: 32, beamBloom: 70,
+          // A monochrome tube has one continuous phosphor coating and no
+          // aperture at all — a mask exists only to keep three beams apart.
+          shadowMask: 0, maskType: 0, phosphorGlow: 28, vignette: 25,
+          rgbOffset: 0, flicker: 0, staticNoise: 0, jitter: 0,
+          horizontalSync: 0, glowingLine: 0, ambientLight: 0, burnIn: 40,
+          colorBleed: 25, ntscFringing: 0, monochromeMode: 1, sharpPixels: false,
+        },
+      },
+      {
+        id: "amber",
+        label: "Monochrome Amber",
+        description: "P3 phosphor — the warmer of the two mono tubes.",
+        values: {
+          curvature: 20, overscan: 0, scanlines: 32, beamBloom: 70,
+          shadowMask: 0, maskType: 0, phosphorGlow: 25, vignette: 25,
+          rgbOffset: 0, flicker: 0, staticNoise: 0, jitter: 0,
+          horizontalSync: 0, glowingLine: 0, ambientLight: 0, burnIn: 35,
+          colorBleed: 25, ntscFringing: 0, monochromeMode: 2, sharpPixels: false,
+        },
+      },
+    ];
+
     // Monochrome mode options
+    this.maskTypes = [
+      { value: 0, label: "Aperture Grille" },
+      { value: 1, label: "Shadow Mask" },
+    ];
+
     this.monochromeModes = [
       { value: 0, label: "Color" },
       { value: 1, label: "Green" },
@@ -35,9 +116,17 @@ export class DisplaySettingsWindow extends BaseWindow {
     // Default values (percentages 0-100 for UI, converted to shader values)
     // All effects off by default except basic image adjustments
     this.defaults = {
+      // "flat" reproduces what this window has always shipped with — every
+      // effect off — so existing users see no change until they pick a monitor.
+      preset: "flat",
       curvature: 0,
       scanlines: 0,
+      // Beam bloom is a property of the spot, not an effect of its own: it only
+      // shows through the scanline comb, so it ships on rather than at zero.
+      beamBloom: 60,
       shadowMask: 0,
+      // 0 = aperture grille (stripes), 1 = shadow mask (dot triad)
+      maskType: 0,
       phosphorGlow: 0,
       vignette: 0,
       brightness: 100,
@@ -69,14 +158,27 @@ export class DisplaySettingsWindow extends BaseWindow {
     // Current values
     this.settings = { ...this.defaults };
 
-    // Slider info for rendering
+    // Slider info for rendering. `advanced` sections live behind the
+    // disclosure; Image stays visible because it is calibration, not
+    // simulation, and is the thing people reach for most often.
     this.sliderConfigs = [
       {
+        section: "Image",
+        advanced: false,
+        sliders: [
+          { id: "brightness", label: "Brightness", param: "brightness" },
+          { id: "contrast", label: "Contrast", param: "contrast" },
+          { id: "saturation", label: "Saturation", param: "saturation" },
+        ],
+      },
+      {
         section: "CRT Effects",
+        advanced: true,
         sliders: [
           { id: "curvature", label: "Screen Curvature", param: "curvature" },
           { id: "overscan", label: "Screen Border", param: "overscan" },
           { id: "scanlines", label: "Scanlines", param: "scanlineIntensity" },
+          { id: "beamBloom", label: "Beam Bloom", param: "beamBloom" },
           { id: "shadowMask", label: "Shadow Mask", param: "shadowMask" },
           {
             id: "phosphorGlow",
@@ -90,6 +192,7 @@ export class DisplaySettingsWindow extends BaseWindow {
       },
       {
         section: "Analog Effects",
+        advanced: true,
         sliders: [
           { id: "staticNoise", label: "Static Noise", param: "staticNoise" },
           { id: "jitter", label: "Jitter", param: "jitter" },
@@ -105,18 +208,11 @@ export class DisplaySettingsWindow extends BaseWindow {
       },
       {
         section: "Bezel",
+        advanced: true,
         sliders: [
           { id: "screenInset", label: "Bezel Width", param: "screenInset" },
           { id: "bezelSpillReach", label: "Spill Reach", param: "bezelSpillReach" },
           { id: "bezelSpillIntensity", label: "Spill Intensity", param: "bezelSpillIntensity" },
-        ],
-      },
-      {
-        section: "Image",
-        sliders: [
-          { id: "brightness", label: "Brightness", param: "brightness" },
-          { id: "contrast", label: "Contrast", param: "contrast" },
-          { id: "saturation", label: "Saturation", param: "saturation" },
         ],
       },
     ];
@@ -125,7 +221,67 @@ export class DisplaySettingsWindow extends BaseWindow {
   renderContent() {
     let html = '<div class="display-settings-content">';
 
+    // Monitor preset — the primary control. Everything below it is the
+    // detail of whatever this chooses.
+    html += `
+      <div class="settings-section">
+        <div class="settings-section-title">Monitor</div>
+        <select id="ds-preset" class="settings-select">
+          ${this.monitorPresets
+            .map(
+              (p) =>
+                `<option value="${p.id}" ${this.settings.preset === p.id ? "selected" : ""}>${p.label}</option>`,
+            )
+            .join("")}
+          <option value="custom" ${this.settings.preset === "custom" ? "selected" : ""}>Custom</option>
+        </select>
+        <div class="preset-description" id="ds-preset-description">${this._presetDescription()}</div>
+      </div>`;
+
+    html += this._renderSliderSections(false);
+
+    // Everything else is folded away. These are the knobs behind the preset,
+    // not the everyday controls.
+    html += `
+      <div class="settings-section advanced-section">
+        <div class="settings-section-title collapsible" id="ds-advanced-toggle">▶ Advanced</div>
+        <div class="advanced-content hidden" id="ds-advanced-content">`;
+
+    html += this._renderSliderSections(true);
+    html += this._renderRenderingSection();
+    html += this._renderNTSCSection();
+
+    html += `
+        </div>
+      </div>`;
+
+    // Reset button
+    html += `
+      <div class="settings-actions">
+        <button id="ds-reset" class="settings-btn">Reset to Defaults</button>
+      </div>`;
+
+    html += "</div>";
+    return html;
+  }
+
+  /**
+   * Description line for the currently selected preset.
+   */
+  _presetDescription() {
+    const preset = this.monitorPresets.find((p) => p.id === this.settings.preset);
+    return preset ? preset.description : "Hand-tuned settings.";
+  }
+
+  /**
+   * Render the slider sections matching the requested `advanced` flag.
+   */
+  _renderSliderSections(advanced) {
+    let html = "";
+
     for (const section of this.sliderConfigs) {
+      if (Boolean(section.advanced) !== advanced) continue;
+
       html += `<div class="settings-section">
         <div class="settings-section-title">${section.section}</div>`;
 
@@ -150,10 +306,27 @@ export class DisplaySettingsWindow extends BaseWindow {
       html += "</div>";
     }
 
-    // Rendering section with monochrome mode and sharp pixels
-    html += `
+    return html;
+  }
+
+  /**
+   * Rendering section: mask geometry, phosphor colour, filtering.
+   */
+  _renderRenderingSection() {
+    return `
       <div class="settings-section">
         <div class="settings-section-title">Rendering</div>
+        <div class="setting-row">
+          <label>Mask Type</label>
+          <select id="ds-maskType" class="settings-select">
+            ${this.maskTypes
+              .map(
+                (t) =>
+                  `<option value="${t.value}" ${this.settings.maskType === t.value ? "selected" : ""}>${t.label}</option>`,
+              )
+              .join("")}
+          </select>
+        </div>
         <div class="setting-row">
           <label>Display Mode</label>
           <select id="ds-monochromeMode" class="settings-select">
@@ -173,9 +346,13 @@ export class DisplaySettingsWindow extends BaseWindow {
           </label>
         </div>
       </div>`;
+  }
 
-    // NTSC Effects sliders (shader-based)
-    html += `
+  /**
+   * NTSC section: the composite-specific shader effects.
+   */
+  _renderNTSCSection() {
+    return `
       <div class="settings-section">
         <div class="settings-section-title">NTSC Effects</div>
         <div class="setting-row">
@@ -189,15 +366,6 @@ export class DisplaySettingsWindow extends BaseWindow {
           <span class="setting-value" id="ds-val-ntscFringing">${this.settings.ntscFringing}%</span>
         </div>
       </div>`;
-
-    // Reset button
-    html += `
-      <div class="settings-actions">
-        <button id="ds-reset" class="settings-btn">Reset to Defaults</button>
-      </div>`;
-
-    html += "</div>";
-    return html;
   }
 
   setupContentEventListeners() {
@@ -215,6 +383,7 @@ export class DisplaySettingsWindow extends BaseWindow {
             this.settings[slider.id] = value;
             if (valueSpan) valueSpan.textContent = `${value}%`;
             this.applyToRenderer(slider.param, value / 100);
+            this._markCustom(slider.id);
             this.saveSettings();
           });
         }
@@ -227,6 +396,37 @@ export class DisplaySettingsWindow extends BaseWindow {
       colorPicker.addEventListener("input", (e) => {
         this.settings.bezelColor = e.target.value;
         this.applyBezelColor(e.target.value);
+        this.saveSettings();
+      });
+    }
+
+    // Monitor preset
+    const presetSelect = this.contentElement.querySelector("#ds-preset");
+    if (presetSelect) {
+      presetSelect.addEventListener("change", (e) => {
+        this.applyPreset(e.target.value);
+      });
+    }
+
+    // Advanced disclosure
+    const advToggle = this.contentElement.querySelector("#ds-advanced-toggle");
+    const advContent = this.contentElement.querySelector("#ds-advanced-content");
+    if (advToggle && advContent) {
+      advToggle.addEventListener("click", () => {
+        const hidden = advContent.classList.toggle("hidden");
+        advToggle.textContent = hidden ? "\u25B6 Advanced" : "\u25BC Advanced";
+        this._fitHeightToContent();
+      });
+    }
+
+    // Mask type dropdown
+    const maskSelect = this.contentElement.querySelector("#ds-maskType");
+    if (maskSelect) {
+      maskSelect.addEventListener("change", (e) => {
+        const value = parseInt(e.target.value, 10);
+        this.settings.maskType = value;
+        this.applyToRenderer("maskType", value);
+        this._markCustom("maskType");
         this.saveSettings();
       });
     }
@@ -244,6 +444,7 @@ export class DisplaySettingsWindow extends BaseWindow {
         }
         // Tell shader which phosphor color to use
         this.applyToRenderer("monochromeMode", value);
+        this._markCustom("monochromeMode");
         this.saveSettings();
       });
     }
@@ -256,6 +457,7 @@ export class DisplaySettingsWindow extends BaseWindow {
         if (this.renderer) {
           this.renderer.setNearestFilter(this.settings.sharpPixels);
         }
+        this._markCustom("sharpPixels");
         this.saveSettings();
       });
     }
@@ -273,6 +475,7 @@ export class DisplaySettingsWindow extends BaseWindow {
         if (colorBleedValueSpan)
           colorBleedValueSpan.textContent = `${value}%`;
         this.applyToRenderer("colorBleed", value / 100);
+        this._markCustom("colorBleed");
         this.saveSettings();
       });
     }
@@ -288,6 +491,7 @@ export class DisplaySettingsWindow extends BaseWindow {
         this.settings.ntscFringing = value;
         if (ntscValueSpan) ntscValueSpan.textContent = `${value}%`;
         this.applyToRenderer("ntscFringing", value / 100);
+        this._markCustom("ntscFringing");
         this.saveSettings();
       });
     }
@@ -310,6 +514,99 @@ export class DisplaySettingsWindow extends BaseWindow {
     if (this.renderer) {
       this.renderer.setParam(param, value);
     }
+  }
+
+  /**
+   * Adopt a monitor preset, or "custom" to keep the current values.
+   *
+   * Selecting "custom" explicitly is a no-op on purpose: it is the label for
+   * settings the user has already hand-tuned, so choosing it must not throw
+   * that work away.
+   */
+  applyPreset(id) {
+    this.settings.preset = id;
+
+    const preset = this.monitorPresets.find((p) => p.id === id);
+    if (preset) {
+      Object.assign(this.settings, preset.values);
+    }
+
+    this.applyAllSettings();
+    this.saveSettings();
+  }
+
+  /**
+   * Note that a setting was changed by hand.
+   *
+   * Switching the label to "Custom" rather than leaving a preset selected
+   * matters: a preset name that no longer describes what is on screen is worse
+   * than no name at all. The values are left exactly as the user set them —
+   * only the label changes.
+   */
+  _markCustom(changedKey) {
+    const preset = this.monitorPresets.find((p) => p.id === this.settings.preset);
+
+    // A change that does not contradict the preset — brightness, bezel — leaves
+    // the preset intact, because the preset never claimed to set it.
+    if (preset && !(changedKey in preset.values)) return;
+    if (this.settings.preset === "custom") return;
+
+    this.settings.preset = "custom";
+    this._syncPresetUI();
+  }
+
+  /**
+   * Reclaim dead space when the window opens collapsed.
+   */
+  show() {
+    super.show();
+    requestAnimationFrame(() => {
+      const advContent = this.contentElement?.querySelector("#ds-advanced-content");
+      if (advContent && advContent.classList.contains("hidden")) {
+        this._fitHeightToContent({ shrinkOnly: true });
+      }
+    });
+  }
+
+  /**
+   * Grow or shrink the window to fit its content.
+   *
+   * Called when the disclosure toggles, so collapsing does not leave a tall
+   * empty box and expanding does not bury the sliders behind a scrollbar.
+   * On open it is shrink-only and only while collapsed: with the disclosure
+   * shut there is nothing to scroll to, so trailing empty space is pure waste,
+   * but growing the window would override a size the user chose themselves.
+   */
+  _fitHeightToContent({ shrinkOnly = false } = {}) {
+    const inner = this.contentElement?.querySelector(".display-settings-content");
+    if (!this.element || !inner) return;
+
+    const headerHeight = this.headerElement ? this.headerElement.offsetHeight : 0;
+    const style = getComputedStyle(this.contentElement);
+    const padding =
+      parseFloat(style.paddingTop || 0) + parseFloat(style.paddingBottom || 0);
+
+    const desired = Math.ceil(inner.scrollHeight + headerHeight + padding);
+    const available = window.innerHeight - this.currentY - 12;
+    let height = Math.max(this.minHeight, Math.min(desired, available));
+    if (shrinkOnly) height = Math.min(height, this.currentHeight);
+    if (height === this.currentHeight) return;
+
+    this.element.style.height = `${height}px`;
+    this.currentHeight = height;
+
+    if (this.onStateChange) this.onStateChange();
+  }
+
+  /**
+   * Push the current preset id into the select and description line.
+   */
+  _syncPresetUI() {
+    const select = this.contentElement?.querySelector("#ds-preset");
+    if (select) select.value = this.settings.preset;
+
+    const description = this.contentElement?.querySelector("#ds-preset-description");
+    if (description) description.textContent = this._presetDescription();
   }
 
   applyBezelColor(hex) {
@@ -357,6 +654,13 @@ export class DisplaySettingsWindow extends BaseWindow {
     if (colorPicker) colorPicker.value = this.settings.bezelColor;
     this.applyBezelColor(this.settings.bezelColor);
 
+    // Apply mask type
+    const maskTypeSelect = this.contentElement.querySelector("#ds-maskType");
+    if (maskTypeSelect) {
+      maskTypeSelect.value = this.settings.maskType;
+    }
+    this.applyToRenderer("maskType", this.settings.maskType);
+
     // Apply monochrome mode
     const monochromeSelect =
       this.contentElement.querySelector("#ds-monochromeMode");
@@ -391,6 +695,8 @@ export class DisplaySettingsWindow extends BaseWindow {
 
     // Apply NTSC fringing settings (shader-based)
     this.applyNTSCSettings();
+
+    this._syncPresetUI();
   }
 
   resetToDefaults() {

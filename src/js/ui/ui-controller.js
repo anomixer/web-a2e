@@ -552,6 +552,25 @@ export class UIController {
       });
     }
 
+    // --- Cursor keys as joystick (mirrors the Monitor header toggle) ---
+    this.cursorKeysBtn = document.getElementById("btn-cursor-keys-joystick");
+    if (this.cursorKeysBtn) {
+      const joystickWindow = this.windowManager.getWindow("joystick");
+      this.setCursorKeysMenuState(
+        joystickWindow
+          ? joystickWindow.cursorKeysEnabled
+          : localStorage.getItem("joystick-cursor-keys") === "true",
+      );
+      this.cursorKeysBtn.addEventListener("click", () => {
+        const win = this.windowManager.getWindow("joystick");
+        if (win) {
+          win.setCursorKeysEnabled(!win.cursorKeysEnabled);
+        }
+        this.closeAllMenus();
+        this.refocusCanvas();
+      });
+    }
+
     const slotsBtn = document.getElementById("btn-slots");
     if (slotsBtn) {
       slotsBtn.addEventListener("click", () => {
@@ -1132,6 +1151,14 @@ export class UIController {
       iconUnmuted?.classList.remove("hidden");
       iconMuted?.classList.add("hidden");
     }
+  }
+
+  /**
+   * Reflect the cursor-keys-as-joystick state in the View menu
+   * @param {boolean} enabled
+   */
+  setCursorKeysMenuState(enabled) {
+    this.cursorKeysBtn?.classList.toggle("active", enabled);
   }
 
   /**

@@ -6,6 +6,7 @@
  */
 
 import { VERSION } from "../config/version.js";
+import { buildNoSignalFrame } from "./no-signal-frame.js";
 
 export class WebGLRenderer {
   constructor(canvas) {
@@ -38,7 +39,11 @@ export class WebGLRenderer {
       // Scanlines and rasterization
       scanlineIntensity: 0.03,
       scanlineWidth: 0.25,
+      // How much a bright line's beam spot widens over a dark one's
+      beamBloom: 0.6,
       shadowMask: 0.3,
+      // Mask geometry: 0 = aperture grille (stripes), 1 = shadow mask (triad)
+      maskType: 0,
 
       // Glow/bloom
       glowIntensity: 0.0,
@@ -66,9 +71,6 @@ export class WebGLRenderer {
 
       // Screen border/overscan
       overscan: 0.0, // Border around display content (0.0 to 1.0)
-
-      // No signal mode (TV static when off)
-      noSignal: 0.0, // 1.0 = full static, 0.0 = normal display
 
       // Color bleed - vertical inter-scanline blending (CRT phosphor overlap)
       colorBleed: 0.8, // 0.0 to 1.0
@@ -228,7 +230,10 @@ export class WebGLRenderer {
         "u_scanlineIntensity",
       ),
       scanlineWidth: gl.getUniformLocation(this.program, "u_scanlineWidth"),
+      beamBloom: gl.getUniformLocation(this.program, "u_beamBloom"),
       shadowMask: gl.getUniformLocation(this.program, "u_shadowMask"),
+      maskType: gl.getUniformLocation(this.program, "u_maskType"),
+      pixelRatio: gl.getUniformLocation(this.program, "u_pixelRatio"),
       glowIntensity: gl.getUniformLocation(this.program, "u_glowIntensity"),
       glowSpread: gl.getUniformLocation(this.program, "u_glowSpread"),
       brightness: gl.getUniformLocation(this.program, "u_brightness"),
@@ -244,7 +249,6 @@ export class WebGLRenderer {
       ambientLight: gl.getUniformLocation(this.program, "u_ambientLight"),
       burnIn: gl.getUniformLocation(this.program, "u_burnIn"),
       overscan: gl.getUniformLocation(this.program, "u_overscan"),
-      noSignal: gl.getUniformLocation(this.program, "u_noSignal"),
       colorBleed: gl.getUniformLocation(this.program, "u_colorBleed"),
       ntscFringing: gl.getUniformLocation(this.program, "u_ntscFringing"),
       monochromeMode: gl.getUniformLocation(this.program, "u_monochromeMode"),
@@ -414,6 +418,11 @@ export class WebGLRenderer {
   updateTexture(data) {
     const gl = this.gl;
 
+    // While the no-signal screen is up it owns the texture. A frame can still
+    // arrive from the Worker just after power-off; without this it would land
+    // on top of the message and leave the last emulator frame frozen on screen.
+    if (this._noSignal && data !== this._noSignalFrame) return;
+
     // Frames normally arrive as a view onto a SharedArrayBuffer and upload
     // straight from it. Current browsers accept a shared view here, but the
     // restriction was only lifted relatively recently — so if one refuses,
@@ -509,11 +518,27 @@ export class WebGLRenderer {
 
     // Apply any pending canvas resize right before painting so the
     // buffer clear and the redraw happen in the same frame (no flicker).
+    // Re-derive the buffer size when the display's pixel density changes.
+    // Dragging the window from a Retina display to a 1x monitor changes
+    // devicePixelRatio without changing any CSS size, so the ResizeObserver
+    // that normally drives resize() never fires and the drawing buffer keeps
+    // the density it was allocated with — leaving the picture over- or
+    // under-sampled until some unrelated resize happens to correct it. There is
+    // no event for this (the matchMedia idiom does not fire reliably), so it is
+    // a comparison here: one float check per frame against a value the shader
+    // already needs.
+    const dpr = window.devicePixelRatio || 1;
+    if (dpr !== this._bufferDpr && this._cssWidth !== undefined) {
+      this._pendingWidth = Math.floor(this._cssWidth * dpr);
+      this._pendingHeight = Math.floor(this._cssHeight * dpr);
+    }
+
     if (this._pendingWidth !== undefined) {
       const pw = this._pendingWidth;
       const ph = this._pendingHeight;
       this._pendingWidth = undefined;
       this._pendingHeight = undefined;
+      this._bufferDpr = dpr;
       if (this.canvas.width !== pw || this.canvas.height !== ph) {
         this.canvas.width = pw;
         this.canvas.height = ph;
@@ -573,6 +598,10 @@ export class WebGLRenderer {
       this.canvas.width,
       this.canvas.height,
     );
+    // Per-frame, not cached: dragging the window to a display of a different
+    // density changes this with no resize and no parameter change, and the mask
+    // pitch depends on it.
+    gl.uniform1f(this.uniforms.pixelRatio, window.devicePixelRatio || 1);
 
     // Static uniforms (only update when CRT parameters change)
     if (this._uniformsDirty !== false) {
@@ -584,7 +613,9 @@ export class WebGLRenderer {
         this.crtParams.scanlineIntensity,
       );
       gl.uniform1f(this.uniforms.scanlineWidth, this.crtParams.scanlineWidth);
+      gl.uniform1f(this.uniforms.beamBloom, this.crtParams.beamBloom);
       gl.uniform1f(this.uniforms.shadowMask, this.crtParams.shadowMask);
+      gl.uniform1i(this.uniforms.maskType, this.crtParams.maskType);
       gl.uniform1f(this.uniforms.glowIntensity, this.crtParams.glowIntensity);
       gl.uniform1f(this.uniforms.glowSpread, this.crtParams.glowSpread);
       gl.uniform1f(this.uniforms.brightness, this.crtParams.brightness);
@@ -600,7 +631,6 @@ export class WebGLRenderer {
       gl.uniform1f(this.uniforms.ambientLight, this.crtParams.ambientLight);
       gl.uniform1f(this.uniforms.burnIn, this.crtParams.burnIn);
       gl.uniform1f(this.uniforms.overscan, this.crtParams.overscan);
-      gl.uniform1f(this.uniforms.noSignal, this.crtParams.noSignal);
       gl.uniform1f(this.uniforms.colorBleed, this.crtParams.colorBleed);
       gl.uniform1f(this.uniforms.ntscFringing, this.crtParams.ntscFringing);
       gl.uniform1i(this.uniforms.monochromeMode, this.crtParams.monochromeMode);
@@ -729,9 +759,22 @@ export class WebGLRenderer {
     }
   }
 
-  // Set no-signal mode (TV static when emulator is off)
+  /**
+   * Enter or leave the powered-off "no signal" screen.
+   *
+   * The message is uploaded as the source texture rather than drawn by the
+   * shader, so it picks up the whole CRT chain — RGB shift, colour bleed, NTSC
+   * fringing, scanlines, mask, glow — and reads as a composite signal. Leaving
+   * the mode uploads nothing: the first real frame overwrites it.
+   */
   setNoSignal(enabled) {
-    this.setParam("noSignal", enabled ? 1.0 : 0.0);
+    this._noSignal = enabled;
+    if (!enabled) return;
+
+    if (!this._noSignalFrame) {
+      this._noSignalFrame = buildNoSignalFrame(this.width, this.height);
+    }
+    this.updateTexture(this._noSignalFrame);
   }
 
   resize(width, height) {
@@ -741,6 +784,8 @@ export class WebGLRenderer {
     // mousemove, but draw() only runs once per rAF.  Deferring keeps the
     // buffer clear and the repaint in the same frame, eliminating flicker.
     const dpr = window.devicePixelRatio || 1;
+    this._cssWidth = width;
+    this._cssHeight = height;
     this._pendingWidth = Math.floor(width * dpr);
     this._pendingHeight = Math.floor(height * dpr);
   }
