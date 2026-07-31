@@ -518,11 +518,27 @@ export class WebGLRenderer {
 
     // Apply any pending canvas resize right before painting so the
     // buffer clear and the redraw happen in the same frame (no flicker).
+    // Re-derive the buffer size when the display's pixel density changes.
+    // Dragging the window from a Retina display to a 1x monitor changes
+    // devicePixelRatio without changing any CSS size, so the ResizeObserver
+    // that normally drives resize() never fires and the drawing buffer keeps
+    // the density it was allocated with — leaving the picture over- or
+    // under-sampled until some unrelated resize happens to correct it. There is
+    // no event for this (the matchMedia idiom does not fire reliably), so it is
+    // a comparison here: one float check per frame against a value the shader
+    // already needs.
+    const dpr = window.devicePixelRatio || 1;
+    if (dpr !== this._bufferDpr && this._cssWidth !== undefined) {
+      this._pendingWidth = Math.floor(this._cssWidth * dpr);
+      this._pendingHeight = Math.floor(this._cssHeight * dpr);
+    }
+
     if (this._pendingWidth !== undefined) {
       const pw = this._pendingWidth;
       const ph = this._pendingHeight;
       this._pendingWidth = undefined;
       this._pendingHeight = undefined;
+      this._bufferDpr = dpr;
       if (this.canvas.width !== pw || this.canvas.height !== ph) {
         this.canvas.width = pw;
         this.canvas.height = ph;
@@ -768,6 +784,8 @@ export class WebGLRenderer {
     // mousemove, but draw() only runs once per rAF.  Deferring keeps the
     // buffer clear and the repaint in the same frame, eliminating flicker.
     const dpr = window.devicePixelRatio || 1;
+    this._cssWidth = width;
+    this._cssHeight = height;
     this._pendingWidth = Math.floor(width * dpr);
     this._pendingHeight = Math.floor(height * dpr);
   }
