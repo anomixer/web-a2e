@@ -11,6 +11,39 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "July 31, 2026",
+    features: [],
+    fixes: [
+      {
+        title: "Arrow keys stopped working when Cursor Keys was on",
+        description:
+          "With the Joystick window's Cursor Keys toggle switched on, the arrow keys drove the joystick and nothing else — anything that navigates with them, such as a ProDOS file selector, a catalogue menu or editing a line of BASIC, simply stopped responding. The arrows were being taken by the joystick and never passed on. They now do both jobs at once: the toggle decides whether the arrows also move the joystick, not whether they still work as keys. Reported by anomixer.",
+      },
+      {
+        title: "Every key press was being handled twice",
+        description:
+          "Each keystroke was picked up by two separate listeners and sent to the emulator twice over. The machine latches a key press, so the second copy made no visible difference and it went unnoticed for a long time — but it meant twice the work for every key typed, and anything attached to a key press happening twice as well.",
+      },
+      {
+        title: "The BASIC viewer lost track of a running program after loading a state",
+        description:
+          "Save a state while a BASIC program was running, load it back, and the BASIC Program Viewer showed the program as idle: no line highlighting, no live variables, no trace. The emulator works out that a program is running by watching for the moment BASIC starts one, and a restored state resumes in the middle of the program, so that moment never came around again. It now works this out from the restored machine itself. Existing saved states load correctly too.",
+      },
+    ],
+    improvements: [
+      {
+        title: "Television static that looks like television static",
+        description:
+          "The static shown when the machine is off had a horizontal grain to it — rows of speckle that appeared to slide sideways rather than the shifting snow of a detuned set. The pattern changed each frame by sliding the same speckle across the screen instead of making a fresh one, two parts of it were banded by row on purpose, and the scanlines laid over the top were strong enough to be the most obvious thing on screen. It is now a white field of black grain that is genuinely different every frame, with a faint colour speckle and an occasional drifting interference bar. The Static Noise slider under display settings has had the same treatment, and now adds grain that darkens as well as lightens rather than washing the picture out.",
+      },
+      {
+        title: "Tidier File menu",
+        description:
+          "The File menu ended in an empty line under Save States that never had anything to show. The Save States window lists when each slot was saved, including the automatic one, so the menu no longer repeats it.",
+      },
+    ],
+  },
+  {
     week: "July 29, 2026",
     features: [],
     fixes: [
