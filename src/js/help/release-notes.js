@@ -12,7 +12,23 @@
 export const RELEASE_NOTES = [
   {
     week: "July 31, 2026",
-    features: [],
+    features: [
+      {
+        title: "Monitor presets",
+        description:
+          "Display Settings now opens with a single choice: which monitor you are pretending to have. Composite Color for a colour television or composite monitor, RGB Monitor for the sharp separate-signal look, Monochrome Green or Monochrome Amber for the two phosphor tubes, or Pixel Exact for no simulation at all. Each sets the whole picture at once, and the values follow from the real hardware — the composite set gets a dot triad mask and colour fringing, the RGB monitor gets neither because there is no encoded signal to decode, and the monochrome tubes get long persistence and no mask at all, since a mask exists only to keep three beams apart and a monochrome tube has a single one. Every individual slider is still there under Advanced. Presets leave your brightness, contrast, saturation and bezel alone, and adjusting anything a preset covers relabels it as Custom without changing what you set.",
+      },
+      {
+        title: "Cursor Keys as joystick is now in the View menu",
+        description:
+          "The toggle that makes the arrow keys drive the joystick only existed in the Monitor window's title bar, which is not on screen in the Play, Code or Debug layouts — so in those layouts the setting could not be reached at all. It is now in the View menu as well, and the two stay in step with each other.",
+      },
+      {
+        title: "A shadow mask you can actually see",
+        description:
+          "The Shadow Mask slider was measuring its pattern in screen pixels rather than in the fixed spacing a real mask has, so on a high-resolution display the whole red-green-blue triad spanned three physical pixels and was very nearly invisible — and it changed size if you moved the window to a different monitor. It now keeps a constant apparent size everywhere. There is also a choice of geometry: the vertical stripes it has always drawn, or the dot triad an Apple Monitor //e actually used.",
+      },
+    ],
     fixes: [
       {
         title: "Arrow keys stopped working when Cursor Keys was on",
@@ -29,6 +45,16 @@ export const RELEASE_NOTES = [
         description:
           "Save a state while a BASIC program was running, load it back, and the BASIC Program Viewer showed the program as idle: no line highlighting, no live variables, no trace. The emulator works out that a program is running by watching for the moment BASIC starts one, and a restored state resumes in the middle of the program, so that moment never came around again. It now works this out from the restored machine itself. Existing saved states load correctly too.",
       },
+      {
+        title: "Two effects could trigger photosensitive seizures",
+        description:
+          "The television static shown when the machine was off rebuilt a full screen of high-contrast noise fifty times a second and varied the brightness of the whole screen twelve times a second on top of that. The Flicker slider did something similar during normal use, holding a random brightness level for a fifteenth of a second at a time. Both sat squarely in the range of flash rates known to trigger seizures, and both exceeded the published limits for how much the brightness of a screen may change and how often. The static has been removed entirely and replaced with a message telling you to switch the machine on. Flicker is now a slow, gentle undulation, which is closer to what a real set does anyway — its brightness drifts as its field rate beats against the mains rather than jumping about. Anyone who had either effect turned up will notice the difference; this is why.",
+      },
+      {
+        title: "The picture did not follow a change of display",
+        description:
+          "Dragging the window from a high-resolution display to an ordinary one, or the other way, left the picture being drawn at the old display's resolution — too soft or needlessly oversampled — until something else happened to resize the window. It now follows the change immediately.",
+      },
     ],
     improvements: [
       {
@@ -40,6 +66,16 @@ export const RELEASE_NOTES = [
         title: "Tidier File menu",
         description:
           "The File menu ended in an empty line under Save States that never had anything to show. The Save States window lists when each slot was saved, including the automatic one, so the menu no longer repeats it.",
+      },
+      {
+        title: "Scanlines that thicken with brightness",
+        description:
+          "A real picture tube's beam grows wider as it gets brighter, so bright lines are fatter than dark ones and fill more of the gap to their neighbours. It is why white text on a CRT looks bolder than the same text in a screenshot. The scanlines here were a fixed pattern that dimmed everything equally regardless of what was on it, which reads as stripes laid over the picture rather than as a picture made of lines. They now respond to brightness, with a Beam Bloom slider to control how strongly.",
+      },
+      {
+        title: "A no-signal screen instead of snow",
+        description:
+          "The television static reworked earlier this week is gone, for the accessibility reasons above. With the machine switched off you now get NO SIGNAL, a line telling you to switch it on, and a power symbol — drawn as though the machine itself were producing it, so it picks up whatever screen curvature, scanlines, colour and phosphor settings you have chosen. It is also more accurate than snow: snow is something a television tuner produces, and a //e is plugged into a monitor that has no tuner. Pull the signal from one of those and you get a black screen.",
       },
     ],
   },
