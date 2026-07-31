@@ -39,6 +39,8 @@ export class WebGLRenderer {
       // Scanlines and rasterization
       scanlineIntensity: 0.03,
       scanlineWidth: 0.25,
+      // How much a bright line's beam spot widens over a dark one's
+      beamBloom: 0.6,
       shadowMask: 0.3,
 
       // Glow/bloom
@@ -226,6 +228,7 @@ export class WebGLRenderer {
         "u_scanlineIntensity",
       ),
       scanlineWidth: gl.getUniformLocation(this.program, "u_scanlineWidth"),
+      beamBloom: gl.getUniformLocation(this.program, "u_beamBloom"),
       shadowMask: gl.getUniformLocation(this.program, "u_shadowMask"),
       glowIntensity: gl.getUniformLocation(this.program, "u_glowIntensity"),
       glowSpread: gl.getUniformLocation(this.program, "u_glowSpread"),
@@ -586,6 +589,7 @@ export class WebGLRenderer {
         this.crtParams.scanlineIntensity,
       );
       gl.uniform1f(this.uniforms.scanlineWidth, this.crtParams.scanlineWidth);
+      gl.uniform1f(this.uniforms.beamBloom, this.crtParams.beamBloom);
       gl.uniform1f(this.uniforms.shadowMask, this.crtParams.shadowMask);
       gl.uniform1f(this.uniforms.glowIntensity, this.crtParams.glowIntensity);
       gl.uniform1f(this.uniforms.glowSpread, this.crtParams.glowSpread);

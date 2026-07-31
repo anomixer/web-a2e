@@ -37,6 +37,9 @@ export class DisplaySettingsWindow extends BaseWindow {
     this.defaults = {
       curvature: 0,
       scanlines: 0,
+      // Beam bloom is a property of the spot, not an effect of its own: it only
+      // shows through the scanline comb, so it ships on rather than at zero.
+      beamBloom: 60,
       shadowMask: 0,
       phosphorGlow: 0,
       vignette: 0,
@@ -77,6 +80,7 @@ export class DisplaySettingsWindow extends BaseWindow {
           { id: "curvature", label: "Screen Curvature", param: "curvature" },
           { id: "overscan", label: "Screen Border", param: "overscan" },
           { id: "scanlines", label: "Scanlines", param: "scanlineIntensity" },
+          { id: "beamBloom", label: "Beam Bloom", param: "beamBloom" },
           { id: "shadowMask", label: "Shadow Mask", param: "shadowMask" },
           {
             id: "phosphorGlow",

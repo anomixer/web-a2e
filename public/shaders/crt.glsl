@@ -14,6 +14,7 @@ uniform float u_time;
 uniform float u_curvature;
 uniform float u_scanlineIntensity;
 uniform float u_scanlineWidth;
+uniform float u_beamBloom;
 uniform float u_shadowMask;
 uniform float u_glowIntensity;
 uniform float u_glowSpread;
@@ -256,12 +257,41 @@ vec3 applyAmbientLight(vec3 color, vec2 uv) {
 // Scanline effect
 // ============================================
 
-float scanlines(vec2 uv) {
+// The beam is a Gaussian spot, and its diameter grows with beam current. A
+// bright line is therefore physically fatter than a dark one and fills more of
+// the gap to its neighbours, which is why white text on a CRT looks bolder than
+// the same glyphs in a screenshot and why dark areas keep a crisp line
+// structure that bright areas lose. The old fixed comb — a sin() raised to a
+// constant power — could not express that: it darkened every line by the same
+// fraction no matter what was on it, which reads as stripes laid over the
+// picture rather than as a raster.
+//
+// `luma` is the luminance actually being displayed at this fragment, so the
+// width responds to the final image (bleed, fringing and selection overlay
+// included) rather than to a raw texture sample.
+float scanlines(vec2 uv, float luma) {
     if (u_scanlineIntensity < 0.001) return 1.0;
 
-    float scanline = sin(uv.y * u_textureSize.y * PI) * 0.5 + 0.5;
-    scanline = pow(scanline, u_scanlineWidth * 2.0 + 0.5);
-    return mix(1.0, scanline, u_scanlineIntensity);
+    // The framebuffer is 560x384 — the Apple's 280x192 doubled — so a scanline
+    // pitch is two texel rows. This yields 192 lines, matching the real raster.
+    float linePos = uv.y * u_textureSize.y * 0.5;
+
+    // Distance from the centre of the nearest line, in pitch units.
+    float dist = fract(linePos) - 0.5;
+
+    // Spot size. The base is the user's scanline width; brightness widens it
+    // from there. sqrt() because perceived brightness runs ahead of beam
+    // current — mid tones should already be blooming, not just peak white.
+    float sigma = mix(0.18, 0.42, u_scanlineWidth);
+    sigma *= 1.0 + sqrt(clamp(luma, 0.0, 1.0)) * u_beamBloom * 1.6;
+
+    // Gaussian profile, peak 1.0 at the line centre. Never exceeding 1.0 means
+    // a bloomed line loses less to the gaps rather than being boosted above its
+    // own colour, so the effect cannot brighten the picture beyond the source.
+    float x = dist / sigma;
+    float profile = exp(-0.5 * x * x);
+
+    return mix(1.0, profile, u_scanlineIntensity);
 }
 
 // ============================================
@@ -769,7 +799,7 @@ void main() {
     }
 
     // Apply scanlines (use curvedUV for consistent scanlines across margin)
-    color *= scanlines(curvedUV);
+    color *= scanlines(curvedUV, rgb2grey(color));
 
     // Apply shadow mask
     color *= shadowMask(curvedUV);
