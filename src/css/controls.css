@@ -396,20 +396,6 @@
     margin: 4px 8px;
 }
 
-/* Menu footer text (e.g., "Last saved: 2 min ago") */
-.header-menu-footer {
-    padding: 6px 12px;
-    font-size: 0.6875rem;
-    color: var(--text-muted);
-    text-align: center;
-    border-top: 1px solid var(--glass-border);
-    font-style: italic;
-}
-
-.header-menu-footer:empty {
-    display: none;
-}
-
 /* State status badge (in menu) */
 .state-status {
     font-size: 0.625rem;
