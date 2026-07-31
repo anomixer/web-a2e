@@ -94,7 +94,7 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 - `main.js` - AppleIIeEmulator class orchestrating all subsystems
 - `worker/` - Web Worker infrastructure for WASM isolation (see Worker Architecture below)
 - `audio/` - Web Audio API driver and AudioWorklet
-- `display/` - WebGL renderer, CRT shader effects, display settings, screen window
+- `display/` - WebGL renderer, CRT shader effects, display settings, screen window, no-signal screen
 - `disk-manager/` - Disk drive UI, SmartPort hard drives, persistence, surface rendering, drive sounds, URL-parameter media loading
 - `file-explorer/` - DOS 3.3 and ProDOS disk browser with disassembler
 - `debug/` - Debug window implementations (see Debugging section)
@@ -113,6 +113,22 @@ Light, dark, and system-follow themes controlled by `ThemeManager` (`src/js/ui/t
 Control sytles, sizes and layout must be consistent across the entire app.
 
 **Window surfaces are opaque and carry no `backdrop-filter`.** Use the `--glass-bg`, `--glass-bg-solid` and `--glass-bg-header` tokens for any window, panel, menu or popout background; they are fully opaque in both themes despite the legacy names. Do not reintroduce translucency or blur on these surfaces: they sit over a canvas that repaints 60 times a second, so a backdrop filter forces the compositor to re-blur the full area of every open window on every frame regardless of whether its content changed. Translucency is still correct for two things — dimming scrims behind modals and the window switcher, and accent-tinted inner chips (CPU flags, soft switch badges) layered on an already-opaque window.
+
+### Display / CRT Shader
+
+`public/shaders/crt.glsl` is the whole picture pipeline. Three things in it are load-bearing and must not be undone:
+
+**Animated effects are bounded by the photosensitive-epilepsy limits.** No full-screen luminance modulation may exceed three flashes per second or a 10% relative luminance change (WCAG 2.3.1). `flicker()` is a slow two-sine undulation at 3% amplitude for this reason, and the full-screen TV static that used to play while the machine was off was removed outright — it ran at 50Hz with a 12Hz brightness modulation on top. The constraint is documented in the functions themselves; read those comments before touching them.
+
+**The mask is in physical screen space, the beam is not.** `shadowMask()` derives position from `gl_FragCoord` divided by `u_pixelRatio` — a mask has a fixed pitch in millimetres, so it must neither resize with display density nor move when jitter and horizontal sync displace the picture. Effects that model the *signal* take the distorted UV; effects that model the *glass* do not.
+
+**Scanlines model a beam spot, not a stripe pattern.** `scanlines()` takes the displayed luminance and widens its Gaussian with it, because a CRT beam grows with current. The framebuffer is 560x384 (280x192 doubled), so a scanline pitch is two texel rows — 192 lines.
+
+The powered-off screen is built by `src/js/display/no-signal-frame.js` as an ordinary 560x384 RGBA framebuffer and uploaded as the source texture, so it passes through the whole CRT chain like emulator video. `WebGLRenderer.updateTexture()` ignores emulator frames while it is displayed.
+
+`WebGLRenderer.draw()` re-derives the drawing buffer size when `devicePixelRatio` changes, because a density change alters no CSS size and so never reaches the `ResizeObserver` that drives `resize()`.
+
+Display Settings (`src/js/display/display-settings-window.js`) leads with a **Monitor preset** — Pixel Exact, Composite Color, RGB Monitor, Monochrome Green, Monochrome Amber — with every individual slider behind an Advanced disclosure. Presets set only the picture, never the user's brightness/contrast/saturation or bezel; editing a setting a preset owns relabels the selection Custom without changing values.
 
 ### URL Media Parameters
 
@@ -250,7 +266,7 @@ src/
     ├── config/         # App version
     ├── debug/          # Debug window implementations
     ├── disk-manager/   # Disk drive operations, persistence, surface rendering, sounds
-    ├── display/        # WebGL renderer, CRT shaders, display settings, screen window
+    ├── display/        # WebGL renderer, CRT shaders, display settings, no-signal screen
     ├── file-explorer/  # DOS 3.3 and ProDOS file browser, disassembler
     ├── help/           # Documentation and release notes
     ├── input/          # Keyboard input, text selection, joystick, mouse
@@ -362,7 +378,7 @@ Built-in debug windows accessible via Debug menu:
 | F11              | Step Into                |
 | Shift+F11        | Step Out                 |
 
-The Joystick window has a **Cursor Keys** toggle that also drives the joystick from the arrow keys (full deflection 0/255 per axis). The arrows keep reaching the emulator's keyboard as normal, so ProDOS selectors, catalog menus and BASIC line editing still work while the toggle is on. When enabled, a "CURSOR KEYS" chip appears in the Monitor title bar. The setting persists via localStorage.
+The Joystick window has a **Cursor Keys** toggle that also drives the joystick from the arrow keys (full deflection 0/255 per axis). The arrows keep reaching the emulator's keyboard as normal, so ProDOS selectors, catalog menus and BASIC line editing still work while the toggle is on. When enabled, a "CURSOR KEYS" chip appears in the Monitor title bar. The same toggle is in the View menu (`btn-cursor-keys-joystick`), which is how it is reached in the layouts that have no Monitor title bar; menu item, header switch and state restores are kept in sync through `JoystickWindow.onCursorKeysChanged`. The setting persists via localStorage.
 
 ## Agent / MCP Integration
 

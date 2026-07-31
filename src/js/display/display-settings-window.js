@@ -141,7 +141,10 @@ export class DisplaySettingsWindow extends BaseWindow {
       ambientLight: 0,
       burnIn: 0,
       overscan: 0,
-      sharpPixels: false,
+      // True so the shipped defaults are exactly the "flat" preset. With this
+      // false the window opened saying Pixel Exact while the pixels were being
+      // smoothed by linear filtering, and the label was simply wrong.
+      sharpPixels: true,
       // Color bleed (vertical inter-scanline blending)
       colorBleed: 0,
       // NTSC fringing (shader-based)

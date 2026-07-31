@@ -183,14 +183,28 @@ Browse the contents of inserted disks:
 
 ### Display Settings
 
-The display settings window provides configurable CRT shader effects:
+The display settings window opens with a **Monitor** preset that sets the whole picture in one choice:
 
-- Screen curvature, scanlines, shadow mask
-- Phosphor glow, vignette, NTSC fringing
+| Preset | What it imitates |
+|--------|------------------|
+| Pixel Exact | No CRT simulation — sharp square pixels |
+| Composite Color | Colour TV or composite monitor — dot triad mask, artefact fringing, chroma bleed |
+| RGB Monitor | Separate colour signals — sharp, no composite artefacts |
+| Monochrome Green | P1 phosphor — long persistence, no mask |
+| Monochrome Amber | P3 phosphor — the warmer mono tube |
+
+Presets leave brightness, contrast, saturation and the bezel alone; adjusting anything a preset covers relabels it as Custom without changing the value. Every individual control remains under **Advanced**:
+
+- Screen curvature, scanlines, beam bloom, shadow mask (aperture grille or dot triad)
+- Phosphor glow, vignette, NTSC fringing, colour bleed
 - Flicker, static noise, jitter, horizontal sync lines
 - Brightness, contrast, saturation
 - Sharp pixels toggle, overscan/border control
 - Monochrome modes: Green, Amber, White
+
+Scanlines model the beam spot as a Gaussian that widens with brightness, so bright lines are fatter than dark ones — the reason white text on a CRT looks bolder than the same glyphs in a screenshot. The shadow mask has a fixed apparent size regardless of display density.
+
+Animated effects are kept within the accessibility limits for flashing content (no more than three flashes per second, and under a 10% change in screen luminance). Flicker is a slow undulation rather than a rapid random one, and the powered-off screen shows a static no-signal message rather than animated television snow.
 
 ### Expansion Cards
 
@@ -222,7 +236,7 @@ Cards are configured via **View > Expansion Slots**.
 
 ### Joystick & Game Controllers
 
-A floating joystick window provides visual paddle/joystick controls that map to the Apple II game ports ($C064-$C067). Physical game controllers are supported via the Gamepad API — the left stick maps to paddle values and buttons A/B map to Apple II buttons 0/1, with a configurable deadzone. A **Cursor Keys** toggle makes the arrow keys drive the joystick as well as the keyboard — they still reach the emulator, so arrow-key navigation in ProDOS and BASIC keeps working — with an indicator chip in the Monitor title bar when active.
+A floating joystick window provides visual paddle/joystick controls that map to the Apple II game ports ($C064-$C067). Physical game controllers are supported via the Gamepad API — the left stick maps to paddle values and buttons A/B map to Apple II buttons 0/1, with a configurable deadzone. A **Cursor Keys** toggle makes the arrow keys drive the joystick as well as the keyboard — they still reach the emulator, so arrow-key navigation in ProDOS and BASIC keeps working — with an indicator chip in the Monitor title bar when active. The same toggle is in **View > Cursor Keys as Joystick**, which is the way to reach it in the layouts that have no Monitor title bar.
 
 ## Architecture
 
