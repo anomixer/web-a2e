@@ -5,6 +5,8 @@
  *  Mike Daley <michael_daley@icloud.com>
  */
 
+import { VERSION } from "../config/version.js";
+
 export class WebGLRenderer {
   constructor(canvas) {
     this.canvas = canvas;
@@ -743,8 +745,20 @@ export class WebGLRenderer {
     this._pendingHeight = Math.floor(height * dpr);
   }
 
+  /**
+   * Fetch a shader source file.
+   *
+   * The ?v= is not decoration. Unlike the JS and CSS bundles, shader files keep
+   * the same URL from one build to the next, so a browser that has one in its
+   * HTTP cache will happily keep using it after a deploy — which is exactly how
+   * 1.1.12 shipped a rewritten crt.glsl that nobody saw. Stamping the app
+   * version into the URL makes every release a fresh resource. The service
+   * worker precaches the same versioned URLs (see PRECACHE_ASSETS in sw.js), so
+   * offline launches still find them.
+   */
   async loadShader(path) {
-    const response = await fetch(path);
+    const url = `${path}?v=${VERSION}`;
+    const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`Failed to load shader: ${path}`);
     }

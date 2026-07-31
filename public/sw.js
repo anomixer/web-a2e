@@ -1,8 +1,16 @@
 // Service Worker for Apple //e Emulator
 // Enables offline functionality by caching app assets
 
-// IMPORTANT: Bump this version when WASM or core JS files change
-const CACHE_VERSION = 3.8;
+// Replaced at build time with the app version from src/js/config/version.js by
+// the stamp-service-worker-version plugin in vite.config.js — do not rely on
+// the literal below in production, and do not hand-bump it.
+//
+// It has to change whenever a stable-named precached asset changes, because
+// those are served cache-first and their URLs never change. It used to be a
+// hand-maintained number, which meant 1.1.12 shipped a rewritten crt.glsl that
+// returning browsers carried on ignoring. Tying it to the release version makes
+// that automatic. The value here is only what the dev server sees.
+const CACHE_VERSION = "dev";
 const CACHE_NAME = `a2e-cache-v${CACHE_VERSION}`;
 
 // Files that should always be fetched fresh (network-first).
@@ -37,7 +45,9 @@ const PRECACHE_ASSETS = [
   "/audio-worklet.js",
   "/emulator-worker.js",
   // Fetched at runtime by WebGLRenderer.init(), which throws without them —
-  // so an offline launch failed before drawing anything.
+  // so an offline launch failed before drawing anything. Cached under their
+  // bare paths; loadShader() asks for them with a ?v= cache buster, which the
+  // lookup below deliberately ignores.
   "/shaders/vertex.glsl",
   "/shaders/crt.glsl",
   "/shaders/burnin.glsl",
@@ -185,9 +195,18 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Cache-first for other assets
+  // Cache-first for other assets.
+  //
+  // Shaders are requested with a ?v=<app version> cache buster but precached
+  // under their bare path, so their lookup has to ignore the query string.
+  // That cannot serve a stale shader: the cache name carries the app version
+  // too, so a release starts from an empty cache.
+  const matchOptions = url.pathname.endsWith(".glsl")
+    ? { ignoreSearch: true }
+    : undefined;
+
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
+    caches.match(event.request, matchOptions).then((cachedResponse) => {
       if (cachedResponse) {
         // Return cached response
         return cachedResponse;

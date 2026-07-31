@@ -1,7 +1,41 @@
 import { defineConfig } from "vite";
 import { resolve } from "path";
-import { copyFileSync, mkdirSync } from "fs";
+import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { serialProxyPlugin } from "./plugins/serial-proxy-plugin.js";
+
+// Stamp the app version into the service worker's cache name.
+//
+// The service worker precaches stable-named assets — the shaders, the audio
+// worklet, the emulator worker — cache-first, keyed on CACHE_VERSION. Those
+// names never change between builds, so a returning browser keeps serving the
+// old copy until the cache name changes. The file asked you to remember to bump
+// it by hand, and 1.1.12 shipped a rewritten crt.glsl that nobody could see
+// because nobody did. Deriving it from the version that is bumped every release
+// removes the chance to forget.
+const stampServiceWorkerVersion = () => ({
+  name: "stamp-service-worker-version",
+  writeBundle() {
+    const versionSrc = readFileSync(
+      resolve(__dirname, "src/js/config/version.js"),
+      "utf8",
+    );
+    const version = versionSrc.match(/VERSION\s*=\s*"([^"]+)"/)?.[1];
+    if (!version) {
+      throw new Error("stamp-service-worker-version: no VERSION in version.js");
+    }
+
+    const swPath = resolve(__dirname, "dist/sw.js");
+    const sw = readFileSync(swPath, "utf8");
+    const stamped = sw.replace(
+      /const CACHE_VERSION = [^;]+;/,
+      `const CACHE_VERSION = "${version}";`,
+    );
+    if (stamped === sw) {
+      throw new Error("stamp-service-worker-version: CACHE_VERSION not found");
+    }
+    writeFileSync(swPath, stamped);
+  },
+});
 
 // Plugin to copy audio worklet and emulator worker files (can't be bundled)
 const copyWorkerFiles = () => ({
@@ -94,5 +128,9 @@ export default defineConfig({
     exclude: ["a2e.js"],
   },
 
-  plugins: [serialProxyPlugin(), copyWorkerFiles()],
+  plugins: [
+    serialProxyPlugin(),
+    copyWorkerFiles(),
+    stampServiceWorkerVersion(),
+  ],
 });
