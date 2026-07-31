@@ -200,11 +200,28 @@ float staticNoise(vec2 uv, float time) {
 // Flicker effect
 // ============================================
 
+// Brightness undulation, as a set whose field rate is beating slowly against
+// the mains shows it. Two things here are deliberate and must stay that way:
+//
+// The modulation is continuous and slow. It used to be a fresh random level
+// held for 1/15s — up to fifteen discontinuous whole-screen luminance steps a
+// second, right inside the 3-30Hz band that triggers photosensitive epilepsy.
+// The fastest component below is 1.25Hz, so under a flash per second even
+// counting each half cycle, well clear of the WCAG 2.3.1 limit of three.
+//
+// The amplitude is small. Peak to peak is 6% at the top of the slider, against
+// the 10% relative luminance change that WCAG counts as a general flash. The
+// old code reached 15%. Raising either of these puts the effect back over the
+// line, and the flicker slider is on during normal use rather than only while
+// the machine is off.
 float flicker(float time) {
     if (u_flicker < 0.001) return 1.0;
 
-    float noiseVal = hash12(vec2(floor(time * 15.0), 0.0));
-    return 1.0 + (noiseVal - 0.5) * u_flicker * 0.15;
+    // Incommensurate periods (~0.78Hz and ~1.25Hz) so the beat never settles
+    // into an obvious loop.
+    float wobble = sin(time * 4.90) * 0.6 + sin(time * 7.85) * 0.4;
+
+    return 1.0 + wobble * u_flicker * 0.03;
 }
 
 // ============================================
