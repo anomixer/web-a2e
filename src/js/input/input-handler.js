@@ -153,10 +153,12 @@ export class InputHandler {
       event.preventDefault();
     }
 
-    // Check if cursor keys should act as joystick
-    if (this.joystickWindow && this.joystickWindow.handleCursorKey(keyCode, true)) {
-      event.preventDefault();
-      return;
+    // Cursor Keys mode makes the arrows drive the joystick *as well as* the
+    // keyboard — it must not swallow them. ProDOS selectors, catalog menus and
+    // BASIC line editing all navigate with the arrows, and consuming them here
+    // left those unusable whenever the toggle was on.
+    if (this.joystickWindow) {
+      this.joystickWindow.handleCursorKey(keyCode, true);
     }
 
     // Send raw keycode to WASM - C++ handles the translation
@@ -179,9 +181,10 @@ export class InputHandler {
       return;
     }
 
-    // Check if cursor keys should act as joystick
-    if (this.joystickWindow && this.joystickWindow.handleCursorKey(keyCode, false)) {
-      return;
+    // Release the joystick axis, then let the key reach the emulator as normal
+    // (see the matching note in handleKeyDown).
+    if (this.joystickWindow) {
+      this.joystickWindow.handleCursorKey(keyCode, false);
     }
 
     // Send raw keycode to WASM
