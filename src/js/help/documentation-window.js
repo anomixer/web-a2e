@@ -373,7 +373,7 @@ export class DocumentationWindow extends BaseWindow {
         <p>Open <strong>View &gt; Joystick / Paddles</strong> for an on-screen controller with a draggable pad, PDL0/PDL1 gauges, and button 0/1 (Open/Closed Apple) indicators.</p>
         <ul>
           <li><strong>Physical controllers:</strong> Enable the <strong>Gamepad</strong> toggle to use a connected game controller via the browser Gamepad API. The left stick maps to the paddles and the A/B buttons to Apple buttons 0/1, with an adjustable deadzone.</li>
-          <li><strong>Cursor keys as joystick:</strong> A <strong>JOY</strong> toggle in the screen window's title bar remaps the arrow keys to full-deflection joystick input for games that expect a joystick. The label highlights green while active, and the setting is remembered between sessions.</li>
+          <li><strong>Cursor keys as joystick:</strong> A <strong>JOY</strong> toggle in the screen window's title bar makes the arrow keys drive full-deflection joystick input for games that expect a joystick. The arrows still reach the emulator as ordinary keys, so ProDOS and BASIC navigation keeps working while it is on. The label highlights green while active, and the setting is remembered between sessions.</li>
         </ul>
       </section>
 
