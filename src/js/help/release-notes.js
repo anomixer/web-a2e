@@ -11,6 +11,18 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "August 2, 2026",
+    features: [],
+    fixes: [
+      {
+        title: "The no-signal screen no longer shows a power symbol",
+        description:
+          "The screen shown while the machine is off had a power symbol drawn beneath the message. It was part of the picture rather than a control — the emulator's screen does nothing with a click — so it invited people to press the one thing on screen that could not work, instead of the power button in the toolbar. It has been removed and the message re-centred.",
+      },
+    ],
+    improvements: [],
+  },
+  {
     week: "July 31, 2026",
     features: [
       {
