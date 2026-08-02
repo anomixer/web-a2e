@@ -134,42 +134,17 @@ export function buildNoSignalFrame(width = 560, height = 384) {
     }
   };
 
-  // IEC 5009 power symbol: a broken ring with a bar rising through the gap.
-  // Drawn from the distance field rather than with strokes so the edges land on
-  // whole framebuffer pixels and survive the shader's sampling without shimmer.
-  const drawPowerSymbol = (cx, cy, radius, thickness, rgb) => {
-    const inner = radius - thickness / 2;
-    const outer = radius + thickness / 2;
-    const extent = Math.ceil(outer);
-    // Half-angle of the gap at the top, measured from vertical.
-    const gap = 0.42;
-
-    for (let y = -extent; y <= extent; y++) {
-      for (let x = -extent; x <= extent; x++) {
-        const d = Math.sqrt(x * x + y * y);
-        if (d < inner || d > outer) continue;
-        // Screen y grows downward, so the top of the ring is negative y.
-        if (y < 0 && Math.abs(Math.atan2(x, -y)) < gap) continue;
-        plot(cx + x, cy + y, rgb);
-      }
-    }
-
-    // The bar rises through the gap and stops just short of the centre. Odd
-    // width so it straddles the centre column exactly.
-    const half = Math.floor(thickness / 2);
-    const barTop = Math.round(cy - radius - thickness);
-    const barBottom = Math.round(cy - radius * 0.1);
-    fillRect(cx - half, barTop, half * 2 + 1, barBottom - barTop, rgb);
-  };
-
-  // Vertical layout, top down: heading, message, power symbol. Rows are snapped
-  // to whole character cells so the text sits on the same grid the emulator's
-  // own text screen uses.
+  // Vertical layout, top down: heading then message, centred on the screen.
+  // Rows are snapped to whole character cells so the text sits on the same grid
+  // the emulator's own text screen uses.
+  //
+  // There is deliberately no power symbol here. One used to sit below the text,
+  // and on a canvas that ignores clicks it only invited people to press it
+  // instead of the real power button in the toolbar.
   const cellRow = (row) => row * CELL_H;
 
-  drawTextCentred("NO SIGNAL", cellRow(6), FG, 2);
-  drawTextCentred("SWITCH ON THE APPLE //e TO START", cellRow(11), DIM);
-  drawPowerSymbol(Math.round(width / 2), cellRow(16), 18, 5, FG);
+  drawTextCentred("NO SIGNAL", cellRow(9), FG, 2);
+  drawTextCentred("SWITCH ON THE APPLE //e TO START", cellRow(14), DIM);
 
   return buf;
 }
