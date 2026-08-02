@@ -9,6 +9,23 @@ import { BaseWindow } from "../windows/base-window.js";
 import { showToast } from "./toast.js";
 
 /**
+ * Cards installed when there is no saved configuration.
+ *
+ * One map, used both to install the cards and to report what is in a slot when
+ * the core cannot say. It was previously written out twice, and the two copies
+ * disagreed: the installer put Thunderclock in 5 and SmartPort in 7, while the
+ * display fallback had them the other way round. Nothing showed it, because the
+ * fallback is only reached when `_getSlotCard` returns nothing, but at that
+ * point the window would have described slots that did not match the machine.
+ */
+const DEFAULT_SLOT_CONFIG = {
+  4: "mockingboard",
+  5: "thunderclock",
+  6: "disk2",
+  7: "smartport",
+};
+
+/**
  * SlotConfigurationWindow - Configure Apple IIe expansion slots
  * Visual drag-and-drop card tray and motherboard slot layout
  */
@@ -490,13 +507,7 @@ export class SlotConfigurationWindow extends BaseWindow {
       }
     }
 
-    const defaults = {
-      4: "mockingboard",
-      5: "smartport",
-      6: "disk2",
-      7: "thunderclock",
-    };
-    return defaults[slot] || "empty";
+    return DEFAULT_SLOT_CONFIG[slot] || "empty";
   }
 
   updateUI() {
@@ -553,7 +564,7 @@ export class SlotConfigurationWindow extends BaseWindow {
 
   async applyInitialSettings() {
     const saved = this.loadSettingsFromStorage();
-    const config = saved || { 4: "mockingboard", 5: "thunderclock", 6: "disk2", 7: "smartport" };
+    const config = saved || DEFAULT_SLOT_CONFIG;
     if (this.wasmModule && this.wasmModule._setSlotCard) {
       for (const [slot, cardId] of Object.entries(config)) {
         const slotNum = parseInt(slot, 10);
