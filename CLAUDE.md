@@ -132,10 +132,13 @@ Display Settings (`src/js/display/display-settings-window.js`) leads with a **Mo
 
 ### URL Media Parameters
 
-`?disk=`, `?disk1=`, `?disk2=`, `?hd=`, `?hd2=` and `?name=` let a link open with images already inserted. Two modules:
+`?disk=`, `?disk1=`, `?disk2=`, `?hd=`, `?hd2=` and `?name=` let a link open with images already inserted. `?disk=` targets the Disk II floppy drives (formats `.dsk`/`.do`/`.po`/`.woz`); `?hd=` targets the SmartPort block devices (formats `.2mg`/`.hdv`). Three modules:
 
 - `src/js/utils/url-params.js` — pure parsing and URL validation (http/https only; relative paths resolve against the page). Unit-tested in `tests/js/utils/url-params.test.js`.
 - `src/js/disk-manager/url-media-loader.js` — fetches (`credentials: "omit"`, size-capped) and inserts.
+- `functions/proxy/[[path]].js` — a Cloudflare Pages Function serving the same-origin CORS proxy (`/proxy/url/<encodeURIComponent(target)>`), returning the fetched file with permissive CORS headers. The local Vite dev server serves that same route via `plugins/dev-proxy-plugin.js` (a `configureServer` middleware), so `npm run dev` behaves like production.
+
+`fetchImage` in `url-media-loader.js` first tries a direct fetch; when the browser raises the opaque TypeError that signals a CORS refusal, it automatically retries through `/proxy/url/…`. Hosts that already send `Access-Control-Allow-Origin` are never routed through the proxy. Note the dev-server middleware must call `next()` for non-proxy paths — skipping it stalls every other request on the whole server.
 
 `main.js` parses the URL *before* `DiskManager.init()` / `HardDriveManager.init()` and populates `urlOwnedDrives` / `urlOwnedDevices`, which those managers use to skip restoring persisted images into units a link is about to claim — otherwise the two loads race.
 
@@ -280,6 +283,11 @@ public/                 # Static assets, built WASM files, shaders
 ├── shaders/           # CRT vertex/fragment shaders
 ├── assets/            # Images and sounds
 └── index.html         # Main HTML entry point
+functions/
+└── proxy/              # Cloudflare Pages Function — CORS proxy for URL-loaded media
+plugins/
+├── dev-proxy-plugin.js  # Vite dev-server middleware serving /proxy/url (mirrors the Pages Function)
+├── serial-proxy-plugin.js  # WebSocket-to-TCP proxy
 tests/
 ├── unit/               # Catch2 unit tests (CPU, cards, disk, audio, etc.)
 ├── integration/        # Catch2 integration tests (full emulator)
