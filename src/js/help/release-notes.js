@@ -11,6 +11,28 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "August 4, 2026",
+    features: [],
+    fixes: [
+      {
+        title: "Ejecting a disk kept saving a copy of it",
+        description:
+          "Ejecting a disk produced a saved image whether or not anything had been written to it, which quietly filled the downloads folder with copies. There were two reasons. A blank disk was marked as changed the moment it was created, so ejecting one you had never written to always offered to save an empty disk; creating a disk is not a change to it, and it now starts clean. And the emulator was only asking whether a write had happened at some point rather than whether the disk was actually different — software rewrites parts of a disk with identical content as a matter of course. It now compares the disk against the one that went in, and ejects silently when they match. A disk you really have changed still offers to save, as before.",
+      },
+      {
+        title: "Naming a disk image when saving it",
+        description:
+          "On Safari and Firefox, saving an ejected disk dropped a file straight into your downloads with a name chosen for you and no way to decline. Those browsers do not give web pages the system save dialog that Chrome and Edge do, so there is now a dialog asking what to call the image, with a Cancel button. Chrome and Edge continue to use the real system save dialog.",
+      },
+      {
+        title: "Expansion slot defaults disagreed with themselves",
+        description:
+          "The default card layout was written down twice in the code and the two copies had Thunderclock and SmartPort in opposite slots. It only showed if the emulator could not report its own configuration, at which point the slot window would have described two slots wrongly. There is now a single definition.",
+      },
+    ],
+    improvements: [],
+  },
+  {
     week: "August 2, 2026",
     features: [],
     fixes: [
