@@ -130,7 +130,7 @@ Each drive supports:
 - **Insert** — Load a disk image from file
 - **Recent** — Quick access to last 20 used disks (tracked per drive)
 - **Blank** — Create a new formatted blank disk
-- **Eject** — Remove disk (prompts to save if modified)
+- **Eject** — Remove disk (offers to save only if its contents actually changed)
 
 Drag and drop disk files directly onto drives. Drive seek and motor sounds can be toggled on or off.
 
