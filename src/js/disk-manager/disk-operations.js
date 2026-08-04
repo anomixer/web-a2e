@@ -10,6 +10,51 @@ import {
   clearDiskFromStorage,
   addToRecentDisks,
 } from "./disk-persistence.js";
+import { showPrompt } from "../ui/confirm.js";
+
+/**
+ * Fingerprint the disk image as the emulator would currently serialise it.
+ *
+ * `_isDiskModified` only records that a write happened at some point, which is
+ * not the same question as whether the image differs from the one that went in.
+ * Software rewrites sectors with identical content routinely, and that should
+ * not produce a save prompt. Comparing a fingerprint taken at insert with one
+ * taken at eject answers the question actually being asked.
+ *
+ * Both fingerprints come from `_getDiskData`, so they are produced by the same
+ * serialiser and are directly comparable — the raw file bytes are not, since a
+ * DSK is re-encoded on the way in.
+ *
+ * @param {Object} wasmModule - The WASM module
+ * @param {number} driveNum - Drive number (0 or 1)
+ * @returns {Promise<string|null>} Fingerprint, or null if the image is unreadable
+ */
+export async function fingerprintDisk(wasmModule, driveNum) {
+  const sizePtr = await wasmModule._malloc(4);
+  if (!sizePtr) return null;
+
+  try {
+    const dataPtr = await wasmModule._getDiskData(driveNum, sizePtr);
+    if (!dataPtr) return null;
+
+    const size = await wasmModule.heapDataViewU32(sizePtr);
+    if (size <= 0 || size > 10000000) return null;
+
+    const bytes = await wasmModule.heapRead(dataPtr, size);
+
+    // FNV-1a. Not cryptographic — it only has to catch a disk that changed,
+    // and a collision would at worst skip a save prompt for an image whose
+    // every byte hashed identically.
+    let hash = 0x811c9dc5;
+    for (let i = 0; i < bytes.length; i++) {
+      hash ^= bytes[i];
+      hash = Math.imul(hash, 0x01000193);
+    }
+    return `${size}:${(hash >>> 0).toString(16)}`;
+  } finally {
+    await wasmModule._free(sizePtr);
+  }
+}
 
 /**
  * Helper to insert a disk into WASM with proper memory management
@@ -59,6 +104,7 @@ export async function loadDisk({ wasmModule, drive, driveNum, file, onSuccess, o
       drive.filename = file.name;
       if (drive.ejectBtn) drive.ejectBtn.disabled = false;
       if (drive.browseBtn) drive.browseBtn.disabled = false;
+      drive.baselineFingerprint = await fingerprintDisk(wasmModule, driveNum);
       console.log(`Inserted disk in drive ${driveNum + 1}: ${file.name}`);
 
       // Save to IndexedDB for persistence across sessions
@@ -98,6 +144,7 @@ export async function loadDiskFromData({ wasmModule, drive, driveNum, filename, 
       drive.filename = filename;
       if (drive.ejectBtn) drive.ejectBtn.disabled = false;
       if (drive.browseBtn) drive.browseBtn.disabled = false;
+      drive.baselineFingerprint = await fingerprintDisk(wasmModule, driveNum);
       console.log(`Restored disk in drive ${driveNum + 1}: ${filename}`);
       if (onSuccess) onSuccess(filename);
     } else {
@@ -129,6 +176,7 @@ export async function insertBlankDisk({ wasmModule, drive, driveNum, onSuccess, 
   if (success) {
     drive.filename = filename;
     if (drive.ejectBtn) drive.ejectBtn.disabled = false;
+    drive.baselineFingerprint = await fingerprintDisk(wasmModule, driveNum);
     console.log(`Inserted blank disk in drive ${driveNum + 1}`);
     if (onSuccess) onSuccess(filename);
   } else {
@@ -150,6 +198,7 @@ export function performEject({ wasmModule, drive, driveNum, onEject }) {
   wasmModule._ejectDisk(driveNum);
 
   drive.filename = null;
+  drive.baselineFingerprint = null;
   if (drive.ejectBtn) drive.ejectBtn.disabled = true;
   if (drive.browseBtn) drive.browseBtn.disabled = true;
   if (drive.input) drive.input.value = "";
@@ -170,9 +219,22 @@ export function performEject({ wasmModule, drive, driveNum, onEject }) {
  * @param {Function} [options.onEject] - Callback after ejection
  */
 export async function ejectDisk({ wasmModule, drive, driveNum, onEject }) {
-  // Check if disk is modified
+  // Two gates, cheap one first. `_isDiskModified` says whether anything was
+  // ever written; the fingerprint says whether the image actually differs from
+  // the one that went in. Only the second is the question worth prompting over,
+  // but it costs a serialisation, so it is only asked when a write did happen.
   const hasModifiedCheck = typeof wasmModule._isDiskModified === "function";
-  const isModified = hasModifiedCheck && await wasmModule._isDiskModified(driveNum);
+  let isModified = hasModifiedCheck && await wasmModule._isDiskModified(driveNum);
+
+  if (isModified && drive.baselineFingerprint) {
+    const current = await fingerprintDisk(wasmModule, driveNum);
+    if (current && current === drive.baselineFingerprint) {
+      console.log(
+        `Drive ${driveNum + 1} was written to but its contents are unchanged — ejecting without saving`,
+      );
+      isModified = false;
+    }
+  }
 
   if (isModified) {
     // Generate suggested filename
@@ -253,11 +315,23 @@ export async function saveDiskWithPicker(wasmModule, driveNum, suggestedName) {
       }
       return false;
     }
-  } else {
-    // Fallback for browsers without File System Access API
-    downloadFile(dataCopy, suggestedName);
-    return true;
   }
+
+  // No File System Access API (Safari, Firefox). A download is the only route,
+  // and it neither asks for a name nor offers a way to decline — so ask here
+  // first, rather than silently dropping another file into Downloads.
+  const chosen = await showPrompt(
+    "Save disk image as:",
+    suggestedName,
+    "Save",
+  );
+  if (!chosen) {
+    console.log(`Save cancelled for drive ${driveNum + 1}`);
+    return false;
+  }
+
+  downloadFile(dataCopy, chosen);
+  return true;
 }
 
 /**

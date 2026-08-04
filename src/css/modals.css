@@ -407,6 +407,27 @@ div.modal.hidden {
     box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15);
 }
 
+/* Single-line prompt input (showPrompt) — matches .modal-input-group input */
+.modal-input {
+    width: 100%;
+    box-sizing: border-box;
+    margin-top: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--bg-dark);
+    border: 1px solid var(--border-default);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    transition: all 0.2s;
+}
+
+.modal-input:focus {
+    outline: none;
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15);
+}
+
 .modal-footer {
     display: flex;
     justify-content: flex-end;
