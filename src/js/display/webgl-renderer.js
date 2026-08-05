@@ -276,7 +276,9 @@ export class WebGLRenderer {
         this.burnInProgram,
         "u_previousTexture",
       ),
-      burnInDecay: gl.getUniformLocation(this.burnInProgram, "u_burnInDecay"),
+      burnInTau: gl.getUniformLocation(this.burnInProgram, "u_burnInTau"),
+      deltaTime: gl.getUniformLocation(this.burnInProgram, "u_deltaTime"),
+      monochromeMode: gl.getUniformLocation(this.burnInProgram, "u_monochromeMode"),
     };
 
     // Get edge overlay program uniform locations
@@ -501,9 +503,23 @@ export class WebGLRenderer {
     gl.bindTexture(gl.TEXTURE_2D, this.burnInTextures[prevIndex]);
     gl.uniform1i(this.burnInUniforms.previousTexture, 1);
 
-    // Set decay rate - higher burnIn = slower decay
-    const decayRate = 0.02 + (1.0 - this.crtParams.burnIn) * 0.08;
-    gl.uniform1f(this.burnInUniforms.burnInDecay, decayRate);
+    // Time constant in seconds — higher burnIn holds the image longer. The
+    // slider is the phosphor's persistence, not a per-frame subtraction.
+    const tau = 0.06 + this.crtParams.burnIn * 0.9;
+    gl.uniform1f(this.burnInUniforms.burnInTau, tau);
+
+    // Real elapsed time since the last accumulation pass. Clamped because a
+    // backgrounded tab can return with an arbitrarily large gap, and because
+    // the first pass has no previous timestamp to measure from.
+    const now = performance.now() * 0.001;
+    const dt = this._lastBurnInTime === undefined
+      ? 1 / 15
+      : Math.min(now - this._lastBurnInTime, 1.0);
+    this._lastBurnInTime = now;
+    gl.uniform1f(this.burnInUniforms.deltaTime, dt);
+
+    // A monochrome tube has one phosphor, so its channels decay together.
+    gl.uniform1i(this.burnInUniforms.monochromeMode, this.crtParams.monochromeMode);
 
     // Draw
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
