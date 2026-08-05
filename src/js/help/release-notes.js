@@ -11,6 +11,18 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "August 5, 2026",
+    features: [],
+    fixes: [],
+    improvements: [
+      {
+        title: "Phosphor that fades like phosphor",
+        description:
+          "The Burn In effect, which leaves a fading afterimage behind moving graphics, was subtracting a fixed amount of brightness on every pass. That made a dim trail take just as long to disappear as a bright one, and gave the fade an abrupt end where it hit black. Real phosphor fades quickly at first and then lingers, which is why a trail on a picture tube has a long faint tail rather than simply stopping. It now does the same. A colour tube's three phosphors also do not fade together — green holds on longest and blue goes first — so the trail behind moving white text now tints green as it dies, exactly as it does on real hardware. The green and amber monochrome modes instead fade every colour at one rate, because a monochrome tube has a single phosphor coating and nothing to tint, and they hold their image around half again as long. The Burn In slider now sets how long the phosphor holds rather than how much brightness to remove, and the fade no longer runs faster or slower depending on how busy your machine is.",
+      },
+    ],
+  },
+  {
     week: "August 4, 2026",
     features: [],
     fixes: [
