@@ -402,17 +402,42 @@ vec3 glow(sampler2D tex, vec2 uv) {
 // RGB chromatic aberration
 // ============================================
 
-vec3 rgbShift(sampler2D tex, vec2 uv) {
+// Misconvergence: the three beams land on exactly the same spot only where the
+// convergence assembly was adjusted to put them, which is the centre. The error
+// grows with deflection angle, so a real tube is clean in the middle and worst
+// in the corners — the reason service manuals specify convergence at centre,
+// edge and corner separately.
+//
+// `screenUV` is the position on the glass, not the beam-distorted coordinate:
+// convergence error is a property of the deflection geometry, so it belongs to
+// where you are looking, not to a picture that jitter has slid sideways.
+vec3 rgbShift(sampler2D tex, vec2 uv, vec2 screenUV) {
     if (u_rgbOffset < 0.001) return texture2D(tex, uv).rgb;
 
-    vec2 dir = uv - 0.5;
-    float offset = u_rgbOffset * 0.003;
+    vec2 dir = screenUV - 0.5;
 
-    vec2 rOffset = dir * offset;
-    vec2 bOffset = -dir * offset;
+    // Quadratic in radius. The old code scaled linearly, which spreads the
+    // error evenly out from the centre; real misconvergence stays negligible
+    // across the middle of the screen and then climbs sharply, so the corners
+    // are where it shows. Squaring keeps the corner magnitude while cleaning up
+    // the centre two thirds.
+    float r2 = dot(dir, dir);
+    float amount = u_rgbOffset * 0.0045 * r2;
+
+    // Horizontal deflection covers a wider angle than vertical on a 4:3 tube,
+    // so the error is not isotropic — it is consistently worse left-to-right.
+    vec2 anisotropy = vec2(1.0, 0.75);
+
+    // Red outward, blue inward, green a small share the other way. Green is
+    // usually the reference gun in a delta arrangement and moves least, but it
+    // does move: leaving it exactly still reads as two colours fringing rather
+    // than three beams missing each other.
+    vec2 rOffset = dir * amount * anisotropy;
+    vec2 bOffset = -dir * amount * anisotropy;
+    vec2 gOffset = dir * amount * anisotropy * -0.15;
 
     float r = texture2D(tex, uv + rOffset).r;
-    float g = texture2D(tex, uv).g;
+    float g = texture2D(tex, uv + gOffset).g;
     float b = texture2D(tex, uv + bOffset).b;
 
     return vec3(r, g, b);
@@ -815,7 +840,7 @@ void main() {
         color = darkBezelColor;
     } else {
         // Get base color with RGB shift
-        color = rgbShift(u_texture, contentUV);
+        color = rgbShift(u_texture, contentUV, stableCurvedUV);
 
         // Apply vertical color bleed (CRT inter-scanline blending)
         color = colorBleed(u_texture, contentUV, color);
