@@ -69,7 +69,7 @@ Open http://localhost:3000 in your browser.
 ```bash
 npm run build         # Full production build (WASM + Vite bundle)
 npm run clean         # Clean build artifacts
-npm run deploy        # Deploy to VPS via rsync
+npm run deploy        # Deploy to the configured rsync target (see .env.deploy.example)
 npm test              # Run the JavaScript test suite (Vitest)
 npm run check         # Consistency checks + JavaScript tests
 ```

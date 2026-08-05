@@ -14,11 +14,17 @@ npm run build:wasm    # Build WASM module (required first time and after C++ cha
 npm run dev           # Start dev server at localhost:3000 (hot-reload for JS only)
 npm run build         # Full production build (WASM + Vite bundle)
 npm run clean         # Clean build artifacts
-npm run deploy        # Deploy to VPS via rsync
+npm run deploy        # Deploy to the configured rsync target (see .env.deploy.example)
 npm test              # JavaScript tests (Vitest)
 npm run check         # check:exports + check:core-purity + check:basic-tokens + npm test
 npm run generate:basic-tokens  # Regenerate src/js/utils/basic-tokens.js from C++
 ```
+
+## Deployment
+
+`npm run deploy` (production) and `npm run deploy:staging` run `scripts/deploy.sh`, which rsyncs `dist/` to a target taken from the environment: `DEPLOY_TARGET` and `DEPLOY_STAGING_TARGET`. Copy `.env.deploy.example` to `.env.deploy` and fill it in; that file is gitignored, so the server's user, host and paths stay out of a public repository.
+
+The script is one rsync invocation and nothing else, deliberately: the host locks out additional concurrent SSH sessions, so verification belongs over HTTPS rather than in a second connection.
 
 ## Testing
 
