@@ -198,6 +198,7 @@ Presets leave brightness, contrast, saturation and the bezel alone; adjusting an
 - Screen curvature, scanlines, beam bloom, shadow mask (aperture grille or dot triad)
 - Phosphor glow, vignette, NTSC fringing, colour bleed
 - Flicker, static noise, jitter, horizontal sync lines
+- Burn In — phosphor persistence, decaying exponentially and per phosphor (green lingers, blue fades first; monochrome tubes decay as one)
 - Brightness, contrast, saturation
 - Sharp pixels toggle, overscan/border control
 - Monochrome modes: Green, Amber, White
