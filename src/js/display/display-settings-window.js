@@ -153,8 +153,6 @@ export class DisplaySettingsWindow extends BaseWindow {
       monochromeMode: 0,
       // Bezel
       screenInset: 0,
-      bezelSpillReach: 66,
-      bezelSpillIntensity: 31,
       bezelColor: "#c8b89a",
     };
 
@@ -214,8 +212,6 @@ export class DisplaySettingsWindow extends BaseWindow {
         advanced: true,
         sliders: [
           { id: "screenInset", label: "Bezel Width", param: "screenInset" },
-          { id: "bezelSpillReach", label: "Spill Reach", param: "bezelSpillReach" },
-          { id: "bezelSpillIntensity", label: "Spill Intensity", param: "bezelSpillIntensity" },
         ],
       },
     ];
