@@ -59,9 +59,6 @@ uniform float u_screenMargin;
 // Screen inset — shrinks the screen to reveal bezel without curvature
 uniform float u_screenInset;
 
-// Bezel spill controls
-uniform float u_bezelSpillReach;
-uniform float u_bezelSpillIntensity;
 
 // Background colour for pixels outside the curved screen area
 uniform vec3 u_surroundColor;
@@ -663,88 +660,21 @@ vec3 bezelShade(vec2 uv, vec2 curvedUV) {
     float lip = smoothstep(0.008, 0.004, lipDist) * smoothstep(0.0, 0.002, lipDist);
     bezel += vec3(lip * 0.2);
 
-    // 6. Screen light spilling onto the bezel
+    // There is deliberately no screen reflection on the bezel.
     //
-    //    This is diffuse light landing on the surround, not a mirror image. A
-    //    point on the bezel is lit by the whole visible screen at once, so what
-    //    it picks up is an average of the nearby content, weighted by how close
-    //    that content is. Two things follow.
+    // The surround is matte plastic. A diffuse surface scatters light rather
+    // than forming an image, so it cannot show a reflection of what is on
+    // screen — no amount of sampling the framebuffer produces something a real
+    // monitor does. What a real bezel does pick up is plain illumination: near
+    // a bright screen it lightens and takes on the average colour of whatever
+    // is next to it, with no detail whatsoever.
     //
-    //    It gathers from the nearest screen edge, not from deep inside the
-    //    picture. The old code pushed the sample point further into the screen
-    //    the further up the wall it went, which is a mirror's parallax, not
-    //    diffuse light. A bezel next to a dark edge stayed dark even when the
-    //    middle of the screen was brilliant white — which is correct — but a
-    //    bezel next to a bright edge sampled something else entirely.
-    //
-    //    It keeps the colour of what it reflects. The old code multiplied the
-    //    sampled colour by its own luminance, so brightness counted twice and
-    //    anything but near-white spilled almost nothing.
-
-    // Nearest point on the screen. Everything is gathered around here.
-    vec2 screenDist = max(vec2(0.0) - curvedUV, curvedUV - vec2(1.0));
-    screenDist = max(screenDist, 0.0);
-    float distFromScreen = max(screenDist.x, screenDist.y);
-    vec2 sampleBase = clamp(curvedUV, 0.0, 1.0);
-
-    // The gathered region widens with distance, as a diffuse source does, and
-    // is wider along the edge than into the picture: a point on the wall sees a
-    // long strip of the screen running parallel to it, not a circle.
-    vec2 texelSize = 1.0 / u_textureSize;
-    float spread = (2.0 + distFromScreen * 55.0) * length(texelSize);
-    bool verticalWall = screenDist.x > screenDist.y;
-    vec2 spreadXY = verticalWall ? vec2(spread * 0.45, spread * 1.8)
-                                 : vec2(spread * 1.8, spread * 0.45);
-
-    // 13-point Poisson disc (centre + two rings, irregularly spaced) so the
-    // gather does not show a grid.
-    const int SPILL_SAMPLES = 13;
-    vec2 disc[13];
-    disc[0]  = vec2( 0.000,  0.000);
-    disc[1]  = vec2(-0.326, -0.406);
-    disc[2]  = vec2( 0.440, -0.284);
-    disc[3]  = vec2( 0.162,  0.468);
-    disc[4]  = vec2(-0.478,  0.180);
-    disc[5]  = vec2( 0.372,  0.342);
-    disc[6]  = vec2(-0.724, -0.340);
-    disc[7]  = vec2( 0.086, -0.762);
-    disc[8]  = vec2( 0.760,  0.120);
-    disc[9]  = vec2(-0.196,  0.780);
-    disc[10] = vec2(-0.680,  0.540);
-    disc[11] = vec2( 0.580, -0.620);
-    disc[12] = vec2(-0.140, -0.900);
-
-    float weights[13];
-    weights[0]  = 1.00;
-    weights[1]  = 0.72; weights[2]  = 0.72; weights[3]  = 0.72; weights[4]  = 0.72;
-    weights[5]  = 0.36; weights[6]  = 0.36; weights[7]  = 0.36; weights[8]  = 0.36;
-    weights[9]  = 0.36; weights[10] = 0.36; weights[11] = 0.36; weights[12] = 0.36;
-
-    vec3 spill = vec3(0.0);
-    float totalWeight = 0.0;
-    for (int i = 0; i < SPILL_SAMPLES; i++) {
-        vec2 sampleUV = clamp(sampleBase + disc[i] * spreadXY, 0.0, 1.0);
-        spill += texture2D(u_texture, sampleUV).rgb * weights[i];
-        totalWeight += weights[i];
-    }
-    spill /= totalWeight;
-
-    // Match the screen's own grading so the surround cannot be brighter or more
-    // saturated than the picture lighting it.
-    spill = adjustColor(spill);
-
-    // Inverse-square falloff rather than a smoothstep ramp: same brightness at
-    // the glass, but a long faint tail instead of a defined end. `reach` sets
-    // the distance at which it has fallen to a quarter.
-    float reach = max(u_bezelSpillReach * 0.1, 0.001);
-    float d = distFromScreen / reach;
-    float falloff = 1.0 / (1.0 + d * d * 3.0);
-
-    // The outer rim turns away from the screen and catches nothing.
-    float outerRimMask = smoothstep(0.0, 0.04, min(edgeDist.x, edgeDist.y));
-
-    float spillStrength = falloff * u_bezelSpillIntensity * outerRimMask;
-    bezel += spill * spillStrength;
+    // That illumination was modelled here and removed: on anything but a
+    // near-white screen it is a barely perceptible lightening of the innermost
+    // few millimetres, and it cost a 13-tap gather of the screen texture on
+    // every bezel fragment to produce it. If it comes back it should be a cheap
+    // approximation of the average edge colour, not a per-fragment gather, and
+    // it should be described as light spill rather than reflection.
 
     return clamp(bezel, 0.0, 1.0);
 }
