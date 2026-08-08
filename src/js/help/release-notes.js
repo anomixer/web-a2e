@@ -11,6 +11,24 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "August 8, 2026",
+    features: [],
+    fixes: [
+      {
+        title: "Colour fringing now behaves like a real tube's",
+        description:
+          "The RGB Offset effect pulls the red, green and blue images slightly apart, imitating the three electron beams not landing in quite the same place. It was doing so evenly across the screen, which left visible colour fringing in the middle of the picture and no more of it in the corners than at the edges — the reverse of a real monitor, where the beams are aligned dead centre and drift further apart the further out they are steered. It is now clean through the middle and worst in the corners, slightly stronger left-to-right than top-to-bottom because a picture tube deflects the beam through a wider angle horizontally. The fringing is also fixed to the screen rather than sliding about with the Jitter and Horizontal Sync effects, since where the beams land is a property of the tube and not of the signal.",
+      },
+    ],
+    improvements: [
+      {
+        title: "The bezel no longer pretends to reflect the screen",
+        description:
+          "The surround around the picture tried to show a reflection of what was on screen. A bezel is matte plastic, and a matte surface scatters light instead of forming an image, so there is no reflection to see on a real monitor however hard you look — the effect was imitating something that does not happen. What a real bezel does is simply catch a little light from a bright screen, which amounts to a faint lightening of the innermost few millimetres and nothing more, so it has been taken out rather than approximated. The Spill Reach and Spill Intensity sliders have gone with it. The bezel keeps its own shading, colour and texture; it just no longer changes with the picture.",
+      },
+    ],
+  },
+  {
     week: "August 5, 2026",
     features: [],
     fixes: [],
