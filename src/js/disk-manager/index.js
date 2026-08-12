@@ -15,7 +15,6 @@ import {
   ejectDisk,
   performEject,
   saveDiskWithPicker,
-  fingerprintDisk,
 } from "./disk-operations.js";
 import {
   loadDiskFromStorage,
@@ -233,7 +232,13 @@ export class DiskManager {
 
       const bytes = await wasm.heapRead(dataPtr, size);
       await saveDiskToStorage(driveNum, drive.filename, bytes);
-      drive.baselineFingerprint = await fingerprintDisk(wasm, driveNum);
+      // Deliberately NOT re-baselining drive.baselineFingerprint here. That
+      // fingerprint records the image as it went into the drive, and ejecting
+      // compares against it to decide whether anything would be lost by
+      // letting the disk go. A file written by DSK is exactly such a change,
+      // so moving the baseline to match would tell the user the disk is
+      // untouched and eject their new file without offering to save it.
+      // Keeping the browser's copy current is a separate concern.
       return true;
     } catch (err) {
       console.error("persistDriveImage failed:", err);
