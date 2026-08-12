@@ -15,6 +15,7 @@ import {
   ejectDisk,
   performEject,
   saveDiskWithPicker,
+  fingerprintDisk,
 } from "./disk-operations.js";
 import {
   loadDiskFromStorage,
@@ -199,6 +200,46 @@ export class DiskManager {
   refocusCanvas() {
     if (this.canvas) {
       setTimeout(() => this.canvas.focus(), 0);
+    }
+  }
+
+  /**
+   * Re-persist a drive's image after something wrote into it from the host
+   * side (the assembler's DSK directive), so the file survives a reload the
+   * way it would if the guest had written it and the user saved on eject.
+   *
+   * URL-loaded disks are skipped deliberately: those loads are transient by
+   * design, and persisting one here would put it back through the door
+   * `loadDiskFromUrlData` closes.
+   *
+   * @param {number} driveNum Drive number (0 or 1)
+   * @returns {Promise<boolean>} true if the image was written to storage
+   */
+  async persistDriveImage(driveNum) {
+    const drive = this.drives[driveNum];
+    if (!drive || !drive.filename) return false;
+    if (this.urlOwnedDrives?.has(driveNum)) return false;
+
+    const wasm = this.wasmModule;
+    const sizePtr = await wasm._malloc(4);
+    if (!sizePtr) return false;
+
+    try {
+      const dataPtr = await wasm._getDiskData(driveNum, sizePtr);
+      if (!dataPtr) return false;
+
+      const size = await wasm.heapDataViewU32(sizePtr);
+      if (size <= 0 || size > 10000000) return false;
+
+      const bytes = await wasm.heapRead(dataPtr, size);
+      await saveDiskToStorage(driveNum, drive.filename, bytes);
+      drive.baselineFingerprint = await fingerprintDisk(wasm, driveNum);
+      return true;
+    } catch (err) {
+      console.error("persistDriveImage failed:", err);
+      return false;
+    } finally {
+      await wasm._free(sizePtr);
     }
   }
 

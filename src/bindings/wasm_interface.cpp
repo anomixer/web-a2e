@@ -893,6 +893,44 @@ size_t getCurrentNibblePosition(int drive) {
   return 0;
 }
 
+// ---- Saving in a chosen format ---------------------------------------------
+// format: 0 = DOS 3.3 sector order, 1 = ProDOS sector order, 2 = WOZ
+
+static a2e::DiskSaveFormat toSaveFormat(int format) {
+  switch (format) {
+    case 1:  return a2e::DiskSaveFormat::ProDOSOrder;
+    case 2:  return a2e::DiskSaveFormat::WOZ;
+    default: return a2e::DiskSaveFormat::DOSOrder;
+  }
+}
+
+EMSCRIPTEN_KEEPALIVE
+const uint8_t *getDiskDataAs(int drive, int format, size_t *size) {
+  REQUIRE_EMULATOR_OR(nullptr);
+  return g_emulator->exportDiskDataAs(drive, toSaveFormat(format), size);
+}
+
+// Sectors in DOS order for the filesystem parsers, whatever order the image
+// itself uses. Backed by its own buffer, so a browser holding this pointer is
+// not disturbed by a save conversion.
+EMSCRIPTEN_KEEPALIVE
+const uint8_t *getDiskSectorDataDOSOrder(int drive, size_t *size) {
+  REQUIRE_EMULATOR_OR(nullptr);
+  return g_emulator->getDiskSectorsDOSOrder(drive, size);
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool canSaveDiskAs(int drive, int format) {
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->canExportDiskAs(drive, toSaveFormat(format));
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getDiskNativeFormat(int drive) {
+  REQUIRE_EMULATOR_OR(0);
+  return static_cast<int>(g_emulator->getDiskNativeFormat(drive));
+}
+
 EMSCRIPTEN_KEEPALIVE
 bool isDiskModified(int drive) {
   REQUIRE_DISK_OR(false);
@@ -2069,6 +2107,42 @@ EMSCRIPTEN_KEEPALIVE
 int32_t getAsmSymbolValue(int index) {
   if (index < 0 || index >= static_cast<int>(g_asmResult.symbols.size())) return 0;
   return g_asmResult.symbols[index].value;
+}
+
+// ---- DSK directive: write the assembled object to a disk ------------------
+
+EMSCRIPTEN_KEEPALIVE
+bool hasAsmObjectFile() {
+  return g_asmResult.hasObjectFile;
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char* getAsmObjectFilename() {
+  return g_asmResult.objectFilename;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getAsmObjectDrive() {
+  return g_asmResult.objectDrive;
+}
+
+// Returns an a2e::FsWriteStatus, or -1 when the last assembly asked for no
+// object file (or failed, in which case there is nothing worth writing).
+EMSCRIPTEN_KEEPALIVE
+int writeAsmObjectToDisk() {
+  REQUIRE_EMULATOR_OR(-1);
+  if (!g_asmResult.hasObjectFile || !g_asmResult.success) return -1;
+
+  a2e::FsWriteStatus status = g_emulator->writeBinaryFileToDisk(
+      g_asmResult.objectDrive - 1, g_asmResult.objectFilename,
+      g_asmResult.origin, g_asmResult.output.data(), g_asmResult.output.size());
+  return static_cast<int>(status);
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char* getAsmObjectStatusMessage(int status) {
+  if (status < 0) return "Nothing to write";
+  return a2e::fsWriteStatusMessage(static_cast<a2e::FsWriteStatus>(status));
 }
 
 EMSCRIPTEN_KEEPALIVE

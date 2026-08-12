@@ -10,7 +10,7 @@ import {
   clearDiskFromStorage,
   addToRecentDisks,
 } from "./disk-persistence.js";
-import { showPrompt } from "../ui/confirm.js";
+import { showChoicePrompt, showConfirm } from "../ui/confirm.js";
 
 /**
  * Fingerprint the disk image as the emulator would currently serialise it.
@@ -237,14 +237,12 @@ export async function ejectDisk({ wasmModule, drive, driveNum, onEject }) {
   }
 
   if (isModified) {
-    // Generate suggested filename
-    let suggestedName = drive.filename || `disk${driveNum + 1}.woz`;
-    // Ensure WOZ extension for blank disks
-    if (suggestedName === "Blank Disk.woz" || !suggestedName.includes(".")) {
-      suggestedName = suggestedName.replace(/\.[^.]*$/, "") + ".woz";
-    }
+    // Suggest the name the disk came in under. The format dialog puts the
+    // right extension on it for whichever format is chosen there, so there is
+    // nothing to decide about the extension here.
+    const suggestedName = drive.filename || `disk${driveNum + 1}`;
 
-    // Go directly to OS save picker
+    // Ask for format and name, then the OS save picker
     await saveDiskWithPicker(wasmModule, driveNum, suggestedName);
   }
 
@@ -260,44 +258,32 @@ export async function ejectDisk({ wasmModule, drive, driveNum, onEject }) {
  * @returns {Promise<boolean>} True if saved successfully
  */
 export async function saveDiskWithPicker(wasmModule, driveNum, suggestedName) {
-  const sizePtr = await wasmModule._malloc(4);
-  if (!sizePtr) {
-    console.error("saveDiskWithPicker: failed to allocate size pointer");
+  const choice = await chooseSaveFormat(wasmModule, driveNum, suggestedName);
+  if (!choice) {
+    console.log(`Save cancelled for drive ${driveNum + 1}`);
     return false;
   }
 
-  const dataPtr = await wasmModule._getDiskData(driveNum, sizePtr);
-
-  if (!dataPtr) {
-    console.error("saveDiskWithPicker: _getDiskData returned null");
-    await wasmModule._free(sizePtr);
+  const dataCopy = await exportDiskAs(wasmModule, driveNum, choice.format);
+  if (!dataCopy) {
+    await showConfirm(
+      `This disk cannot be saved as ${SAVE_FORMATS[choice.format].label}.`,
+      "OK",
+    );
     return false;
   }
 
-  // Read size from WASM memory (little-endian 32-bit value)
-  const size = await wasmModule.heapDataViewU32(sizePtr);
-
-  if (size <= 0 || size > 10000000) {
-    console.error(`saveDiskWithPicker: invalid size ${size}`);
-    await wasmModule._free(sizePtr);
-    return false;
-  }
-
-  const dataCopy = await wasmModule.heapRead(dataPtr, size);
-
-  await wasmModule._free(sizePtr);
+  const extensions = SAVE_FORMATS[choice.format].extensions;
 
   // Try to use File System Access API (modern browsers)
   if ("showSaveFilePicker" in window) {
     try {
       const handle = await window.showSaveFilePicker({
-        suggestedName: suggestedName,
+        suggestedName: choice.name,
         types: [
           {
-            description: "Disk Images",
-            accept: {
-              "application/octet-stream": [".dsk", ".do", ".po", ".woz", ".nib"],
-            },
+            description: SAVE_FORMATS[choice.format].label,
+            accept: { "application/octet-stream": extensions },
           },
         ],
       });
@@ -317,21 +303,140 @@ export async function saveDiskWithPicker(wasmModule, driveNum, suggestedName) {
     }
   }
 
-  // No File System Access API (Safari, Firefox). A download is the only route,
-  // and it neither asks for a name nor offers a way to decline — so ask here
-  // first, rather than silently dropping another file into Downloads.
-  const chosen = await showPrompt(
-    "Save disk image as:",
-    suggestedName,
-    "Save",
-  );
-  if (!chosen) {
-    console.log(`Save cancelled for drive ${driveNum + 1}`);
-    return false;
+  // No File System Access API (Safari, Firefox). The format dialog already
+  // collected the name, so a download is all that is left.
+  downloadFile(dataCopy, choice.name);
+  return true;
+}
+
+/**
+ * The formats a disk can be saved as, in the order the dialog offers them.
+ * Keyed by the format id the WASM layer uses (a2e::DiskSaveFormat).
+ */
+export const SAVE_FORMATS = {
+  0: {
+    label: "DOS 3.3 order",
+    hint: ".dsk",
+    extensions: [".dsk", ".do"],
+    defaultExtension: ".dsk",
+  },
+  1: {
+    label: "ProDOS order",
+    hint: ".po",
+    extensions: [".po"],
+    defaultExtension: ".po",
+  },
+  2: {
+    label: "WOZ",
+    hint: ".woz",
+    extensions: [".woz"],
+    defaultExtension: ".woz",
+  },
+};
+
+/**
+ * Swap a filename's extension for the one a format uses, leaving a name that
+ * already carries a correct extension for that format alone (.do stays .do).
+ */
+export function nameForFormat(filename, format) {
+  const spec = SAVE_FORMATS[format];
+  if (!spec) return filename;
+
+  const dot = filename.lastIndexOf(".");
+  const base = dot > 0 ? filename.slice(0, dot) : filename;
+  const extension = dot > 0 ? filename.slice(dot).toLowerCase() : "";
+
+  if (spec.extensions.includes(extension)) return filename;
+  return base + spec.defaultExtension;
+}
+
+/**
+ * Ask which format to save in, defaulting to the one the image came from so
+ * saving without thinking about it never re-encodes the disk.
+ *
+ * Formats the disk cannot honour are offered but disabled: a copy-protected
+ * WOZ has no sector representation, and silently omitting the option would
+ * look like the emulator had simply forgotten how to write .dsk files.
+ *
+ * @returns {Promise<{format: number, name: string}|null>} null if cancelled
+ */
+async function chooseSaveFormat(wasmModule, driveNum, suggestedName) {
+  const formats = [0, 1, 2];
+
+  let nativeFormat = 0;
+  if (typeof wasmModule._getDiskNativeFormat === "function") {
+    nativeFormat = await wasmModule._getDiskNativeFormat(driveNum);
   }
 
-  downloadFile(dataCopy, chosen);
-  return true;
+  const available = {};
+  for (const format of formats) {
+    available[format] =
+      typeof wasmModule._canSaveDiskAs === "function"
+        ? await wasmModule._canSaveDiskAs(driveNum, format)
+        : true;
+  }
+
+  // A disk that cannot be saved in its own format is not a disk at all
+  if (!formats.some((format) => available[format])) return null;
+  if (!available[nativeFormat]) {
+    nativeFormat = formats.find((format) => available[format]);
+  }
+
+  const choices = formats.map((format) => ({
+    value: String(format),
+    label: SAVE_FORMATS[format].label,
+    hint: available[format]
+      ? SAVE_FORMATS[format].hint
+      : "not possible for this disk",
+    disabled: !available[format],
+  }));
+
+  const result = await showChoicePrompt({
+    message: `Save the disk in drive ${driveNum + 1} as:`,
+    defaultValue: nameForFormat(suggestedName, nativeFormat),
+    choices,
+    selected: String(nativeFormat),
+    confirmLabel: "Save",
+    onChoiceChange: (value, currentName) =>
+      nameForFormat(currentName, Number(value)),
+  });
+
+  if (!result) return null;
+  return { format: Number(result.value), name: result.name };
+}
+
+/**
+ * Read a drive's image out of WASM in a given format.
+ * @returns {Promise<Uint8Array|null>} null if the conversion is not possible
+ */
+async function exportDiskAs(wasmModule, driveNum, format) {
+  const sizePtr = await wasmModule._malloc(4);
+  if (!sizePtr) {
+    console.error("exportDiskAs: failed to allocate size pointer");
+    return null;
+  }
+
+  try {
+    const dataPtr =
+      typeof wasmModule._getDiskDataAs === "function"
+        ? await wasmModule._getDiskDataAs(driveNum, format, sizePtr)
+        : await wasmModule._getDiskData(driveNum, sizePtr);
+
+    if (!dataPtr) {
+      console.error(`exportDiskAs: no data for drive ${driveNum} format ${format}`);
+      return null;
+    }
+
+    const size = await wasmModule.heapDataViewU32(sizePtr);
+    if (size <= 0 || size > 10000000) {
+      console.error(`exportDiskAs: invalid size ${size}`);
+      return null;
+    }
+
+    return await wasmModule.heapRead(dataPtr, size);
+  } finally {
+    await wasmModule._free(sizePtr);
+  }
 }
 
 /**

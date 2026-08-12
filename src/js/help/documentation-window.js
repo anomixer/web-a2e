@@ -515,6 +515,13 @@ export class DocumentationWindow extends BaseWindow {
 
         <h4>Saving Modified Disks</h4>
         <p>When you eject a disk that has been modified, you'll be prompted to save it. You can also use the File Explorer to export disks.</p>
+        <p>The save dialog asks which format to write:</p>
+        <ul>
+          <li><strong>DOS 3.3 order</strong> (<code>.dsk</code>) — sectors in DOS 3.3 order, the most widely accepted format</li>
+          <li><strong>ProDOS order</strong> (<code>.po</code>) — the same sectors laid out the way ProDOS numbers them</li>
+          <li><strong>WOZ</strong> (<code>.woz</code>) — the track bit stream a drive actually reads</li>
+        </ul>
+        <p>The format the disk came in is selected for you, so saving without thinking about it never re-encodes the disk, and the filename extension follows whatever you pick. Note that the two sector orders describe how the file is laid out, not which filesystem is on the disk — a ProDOS volume is commonly distributed as a DOS-ordered <code>.dsk</code>. A copy-protected WOZ has no sector representation at all, so the two sector formats are greyed out for one.</p>
 
         <h4>Disk Persistence</h4>
         <p>Disk contents are automatically saved in your browser's storage. When you return to the emulator, your disks will be exactly as you left them.</p>
@@ -1102,6 +1109,7 @@ export class DocumentationWindow extends BaseWindow {
           <li><strong>Assemble:</strong> Click or press <kbd>Ctrl/⌘</kbd>+<kbd>Enter</kbd> to assemble the code</li>
           <li><strong>Write:</strong> After successful assembly, click Write to copy the machine code into emulator memory (requires emulator to be powered on)</li>
           <li><strong>ORG Directive:</strong> Your code must include an <code>ORG</code> directive before any instructions</li>
+          <li><strong>DSK Directive:</strong> <code>DSK FILENAME</code> writes the assembled object straight onto the disk in drive 1 as a binary file, the way Merlin does. Add <code>,D2</code> to target drive 2. DOS 3.3 and ProDOS disks are both written; WOZ images are not, since they store a flux-level bit stream rather than sectors. An existing file of the same name is replaced, and a locked or write-protected one is refused</li>
         </ul>
 
         <h5>ROM Routines Reference</h5>

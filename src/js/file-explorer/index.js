@@ -457,7 +457,10 @@ export class FileExplorerWindow extends BaseWindow {
 
     // Get disk sector data pointer (stays in WASM heap)
     const sizePtr = await wasm._malloc(4);
-    const dataPtr = await wasm._getDiskSectorData(this.selectedDrive, sizePtr);
+    // DOS-ordered sectors, whatever order the image itself uses: the DOS 3.3
+    // parser assumes DOS order, and a ProDOS-ordered .dsk or .po would
+    // otherwise list a scrambled catalog.
+    const dataPtr = await wasm._getDiskSectorDataDOSOrder(this.selectedDrive, sizePtr);
     const size = (await wasm.heapReadU32(sizePtr, 1))[0];
     await wasm._free(sizePtr);
 

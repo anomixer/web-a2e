@@ -27,7 +27,8 @@ export async function readDiskFileBytes(wasmModule, drive, filename) {
 
   // Get disk data
   const sizePtr = await wasmModule._malloc(4);
-  const dataPtr = await wasmModule._getDiskSectorData(drive, sizePtr);
+  // DOS-ordered sectors — see the note in file-explorer/index.js
+  const dataPtr = await wasmModule._getDiskSectorDataDOSOrder(drive, sizePtr);
   const size = (await wasmModule.heapReadU32(sizePtr, 1))[0];
   await wasmModule._free(sizePtr);
 
@@ -135,7 +136,8 @@ export const fileExplorerTools = {
 
     // Get disk data
     const sizePtr = await wasmModule._malloc(4);
-    const dataPtr = await wasmModule._getDiskSectorData(driveIndex, sizePtr);
+    // DOS-ordered sectors — see the note in file-explorer/index.js
+    const dataPtr = await wasmModule._getDiskSectorDataDOSOrder(driveIndex, sizePtr);
     const size = (await wasmModule.heapReadU32(sizePtr, 1))[0];
     await wasmModule._free(sizePtr);
 
