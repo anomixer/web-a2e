@@ -70,7 +70,7 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 **C++ Core (src/core/)** - Pure emulation logic compiled to WebAssembly:
 
 - `cpu/6502/cpu6502.cpp` - Cycle-accurate 65C02 processor (1.023 MHz)
-- `mmu/mmu.cpp` - 128KB memory management, soft switches ($C000-$CFFF), expansion slots
+- `mmu/mmu.cpp` - 128KB memory management, soft switches ($C000-$CFFF), expansion slots, and the video scanner address generator behind floating-bus reads (Sather's counter equations, so blanking cycles read real video data rather than zero)
 - `video/video.cpp` - TEXT/LORES/HIRES/DHIRES per-scanline rendering
 - `audio/audio.cpp` - Speaker emulation from $C030 toggles
 - `disk-image/` - Disk image format support (DSK/DO/PO/NIB/WOZ). `gcr_encoding` holds the one copy of the GCR encode/decode routines and the DOS/ProDOS sector interleave tables that both image classes and the filesystem readers use; plus `disk_converter` — converts a loaded image between save formats (DOS order, ProDOS order, WOZ), including encoding a sector image to a WOZ bit stream
