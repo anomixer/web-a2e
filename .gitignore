@@ -44,3 +44,6 @@ video-outline.md
 .codex/
 .lean-ctx/
 .wrangler/
+
+# Deploy target configuration (see .env.deploy.example)
+.env.deploy

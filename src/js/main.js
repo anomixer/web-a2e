@@ -47,6 +47,29 @@ import { InputHandler, TextSelection, JoystickWindow, MouseHandler, GamepadHandl
 import { DiskManager } from "./disk-manager/index.js";
 import { DiskDrivesWindow } from "./disk-manager/disk-drives-window.js";
 import { HardDriveManager } from "./disk-manager/hard-drive-manager.js";
+import { unzipSync } from "fflate";
+
+// Monkey patch HardDriveManager to support on-the-fly decompression for Cloudflare Pages limits
+const originalGetLibraryImageData = HardDriveManager.prototype._getLibraryImageData;
+if (originalGetLibraryImageData) {
+  HardDriveManager.prototype._getLibraryImageData = async function (entry) {
+    const data = await originalGetLibraryImageData.apply(this, arguments);
+    // Check for ZIP signature (PK\x03\x04)
+    if (data && data.length > 4 && data[0] === 0x50 && data[1] === 0x4b && data[2] === 0x03 && data[3] === 0x04) {
+      try {
+        const unzipped = unzipSync(data);
+        const filenames = Object.keys(unzipped);
+        if (filenames.length > 0) {
+          console.log(`MonkeyPatch: Unzipped ${entry.file} content on the fly`);
+          return unzipped[filenames[0]];
+        }
+      } catch (e) {
+        console.error("MonkeyPatch: Failed to unzip", e);
+      }
+    }
+    return data;
+  };
+}
 import { HardDriveWindow } from "./disk-manager/hard-drive-window.js";
 import { readUrlMedia, loadUrlMedia } from "./disk-manager/url-media-loader.js";
 import { FileExplorerWindow } from "./file-explorer/index.js";
@@ -322,6 +345,15 @@ class AppleIIeEmulator {
       basicProgramWindow.setRuleBuilder(ruleBuilderWindow);
 
       const assemblerWindow = new AssemblerEditorWindow(this.wasmModule, cpuWindow.bpManager, () => this.isRunning(), cpuWindow);
+      // A DSK directive writes into the image the drive is holding, so the
+      // stored copy has to be refreshed or the file vanishes on reload.
+      assemblerWindow.onObjectFileWritten = async (driveNum) => {
+        await this.diskManager?.persistDriveImage(driveNum);
+        const explorer = this.fileExplorer;
+        if (explorer?.sourceType === "floppy" && explorer.selectedDrive === driveNum) {
+          await explorer.loadDisk();
+        }
+      };
       assemblerWindow.create();
       this.windowManager.register(assemblerWindow);
 

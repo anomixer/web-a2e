@@ -11,6 +11,58 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "August 8, 2026",
+    features: [],
+    fixes: [
+      {
+        title: "Colour fringing now behaves like a real tube's",
+        description:
+          "The RGB Offset effect pulls the red, green and blue images slightly apart, imitating the three electron beams not landing in quite the same place. It was doing so evenly across the screen, which left visible colour fringing in the middle of the picture and no more of it in the corners than at the edges — the reverse of a real monitor, where the beams are aligned dead centre and drift further apart the further out they are steered. It is now clean through the middle and worst in the corners, slightly stronger left-to-right than top-to-bottom because a picture tube deflects the beam through a wider angle horizontally. The fringing is also fixed to the screen rather than sliding about with the Jitter and Horizontal Sync effects, since where the beams land is a property of the tube and not of the signal.",
+      },
+    ],
+    improvements: [
+      {
+        title: "The bezel no longer pretends to reflect the screen",
+        description:
+          "The surround around the picture tried to show a reflection of what was on screen. A bezel is matte plastic, and a matte surface scatters light instead of forming an image, so there is no reflection to see on a real monitor however hard you look — the effect was imitating something that does not happen. What a real bezel does is simply catch a little light from a bright screen, which amounts to a faint lightening of the innermost few millimetres and nothing more, so it has been taken out rather than approximated. The Spill Reach and Spill Intensity sliders have gone with it. The bezel keeps its own shading, colour and texture; it just no longer changes with the picture.",
+      },
+    ],
+  },
+  {
+    week: "August 5, 2026",
+    features: [],
+    fixes: [],
+    improvements: [
+      {
+        title: "Phosphor that fades like phosphor",
+        description:
+          "The Burn In effect, which leaves a fading afterimage behind moving graphics, was subtracting a fixed amount of brightness on every pass. That made a dim trail take just as long to disappear as a bright one, and gave the fade an abrupt end where it hit black. Real phosphor fades quickly at first and then lingers, which is why a trail on a picture tube has a long faint tail rather than simply stopping. It now does the same. A colour tube's three phosphors also do not fade together — green holds on longest and blue goes first — so the trail behind moving white text now tints green as it dies, exactly as it does on real hardware. The green and amber monochrome modes instead fade every colour at one rate, because a monochrome tube has a single phosphor coating and nothing to tint, and they hold their image around half again as long. The Burn In slider now sets how long the phosphor holds rather than how much brightness to remove, and the fade no longer runs faster or slower depending on how busy your machine is.",
+      },
+    ],
+  },
+  {
+    week: "August 4, 2026",
+    features: [],
+    fixes: [
+      {
+        title: "Ejecting a disk kept saving a copy of it",
+        description:
+          "Ejecting a disk produced a saved image whether or not anything had been written to it, which quietly filled the downloads folder with copies. There were two reasons. A blank disk was marked as changed the moment it was created, so ejecting one you had never written to always offered to save an empty disk; creating a disk is not a change to it, and it now starts clean. And the emulator was only asking whether a write had happened at some point rather than whether the disk was actually different — software rewrites parts of a disk with identical content as a matter of course. It now compares the disk against the one that went in, and ejects silently when they match. A disk you really have changed still offers to save, as before.",
+      },
+      {
+        title: "Naming a disk image when saving it",
+        description:
+          "On Safari and Firefox, saving an ejected disk dropped a file straight into your downloads with a name chosen for you and no way to decline. Those browsers do not give web pages the system save dialog that Chrome and Edge do, so there is now a dialog asking what to call the image, with a Cancel button. Chrome and Edge continue to use the real system save dialog.",
+      },
+      {
+        title: "Expansion slot defaults disagreed with themselves",
+        description:
+          "The default card layout was written down twice in the code and the two copies had Thunderclock and SmartPort in opposite slots. It only showed if the emulator could not report its own configuration, at which point the slot window would have described two slots wrongly. There is now a single definition.",
+      },
+    ],
+    improvements: [],
+  },
+  {
     week: "August 2, 2026",
     features: [],
     fixes: [
