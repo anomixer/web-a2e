@@ -69,7 +69,7 @@ Open http://localhost:3000 in your browser.
 ```bash
 npm run build         # Full production build (WASM + Vite bundle)
 npm run clean         # Clean build artifacts
-npm run deploy        # Deploy to VPS via rsync
+npm run deploy        # Deploy to the configured rsync target (see .env.deploy.example)
 npm test              # Run the JavaScript test suite (Vitest)
 npm run check         # Consistency checks + JavaScript tests
 ```
@@ -130,7 +130,7 @@ Each drive supports:
 - **Insert** — Load a disk image from file
 - **Recent** — Quick access to last 20 used disks (tracked per drive)
 - **Blank** — Create a new formatted blank disk
-- **Eject** — Remove disk (prompts to save if modified)
+- **Eject** — Remove disk (offers to save only if its contents actually changed)
 
 Drag and drop disk files directly onto drives. Drive seek and motor sounds can be toggled on or off.
 
@@ -198,6 +198,7 @@ Presets leave brightness, contrast, saturation and the bezel alone; adjusting an
 - Screen curvature, scanlines, beam bloom, shadow mask (aperture grille or dot triad)
 - Phosphor glow, vignette, NTSC fringing, colour bleed
 - Flicker, static noise, jitter, horizontal sync lines
+- Burn In — phosphor persistence, decaying exponentially and per phosphor (green lingers, blue fades first; monochrome tubes decay as one)
 - Brightness, contrast, saturation
 - Sharp pixels toggle, overscan/border control
 - Monochrome modes: Green, Amber, White

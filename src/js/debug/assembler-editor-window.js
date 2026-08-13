@@ -6,7 +6,7 @@
  */
 
 import { BaseWindow } from "../windows/base-window.js";
-import { highlightMerlinSourceInline } from "../utils/merlin-highlighting.js";
+import { highlightMerlinLineInline } from "../utils/merlin-highlighting.js";
 import {
   MerlinEditorSupport,
   COL_OPCODE,
@@ -21,6 +21,7 @@ import {
   getRoutinesByCategory,
 } from "../data/apple2-rom-routines.js";
 import { showConfirm } from "../ui/confirm.js";
+import { escapeHtml } from "../utils/string-utils.js";
 
 export class AssemblerEditorWindow extends BaseWindow {
   constructor(wasmModule, breakpointManager, isRunningCallback, cpuDebuggerWindow) {
@@ -46,6 +47,22 @@ export class AssemblerEditorWindow extends BaseWindow {
     this.symbols = new Map(); // symbol name -> value (from last assembly)
     this.currentPC = undefined; // current PC for expression evaluation
     this.lineBreakpoints = new Map(); // line number -> breakpoint address
+
+    // ---- Viewport rendering state ------------------------------------
+    // Only the lines on screen are put in the DOM. A large source otherwise
+    // costs a full-document re-highlight on every keystroke and a repaint of
+    // tens of thousands of lines on every scroll event, which is main-thread
+    // work the emulator's render loop and audio refill are competing with.
+    this._lineMetrics = null;     // { lineHeight, paddingTop } — cached
+    this._cursorLine = 0;         // Cached: scrolling never moves the cursor
+    this._viewportFrame = 0;      // Pending rAF id, 0 when idle
+    this._renderedRange = null;   // { start, end } currently in the DOM
+    this._sourceLines = null;     // Cached split of the textarea value
+
+    // Set by main.js: called after a DSK directive writes an object file, so
+    // the disk manager can persist the changed image and the file explorer can
+    // show the new file. (driveNum, filename) => Promise
+    this.onObjectFileWritten = null;
   }
 
   renderContent() {
@@ -93,7 +110,9 @@ export class AssemblerEditorWindow extends BaseWindow {
                   <span class="asm-gutter-header-cyc">Cyc</span>
                   <span class="asm-gutter-header-bytes">Bytes</span>
                 </div>
-                <div class="asm-gutter-content"></div>
+                <div class="asm-gutter-content">
+                  <div class="asm-gutter-lines"></div>
+                </div>
               </div>
               <div class="asm-editor-container">
                 <div class="asm-editor-header">
@@ -109,7 +128,7 @@ export class AssemblerEditorWindow extends BaseWindow {
                     <div class="asm-column-guide" data-col="${COL_COMMENT}" title="Comment column"></div>
                   </div>
                   <div class="asm-line-highlight"></div>
-                  <pre class="asm-highlight" aria-hidden="true"></pre>
+                  <pre class="asm-highlight" aria-hidden="true"><code class="asm-highlight-lines"></code></pre>
                   <div class="asm-errors-overlay"></div>
                   <textarea class="asm-textarea" spellcheck="false"></textarea>
                 </div>
@@ -199,6 +218,12 @@ export class AssemblerEditorWindow extends BaseWindow {
     this.gutterContent = this.contentElement.querySelector(
       ".asm-gutter-content",
     );
+    // Inner layers holding only the lines currently on screen; both are moved
+    // with a transform rather than scrolled. See renderVisibleLines().
+    this.highlightLines = this.contentElement.querySelector(
+      ".asm-highlight-lines",
+    );
+    this.gutterLines = this.contentElement.querySelector(".asm-gutter-lines");
     this.assembleBtn = this.contentElement.querySelector(".asm-assemble-btn");
     this.loadBtn = this.contentElement.querySelector(".asm-load-btn");
     this.debugBtn = this.contentElement.querySelector(".asm-debug-btn");
@@ -258,19 +283,20 @@ export class AssemblerEditorWindow extends BaseWindow {
 
     // Sync highlighting on input
     this.textarea.addEventListener("input", () => {
+      this.invalidateSourceLines();
       this.updateHighlighting();
       this.updateCurrentLineHighlight();
       this.updateGutter();
       this.updateCursorPosition();
     });
 
-    // Sync scroll position
-    this.textarea.addEventListener("scroll", () => {
-      this.highlight.scrollTop = this.textarea.scrollTop;
-      this.highlight.scrollLeft = this.textarea.scrollLeft;
-      this.gutterContent.scrollTop = this.textarea.scrollTop;
-      this.errorsOverlay.style.top = `-${this.textarea.scrollTop}px`;
-      this.updateCurrentLineHighlight();
+    // Scrolling only moves the view: the text, the cursor line and the error
+    // list are all unchanged, so the handler does no work of its own beyond
+    // asking for one viewport update per frame. Doing it here — reading
+    // scrollTop and writing overlay positions in the same event — forced a
+    // synchronous layout of the whole editor on every scroll event.
+    this.textarea.addEventListener("scroll", () => this.scheduleViewportUpdate(), {
+      passive: true,
     });
 
     // Track cursor for line highlight and auto-format on line change
@@ -367,9 +393,14 @@ export class AssemblerEditorWindow extends BaseWindow {
     // Splitters
     this.initSplitters();
 
-    // Reposition column guides on window resize
+    // Reposition column guides on window resize, and re-render the viewport:
+    // a resized window shows a different number of lines, and a hidden window
+    // has no size at all — so this also fires the first render on open.
     const resizeObserver = new ResizeObserver(() => {
       this.positionColumnGuides();
+      this.invalidateLineMetrics();
+      this._renderedRange = null;
+      this.scheduleViewportUpdate();
     });
     resizeObserver.observe(editorContainer);
 
@@ -555,11 +586,33 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
 
   updateCursorPosition() {
     if (!this.cursorPosition || !this.textarea) return;
-    const text = this.textarea.value.substring(0, this.textarea.selectionStart);
-    const lines = text.split("\n");
-    const lineNum = lines.length;
-    const col = lines[lines.length - 1].length;
-    this.cursorPosition.textContent = `Ln ${lineNum}, Col ${col}`;
+    const { line, column } = this.cursorLineAndColumn();
+    this.cursorPosition.textContent = `Ln ${line + 1}, Col ${column}`;
+  }
+
+  /**
+   * Where the cursor is, without copying the document to find out.
+   *
+   * The obvious `value.substring(0, selectionStart).split("\n")` allocates a
+   * copy of everything above the cursor plus an array of every line in it —
+   * half a megabyte and twelve thousand strings in a large source, which is
+   * far too much to do on a scroll or keystroke.
+   *
+   * @returns {{line: number, column: number}} Zero-based line, zero-based column
+   */
+  cursorLineAndColumn() {
+    const value = this.textarea.value;
+    const caret = this.textarea.selectionStart;
+
+    let line = 0;
+    let lineStart = 0;
+    for (let i = value.indexOf("\n"); i !== -1 && i < caret; i = value.indexOf("\n", i + 1)) {
+      line++;
+      lineStart = i + 1;
+    }
+
+    this._cursorLine = line;
+    return { line, column: caret - lineStart };
   }
 
   /**
@@ -568,14 +621,9 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
   scrollCursorIntoView() {
     if (!this.textarea) return;
 
-    const text = this.textarea.value.substring(0, this.textarea.selectionStart);
-    const lineIndex = text.split("\n").length - 1;
-
-    const style = getComputedStyle(this.textarea);
-    const lineHeight =
-      parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.4;
-    const paddingTop = parseFloat(style.paddingTop) || 8;
-    const paddingBottom = parseFloat(style.paddingBottom) || 8;
+    const lineIndex = this.cursorLineAndColumn().line;
+    const { lineHeight, paddingTop } = this.getLineMetrics();
+    const paddingBottom = paddingTop;
 
     const cursorTop = paddingTop + lineIndex * lineHeight;
     const cursorBottom = cursorTop + lineHeight;
@@ -597,21 +645,167 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
 
   updateCurrentLineHighlight() {
     if (!this.lineHighlight || !this.textarea) return;
-    const text = this.textarea.value.substring(0, this.textarea.selectionStart);
-    const lineIndex = text.split("\n").length - 1;
-    const style = getComputedStyle(this.textarea);
-    const lineHeight =
-      parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.4;
-    const paddingTop = parseFloat(style.paddingTop) || 0;
-    const top = paddingTop + lineIndex * lineHeight - this.textarea.scrollTop;
-    this.lineHighlight.style.top = `${top}px`;
-    this.lineHighlight.style.height = `${lineHeight}px`;
+    // The caret moved, so the cached line is stale; the viewport update below
+    // paints the bar in its new place.
+    this.cursorLineAndColumn();
+    this.scheduleViewportUpdate();
   }
 
   getCurrentLineNumber() {
     if (!this.textarea) return 0;
-    const text = this.textarea.value.substring(0, this.textarea.selectionStart);
-    return text.split("\n").length;
+    return this.cursorLineAndColumn().line + 1;
+  }
+
+  // ===================================================================
+  // Viewport rendering
+  //
+  // The highlight layer and the gutter show only the lines on screen. The
+  // textarea keeps the real scrollbar and the real geometry — it is the one
+  // element that must hold the whole document — and the two overlays are moved
+  // to match it with a transform, which the compositor can do without a
+  // layout or a repaint of the text.
+  // ===================================================================
+
+  /**
+   * Line height and top padding of the editor, cached.
+   *
+   * getComputedStyle forces a style recalculation, so it must not be called
+   * per scroll event. The values only change when the font or the layout
+   * does; invalidateLineMetrics() drops them then.
+   */
+  getLineMetrics() {
+    if (this._lineMetrics) return this._lineMetrics;
+    if (!this.textarea) return { lineHeight: 16.8, paddingTop: 8 };
+
+    const style = getComputedStyle(this.textarea);
+    const paddingTop = parseFloat(style.paddingTop) || 0;
+    const paddingBottom = parseFloat(style.paddingBottom) || paddingTop;
+    let lineHeight =
+      parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.4 || 16.8;
+
+    // The computed line-height is the *specified* value rounded for display —
+    // 16.8px where the browser actually lays lines out 16.797px apart. That
+    // difference is invisible over a screenful and half a line over two
+    // thousand, which is exactly the multiplication a viewport offset does, so
+    // take the real pitch from the textarea's own scroll height instead.
+    const lineCount = this.getSourceLines().length;
+    if (lineCount > 1) {
+      const measured =
+        (this.textarea.scrollHeight - paddingTop - paddingBottom) / lineCount;
+      // scrollHeight falls back to the visible height when the text does not
+      // fill the box, which would give a nonsense pitch
+      if (measured > 1 && Math.abs(measured - lineHeight) < lineHeight * 0.2) {
+        lineHeight = measured;
+      }
+    }
+
+    this._lineMetrics = { lineHeight, paddingTop };
+    return this._lineMetrics;
+  }
+
+  invalidateLineMetrics() {
+    this._lineMetrics = null;
+  }
+
+  /** The source split into lines, cached until the text changes. */
+  getSourceLines() {
+    if (!this._sourceLines) {
+      this._sourceLines = this.textarea ? this.textarea.value.split("\n") : [];
+    }
+    return this._sourceLines;
+  }
+
+  invalidateSourceLines() {
+    this._sourceLines = null;
+    // The line pitch is measured against the document's own height, so it has
+    // to be taken again whenever the number of lines changes.
+    this.invalidateLineMetrics();
+  }
+
+  /**
+   * Ask for a viewport update on the next frame.
+   *
+   * Wheel and trackpad scrolling can deliver several scroll events between two
+   * frames; coalescing them means the work happens once per frame at most, and
+   * happens in a rAF callback where a read of scrollTop costs nothing because
+   * layout is already clean.
+   */
+  scheduleViewportUpdate() {
+    if (this._viewportFrame) return;
+    this._viewportFrame = requestAnimationFrame(() => {
+      this._viewportFrame = 0;
+      this.updateViewport();
+    });
+  }
+
+  /**
+   * Re-render the visible slice and move every overlay to match the textarea.
+   */
+  updateViewport() {
+    if (!this.textarea || !this.highlightLines) return;
+
+    // Read everything first, then write: interleaving the two is what makes
+    // the browser lay out the editor again mid-handler.
+    const scrollTop = this.textarea.scrollTop;
+    const scrollLeft = this.textarea.scrollLeft;
+    const viewHeight = this.textarea.clientHeight;
+    const { lineHeight, paddingTop } = this.getLineMetrics();
+
+    const lines = this.getSourceLines();
+    const totalLines = lines.length;
+
+    // Render a margin either side of the viewport, and snap the slice to
+    // block boundaries. Without the snapping the range changes every frame a
+    // scroll moves at all, so every frame rebuilds the DOM; with it, most
+    // frames find the slice already rendered and only move a transform.
+    const OVERSCAN = 16;
+    const BLOCK = 64;
+    const firstVisible = Math.floor((scrollTop - paddingTop) / lineHeight);
+    const visibleCount = Math.ceil(viewHeight / lineHeight) + 1;
+    const start = Math.max(0, Math.floor((firstVisible - OVERSCAN) / BLOCK) * BLOCK);
+    const end = Math.min(
+      totalLines,
+      Math.ceil((firstVisible + visibleCount + OVERSCAN) / BLOCK) * BLOCK,
+    );
+
+    const rendered = this._renderedRange;
+    if (!rendered || rendered.start !== start || rendered.end !== end) {
+      this.renderVisibleLines(start, end, lines);
+      this._renderedRange = { start, end };
+    }
+
+    // Both layers hold only lines [start, end), so they are offset by where
+    // that slice begins as well as by how far the textarea has scrolled.
+    const offsetY = start * lineHeight - scrollTop;
+    this.highlightLines.style.transform = `translate(${-scrollLeft}px, ${offsetY}px)`;
+    this.gutterLines.style.transform = `translateY(${offsetY}px)`;
+
+    // The error overlay is positioned in document space, so it only needs the
+    // scroll offset.
+    if (this.errorsOverlay) {
+      this.errorsOverlay.style.transform = `translateY(${-scrollTop}px)`;
+    }
+
+    if (this.lineHighlight) {
+      const top = paddingTop + this._cursorLine * lineHeight - scrollTop;
+      this.lineHighlight.style.transform = `translateY(${top}px)`;
+      this.lineHighlight.style.height = `${lineHeight}px`;
+    }
+  }
+
+  /**
+   * Put lines [start, end) into the highlight layer and the gutter.
+   */
+  renderVisibleLines(start, end, lines) {
+    const highlighted = [];
+    for (let i = start; i < end; i++) {
+      highlighted.push(highlightMerlinLineInline(lines[i]));
+    }
+    this.highlightLines.innerHTML = highlighted.join("\n") + "\n";
+
+    if (this.gutterLines) {
+      this.gutterLines.innerHTML = this.buildGutterLines(start, end, lines);
+    }
   }
 
   checkLineChangeAndFormat() {
@@ -904,14 +1098,23 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
 
   updateGutter() {
     if (!this.gutterContent || !this.textarea) return;
+    // The gutter shows the same slice the highlight layer does, so re-rendering
+    // it is part of a viewport update. Setting the total height here keeps the
+    // gutter's own scroll geometry in step with the textarea's.
+    this._renderedRange = null;
+    this.scheduleViewportUpdate();
+  }
 
-    const lines = this.textarea.value.split("\n");
+  /**
+   * Build the gutter rows for lines [start, end).
+   */
+  buildGutterLines(start, end, lines) {
     const instrInfo = this.getInstructionInfo();
     const opcodeTable = this.getOpcodeTable();
     const gutterLines = [];
     const numWidth = Math.max(2, String(lines.length).length);
 
-    for (let i = 0; i < lines.length; i++) {
+    for (let i = start; i < end; i++) {
       const lineNum = String(i + 1).padStart(numWidth, " ");
       const lineNumber = i + 1;
       const parsed = this.parseLine(lines[i]);
@@ -962,7 +1165,7 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
       );
     }
 
-    this.gutterContent.innerHTML = gutterLines.join("");
+    return gutterLines.join("");
   }
 
   // Compatibility alias
@@ -2093,11 +2296,12 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
   }
 
   updateHighlighting() {
-    const text = this.textarea.value;
-    const highlighted = highlightMerlinSourceInline(text);
-
-    // Just render the syntax highlighting - errors are shown via overlay
-    this.highlight.innerHTML = highlighted + "\n";
+    // Only the visible slice is highlighted, on the next frame. Re-highlighting
+    // the whole document here made every keystroke in a large source cost a
+    // pass over every line of it.
+    this.invalidateSourceLines();
+    this._renderedRange = null;
+    this.scheduleViewportUpdate();
 
     // Update error highlights and messages overlay
     this.updateErrorsOverlay();
@@ -2121,10 +2325,7 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
       return;
     }
 
-    const style = getComputedStyle(this.textarea);
-    const lineHeight =
-      parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.4;
-    const paddingTop = parseFloat(style.paddingTop) || 8;
+    const { lineHeight, paddingTop } = this.getLineMetrics();
 
     let html = "";
     for (const [lineNum, msg] of allErrors) {
@@ -2135,7 +2336,7 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
       // Error highlight bar (background)
       html += `<div class="asm-error-highlight" style="top: ${top}px; height: ${lineHeight}px"></div>`;
       // Error message (right side, vertically centered)
-      html += `<div class="asm-error-msg" style="top: ${centerY}px">${this.escapeHtml(msg)}</div>`;
+      html += `<div class="asm-error-msg" style="top: ${centerY}px">${escapeHtml(msg)}</div>`;
     }
 
     this.errorsOverlay.innerHTML = html;
@@ -2227,6 +2428,7 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
 
       await this.updateSymbolTable(wasm);
       await this.updateHexOutput(wasm, origin, size);
+      await this.writeObjectFile(wasm, size, origin);
     } else {
       const errorCount = await wasm._getAsmErrorCount();
       this.setStatus(
@@ -2255,6 +2457,38 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     // Re-render highlighting with error markers
     this.updateHighlighting();
     this.updateCyclesGutter();
+  }
+
+  /**
+   * Honour a DSK directive: write the assembled object to the disk in the
+   * drive it named, as Merlin does at the end of an assembly.
+   *
+   * A failed write is reported in the status line and nothing else changes —
+   * the code is still assembled and can still be loaded into memory, so a
+   * write-protected or unformatted disk should not read as a failed assembly.
+   */
+  async writeObjectFile(wasm, size, origin) {
+    if (typeof wasm._hasAsmObjectFile !== "function") return;
+    if (!(await wasm._hasAsmObjectFile())) return;
+
+    const namePtr = await wasm._getAsmObjectFilename();
+    const filename = await wasm.UTF8ToString(namePtr);
+    const drive = await wasm._getAsmObjectDrive();
+    const status = await wasm._writeAsmObjectToDisk();
+
+    const okStatus = 0;
+    if (status === okStatus) {
+      const hex = `$${origin.toString(16).toUpperCase().padStart(4, "0")}`;
+      this.setStatus(`OK: ${size} bytes at ${hex} — wrote ${filename} to drive ${drive}`, true);
+      if (this.onObjectFileWritten) {
+        await this.onObjectFileWritten(drive - 1, filename);
+      }
+      return;
+    }
+
+    const messagePtr = await wasm._getAsmObjectStatusMessage(status);
+    const message = await wasm.UTF8ToString(messagePtr);
+    this.setStatus(`DSK ${filename}: ${message}`, false);
   }
 
   async updateSymbolTable(wasm) {
@@ -2303,7 +2537,7 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
       for (const item of labels) {
         const cls = item.isLocal ? "asm-sym-local" : "asm-sym-global";
         html += `<div class="asm-symbol-row">
-          <span class="asm-sym-name ${cls}">${this.escapeHtml(item.name)}</span>
+          <span class="asm-sym-name ${cls}">${escapeHtml(item.name)}</span>
           <span class="asm-sym-value">${item.hex}</span>
         </div>`;
       }
@@ -2315,7 +2549,7 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
       html += '<div class="asm-symbol-group-header">Equates</div>';
       for (const item of equates) {
         html += `<div class="asm-symbol-row">
-          <span class="asm-sym-name asm-sym-equ">${this.escapeHtml(item.name)}</span>
+          <span class="asm-sym-name asm-sym-equ">${escapeHtml(item.name)}</span>
           <span class="asm-sym-value">${item.hex}</span>
         </div>`;
       }
@@ -2382,7 +2616,7 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
         `<span class="asm-hex-sep">│</span>` +
         `<span class="asm-hex-bytes">${hexPart}</span>` +
         `<span class="asm-hex-sep">│</span>` +
-        `<span class="asm-hex-ascii">${this.escapeHtml(asciiPart)}</span>` +
+        `<span class="asm-hex-ascii">${escapeHtml(asciiPart)}</span>` +
         `</div>`;
     }
 
@@ -2407,11 +2641,6 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
       </div>`;
   }
 
-  escapeHtml(text) {
-    const div = document.createElement("div");
-    div.textContent = text;
-    return div.innerHTML;
-  }
 
   loadExample() {
     const example = `; Hello World - prints a message and returns to the monitor
@@ -2663,9 +2892,7 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
     this.updateCurrentLineHighlight();
 
     // Scroll line into view
-    const style = getComputedStyle(this.textarea);
-    const lineHeight =
-      parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.4;
+    const { lineHeight } = this.getLineMetrics();
     const targetScroll =
       (lineNumber - 1) * lineHeight - this.textarea.clientHeight / 2;
     this.textarea.scrollTop = Math.max(0, targetScroll);
@@ -2944,7 +3171,7 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
       html += `
         <div class="asm-rom-section">
           <div class="asm-rom-section-title">Example</div>
-          <pre class="asm-rom-example">${this.escapeHtml(routine.example)}</pre>
+          <pre class="asm-rom-example">${escapeHtml(routine.example)}</pre>
         </div>
       `;
     }

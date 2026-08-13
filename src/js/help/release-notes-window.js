@@ -7,6 +7,7 @@
 
 import { BaseWindow } from '../windows/base-window.js';
 import { RELEASE_NOTES } from './release-notes.js';
+import { escapeHtml } from "../utils/string-utils.js";
 
 /**
  * ReleaseNotesWindow - Displays curated weekly release notes
@@ -28,7 +29,7 @@ export class ReleaseNotesWindow extends BaseWindow {
 
     for (const week of RELEASE_NOTES) {
       html += `<div class="release-week">`;
-      html += `<h3 class="release-week-header">Week of ${this.escapeHtml(week.week)}</h3>`;
+      html += `<h3 class="release-week-header">Week of ${escapeHtml(week.week)}</h3>`;
 
       if (week.features && week.features.length > 0) {
         html += `<div class="release-section">`;
@@ -37,8 +38,8 @@ export class ReleaseNotesWindow extends BaseWindow {
         for (const entry of week.features) {
           html += `
             <li class="release-entry">
-              <span class="release-entry-title">${this.escapeHtml(entry.title)}</span>
-              <p class="release-entry-description">${this.escapeHtml(entry.description)}</p>
+              <span class="release-entry-title">${escapeHtml(entry.title)}</span>
+              <p class="release-entry-description">${escapeHtml(entry.description)}</p>
             </li>
           `;
         }
@@ -52,8 +53,8 @@ export class ReleaseNotesWindow extends BaseWindow {
         for (const entry of week.fixes) {
           html += `
             <li class="release-entry">
-              <span class="release-entry-title">${this.escapeHtml(entry.title)}</span>
-              <p class="release-entry-description">${this.escapeHtml(entry.description)}</p>
+              <span class="release-entry-title">${escapeHtml(entry.title)}</span>
+              <p class="release-entry-description">${escapeHtml(entry.description)}</p>
             </li>
           `;
         }
@@ -70,11 +71,6 @@ export class ReleaseNotesWindow extends BaseWindow {
   /**
    * Escape HTML special characters
    */
-  escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-  }
 
   /**
    * No periodic updates needed

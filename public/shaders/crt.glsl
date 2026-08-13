@@ -59,9 +59,6 @@ uniform float u_screenMargin;
 // Screen inset — shrinks the screen to reveal bezel without curvature
 uniform float u_screenInset;
 
-// Bezel spill controls
-uniform float u_bezelSpillReach;
-uniform float u_bezelSpillIntensity;
 
 // Background colour for pixels outside the curved screen area
 uniform vec3 u_surroundColor;
@@ -402,17 +399,42 @@ vec3 glow(sampler2D tex, vec2 uv) {
 // RGB chromatic aberration
 // ============================================
 
-vec3 rgbShift(sampler2D tex, vec2 uv) {
+// Misconvergence: the three beams land on exactly the same spot only where the
+// convergence assembly was adjusted to put them, which is the centre. The error
+// grows with deflection angle, so a real tube is clean in the middle and worst
+// in the corners — the reason service manuals specify convergence at centre,
+// edge and corner separately.
+//
+// `screenUV` is the position on the glass, not the beam-distorted coordinate:
+// convergence error is a property of the deflection geometry, so it belongs to
+// where you are looking, not to a picture that jitter has slid sideways.
+vec3 rgbShift(sampler2D tex, vec2 uv, vec2 screenUV) {
     if (u_rgbOffset < 0.001) return texture2D(tex, uv).rgb;
 
-    vec2 dir = uv - 0.5;
-    float offset = u_rgbOffset * 0.003;
+    vec2 dir = screenUV - 0.5;
 
-    vec2 rOffset = dir * offset;
-    vec2 bOffset = -dir * offset;
+    // Quadratic in radius. The old code scaled linearly, which spreads the
+    // error evenly out from the centre; real misconvergence stays negligible
+    // across the middle of the screen and then climbs sharply, so the corners
+    // are where it shows. Squaring keeps the corner magnitude while cleaning up
+    // the centre two thirds.
+    float r2 = dot(dir, dir);
+    float amount = u_rgbOffset * 0.0045 * r2;
+
+    // Horizontal deflection covers a wider angle than vertical on a 4:3 tube,
+    // so the error is not isotropic — it is consistently worse left-to-right.
+    vec2 anisotropy = vec2(1.0, 0.75);
+
+    // Red outward, blue inward, green a small share the other way. Green is
+    // usually the reference gun in a delta arrangement and moves least, but it
+    // does move: leaving it exactly still reads as two colours fringing rather
+    // than three beams missing each other.
+    vec2 rOffset = dir * amount * anisotropy;
+    vec2 bOffset = -dir * amount * anisotropy;
+    vec2 gOffset = dir * amount * anisotropy * -0.15;
 
     float r = texture2D(tex, uv + rOffset).r;
-    float g = texture2D(tex, uv).g;
+    float g = texture2D(tex, uv + gOffset).g;
     float b = texture2D(tex, uv + bOffset).b;
 
     return vec3(r, g, b);
@@ -638,97 +660,21 @@ vec3 bezelShade(vec2 uv, vec2 curvedUV) {
     float lip = smoothstep(0.008, 0.004, lipDist) * smoothstep(0.0, 0.002, lipDist);
     bezel += vec3(lip * 0.2);
 
-    // 6. Screen color spill — physically-motivated bezel reflection
+    // There is deliberately no screen reflection on the bezel.
     //
-    //    The bezel is a raised wall around a recessed screen. Light from
-    //    the screen hits the inner wall at an angle, so:
-    //    - Points on the bezel near the screen see the edge pixels
-    //    - Points further up the wall see pixels deeper INTO the screen
-    //      (parallax: the wall looks down at the screen at a steeper angle)
-    //    - The reflection is softer/more diffuse further from the screen
-
-    // Distance from the screen content boundary in curved space
-    vec2 screenDist = max(vec2(0.0) - curvedUV, curvedUV - vec2(1.0));
-    screenDist = max(screenDist, 0.0);
-    float distFromScreen = max(screenDist.x, screenDist.y);
-
-    // Parallax offset: further from screen edge → sample deeper into screen
-    // This simulates the viewing angle off the bezel wall.
+    // The surround is matte plastic. A diffuse surface scatters light rather
+    // than forming an image, so it cannot show a reflection of what is on
+    // screen — no amount of sampling the framebuffer produces something a real
+    // monitor does. What a real bezel does pick up is plain illumination: near
+    // a bright screen it lightens and takes on the average colour of whatever
+    // is next to it, with no detail whatsoever.
     //
-    // Each bezel wall looks perpendicular to itself into the screen:
-    //   - Left wall (curvedUV.x < 0)  → looks rightward (+x)
-    //   - Right wall (curvedUV.x > 1) → looks leftward  (-x)
-    //   - Top wall (curvedUV.y < 0)   → looks downward  (+y)
-    //   - Bottom wall (curvedUV.y > 1) → looks upward   (-y)
-    // In corners, blend both axes proportionally to the distance from
-    // each edge so the transition is smooth.
-    float parallax = distFromScreen * 3.0;
-    vec2 wallDir = vec2(0.0);
-    // Horizontal: which vertical wall are we nearest?
-    if (curvedUV.x < 0.0)      wallDir.x =  screenDist.x;  // left wall → look right
-    else if (curvedUV.x > 1.0)  wallDir.x = -screenDist.x;  // right wall → look left
-    // Vertical: which horizontal wall are we nearest?
-    if (curvedUV.y < 0.0)      wallDir.y =  screenDist.y;  // top wall → look down
-    else if (curvedUV.y > 1.0)  wallDir.y = -screenDist.y;  // bottom wall → look up
-    // Normalize (safe: distFromScreen > 0 guarantees non-zero wallDir)
-    float wallDirLen = length(wallDir);
-    vec2 inwardDir = wallDirLen > 0.001 ? wallDir / wallDirLen : vec2(0.0);
-    vec2 sampleBase = clamp(curvedUV + inwardDir * parallax, 0.005, 0.995);
-
-    // Blur neighbourhood — wider blur further from screen (more diffuse reflection)
-    // Uses a 13-sample Poisson disc instead of a grid to avoid visible
-    // grid/crosshatch artifacts on the bezel.  Samples are Gaussian-weighted
-    // so the center contributes more than the periphery.
-    vec2 texelSize = 1.0 / u_textureSize;
-    float blurRadius = (3.0 + distFromScreen * 40.0) * length(texelSize);
-
-    // 13-point Poisson disc (center + two rings, irregularly spaced)
-    const int SPILL_SAMPLES = 13;
-    vec2 disc[13];
-    disc[0]  = vec2( 0.000,  0.000);   // center
-    disc[1]  = vec2(-0.326, -0.406);   // inner ring
-    disc[2]  = vec2( 0.440, -0.284);
-    disc[3]  = vec2( 0.162,  0.468);
-    disc[4]  = vec2(-0.478,  0.180);
-    disc[5]  = vec2( 0.372,  0.342);   // outer ring
-    disc[6]  = vec2(-0.724, -0.340);
-    disc[7]  = vec2( 0.086, -0.762);
-    disc[8]  = vec2( 0.760,  0.120);
-    disc[9]  = vec2(-0.196,  0.780);
-    disc[10] = vec2(-0.680,  0.540);
-    disc[11] = vec2( 0.580, -0.620);
-    disc[12] = vec2(-0.140, -0.900);
-
-    // Gaussian weights: center=1.0, inner≈0.7, outer≈0.35
-    float weights[13];
-    weights[0]  = 1.00;
-    weights[1]  = 0.72; weights[2]  = 0.72; weights[3]  = 0.72; weights[4]  = 0.72;
-    weights[5]  = 0.36; weights[6]  = 0.36; weights[7]  = 0.36; weights[8]  = 0.36;
-    weights[9]  = 0.36; weights[10] = 0.36; weights[11] = 0.36; weights[12] = 0.36;
-
-    vec3 spill = vec3(0.0);
-    float totalWeight = 0.0;
-    for (int i = 0; i < SPILL_SAMPLES; i++) {
-        vec2 sampleUV = sampleBase + disc[i] * blurRadius;
-        sampleUV = clamp(sampleUV, 0.0, 1.0);
-        spill += texture2D(u_texture, sampleUV).rgb * weights[i];
-        totalWeight += weights[i];
-    }
-    spill /= totalWeight;
-
-    // Apply the same brightness/contrast/saturation as the screen content
-    spill = adjustColor(spill);
-
-    // Scale spill by luminance — bright edges bleed more, dark edges don't
-    float spillLuma = rgb2grey(spill);
-
-    // Spill reach and intensity controlled by uniforms (0-1 range from sliders)
-    float reach = u_bezelSpillReach * 0.1;
-    // Outer bezel rim is perpendicular to the screen and receives no light
-    float outerRimMask = smoothstep(0.0, 0.04, min(edgeDist.x, edgeDist.y));
-
-    float spillStrength = smoothstep(reach, 0.0, distFromScreen) * spillLuma * u_bezelSpillIntensity * outerRimMask;
-    bezel += spill * spillStrength;
+    // That illumination was modelled here and removed: on anything but a
+    // near-white screen it is a barely perceptible lightening of the innermost
+    // few millimetres, and it cost a 13-tap gather of the screen texture on
+    // every bezel fragment to produce it. If it comes back it should be a cheap
+    // approximation of the average edge colour, not a per-fragment gather, and
+    // it should be described as light spill rather than reflection.
 
     return clamp(bezel, 0.0, 1.0);
 }
@@ -815,7 +761,7 @@ void main() {
         color = darkBezelColor;
     } else {
         // Get base color with RGB shift
-        color = rgbShift(u_texture, contentUV);
+        color = rgbShift(u_texture, contentUV, stableCurvedUV);
 
         // Apply vertical color bleed (CRT inter-scanline blending)
         color = colorBleed(u_texture, contentUV, color);

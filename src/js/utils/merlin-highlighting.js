@@ -408,30 +408,15 @@ function highlightOperand(operand) {
 }
 
 /**
- * Highlight Merlin assembler source code for inline editor overlay.
- * Unlike highlightMerlinSource() which uses flex columns, this version
- * produces inline spans that preserve original whitespace exactly,
- * ensuring pixel-perfect alignment with a textarea overlay.
- * @param {string} text - Source text
- * @returns {string} HTML with syntax highlighting spans
- */
-export function highlightMerlinSourceInline(text) {
-  const lines = text.split('\n');
-  const highlighted = [];
-
-  for (const line of lines) {
-    highlighted.push(highlightMerlinLineInline(line));
-  }
-
-  return highlighted.join('\n');
-}
-
-/**
  * Highlight a single line inline (preserving exact whitespace).
+ *
+ * Exported so a caller rendering a window onto a large source can highlight
+ * just the lines it is about to show, rather than the whole document.
+ *
  * @param {string} line
  * @returns {string} HTML
  */
-function highlightMerlinLineInline(line) {
+export function highlightMerlinLineInline(line) {
   if (!line) return '';
 
   const trimmed = line.trim();

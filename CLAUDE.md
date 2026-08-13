@@ -14,11 +14,17 @@ npm run build:wasm    # Build WASM module (required first time and after C++ cha
 npm run dev           # Start dev server at localhost:3000 (hot-reload for JS only)
 npm run build         # Full production build (WASM + Vite bundle)
 npm run clean         # Clean build artifacts
-npm run deploy        # Deploy to VPS via rsync
+npm run deploy        # Deploy to the configured rsync target (see .env.deploy.example)
 npm test              # JavaScript tests (Vitest)
 npm run check         # check:exports + check:core-purity + check:basic-tokens + npm test
 npm run generate:basic-tokens  # Regenerate src/js/utils/basic-tokens.js from C++
 ```
+
+## Deployment
+
+`npm run deploy` (production) and `npm run deploy:staging` run `scripts/deploy.sh`, which rsyncs `dist/` to a target taken from the environment: `DEPLOY_TARGET` and `DEPLOY_STAGING_TARGET`. Copy `.env.deploy.example` to `.env.deploy` and fill it in; that file is gitignored, so the server's user, host and paths stay out of a public repository.
+
+The script is one rsync invocation and nothing else, deliberately: the host locks out additional concurrent SSH sessions, so verification belongs over HTTPS rather than in a second connection.
 
 ## Testing
 
@@ -64,10 +70,10 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 **C++ Core (src/core/)** - Pure emulation logic compiled to WebAssembly:
 
 - `cpu/6502/cpu6502.cpp` - Cycle-accurate 65C02 processor (1.023 MHz)
-- `mmu/mmu.cpp` - 128KB memory management, soft switches ($C000-$CFFF), expansion slots
+- `mmu/mmu.cpp` - 128KB memory management, soft switches ($C000-$CFFF), expansion slots, and the video scanner address generator behind floating-bus reads (Sather's counter equations, so blanking cycles read real video data rather than zero)
 - `video/video.cpp` - TEXT/LORES/HIRES/DHIRES per-scanline rendering
 - `audio/audio.cpp` - Speaker emulation from $C030 toggles
-- `disk-image/` - Disk image format support (DSK/DO/PO/NIB/WOZ) with GCR encoding
+- `disk-image/` - Disk image format support (DSK/DO/PO/NIB/WOZ). `gcr_encoding` holds the one copy of the GCR encode/decode routines and the DOS/ProDOS sector interleave tables that both image classes and the filesystem readers use; plus `disk_converter` — converts a loaded image between save formats (DOS order, ProDOS order, WOZ), including encoding a sector image to a WOZ bit stream
 - `disassembler/` - 65C02 instruction disassembler
 - `input/keyboard.cpp` - Keyboard input handling
 - `cards/` - Pluggable expansion card system (ExpansionCard interface)
@@ -79,7 +85,7 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 - `cards/softcard/` - Microsoft Z-80 SoftCard with Z80 CPU emulation
 - `cards/ssc/` - Super Serial Card with ACIA 6551 (drives ImageWriter I and ImageWriter II)
 - `cards/thunderclock/` - Thunderclock Plus real-time clock card
-- `filesystem/` - DOS 3.3 and ProDOS filesystem parsers
+- `filesystem/` - DOS 3.3, ProDOS and Pascal filesystem parsers, plus DOS 3.3 and ProDOS *writers* (`DOS33::writeFile`/`writeBinaryFile`, `ProDOS::writeFile`) used by the assembler's Merlin `DSK` directive; results are reported through the shared `FsWriteStatus` in `fs_write_status.hpp`
 - `basic/` - Applesoft and Integer BASIC detokenizer, tokenizer, token tables, and
   variable representation (`applesoft_vars` — MBF floats, name/type decoding,
   VARTAB/ARYTAB walking)
@@ -121,6 +127,8 @@ Control sytles, sizes and layout must be consistent across the entire app.
 **Animated effects are bounded by the photosensitive-epilepsy limits.** No full-screen luminance modulation may exceed three flashes per second or a 10% relative luminance change (WCAG 2.3.1). `flicker()` is a slow two-sine undulation at 3% amplitude for this reason, and the full-screen TV static that used to play while the machine was off was removed outright — it ran at 50Hz with a 12Hz brightness modulation on top. The constraint is documented in the functions themselves; read those comments before touching them.
 
 **The mask is in physical screen space, the beam is not.** `shadowMask()` derives position from `gl_FragCoord` divided by `u_pixelRatio` — a mask has a fixed pitch in millimetres, so it must neither resize with display density nor move when jitter and horizontal sync displace the picture. Effects that model the *signal* take the distorted UV; effects that model the *glass* do not.
+
+**Phosphor persistence is exponential and per-phosphor.** `burnin.glsl` decays each channel by `exp(-dt/tau)` against real elapsed time, not a per-frame subtraction — the pass is throttled to every fourth frame, so a per-frame decay tied persistence to frame rate. In colour mode green holds longest and blue fades quickest, which tints a moving trail green; in monochrome modes one phosphor means one rate for all channels, held longer.
 
 **Scanlines model a beam spot, not a stripe pattern.** `scanlines()` takes the displayed luminance and widens its Gaussian with it, because a CRT beam grows with current. The framebuffer is 560x384 (280x192 doubled), so a scanline pitch is two texel rows — 192 lines.
 
@@ -238,7 +246,7 @@ src/
 │   ├── mmu/            # Memory management and soft switches
 │   ├── video/          # Per-scanline video rendering
 │   ├── audio/          # Speaker audio
-│   ├── disk-image/     # Disk image formats (DSK/DO/PO/NIB/WOZ) and GCR encoding
+│   ├── disk-image/     # Disk image formats (DSK/DO/PO/NIB/WOZ), GCR encoding, format conversion
 │   ├── disassembler/   # 65C02 disassembler
 │   ├── input/          # Keyboard handling
 │   ├── cards/          # Expansion card system
@@ -251,7 +259,7 @@ src/
 │   │   │   └── z80/       # Z80 CPU emulation core
 │   │   ├── ssc/           # Super Serial Card + ACIA 6551
 │   │   └── thunderclock/  # Thunderclock Plus real-time clock
-│   ├── filesystem/     # DOS 3.3 and ProDOS parsers
+│   ├── filesystem/     # DOS 3.3, ProDOS and Pascal parsers; DOS 3.3/ProDOS file writing
 │   ├── basic/          # BASIC tokenizer, detokenizer, Applesoft variable model
 │   ├── debug/          # Condition evaluator, host debug log sink
 │   ├── emulator/       # Split emulator implementation files

@@ -345,6 +345,15 @@ class AppleIIeEmulator {
       basicProgramWindow.setRuleBuilder(ruleBuilderWindow);
 
       const assemblerWindow = new AssemblerEditorWindow(this.wasmModule, cpuWindow.bpManager, () => this.isRunning(), cpuWindow);
+      // A DSK directive writes into the image the drive is holding, so the
+      // stored copy has to be refreshed or the file vanishes on reload.
+      assemblerWindow.onObjectFileWritten = async (driveNum) => {
+        await this.diskManager?.persistDriveImage(driveNum);
+        const explorer = this.fileExplorer;
+        if (explorer?.sourceType === "floppy" && explorer.selectedDrive === driveNum) {
+          await explorer.loadDisk();
+        }
+      };
       assemblerWindow.create();
       this.windowManager.register(assemblerWindow);
 
