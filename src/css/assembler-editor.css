@@ -511,16 +511,19 @@
     padding: 8px 0; /* Match textarea padding top/bottom */
     /* Use identical font specification as textarea for exact line height match */
     font: 400 12px/1.4 ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    overflow-y: scroll;
-    overflow-x: hidden;
+    /* The textarea owns the scrollbar. This layer holds only the lines on
+       screen and is moved to match with a transform, and containment keeps its
+       repaints from invalidating anything outside it — the emulator canvas
+       shares this page and repaints 60 times a second. */
+    overflow: hidden;
+    contain: layout paint style;
     user-select: none;
-    scrollbar-width: none;
-    -ms-overflow-style: none;
     background: var(--glass-bg-header);
 }
 
-.asm-gutter-content::-webkit-scrollbar {
-    display: none;
+.asm-gutter-lines {
+    display: block;
+    will-change: transform;
 }
 
 .asm-gutter-line {
@@ -730,9 +733,12 @@
 /* Current line highlight bar */
 .asm-line-highlight {
     position: absolute;
+    /* Positioned by transform, so the top stays put */
+    top: 0;
     left: 0;
     right: 0;
     pointer-events: none;
+    will-change: transform;
     background: linear-gradient(90deg,
         var(--accent-green-bg) 0%,
         var(--overlay-white-04, rgba(255, 255, 255, 0.04)) 100%
@@ -782,12 +788,14 @@
     font-variant-ligatures: none;
 }
 
-/* Highlight layer - shows colored syntax */
+/* Highlight layer - shows colored syntax.
+   Holds only the visible slice of the document (see renderVisibleLines): it is
+   clipped here, and its inner layer is transformed to follow the textarea,
+   which the compositor does without a layout or a repaint of the text. */
 .asm-highlight {
     pointer-events: none;
-    overflow: scroll;
-    scrollbar-width: none; /* Firefox */
-    -ms-overflow-style: none; /* IE/Edge */
+    overflow: hidden;
+    contain: layout paint style;
     color: var(--text-primary);
     background: transparent;
     z-index: 1;
@@ -795,8 +803,14 @@
     display: block;
 }
 
-.asm-highlight::-webkit-scrollbar {
-    display: none; /* Chrome/Safari */
+/* Must be a block: transforms do not apply to inline elements, and <code>
+   is inline by default. Font and white-space are inherited explicitly so the
+   slice lays out identically to the textarea it sits over. */
+.asm-highlight-lines {
+    display: block;
+    font: inherit;
+    white-space: inherit;
+    will-change: transform;
 }
 
 /* Textarea - transparent text, receives input */
@@ -831,6 +845,7 @@
     left: 0;
     pointer-events: none;
     z-index: 10;
+    will-change: transform;
 }
 
 .asm-error-highlight {

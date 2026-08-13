@@ -148,7 +148,7 @@ const DIRECTIVE_INFO = {
   REL: { syntax: "REL", desc: "Relocatable code" },
   TYP: { syntax: "TYP type", desc: "Set ProDOS file type" },
   SAV: { syntax: "SAV filename", desc: "Save object file" },
-  DSK: { syntax: "DSK filename", desc: "Save as DOS binary" },
+  DSK: { syntax: "DSK filename[,D1|D2]", desc: "Write object to the disk in a drive" },
   CHN: { syntax: "CHN filename", desc: "Chain to source file" },
   ENT: { syntax: "ENT", desc: "Entry point (export)" },
   EXT: { syntax: "EXT", desc: "External reference (import)" },

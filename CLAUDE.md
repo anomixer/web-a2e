@@ -70,10 +70,10 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 **C++ Core (src/core/)** - Pure emulation logic compiled to WebAssembly:
 
 - `cpu/6502/cpu6502.cpp` - Cycle-accurate 65C02 processor (1.023 MHz)
-- `mmu/mmu.cpp` - 128KB memory management, soft switches ($C000-$CFFF), expansion slots
+- `mmu/mmu.cpp` - 128KB memory management, soft switches ($C000-$CFFF), expansion slots, and the video scanner address generator behind floating-bus reads (Sather's counter equations, so blanking cycles read real video data rather than zero)
 - `video/video.cpp` - TEXT/LORES/HIRES/DHIRES per-scanline rendering
 - `audio/audio.cpp` - Speaker emulation from $C030 toggles
-- `disk-image/` - Disk image format support (DSK/DO/PO/NIB/WOZ) with GCR encoding
+- `disk-image/` - Disk image format support (DSK/DO/PO/NIB/WOZ). `gcr_encoding` holds the one copy of the GCR encode/decode routines and the DOS/ProDOS sector interleave tables that both image classes and the filesystem readers use; plus `disk_converter` — converts a loaded image between save formats (DOS order, ProDOS order, WOZ), including encoding a sector image to a WOZ bit stream
 - `disassembler/` - 65C02 instruction disassembler
 - `input/keyboard.cpp` - Keyboard input handling
 - `cards/` - Pluggable expansion card system (ExpansionCard interface)
@@ -85,7 +85,7 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 - `cards/softcard/` - Microsoft Z-80 SoftCard with Z80 CPU emulation
 - `cards/ssc/` - Super Serial Card with ACIA 6551 (drives ImageWriter I and ImageWriter II)
 - `cards/thunderclock/` - Thunderclock Plus real-time clock card
-- `filesystem/` - DOS 3.3 and ProDOS filesystem parsers
+- `filesystem/` - DOS 3.3, ProDOS and Pascal filesystem parsers, plus DOS 3.3 and ProDOS *writers* (`DOS33::writeFile`/`writeBinaryFile`, `ProDOS::writeFile`) used by the assembler's Merlin `DSK` directive; results are reported through the shared `FsWriteStatus` in `fs_write_status.hpp`
 - `basic/` - Applesoft and Integer BASIC detokenizer, tokenizer, token tables, and
   variable representation (`applesoft_vars` — MBF floats, name/type decoding,
   VARTAB/ARYTAB walking)
@@ -243,7 +243,7 @@ src/
 │   ├── mmu/            # Memory management and soft switches
 │   ├── video/          # Per-scanline video rendering
 │   ├── audio/          # Speaker audio
-│   ├── disk-image/     # Disk image formats (DSK/DO/PO/NIB/WOZ) and GCR encoding
+│   ├── disk-image/     # Disk image formats (DSK/DO/PO/NIB/WOZ), GCR encoding, format conversion
 │   ├── disassembler/   # 65C02 disassembler
 │   ├── input/          # Keyboard handling
 │   ├── cards/          # Expansion card system
@@ -256,7 +256,7 @@ src/
 │   │   │   └── z80/       # Z80 CPU emulation core
 │   │   ├── ssc/           # Super Serial Card + ACIA 6551
 │   │   └── thunderclock/  # Thunderclock Plus real-time clock
-│   ├── filesystem/     # DOS 3.3 and ProDOS parsers
+│   ├── filesystem/     # DOS 3.3, ProDOS and Pascal parsers; DOS 3.3/ProDOS file writing
 │   ├── basic/          # BASIC tokenizer, detokenizer, Applesoft variable model
 │   ├── debug/          # Condition evaluator, host debug log sink
 │   ├── emulator/       # Split emulator implementation files
