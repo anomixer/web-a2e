@@ -20,7 +20,7 @@ import {
   searchRoutines,
   getRoutinesByCategory,
 } from "../data/apple2-rom-routines.js";
-import { showConfirm } from "../ui/confirm.js";
+import { showConfirm, showPrompt } from "../ui/confirm.js";
 import { escapeHtml } from "../utils/string-utils.js";
 
 export class AssemblerEditorWindow extends BaseWindow {
@@ -91,6 +91,7 @@ export class AssemblerEditorWindow extends BaseWindow {
             <button class="asm-btn asm-new-btn" title="New (⌘/Ctrl+N)">New</button>
             <button class="asm-btn asm-open-btn" title="Open File (⌘/Ctrl+O)">Open</button>
             <button class="asm-btn asm-save-btn" title="Save File (⌘/Ctrl+S)">Save</button>
+            <button class="asm-btn asm-saveas-btn" title="Save As… (⌘/Ctrl+Shift+S)">Save As…</button>
           </div>
         </div>
         <div class="asm-status-bar">
@@ -230,6 +231,7 @@ export class AssemblerEditorWindow extends BaseWindow {
     this.newBtn = this.contentElement.querySelector(".asm-new-btn");
     this.openBtn = this.contentElement.querySelector(".asm-open-btn");
     this.saveBtn = this.contentElement.querySelector(".asm-save-btn");
+    this.saveAsBtn = this.contentElement.querySelector(".asm-saveas-btn");
     this.statusSpan = this.contentElement.querySelector(".asm-status");
     this.currentFileName = null;
     this._fileHandle = null;
@@ -379,6 +381,7 @@ export class AssemblerEditorWindow extends BaseWindow {
     this.newBtn.addEventListener("click", () => this.newFile());
     this.openBtn.addEventListener("click", () => this.openFile());
     this.saveBtn.addEventListener("click", () => this.saveFile());
+    this.saveAsBtn.addEventListener("click", () => this.saveFile({ saveAs: true }));
 
     // Editor support (Tab nav, smart enter, autocomplete, etc.)
     this.editorSupport = new MerlinEditorSupport(
@@ -435,7 +438,7 @@ export class AssemblerEditorWindow extends BaseWindow {
         this.openFile();
       } else if (modKey && e.key.toLowerCase() === "s") {
         e.preventDefault();
-        this.saveFile();
+        this.saveFile({ saveAs: e.shiftKey });
       }
     });
 
@@ -2802,9 +2805,18 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
   }
 
   /**
-   * Save the current source to a file using the host save dialog
+   * Save the current source to a file.
+   *
+   * Save writes back to the file already in use without asking; Save As always
+   * asks for a name. Without the distinction there was no way to choose a name
+   * at all once a file was in play: the picker only appeared when no handle was
+   * held, so the first save claimed the name permanently and opening a file
+   * meant never being asked again. The only escape was New, which throws the
+   * source away.
+   *
+   * @param {{saveAs?: boolean}} [options]
    */
-  async saveFile() {
+  async saveFile({ saveAs = false } = {}) {
     const content = this.textarea.value;
     if (!content.trim()) {
       this.setStatus("Nothing to save", false);
@@ -2815,7 +2827,19 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
     // window.showSaveFilePicker is undefined there. Fall back to a plain
     // anchor download in that case.
     if (typeof window.showSaveFilePicker !== "function") {
-      const filename = this.currentFileName || "untitled.s";
+      // A download names the file for you and cannot be declined, so ask first
+      // whenever the name is not already settled. Same reasoning as the disk
+      // save flow, which asks on these browsers for exactly this reason.
+      let filename = this.currentFileName;
+      if (saveAs || !filename) {
+        filename = await showPrompt(
+          "Save assembly source as:",
+          filename || "untitled.s",
+          "Save",
+        );
+        if (!filename) return;
+      }
+
       try {
         const blob = new Blob([content], { type: "text/plain" });
         const url = URL.createObjectURL(blob);
@@ -2836,8 +2860,9 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
     }
 
     try {
-      // Reuse existing handle if we have one, otherwise prompt
-      if (!this._fileHandle) {
+      // Save As always asks, even when a handle is held; plain Save only asks
+      // when there is nothing to write back to.
+      if (saveAs || !this._fileHandle) {
         this._fileHandle = await window.showSaveFilePicker({
           suggestedName: this.currentFileName || "untitled.s",
           types: [
