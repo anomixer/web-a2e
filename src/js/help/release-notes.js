@@ -14,6 +14,11 @@ export const RELEASE_NOTES = [
     week: "August 15, 2026",
     features: [
       {
+        title: "Save As for assembly and BASIC source",
+        description:
+          "There was no way to choose the name of a source file once one was in play. Save asked for a name the first time and never again, and opening a file meant never being asked at all, so the only way to save under a different name was to start a new file and lose what you had. Both editors now have a Save As button next to Save, on Ctrl or Cmd with Shift and S. Save writes back to the file you are working on without interrupting; Save As always asks. On Safari and Firefox, which cannot offer a system save dialog, saving used to drop a file into your downloads under a name chosen for you — the BASIC editor always called it program.bas whatever the program was — so both now ask for a name whenever it is not already settled, the same way saving a disk image does.",
+      },
+      {
         title: "Real composite colour, decoded from the real signal",
         description:
           "An Apple //e does not send a monitor pixels. It sends one bit per 14.31818 MHz dot, four dots to a cycle of the colour subcarrier, and every colour you have ever seen on one was manufactured by the monitor from that stream of bits. The emulator used to skip all of that: it looked up colours from a table and then tinted the edges afterwards to suggest fringing. It now generates the dot stream the machine really produces and decodes it the way a monitor does, and several things that were previously approximated fall out of that on their own. The high bit of a hi-res byte is a real half-pixel delay again rather than a swap to a different set of colours, which is the actual reason orange and blue exist and why they sit half a pixel to the right of green and violet. Colour burst is modelled, so text is colourless because the machine stops sending a colour reference during it, not because white was written into the code. And artifact colours and lo-res colours are finally the same sixteen colours, because they are the same mechanism — something the old hand-tuned tables disagreed about. Text on a mixed graphics screen fringes green and violet, exactly as it does on real hardware, while a full screen of text stays crisp and white.",
