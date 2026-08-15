@@ -7,7 +7,8 @@ A cycle-accurate Apple //e Enhanced emulator running in the browser using WebAss
 - **Cycle-accurate 65C02 CPU** — All legal 6502 opcodes plus 65C02 extensions at 1.023 MHz
 - **Full Apple //e memory architecture** — 128KB RAM (64KB main + 64KB auxiliary), language card, soft switches
 - **Multiple display modes** — Text (40/80 col), LoRes, Double LoRes, HiRes, Double HiRes, monochrome
-- **WebGL rendering** — Hardware-accelerated display with configurable CRT shader effects
+- **Signal-accurate composite video** — Decodes the machine's real 14.31818 MHz dot stream rather than looking colours up, so artifact colour, the hi-res half-dot shift and colour burst all emerge from the signal
+- **WebGL rendering** — Hardware-accelerated display with configurable CRT shader effects and saveable monitor profiles
 - **Web Worker architecture** — WASM emulation runs in a dedicated Worker thread, eliminating main-thread blocking
 - **Audio-driven timing** — Web Audio API AudioWorklet drives frame timing at 48kHz via Worker RPC
 - **Disk II controller** — DSK, DO, PO, and WOZ format support with write capability
@@ -187,16 +188,18 @@ The display settings window opens with a **Monitor** preset that sets the whole 
 
 | Preset | What it imitates |
 |--------|------------------|
-| Pixel Exact | No CRT simulation — sharp square pixels |
-| Composite Color | Colour TV or composite monitor — dot triad mask, artefact fringing, chroma bleed |
-| RGB Monitor | Separate colour signals — sharp, no composite artefacts |
+| Pixel Exact | No CRT simulation and no composite effects — sharp square pixels |
+| Composite Color | Colour TV or composite monitor — true NTSC decoding, dot triad mask, chroma bleed |
+| RGB Monitor | Separate colour signals — sharp, with the mild chroma softening of an analogue RGB stage |
 | Monochrome Green | P1 phosphor — long persistence, no mask |
 | Monochrome Amber | P3 phosphor — the warmer mono tube |
+
+Each preset also chooses how the core decodes the machine's dot stream — see [Composite Video](#composite-video) below.
 
 Presets leave brightness, contrast, saturation and the bezel alone; adjusting anything a preset covers relabels it as Custom without changing the value. Every individual control remains under **Advanced**:
 
 - Screen curvature, scanlines, beam bloom, shadow mask (aperture grille or dot triad)
-- Phosphor glow, vignette, NTSC fringing, colour bleed
+- Phosphor glow, vignette, colour bleed
 - Flicker, static noise, jitter, horizontal sync lines
 - Burn In — phosphor persistence, decaying exponentially and per phosphor (green lingers, blue fades first; monochrome tubes decay as one)
 - Brightness, contrast, saturation
@@ -206,6 +209,34 @@ Presets leave brightness, contrast, saturation and the bezel alone; adjusting an
 Scanlines model the beam spot as a Gaussian that widens with brightness, so bright lines are fatter than dark ones — the reason white text on a CRT looks bolder than the same glyphs in a screenshot. The shadow mask has a fixed apparent size regardless of display density.
 
 Animated effects are kept within the accessibility limits for flashing content (no more than three flashes per second, and under a 10% change in screen luminance). Flicker is a slow undulation rather than a rapid random one, and the powered-off screen shows a static no-signal message rather than animated television snow.
+
+#### Saved profiles
+
+Tune the picture however you like, then **Save As…** to keep it under a name of your own. Saved profiles appear under **My Profiles** in the Monitor dropdown, next to the built-in monitors.
+
+Adjusting a saved profile keeps its name and marks it modified, and **Save** writes the changes back without prompting — refining a profile does not mean naming it again each time. Unlike the built-in monitors, a profile remembers *everything*, brightness, contrast, saturation and bezel included: it is a snapshot of a picture you liked, so selecting it restores that picture whole. Profiles live separately from the rest of the display settings, so **Reset to Defaults** does not remove them.
+
+### Composite Video
+
+An Apple //e does not output pixels. It outputs one bit per 14.31818 MHz dot, four dots to a cycle of the 3.579545 MHz colour subcarrier, and every colour it appears to produce is manufactured by the *receiver*. The emulator generates that dot stream and then decodes it, rather than looking colours up in a table:
+
+| Decoder | What it models |
+|---------|----------------|
+| Composite | Full NTSC demodulation — what a composite monitor really shows |
+| RGB Monitor | The digital decode an Apple RGB card does, plus mild chroma softening |
+| Pixel Exact | The same digital decode with no filtering at all |
+| Monochrome | The dot stream straight to a single phosphor |
+
+Several behaviours follow from the signal rather than being special-cased:
+
+- **The hi-res high bit is a real one-dot delay**, pushing a byte's pixels half a hi-res pixel right onto the opposite subcarrier phase. That is the whole mechanism behind orange and blue.
+- **Artifact colours and lo-res colours are the same sixteen colours**, because they are the same mechanism.
+- **Colour burst is modelled per scanline**, and the monitor's colour killer per field. A //e inhibits burst in text mode, so a full text screen is crisp and white; a mixed graphics screen still carries burst on most of its lines, so the text at the bottom fringes green and violet exactly as it does on real hardware.
+- **80-column text on the Composite preset is genuinely soft**, which is why Apple sold a monochrome monitor. Use Pixel Exact, RGB Monitor or a monochrome preset to read it.
+
+The demodulator's phase and gain were fitted by least squares against the physically self-consistent Apple II colours, and the composite lookup table is verified in the test suite to be an exact memoisation of the filter rather than an approximation of it.
+
+Pixel Exact applies no composite effects whatsoever: unlit dots are black and colour never extends past the pixels that are lit. It still shows the artifact colours hi-res art was drawn to exploit — it simply does not smear them.
 
 ### Expansion Cards
 
@@ -390,7 +421,7 @@ web-a2e/
 │   │   ├── cpu/
 │   │   │   └── 6502/        # Cycle-accurate 65C02 processor
 │   │   ├── mmu/             # Memory management, soft switches
-│   │   ├── video/           # Per-scanline video rendering
+│   │   ├── video/           # Per-scanline signal generation + NTSC/RGB decoding
 │   │   ├── audio/           # Speaker emulation
 │   │   ├── disk-image/      # Disk formats (DSK/DO/PO/WOZ), GCR encoding
 │   │   ├── disassembler/    # 65C02 disassembler
@@ -423,7 +454,7 @@ web-a2e/
 │       ├── config/          # App version
 │       ├── debug/           # Debug window implementations
 │       ├── disk-manager/    # Drive UI, persistence, surface renderer, sounds
-│       ├── display/         # WebGL renderer, CRT shaders, display settings
+│       ├── display/         # WebGL renderer, CRT shaders, display settings, user profiles
 │       ├── file-explorer/   # DOS 3.3/ProDOS browser, file viewer, disassembler
 │       ├── help/            # Documentation and release notes
 │       ├── input/           # Keyboard, text selection, joystick, mouse
