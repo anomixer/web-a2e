@@ -6,6 +6,19 @@
  */
 
 import { BaseWindow } from "../windows/base-window.js";
+import { showConfirm, showPrompt } from "../ui/confirm.js";
+import { showToast } from "../ui/toast.js";
+import { escapeHtml } from "../utils/string-utils.js";
+import {
+  captureProfileValues,
+  deleteProfile,
+  findProfile,
+  isProfileId,
+  loadProfiles,
+  saveProfiles,
+  upsertProfile,
+  validateProfileName,
+} from "./display-profiles.js";
 
 /**
  * Which decoder the core runs over the machine's 14.31818 MHz dot stream.
@@ -39,6 +52,18 @@ export class DisplaySettingsWindow extends BaseWindow {
     this.renderer = renderer;
     this.wasmModule = wasmModule;
 
+    // Profiles the user has saved. Loaded here rather than in create() so the
+    // Monitor dropdown has them the first time it renders.
+    this.userProfiles = loadProfiles();
+
+    // Whether the selected profile has edits that are not in it yet. Only
+    // meaningful while a profile is selected; a built-in preset drops to
+    // Custom the moment it is edited and so is never "modified".
+    this.profileDirty = false;
+
+    // Timer for the transient "Saved" confirmation in the description line.
+    this.statusTimer = null;
+
     // Monitor presets. Each names a real thing a //e was plugged into, and
     // sets the whole picture in one go — the sliders underneath are the
     // advanced view of whatever the preset just chose.
@@ -66,7 +91,11 @@ export class DisplaySettingsWindow extends BaseWindow {
         label: "Composite Color",
         description: "Colour TV or composite monitor — soft, with artefact fringing.",
         values: {
-          curvature: 20, overscan: 0, scanlines: 30, beamBloom: 60,
+          // Flat. A real colour set had a curved tube, but geometry is not what
+          // this preset is for — the composite look is the decoding, and the
+          // barrel distortion mostly gets in the way of reading the picture.
+          // Curvature is still there under Advanced for anyone who wants it.
+          curvature: 0, overscan: 0, scanlines: 30, beamBloom: 60,
           // A consumer colour set used a dot triad, not a grille.
           shadowMask: 30, maskType: 1, phosphorGlow: 15, vignette: 20,
           rgbOffset: 6, flicker: 0, staticNoise: 0, jitter: 0,
@@ -247,15 +276,17 @@ export class DisplaySettingsWindow extends BaseWindow {
       <div class="settings-section">
         <div class="settings-section-title">Monitor</div>
         <select id="ds-preset" class="settings-select">
-          ${this.monitorPresets
-            .map(
-              (p) =>
-                `<option value="${p.id}" ${this.settings.preset === p.id ? "selected" : ""}>${p.label}</option>`,
-            )
-            .join("")}
-          <option value="custom" ${this.settings.preset === "custom" ? "selected" : ""}>Custom</option>
+          ${this._renderPresetOptions()}
         </select>
-        <div class="preset-description" id="ds-preset-description">${this._presetDescription()}</div>
+        <div class="preset-description" id="ds-preset-description">${escapeHtml(this._presetDescription())}</div>
+        <div class="profile-actions">
+          <button id="ds-profile-update" class="settings-btn settings-btn-compact"
+                  title="Save these changes back to the selected profile">Save</button>
+          <button id="ds-profile-saveas" class="settings-btn settings-btn-compact"
+                  title="Save the current picture as a new named profile">Save As…</button>
+          <button id="ds-profile-delete" class="settings-btn settings-btn-compact settings-btn-danger"
+                  title="Delete the selected profile">Delete</button>
+        </div>
       </div>`;
 
     html += this._renderSliderSections(false);
@@ -286,11 +317,55 @@ export class DisplaySettingsWindow extends BaseWindow {
   }
 
   /**
+   * Options for the Monitor dropdown.
+   *
+   * The user's own profiles get their own group. Grouping them matters once
+   * there are a few: a flat list mixes "Composite Color" — a claim about real
+   * hardware — with "Mike's telly", and the difference between the two is worth
+   * keeping visible.
+   */
+  _renderPresetOptions() {
+    const selected = this.settings.preset;
+    const option = (value, label) =>
+      `<option value="${escapeHtml(value)}"${value === selected ? " selected" : ""}>${escapeHtml(label)}</option>`;
+
+    let html = this.monitorPresets.map((p) => option(p.id, p.label)).join("");
+
+    if (this.userProfiles.length) {
+      html += `<optgroup label="My Profiles">${this.userProfiles
+        .map((p) => option(p.id, p.name))
+        .join("")}</optgroup>`;
+    }
+
+    // Custom is last: it is where you land by editing, not somewhere you go.
+    html += option("custom", "Custom");
+    return html;
+  }
+
+  /**
    * Description line for the currently selected preset.
    */
   _presetDescription() {
+    const profile = findProfile(this.userProfiles, this.settings.preset);
+    if (profile) {
+      return this.profileDirty
+        ? "Your saved profile — unsaved changes."
+        : "Your saved profile.";
+    }
+
     const preset = this.monitorPresets.find((p) => p.id === this.settings.preset);
     return preset ? preset.description : "Hand-tuned settings.";
+  }
+
+  /**
+   * The values the current selection claims to own, whether built-in or saved.
+   */
+  _selectedPresetValues() {
+    const profile = findProfile(this.userProfiles, this.settings.preset);
+    if (profile) return profile.values;
+
+    const preset = this.monitorPresets.find((p) => p.id === this.settings.preset);
+    return preset ? preset.values : null;
   }
 
   /**
@@ -406,7 +481,7 @@ export class DisplaySettingsWindow extends BaseWindow {
             this.settings[slider.id] = value;
             if (valueSpan) valueSpan.textContent = `${value}%`;
             this.applyToRenderer(slider.param, value / 100);
-            this._markCustom(slider.id);
+            this._markModified(slider.id);
             this.saveSettings();
           });
         }
@@ -419,6 +494,9 @@ export class DisplaySettingsWindow extends BaseWindow {
       colorPicker.addEventListener("input", (e) => {
         this.settings.bezelColor = e.target.value;
         this.applyBezelColor(e.target.value);
+        // No-op under a built-in preset, which does not own the bezel, but a
+        // saved profile does — so changing it has to drop that profile's name.
+        this._markModified("bezelColor");
         this.saveSettings();
       });
     }
@@ -449,7 +527,7 @@ export class DisplaySettingsWindow extends BaseWindow {
         const value = parseInt(e.target.value, 10);
         this.settings.maskType = value;
         this.applyToRenderer("maskType", value);
-        this._markCustom("maskType");
+        this._markModified("maskType");
         this.saveSettings();
       });
     }
@@ -467,7 +545,7 @@ export class DisplaySettingsWindow extends BaseWindow {
         }
         // Tell shader which phosphor color to use
         this.applyToRenderer("monochromeMode", value);
-        this._markCustom("monochromeMode");
+        this._markModified("monochromeMode");
         this.saveSettings();
       });
     }
@@ -480,7 +558,7 @@ export class DisplaySettingsWindow extends BaseWindow {
         if (this.renderer) {
           this.renderer.setNearestFilter(this.settings.sharpPixels);
         }
-        this._markCustom("sharpPixels");
+        this._markModified("sharpPixels");
         this.saveSettings();
       });
     }
@@ -498,11 +576,36 @@ export class DisplaySettingsWindow extends BaseWindow {
         if (colorBleedValueSpan)
           colorBleedValueSpan.textContent = `${value}%`;
         this.applyToRenderer("colorBleed", value / 100);
-        this._markCustom("colorBleed");
+        this._markModified("colorBleed");
         this.saveSettings();
       });
     }
 
+
+    // Profile actions
+    const updateProfileBtn =
+      this.contentElement.querySelector("#ds-profile-update");
+    if (updateProfileBtn) {
+      updateProfileBtn.addEventListener("click", () =>
+        this.saveToSelectedProfile(),
+      );
+    }
+
+    const saveAsProfileBtn =
+      this.contentElement.querySelector("#ds-profile-saveas");
+    if (saveAsProfileBtn) {
+      saveAsProfileBtn.addEventListener("click", () =>
+        this.saveCurrentAsProfile(),
+      );
+    }
+
+    const deleteProfileBtn =
+      this.contentElement.querySelector("#ds-profile-delete");
+    if (deleteProfileBtn) {
+      deleteProfileBtn.addEventListener("click", () =>
+        this.deleteSelectedProfile(),
+      );
+    }
 
     // Reset button
     const resetBtn = this.contentElement.querySelector("#ds-reset");
@@ -533,8 +636,14 @@ export class DisplaySettingsWindow extends BaseWindow {
    */
   applyPreset(id) {
     this.settings.preset = id;
+    // Whatever was selected before, its values have just been replaced, so
+    // there are no longer edits pending against it.
+    this.profileDirty = false;
 
-    const preset = this.monitorPresets.find((p) => p.id === id);
+    const profile = findProfile(this.userProfiles, id);
+    const preset =
+      profile || this.monitorPresets.find((p) => p.id === id) || null;
+
     if (preset) {
       Object.assign(this.settings, preset.values);
     }
@@ -551,12 +660,26 @@ export class DisplaySettingsWindow extends BaseWindow {
    * than no name at all. The values are left exactly as the user set them —
    * only the label changes.
    */
-  _markCustom(changedKey) {
-    const preset = this.monitorPresets.find((p) => p.id === this.settings.preset);
+  _markModified(changedKey) {
+    const values = this._selectedPresetValues();
 
-    // A change that does not contradict the preset — brightness, bezel — leaves
-    // the preset intact, because the preset never claimed to set it.
-    if (preset && !(changedKey in preset.values)) return;
+    // A change that does not contradict the selection — brightness or bezel
+    // under a built-in preset — leaves it intact, because the preset never
+    // claimed to set those. A saved profile does claim to set everything, so
+    // for a profile this check simply never exempts anything.
+    if (values && !(changedKey in values)) return;
+
+    // Editing a saved profile keeps it selected and marks it modified, rather
+    // than dropping to Custom the way a built-in does. The difference is that
+    // this profile can be saved over: losing its name here would leave nothing
+    // for Save to write back to, and force a Save As for every small tweak.
+    if (isProfileId(this.settings.preset)) {
+      if (this.profileDirty) return;
+      this.profileDirty = true;
+      this._syncPresetUI();
+      return;
+    }
+
     if (this.settings.preset === "custom") return;
 
     this.settings.preset = "custom";
@@ -611,10 +734,168 @@ export class DisplaySettingsWindow extends BaseWindow {
    */
   _syncPresetUI() {
     const select = this.contentElement?.querySelector("#ds-preset");
-    if (select) select.value = this.settings.preset;
+    if (select) {
+      // Rebuilt rather than just re-selected, because saving or deleting a
+      // profile changes which options exist.
+      select.innerHTML = this._renderPresetOptions();
+      select.value = this.settings.preset;
+    }
 
     const description = this.contentElement?.querySelector("#ds-preset-description");
-    if (description) description.textContent = this._presetDescription();
+    // Never overwrite a confirmation that is still showing — the whole point of
+    // it is that it survives the UI resync the save itself triggers.
+    if (description && !this.statusTimer) {
+      description.textContent = this._presetDescription();
+    }
+
+    // Save and Delete only mean something when a saved profile is selected,
+    // and Save only when there is something to write. Disabling rather than
+    // hiding keeps the button row from reflowing as the selection changes.
+    const onProfile = isProfileId(this.settings.preset);
+
+    const updateBtn = this.contentElement?.querySelector("#ds-profile-update");
+    if (updateBtn) updateBtn.disabled = !onProfile || !this.profileDirty;
+
+    const deleteBtn = this.contentElement?.querySelector("#ds-profile-delete");
+    if (deleteBtn) deleteBtn.disabled = !onProfile;
+  }
+
+  /**
+   * Briefly confirm an action in the description line.
+   *
+   * Saving is otherwise almost invisible: the values were already on screen
+   * before the click, so without this the only feedback is a button greying
+   * out, which reads as the button having stopped working rather than as the
+   * save having happened.
+   */
+  _flashStatus(message) {
+    const description = this.contentElement?.querySelector(
+      "#ds-preset-description",
+    );
+    if (!description) return;
+
+    clearTimeout(this.statusTimer);
+    description.textContent = message;
+    description.classList.add("status-confirm");
+
+    this.statusTimer = setTimeout(() => {
+      this.statusTimer = null;
+      description.classList.remove("status-confirm");
+      description.textContent = this._presetDescription();
+    }, 1800);
+  }
+
+  /**
+   * Write the current settings back to the selected profile.
+   *
+   * No prompt: the profile is already named and already selected, so there is
+   * nothing to ask. This is the reason editing a profile keeps it selected
+   * instead of falling back to Custom.
+   */
+  saveToSelectedProfile() {
+    const profile = findProfile(this.userProfiles, this.settings.preset);
+    if (!profile) return;
+
+    const { profiles } = upsertProfile(
+      this.userProfiles,
+      profile.name,
+      captureProfileValues(this.settings),
+    );
+
+    this.userProfiles = profiles;
+    const stored = saveProfiles(this.userProfiles);
+    this.profileDirty = false;
+    this._syncPresetUI();
+
+    if (stored) {
+      this._flashStatus(`Saved to “${profile.name}”.`);
+      showToast(`Display profile “${profile.name}” saved`, "info", 2500);
+    } else {
+      this._flashStatus("Could not save — storage is full.");
+      showToast("Could not save the display profile", "error");
+    }
+  }
+
+  /**
+   * Save the current picture as a named profile.
+   *
+   * Offered as "Save As…" even when a profile is selected, because the name is
+   * the identity: typing the same name back overwrites it, which is how you
+   * update one, and typing a new name branches from it.
+   */
+  async saveCurrentAsProfile() {
+    const suggested = findProfile(this.userProfiles, this.settings.preset)?.name ?? "";
+    const entered = await showPrompt(
+      "Save the current display settings as:",
+      suggested,
+      "Save",
+    );
+    if (entered === null) return;
+
+    const check = validateProfileName(entered);
+    if (!check.ok) {
+      await showConfirm(check.error, "OK");
+      return;
+    }
+
+    const { profiles, profile, replaced } = upsertProfile(
+      this.userProfiles,
+      check.name,
+      captureProfileValues(this.settings),
+    );
+
+    if (replaced) {
+      const proceed = await showConfirm(
+        `A profile called "${profile.name}" already exists. Replace it?`,
+        "Replace",
+      );
+      if (!proceed) return;
+    }
+
+    this.userProfiles = profiles;
+    const stored = saveProfiles(this.userProfiles);
+
+    // Select what was just saved, so the window stops saying Custom and the
+    // name the user chose is the one on screen.
+    this.settings.preset = profile.id;
+    this.profileDirty = false;
+    this._syncPresetUI();
+    this.saveSettings();
+
+    if (stored) {
+      this._flashStatus(
+        replaced ? `Replaced “${profile.name}”.` : `Saved as “${profile.name}”.`,
+      );
+      showToast(`Display profile “${profile.name}” saved`, "info", 2500);
+    } else {
+      this._flashStatus("Could not save — storage is full.");
+      showToast("Could not save the display profile", "error");
+    }
+  }
+
+  /**
+   * Delete the selected profile.
+   *
+   * The picture is left exactly as it is and the selection falls back to
+   * Custom. Deleting a profile is about forgetting a name, not about undoing
+   * the settings the user is currently looking at.
+   */
+  async deleteSelectedProfile() {
+    const profile = findProfile(this.userProfiles, this.settings.preset);
+    if (!profile) return;
+
+    const proceed = await showConfirm(
+      `Delete the profile "${profile.name}"? The current picture will not change.`,
+      "Delete",
+    );
+    if (!proceed) return;
+
+    this.userProfiles = deleteProfile(this.userProfiles, profile.id);
+    saveProfiles(this.userProfiles);
+
+    this.settings.preset = "custom";
+    this._syncPresetUI();
+    this.saveSettings();
   }
 
   /**
@@ -720,7 +1001,7 @@ export class DisplaySettingsWindow extends BaseWindow {
     try {
       localStorage.setItem(
         "a2e-display-settings",
-        JSON.stringify(this.settings),
+        JSON.stringify({ ...this.settings, profileDirty: this.profileDirty }),
       );
     } catch (e) {
       console.warn("Could not save display settings:", e);
@@ -748,6 +1029,39 @@ export class DisplaySettingsWindow extends BaseWindow {
 
         // Dead key from the shader-based fringing this replaced.
         delete this.settings.ntscFringing;
+
+        // A profile selected last session may since have been deleted — from
+        // another tab, or by clearing storage. The picture is still whatever
+        // was saved, so keep it and just stop claiming a name for it.
+        if (
+          isProfileId(this.settings.preset) &&
+          !findProfile(this.userProfiles, this.settings.preset)
+        ) {
+          this.settings.preset = "custom";
+        }
+
+        // Unsaved edits to a profile have to survive a reload, or Save comes
+        // back disabled and there is no way to commit them. It rides along in
+        // the settings blob but is not a setting, so it does not stay in
+        // `settings` — otherwise it would end up captured inside a profile.
+        this.profileDirty =
+          isProfileId(this.settings.preset) && Boolean(parsed.profileDirty);
+        delete this.settings.profileDirty;
+
+        // Re-adopt a built-in preset's current values.
+        //
+        // Editing anything a built-in owns switches the selection to Custom, so
+        // still being on a built-in means these values came from the preset and
+        // were never touched. Taking them fresh is therefore lossless, and it
+        // means a change to a preset definition reaches people who already had
+        // it selected instead of only new users. Calibration and bezel are left
+        // alone, because a preset does not own those.
+        if (!isProfileId(this.settings.preset)) {
+          const preset = this.monitorPresets.find(
+            (p) => p.id === this.settings.preset,
+          );
+          if (preset) Object.assign(this.settings, preset.values);
+        }
       }
     } catch (e) {
       console.warn("Could not load display settings:", e);

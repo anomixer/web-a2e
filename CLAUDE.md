@@ -209,15 +209,43 @@ a composite artifact in a mode whose whole purpose is not having any.
 
 Because the signal alone cannot say what a pattern means — a flat LORES cell and
 a lit HIRES pixel can carry identical dots — each emitter tags its dots with an
-`ntsc::IdealKind`: TEXT (dot on or off, never coloured), CELL (one flat colour
-over the aligned four-dot group; LORES, DLORES and DHGR) or HIRES (dot-gated
-artifact colour). HIRES decides between an artifact colour and white by **run
-length**, not byte alignment: a run of two lit dots is one isolated pixel and
-takes a colour, three or more means adjacent pixels are lit and the result is
-white. Run length is used precisely because it stays correct across the high
-bit's half-dot shift without needing to know where byte cells begin.
+`ntsc::IdealKind`. The two kinds name mechanisms rather than modes, because the
+split does not fall along mode lines:
+
+- `CELL` — one flat colour across the aligned four-dot group. LORES, DLORES and
+  DHGR, whose dots encode an actual colour value.
+- `DOT_GATED` — unlit dots are black, lit ones take the artifact colour their run
+  implies. HIRES *and text*, whose dots are drawn shapes rather than an encoded
+  colour, and which on real hardware pick up artifact colour the same way.
+
+`DOT_GATED` decides between an artifact colour and white by **run length**, not
+byte alignment: a run of two lit dots is one isolated pixel (or one text stroke)
+and takes a colour, three or more reads as white. Run length is used precisely
+because it stays correct across the high bit's half-dot shift without needing to
+know where byte cells begin.
+
+Text therefore carries NTSC colour in the sharp modes too, whenever the burst is
+live — mixed-mode text fringes green and violet exactly as it does under the
+demodulator. What the sharp modes do differently is refuse to let that colour
+spread: the background stays pure black and the strokes keep hard edges. Full
+text mode kills the burst, so an all-text screen is still crisp white.
 
 Display Settings (`src/js/display/display-settings-window.js`) leads with a **Monitor preset** — Pixel Exact, Composite Color, RGB Monitor, Monochrome Green, Monochrome Amber — with every individual slider behind an Advanced disclosure. Each preset also carries a `colorMode`, which selects the core decoder above. Presets set only the picture, never the user's brightness/contrast/saturation or bezel; editing a setting a preset owns relabels the selection Custom without changing values.
+
+**Display profiles.** Beyond the built-in presets, the user can save the current
+picture as a named profile (`src/js/display/display-profiles.js`, unit-tested in
+`tests/js/display/display-profiles.test.js`). Profiles live under their own
+localStorage key, so Reset to Defaults does not take them with it, and they are
+identified by name — saving over a name replaces it.
+
+Two things differ from a built-in preset, both deliberate. A profile captures
+*everything*, brightness, contrast, saturation and bezel included: a built-in
+imitates a monitor and has no business resetting someone's calibration, but a
+profile is a snapshot of a picture the user liked, so restoring it has to give
+that picture back whole. And editing a profile keeps it selected and marks it
+modified, rather than dropping to Custom the way a built-in does — losing the
+name would leave Save nothing to write back to and force a Save As for every
+tweak. Save is enabled only while a selected profile is dirty.
 
 There is deliberately no NTSC Fringing slider. One existed when the shader faked
 composite artifacts by tinting detected edges; the core now produces real
@@ -359,7 +387,7 @@ src/
     ├── config/         # App version
     ├── debug/          # Debug window implementations
     ├── disk-manager/   # Disk drive operations, persistence, surface rendering, sounds
-    ├── display/        # WebGL renderer, CRT shaders, display settings, no-signal screen
+    ├── display/        # WebGL renderer, CRT shaders, display settings, user profiles, no-signal screen
     ├── file-explorer/  # DOS 3.3 and ProDOS file browser, disassembler
     ├── help/           # Documentation and release notes
     ├── input/          # Keyboard input, text selection, joystick, mouse
