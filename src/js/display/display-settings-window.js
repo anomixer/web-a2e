@@ -8,6 +8,20 @@
 import { BaseWindow } from "../windows/base-window.js";
 
 /**
+ * Which decoder the core runs over the machine's 14.31818 MHz dot stream.
+ *
+ * The Apple //e emits one bit per dot and nothing else — every colour is
+ * manufactured by the receiver. These four are four receivers, and they must
+ * stay in step with VideoColorMode in src/core/types.hpp.
+ */
+export const COLOR_MODE = {
+  MONOCHROME: 0,
+  PIXEL_EXACT: 1,
+  RGB_MONITOR: 2,
+  COMPOSITE: 3,
+};
+
+/**
  * DisplaySettingsWindow - CRT display effects and settings
  */
 export class DisplaySettingsWindow extends BaseWindow {
@@ -43,7 +57,8 @@ export class DisplaySettingsWindow extends BaseWindow {
           shadowMask: 0, maskType: 0, phosphorGlow: 0, vignette: 0,
           rgbOffset: 0, flicker: 0, staticNoise: 0, jitter: 0,
           horizontalSync: 0, glowingLine: 0, ambientLight: 0, burnIn: 0,
-          colorBleed: 0, ntscFringing: 0, monochromeMode: 0, sharpPixels: true,
+          colorBleed: 0, monochromeMode: 0, sharpPixels: true,
+          colorMode: COLOR_MODE.PIXEL_EXACT,
         },
       },
       {
@@ -56,7 +71,10 @@ export class DisplaySettingsWindow extends BaseWindow {
           shadowMask: 30, maskType: 1, phosphorGlow: 15, vignette: 20,
           rgbOffset: 6, flicker: 0, staticNoise: 0, jitter: 0,
           horizontalSync: 0, glowingLine: 0, ambientLight: 0, burnIn: 10,
-          colorBleed: 80, ntscFringing: 60, monochromeMode: 0, sharpPixels: false,
+          // The core now demodulates the real signal, so the picture arrives
+          // already soft and already fringed. This is only phosphor overlap.
+          colorBleed: 30, monochromeMode: 0, sharpPixels: false,
+          colorMode: COLOR_MODE.COMPOSITE,
         },
       },
       {
@@ -69,7 +87,8 @@ export class DisplaySettingsWindow extends BaseWindow {
           rgbOffset: 0, flicker: 0, staticNoise: 0, jitter: 0,
           horizontalSync: 0, glowingLine: 0, ambientLight: 0, burnIn: 5,
           // No encoding to decode, so no fringing and almost no chroma bleed.
-          colorBleed: 15, ntscFringing: 0, monochromeMode: 0, sharpPixels: true,
+          colorBleed: 15, monochromeMode: 0, sharpPixels: true,
+          colorMode: COLOR_MODE.RGB_MONITOR,
         },
       },
       {
@@ -83,7 +102,8 @@ export class DisplaySettingsWindow extends BaseWindow {
           shadowMask: 0, maskType: 0, phosphorGlow: 28, vignette: 25,
           rgbOffset: 0, flicker: 0, staticNoise: 0, jitter: 0,
           horizontalSync: 0, glowingLine: 0, ambientLight: 0, burnIn: 40,
-          colorBleed: 25, ntscFringing: 0, monochromeMode: 1, sharpPixels: false,
+          colorBleed: 25, monochromeMode: 1, sharpPixels: false,
+          colorMode: COLOR_MODE.MONOCHROME,
         },
       },
       {
@@ -95,7 +115,8 @@ export class DisplaySettingsWindow extends BaseWindow {
           shadowMask: 0, maskType: 0, phosphorGlow: 25, vignette: 25,
           rgbOffset: 0, flicker: 0, staticNoise: 0, jitter: 0,
           horizontalSync: 0, glowingLine: 0, ambientLight: 0, burnIn: 35,
-          colorBleed: 25, ntscFringing: 0, monochromeMode: 2, sharpPixels: false,
+          colorBleed: 25, monochromeMode: 2, sharpPixels: false,
+          colorMode: COLOR_MODE.MONOCHROME,
         },
       },
     ];
@@ -147,10 +168,10 @@ export class DisplaySettingsWindow extends BaseWindow {
       sharpPixels: true,
       // Color bleed (vertical inter-scanline blending)
       colorBleed: 0,
-      // NTSC fringing (shader-based)
-      ntscFringing: 0,
       // Monochrome mode (0=color, 1=green, 2=amber, 3=white)
       monochromeMode: 0,
+      // Which decoder the core runs over the dot stream (see COLOR_MODE)
+      colorMode: COLOR_MODE.PIXEL_EXACT,
       // Bezel
       screenInset: 0,
       bezelColor: "#c8b89a",
@@ -248,7 +269,7 @@ export class DisplaySettingsWindow extends BaseWindow {
 
     html += this._renderSliderSections(true);
     html += this._renderRenderingSection();
-    html += this._renderNTSCSection();
+    html += this._renderPhosphorSection();
 
     html += `
         </div>
@@ -348,21 +369,24 @@ export class DisplaySettingsWindow extends BaseWindow {
   }
 
   /**
-   * NTSC section: the composite-specific shader effects.
+   * Phosphor section.
+   *
+   * This used to also carry an "NTSC Fringing" slider, which faked composite
+   * artifacts by tinting detected edges. The core now demodulates the machine's
+   * actual 14.31818 MHz dot stream, so fringing emerges from the signal where
+   * it really belongs and a shader knob for it would only double-count.
+   *
+   * Colour bleed stays: it is vertical blending between scanlines, which models
+   * phosphor spot overlap on the glass, not anything about the encoding.
    */
-  _renderNTSCSection() {
+  _renderPhosphorSection() {
     return `
       <div class="settings-section">
-        <div class="settings-section-title">NTSC Effects</div>
+        <div class="settings-section-title">Phosphor</div>
         <div class="setting-row">
           <label title="Vertical inter-scanline color blending (CRT phosphor overlap)">Color Bleed</label>
           <input type="range" id="ds-colorBleed" min="0" max="100" value="${this.settings.colorBleed}">
           <span class="setting-value" id="ds-val-colorBleed">${this.settings.colorBleed}%</span>
-        </div>
-        <div class="setting-row">
-          <label title="NTSC color fringing at edges (magenta/cyan)">NTSC Fringing</label>
-          <input type="range" id="ds-ntscFringing" min="0" max="100" value="${this.settings.ntscFringing}">
-          <span class="setting-value" id="ds-val-ntscFringing">${this.settings.ntscFringing}%</span>
         </div>
       </div>`;
   }
@@ -479,21 +503,6 @@ export class DisplaySettingsWindow extends BaseWindow {
       });
     }
 
-    // NTSC Fringing slider (shader-based)
-    const ntscInput = this.contentElement.querySelector("#ds-ntscFringing");
-    const ntscValueSpan = this.contentElement.querySelector(
-      "#ds-val-ntscFringing",
-    );
-    if (ntscInput) {
-      ntscInput.addEventListener("input", (e) => {
-        const value = parseInt(e.target.value, 10);
-        this.settings.ntscFringing = value;
-        if (ntscValueSpan) ntscValueSpan.textContent = `${value}%`;
-        this.applyToRenderer("ntscFringing", value / 100);
-        this._markCustom("ntscFringing");
-        this.saveSettings();
-      });
-    }
 
     // Reset button
     const resetBtn = this.contentElement.querySelector("#ds-reset");
@@ -608,25 +617,26 @@ export class DisplaySettingsWindow extends BaseWindow {
     if (description) description.textContent = this._presetDescription();
   }
 
+  /**
+   * Select the core's decoder.
+   *
+   * Monochrome is reached through the phosphor dropdown rather than here, so a
+   * green-screen preset still remembers which colour decoder to return to.
+   */
+  applyColorMode() {
+    const mode = this.settings.colorMode;
+    if (mode === undefined || mode === COLOR_MODE.MONOCHROME) return;
+    if (this.wasmModule && this.wasmModule._setVideoColorMode) {
+      this.wasmModule._setVideoColorMode(mode);
+    }
+  }
+
   applyBezelColor(hex) {
     if (!this.renderer) return;
     const r = parseInt(hex.slice(1, 3), 16) / 255;
     const g = parseInt(hex.slice(3, 5), 16) / 255;
     const b = parseInt(hex.slice(5, 7), 16) / 255;
     this.renderer.setParam("surroundColor", [r, g, b]);
-  }
-
-  applyNTSCSettings() {
-    const input = this.contentElement.querySelector("#ds-ntscFringing");
-    const valueSpan = this.contentElement.querySelector("#ds-val-ntscFringing");
-
-    if (input) {
-      input.value = this.settings.ntscFringing;
-    }
-    if (valueSpan) {
-      valueSpan.textContent = `${this.settings.ntscFringing}%`;
-    }
-    this.applyToRenderer("ntscFringing", this.settings.ntscFringing / 100);
   }
 
   applyAllSettings() {
@@ -660,13 +670,17 @@ export class DisplaySettingsWindow extends BaseWindow {
     }
     this.applyToRenderer("maskType", this.settings.maskType);
 
+    // Tell the core which decoder to run over the dot stream. This must come
+    // before the monochrome switch below: _setMonochrome(false) restores
+    // whichever colour mode was last selected, so that mode has to be set first.
+    this.applyColorMode();
+
     // Apply monochrome mode
     const monochromeSelect =
       this.contentElement.querySelector("#ds-monochromeMode");
     if (monochromeSelect) {
       monochromeSelect.value = this.settings.monochromeMode;
     }
-    // Tell emulator core to use monochrome rendering (bypasses NTSC artifacts)
     if (this.wasmModule && this.wasmModule._setMonochrome) {
       this.wasmModule._setMonochrome(this.settings.monochromeMode !== 0);
     }
@@ -692,8 +706,6 @@ export class DisplaySettingsWindow extends BaseWindow {
       this.applyToRenderer("colorBleed", this.settings.colorBleed / 100);
     }
 
-    // Apply NTSC fringing settings (shader-based)
-    this.applyNTSCSettings();
 
     this._syncPresetUI();
   }
@@ -721,6 +733,21 @@ export class DisplaySettingsWindow extends BaseWindow {
       if (saved) {
         const parsed = JSON.parse(saved);
         this.settings = { ...this.defaults, ...parsed };
+
+        // Settings saved before the core gained a real NTSC decoder have no
+        // colorMode. Recover it from the preset they had selected, so someone
+        // who left on Composite does not silently come back on Pixel Exact.
+        if (parsed.colorMode === undefined) {
+          const preset = this.monitorPresets.find(
+            (p) => p.id === this.settings.preset,
+          );
+          this.settings.colorMode = preset
+            ? preset.values.colorMode
+            : this.defaults.colorMode;
+        }
+
+        // Dead key from the shader-based fringing this replaced.
+        delete this.settings.ntscFringing;
       }
     } catch (e) {
       console.warn("Could not load display settings:", e);

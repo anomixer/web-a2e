@@ -71,7 +71,8 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 
 - `cpu/6502/cpu6502.cpp` - Cycle-accurate 65C02 processor (1.023 MHz)
 - `mmu/mmu.cpp` - 128KB memory management, soft switches ($C000-$CFFF), expansion slots, and the video scanner address generator behind floating-bus reads (Sather's counter equations, so blanking cycles read real video data rather than zero)
-- `video/video.cpp` - TEXT/LORES/HIRES/DHIRES per-scanline rendering
+- `video/video.cpp` - TEXT/LORES/HIRES/DHIRES per-scanline rendering, split into a **signal stage** and a **decode stage** (see Composite Video below)
+- `video/ntsc.cpp` - NTSC composite demodulation, the ideal/RGB digital decoders, and the calibrated 16-colour palette they all share
 - `audio/audio.cpp` - Speaker emulation from $C030 toggles
 - `disk-image/` - Disk image format support (DSK/DO/PO/NIB/WOZ). `gcr_encoding` holds the one copy of the GCR encode/decode routines and the DOS/ProDOS sector interleave tables that both image classes and the filesystem readers use; plus `disk_converter` — converts a loaded image between save formats (DOS order, ProDOS order, WOZ), including encoding a sector image to a WOZ bit stream
 - `disassembler/` - 65C02 instruction disassembler
@@ -136,7 +137,91 @@ The powered-off screen is built by `src/js/display/no-signal-frame.js` as an ord
 
 `WebGLRenderer.draw()` re-derives the drawing buffer size when `devicePixelRatio` changes, because a density change alters no CSS size and so never reaches the `ResizeObserver` that drives `resize()`.
 
-Display Settings (`src/js/display/display-settings-window.js`) leads with a **Monitor preset** — Pixel Exact, Composite Color, RGB Monitor, Monochrome Green, Monochrome Amber — with every individual slider behind an Advanced disclosure. Presets set only the picture, never the user's brightness/contrast/saturation or bezel; editing a setting a preset owns relabels the selection Custom without changing values.
+### Composite Video / Colour Decoding
+
+The //e emits no pixels. It emits one bit per 14.31818 MHz dot, four dots to a
+cycle of the 3.579545 MHz colour subcarrier, and every colour is manufactured by
+the *receiver*. `video.cpp` therefore renders in two stages: the mode emitters
+(`emitText40Scanline`, `emitHiResScanline`, …) write a 1-bit dot stream into
+`dots_`, and `endScanline()` hands the finished line to one of four decoders in
+`ntsc.cpp`. A visible line is 560 dots and the framebuffer is 560 wide, so the
+signal maps 1:1 onto pixels and nothing is ever resampled.
+
+Four things here are load-bearing:
+
+**The luma filter must null both 3.58 MHz and 7.16 MHz exactly.** A flat LORES
+colour *is* a subcarrier-frequency pattern, so subcarrier leaking into luma makes
+greys ripple; leakage at the second harmonic makes a colour's brightness depend
+on which subcarrier phase a dot lands on, which shows up as faint banding. A
+four-tap boxcar — integrate exactly one colour cycle — annihilates both, and is
+cascaded with a windowed sinc for the rest of the response. Do not replace it
+with a plain low pass.
+
+**The calibration constants in `ntsc.hpp` were fitted, not chosen.**
+`BURST_PHASE`, `CHROMA_GAIN` and `LUMA_GAMMA` come from a least-squares fit
+against the physically self-consistent entries of the Apple II palette: black,
+white, both greys, and the four single-bit LORES hues, whose phases a real
+decoder fixes exactly 90 apart. The multi-bit palette entries were excluded
+because they had been hand-tuned and sit 17-24 degrees off. Two independent fits
+agreed on the phase to a quarter of a degree.
+
+**The HIRES high bit is a one-dot delay, not a palette swap.** It pushes the
+byte's seven pixels half a HIRES pixel right, landing them on the opposite
+subcarrier phase; that *is* the mechanism behind orange and blue. The vacated dot
+holds the shift register's previous output rather than going blank.
+
+**Double-resolution modes are one dot later than 40-column ones.** The
+80-column shift path is clocked a dot behind, so the same pattern comes out a
+quarter turn round the colour wheel (`DOUBLE_RES_DELAY` in `video.cpp`). This is
+the fact the old `DLGR_COLORS` table encoded as a copy of `LORES_COLORS` with the
+nibble rotated left by one. Get it wrong and every DHGR picture is hue-rotated
+by 90 degrees — subtle enough to look plausible, so `test_video.cpp` pins it.
+
+**Colour burst is per scanline, but the colour killer is per field.**
+`burstForScanline()` models the machine: a //e inhibits burst in text mode,
+including the bottom four rows of a mixed screen. `chromaEnabled_` models the
+monitor, and it is the flag the decoders actually receive. A real colour killer
+integrates burst presence over a time constant far longer than one line, and the
+3.58 MHz reference flywheels through gaps, so chroma is switched on or off a
+whole field at a time.
+
+Both halves are needed to get the two observable behaviours right. Full text mode
+sends no burst at all, the killer engages, and text is crisp white. Mixed mode
+sends burst on 160 of 192 lines, so the killer never engages and the four text
+rows at the bottom **fringe green and violet along with everything else** — which
+is what real hardware does, and what a per-line gate would wrongly suppress. The
+same mechanism explains why a II+, which never inhibits burst, fringes its text
+in every mode. It also means 80-column text on the Composite preset is genuinely
+mushy, exactly as it was on real hardware.
+
+`VideoColorMode` (types.hpp) selects the decoder: MONOCHROME (dots straight to
+one phosphor), PIXEL_EXACT and RGB_MONITOR (idealised, see below) and COMPOSITE
+(full demodulation). The composite decoder is a 512 KB lookup table indexed by a
+15-dot window and the subcarrier phase — an exact memoisation of the FIR, not an
+approximation, which `test_ntsc.cpp` verifies over all 131072 entries.
+
+**The sharp modes apply no composite effects whatsoever, and that is a
+requirement rather than a nicety.** `decodeIdeal()` is not a demodulator and must
+never become one: an unlit dot is black, and colour never extends past the pixels
+that are actually lit. An earlier version slid a four-dot window over every dot,
+which painted colour onto dots that were off and past the edges of white blocks —
+a composite artifact in a mode whose whole purpose is not having any.
+
+Because the signal alone cannot say what a pattern means — a flat LORES cell and
+a lit HIRES pixel can carry identical dots — each emitter tags its dots with an
+`ntsc::IdealKind`: TEXT (dot on or off, never coloured), CELL (one flat colour
+over the aligned four-dot group; LORES, DLORES and DHGR) or HIRES (dot-gated
+artifact colour). HIRES decides between an artifact colour and white by **run
+length**, not byte alignment: a run of two lit dots is one isolated pixel and
+takes a colour, three or more means adjacent pixels are lit and the result is
+white. Run length is used precisely because it stays correct across the high
+bit's half-dot shift without needing to know where byte cells begin.
+
+Display Settings (`src/js/display/display-settings-window.js`) leads with a **Monitor preset** — Pixel Exact, Composite Color, RGB Monitor, Monochrome Green, Monochrome Amber — with every individual slider behind an Advanced disclosure. Each preset also carries a `colorMode`, which selects the core decoder above. Presets set only the picture, never the user's brightness/contrast/saturation or bezel; editing a setting a preset owns relabels the selection Custom without changing values.
+
+There is deliberately no NTSC Fringing slider. One existed when the shader faked
+composite artifacts by tinting detected edges; the core now produces real
+fringing from the real signal, so a shader knob for it would only double-count.
 
 ### URL Media Parameters
 
@@ -241,7 +326,7 @@ src/
 │   ├── cpu/
 │   │   └── 6502/          # Cycle-accurate 65C02 processor
 │   ├── mmu/            # Memory management and soft switches
-│   ├── video/          # Per-scanline video rendering
+│   ├── video/          # Per-scanline signal generation + NTSC/RGB decoding
 │   ├── audio/          # Speaker audio
 │   ├── disk-image/     # Disk image formats (DSK/DO/PO/NIB/WOZ), GCR encoding, format conversion
 │   ├── disassembler/   # 65C02 disassembler

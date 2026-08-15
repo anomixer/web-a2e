@@ -75,9 +75,6 @@ export class WebGLRenderer {
       // Color bleed - vertical inter-scanline blending (CRT phosphor overlap)
       colorBleed: 0.8, // 0.0 to 1.0
 
-      // NTSC color fringing (simulates chroma bandwidth limiting)
-      ntscFringing: 0.3, // 0.0 to 1.0
-
       // Monochrome mode (0=color, 1=green, 2=amber, 3=white)
       monochromeMode: 0,
 
@@ -248,7 +245,6 @@ export class WebGLRenderer {
       burnIn: gl.getUniformLocation(this.program, "u_burnIn"),
       overscan: gl.getUniformLocation(this.program, "u_overscan"),
       colorBleed: gl.getUniformLocation(this.program, "u_colorBleed"),
-      ntscFringing: gl.getUniformLocation(this.program, "u_ntscFringing"),
       monochromeMode: gl.getUniformLocation(this.program, "u_monochromeMode"),
       cornerRadius: gl.getUniformLocation(this.program, "u_cornerRadius"),
       screenMargin: gl.getUniformLocation(this.program, "u_screenMargin"),
@@ -644,7 +640,6 @@ export class WebGLRenderer {
       gl.uniform1f(this.uniforms.burnIn, this.crtParams.burnIn);
       gl.uniform1f(this.uniforms.overscan, this.crtParams.overscan);
       gl.uniform1f(this.uniforms.colorBleed, this.crtParams.colorBleed);
-      gl.uniform1f(this.uniforms.ntscFringing, this.crtParams.ntscFringing);
       gl.uniform1i(this.uniforms.monochromeMode, this.crtParams.monochromeMode);
       gl.uniform1f(this.uniforms.cornerRadius, (this.crtParams.screenInset > 0 || this.crtParams.curvature > 0) ? this.crtParams.cornerRadius : 0.0);
       gl.uniform1f(this.uniforms.screenMargin, this.crtParams.screenMargin);
@@ -773,8 +768,9 @@ export class WebGLRenderer {
    * Enter or leave the powered-off "no signal" screen.
    *
    * The message is uploaded as the source texture rather than drawn by the
-   * shader, so it picks up the whole CRT chain — RGB shift, colour bleed, NTSC
-   * fringing, scanlines, mask, glow — and reads as a composite signal. Leaving
+   * shader, so it picks up the whole CRT chain — RGB shift, colour bleed,
+   * scanlines, mask, glow — and reads as a real picture. It does not pass
+   * through the core's NTSC decoder, which sees only emulator video. Leaving
    * the mode uploads nothing: the first real frame overwrites it.
    */
   setNoSignal(enabled) {
