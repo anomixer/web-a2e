@@ -14,6 +14,11 @@ export const RELEASE_NOTES = [
     week: "August 15, 2026",
     features: [
       {
+        title: "Run the machine faster than a real one",
+        description:
+          "View > CPU Speed picks 1x, 2x, 4x or 8x of the //e's 1.023 MHz — 8x is roughly what an accelerator card gave you in 1986, and it turns a slow BASIC listing, a long compile or a ProDOS copy from something you wait for into something that is simply done. The sound speeds up with it. Everything the speaker and the Mockingboard do happens in a fraction of the time and rises in pitch to match, exactly as it did on accelerated hardware, so you can hear how fast the machine is going rather than only see it. The picture still runs at sixty frames a second; the machine just gets more done between them. Any setting above 1x shows a small chip in the Monitor title bar so a fast machine is never a mystery, and your choice is remembered between sessions and survives a reset or a reboot — a speed you chose is not something a restart should quietly take away from you. Pasting still sprints to 8x for the duration of the paste and then hands the machine back to whatever speed you picked.",
+      },
+      {
         title: "Save As for assembly and BASIC source",
         description:
           "There was no way to choose the name of a source file once one was in play. Save asked for a name the first time and never again, and opening a file meant never being asked at all, so the only way to save under a different name was to start a new file and lose what you had. Both editors now have a Save As button next to Save, on Ctrl or Cmd with Shift and S. Save writes back to the file you are working on without interrupting; Save As always asks. On Safari and Firefox, which cannot offer a system save dialog, saving used to drop a file into your downloads under a name chosen for you — the BASIC editor always called it program.bas whatever the program was — so both now ask for a name whenever it is not already settled, the same way saving a disk image does.",
