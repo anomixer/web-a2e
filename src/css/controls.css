@@ -991,3 +991,52 @@ select:focus {
 .popout-side-btn.active svg {
     opacity: 1;
 }
+
+/* CPU speed button group */
+.speed-selector-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-xs);
+}
+
+.speed-selector-row > span {
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    font-weight: 500;
+    letter-spacing: 0.03em;
+}
+
+.speed-btn-group {
+    display: flex;
+    gap: 4px;
+}
+
+.speed-btn {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 6px 8px;
+    border: 1px solid var(--border-default);
+    background: var(--input-bg);
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+
+.speed-btn:hover {
+    color: var(--text-primary);
+    background: var(--overlay-hover);
+    border-color: var(--text-muted);
+}
+
+.speed-btn.active {
+    background: var(--accent-blue-bg-strong);
+    border-color: var(--accent-blue-border);
+    color: var(--accent-blue);
+}

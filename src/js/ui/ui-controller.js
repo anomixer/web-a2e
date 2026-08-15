@@ -30,6 +30,7 @@ const STATE_BUTTON_FLASH_MS = 600;
  * @property {Object} windowManager - Debug window manager
  * @property {Object} screenWindow - Screen window instance
  * @property {Object} reminderController - Reminder controller
+ * @property {Object} emulationSpeed - EmulationSpeed controller (CPU speed selector)
  */
 
 export class UIController {
@@ -48,6 +49,7 @@ export class UIController {
     this.inputHandler = deps.inputHandler;
     this.themeManager = deps.themeManager;
     this.windowSwitcher = deps.windowSwitcher;
+    this.emulationSpeed = deps.emulationSpeed;
 
     this.isFullPageMode = false;
     this.canvas = null;
@@ -74,6 +76,7 @@ export class UIController {
     this.setupDevMenuActions();
     this.setupHelpMenuActions();
     this.setupThemeSelector();
+    this.setupSpeedSelector();
     this.setupWindowSwitcher();
   }
 
@@ -741,6 +744,28 @@ export class UIController {
     });
 
     updateActive();
+  }
+
+  /**
+   * Set up the CPU speed selector in the View menu.
+   * The menu stays open on click so speeds can be compared by ear.
+   */
+  setupSpeedSelector() {
+    const buttons = document.querySelectorAll(".speed-btn");
+    if (!buttons.length || !this.emulationSpeed) return;
+
+    this.emulationSpeed.onChange((multiplier) => {
+      buttons.forEach((btn) => {
+        btn.classList.toggle("active", Number(btn.dataset.speed) === multiplier);
+      });
+    });
+
+    buttons.forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.emulationSpeed.setSpeed(Number(btn.dataset.speed));
+      });
+    });
   }
 
   /**

@@ -113,6 +113,41 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 - `utils/` - Shared utilities (storage, string, BASIC)
 - `windows/` - Base window class and window manager
 
+### CPU Speed
+
+**View > CPU Speed** picks 1x/2x/4x/8x of the 1.023 MHz clock. The mechanism
+was already in the core: `generateStereoAudioSamples()` runs
+`samples * CYCLES_PER_SAMPLE * speedMultiplier_` cycles for a fixed number of
+samples, so audio keeps pacing the machine and the picture keeps arriving at
+60fps — the emulator just covers more emulated time per frame, and the speaker
+rises in pitch along with it, like an accelerator card.
+
+**Both sound sources measure their rate in CPU cycles, so both must be told the
+speed.** `Emulator::applySpeedToAudio()` pushes it to each on every change and
+on card insertion. `Audio::generateStereoSamples()` clamps a buffer whose cycle
+span looks implausible, and that "expected" span scales with the multiplier —
+left at 1x it discarded all but the last eighth of an 8x buffer and replayed the
+remainder at real-time pitch, which is heard as sound that cuts out or refuses
+to speed up. `MockingboardCard` emits one frame per `cyclesPerOutputSample_`,
+also scaled — otherwise it produced eight frames for every one the mixer
+consumed and the backlog grew without bound, heard as normal-pitch music
+falling further and further behind. `test_audio.cpp` and `test_mockingboard.cpp`
+pin both.
+
+`src/js/ui/emulation-speed.js` owns the selection (localStorage, unit-tested in
+`tests/js/ui/emulation-speed.test.js`); `UIController.setupSpeedSelector()`
+wires the menu and `ScreenWindow.setSpeedState()` shows a title-bar chip above
+1x.
+
+Two things are deliberate. `Emulator::reset()` does **not** clear
+`speedMultiplier_` — it is a host preference (or a paste boost in flight), not
+machine state, so a reboot must not drop the user back to 1 MHz;
+`test_emulator.cpp` pins this. And the selector writes through
+`InputHandler.setBaseSpeed()`, which records the new baseline instead of
+touching WASM while a paste boost is live — otherwise `restorePasteSpeed()`
+would put the old speed back when the paste ended. The multiplier is not part
+of a save state.
+
 ### Theming
 
 Light, dark, and system-follow themes controlled by `ThemeManager` (`src/js/ui/theme-manager.js`). Sets `data-theme` attribute on `<html>` for CSS variable switching. All accent and syntax highlighting colours are derived from the six-stripe Apple rainbow logo palette (Green `#61BB46`, Yellow `#FDB827`, Orange `#F5821F`, Red `#E03A3E`, Purple `#963D97`, Blue `#009DDC`), with brightness adjusted per theme for contrast. Speaker, Mockingboard, and disk drive sound volumes are all wired to a single main volume slider with a unified mute toggle.

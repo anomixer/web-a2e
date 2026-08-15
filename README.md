@@ -270,6 +270,12 @@ Cards are configured via **View > Expansion Slots**.
 
 A floating joystick window provides visual paddle/joystick controls that map to the Apple II game ports ($C064-$C067). Physical game controllers are supported via the Gamepad API — the left stick maps to paddle values and buttons A/B map to Apple II buttons 0/1, with a configurable deadzone. A **Cursor Keys** toggle makes the arrow keys drive the joystick as well as the keyboard — they still reach the emulator, so arrow-key navigation in ProDOS and BASIC keeps working — with an indicator chip in the Monitor title bar when active. The same toggle is in **View > Cursor Keys as Joystick**, which is the way to reach it in the layouts that have no Monitor title bar.
 
+### CPU Speed
+
+**View > CPU Speed** runs the machine at 1x, 2x, 4x or 8x the real 1.023 MHz clock — 8x is roughly an accelerator card. Audio still paces the emulation and still plays, but it plays sped up: everything the speaker does happens in a fraction of the time and rises in pitch to match, exactly as it did on accelerated hardware. The display stays at 60fps; the machine simply gets through more work between frames.
+
+The speed is a host preference, not machine state, so it survives reset and reboot, persists across sessions, and is not written into save states. Pasting still boosts to 8x for the duration of the paste and then hands the machine back to the chosen speed. Any setting above 1x shows a chip in the Monitor title bar.
+
 ## Architecture
 
 ```

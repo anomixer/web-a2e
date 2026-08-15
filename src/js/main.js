@@ -63,6 +63,7 @@ import { PrinterManager } from "./printer/printer-manager.js";
 import { PrintBrowserWindow } from "./printer/print-browser-window.js";
 import { HayesModem } from "./serial/hayes-modem.js";
 import { WindowSwitcher } from "./ui/window-switcher.js";
+import { EmulationSpeed, clockLabel } from "./ui/emulation-speed.js";
 import { StateManager } from "./state/state-manager.js";
 import { SaveStatesWindow } from "./state/save-states-window.js";
 import { AgentManager } from "./agent/index.js";
@@ -154,6 +155,14 @@ class AppleIIeEmulator {
       // Set up input handler
       this.inputHandler = new InputHandler(this.wasmModule);
       this.inputHandler.init();
+
+      // Set up the user-selectable CPU speed. Applied before the machine is
+      // started so a saved speed is live from the first cycle.
+      this.emulationSpeed = new EmulationSpeed({
+        wasmModule: this.wasmModule,
+        inputHandler: this.inputHandler,
+      });
+      this.emulationSpeed.apply();
 
       // Set up mouse handler for Apple Mouse Interface Card
       this.mouseHandler = new MouseHandler(this.wasmModule);
@@ -288,6 +297,11 @@ class AppleIIeEmulator {
       this.gamepadHandler = new GamepadHandler(this.wasmModule, joystickWindow);
       joystickWindow.gamepadHandler = this.gamepadHandler;
       this.inputHandler.joystickWindow = joystickWindow;
+
+      // Show accelerated speeds in the monitor title bar
+      this.emulationSpeed.onChange((multiplier) => {
+        this.screenWindow.setSpeedState(multiplier, clockLabel(multiplier));
+      });
 
       // Wire monitor header toggle to joystick cursor keys
       this.screenWindow.setCursorKeysState(joystickWindow.cursorKeysEnabled);
@@ -462,6 +476,7 @@ class AppleIIeEmulator {
         inputHandler: this.inputHandler,
         themeManager: this.themeManager,
         windowSwitcher: this.windowSwitcher,
+        emulationSpeed: this.emulationSpeed,
       });
       this.uiController.init();
 
