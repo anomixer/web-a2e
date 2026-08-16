@@ -304,6 +304,20 @@ export class InputHandler {
     }
   }
 
+  // Set the user's baseline emulation speed (the View menu's CPU Speed).
+  // While a paste boost is live the multiplier in WASM belongs to the paste,
+  // so record the new baseline as the value to restore rather than writing it
+  // through — otherwise restorePasteSpeed() would undo the change.
+  setBaseSpeed(multiplier) {
+    if (this.pasteSpeedUp) {
+      this.savedSpeedMultiplier = multiplier;
+      return;
+    }
+    if (this.wasmModule._setSpeedMultiplier) {
+      this.wasmModule._setSpeedMultiplier(multiplier);
+    }
+  }
+
   // Restore emulation speed after paste completes
   restorePasteSpeed() {
     if (this.pasteSpeedUp && this.wasmModule._setSpeedMultiplier) {

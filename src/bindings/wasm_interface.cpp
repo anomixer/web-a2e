@@ -1019,7 +1019,26 @@ bool isUKCharacterSet() {
   return g_emulator->getVideo().isUKCharacterSet();
 }
 
-// Monochrome display mode (bypasses NTSC artifact coloring)
+// Which kind of receiver decodes the machine's dot stream.
+// 0 = monochrome, 1 = pixel exact, 2 = RGB monitor, 3 = composite.
+// See VideoColorMode in types.hpp.
+EMSCRIPTEN_KEEPALIVE
+void setVideoColorMode(int mode) {
+  REQUIRE_EMULATOR();
+  if (mode < 0 || mode > 3) {
+    return;
+  }
+  g_emulator->getVideo().setColorMode(static_cast<a2e::VideoColorMode>(mode));
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getVideoColorMode() {
+  REQUIRE_EMULATOR_OR(0);
+  return static_cast<int>(g_emulator->getVideo().getColorMode());
+}
+
+// Monochrome display mode. Kept as the older two-state API: it switches to
+// monochrome and back to whichever colour mode was selected before.
 EMSCRIPTEN_KEEPALIVE
 void setMonochrome(bool mono) {
   REQUIRE_EMULATOR();
