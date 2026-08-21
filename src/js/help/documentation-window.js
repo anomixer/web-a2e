@@ -1109,8 +1109,50 @@ export class DocumentationWindow extends BaseWindow {
           <li><strong>Assemble:</strong> Click or press <kbd>Ctrl/⌘</kbd>+<kbd>Enter</kbd> to assemble the code</li>
           <li><strong>Write:</strong> After successful assembly, click Write to copy the machine code into emulator memory (requires emulator to be powered on)</li>
           <li><strong>ORG Directive:</strong> Your code must include an <code>ORG</code> directive before any instructions</li>
-          <li><strong>DSK Directive:</strong> <code>DSK FILENAME</code> writes the assembled object straight onto the disk in drive 1 as a binary file, the way Merlin does. Add <code>,D2</code> to target drive 2. DOS 3.3 and ProDOS disks are both written; WOZ images are not, since they store a flux-level bit stream rather than sectors. An existing file of the same name is replaced, and a locked or write-protected one is refused</li>
+          <li><strong>DSK / SAV Directives:</strong> <code>DSK FILENAME</code> writes the assembled object straight onto the disk in drive 1 as a binary file, the way Merlin does. Add <code>,D2</code> to target drive 2, and <code>TYP</code> to set the ProDOS file type. DOS 3.3 and ProDOS disks are both written; WOZ images are not, since they store a flux-level bit stream rather than sectors. An existing file of the same name is replaced, and a locked or write-protected one is refused</li>
         </ul>
+
+        <h5>Merlin Compatibility</h5>
+        <p>The assembler follows Merlin rather than generic 65C02 assembler convention, which shows up in three places worth knowing about.</p>
+        <ul>
+          <li><strong>Expressions run left to right with no precedence.</strong> <code>1+2*3</code> is 9, not 7. The operators are <code>+ - * /</code> and Merlin's logicals <code>.</code> (or), <code>!</code> (exclusive or) and <code>&amp;</code> (and). <code>&lt;</code>, <code>&gt;</code> and <code>^</code> select the low, high and bank byte of the <em>whole</em> expression, so <code>#&gt;LABEL+1</code> is the high byte of LABEL+1</li>
+          <li><strong>A comment needs no semicolon.</strong> A line is four whitespace-separated fields — label, opcode, operand, comment — so everything after the operand is a comment. That is also why an operand may not contain a space unless it is inside a string</li>
+          <li><strong>A delimiter chooses the high bit.</strong> <code>ASC 'TEXT'</code> stores plain ASCII, <code>ASC "TEXT"</code> sets the high bit. Any character may delimit, and the same rule decides: below an apostrophe in ASCII sets the bit, at or above it does not</li>
+        </ul>
+
+        <h5>Directives</h5>
+        <table class="key-table">
+          <thead>
+            <tr><th>Group</th><th>Directives</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Layout</td><td><code>ORG</code> <code>OBJ</code> <code>EQU</code> <code>=</code> <code>VAR</code> <code>DS</code> <code>DUM</code> <code>DEND</code></td></tr>
+            <tr><td>Data</td><td><code>DFB</code> <code>DB</code> <code>DW</code> <code>DA</code> <code>DDB</code> <code>ADR</code> <code>ADRL</code> <code>HEX</code> <code>CHK</code></td></tr>
+            <tr><td>Strings</td><td><code>ASC</code> <code>DCI</code> <code>INV</code> <code>FLS</code> <code>REV</code> <code>STR</code> <code>STRL</code></td></tr>
+            <tr><td>Conditionals</td><td><code>DO</code> <code>IF</code> <code>ELSE</code> <code>FIN</code></td></tr>
+            <tr><td>Loops</td><td><code>LUP</code> <code>--^</code> <code>ELUP</code></td></tr>
+            <tr><td>Macros</td><td><code>MAC</code> <code>EOM</code> <code>&lt;&lt;&lt;</code> <code>&gt;&gt;&gt;</code> <code>PMC</code></td></tr>
+            <tr><td>Source files</td><td><code>PUT</code> <code>USE</code> <code>CHN</code></td></tr>
+            <tr><td>Object file</td><td><code>DSK</code> <code>SAV</code> <code>TYP</code></td></tr>
+            <tr><td>Control</td><td><code>END</code> <code>ERR</code> <code>SW</code> <code>XC</code></td></tr>
+            <tr><td>Listing</td><td><code>LST</code> <code>CYC</code> <code>EXP</code> <code>PAG</code> <code>TTL</code> <code>SKP</code> <code>PAU</code> <code>DAT</code> <code>TR</code></td></tr>
+          </tbody>
+        </table>
+        <p><code>REL</code>, <code>ENT</code>, <code>EXT</code> and <code>LNK</code> produce relocatable object code for a linker, which this assembler does not have, so they are reported as errors rather than quietly ignored. <code>KBD</code> prompted the operator during assembly and cannot here, so it takes its operand's value and reports a warning. <code>MX</code> and the second <code>XC</code> ask for the 65816, which a //e cannot run.</p>
+
+        <h5>Macros, Variables and Local Labels</h5>
+        <ul>
+          <li><strong>Macros:</strong> <code>NAME MAC</code> opens a definition and <code>EOM</code> or <code>&lt;&lt;&lt;</code> closes it. Call one by its name, or with <code>&gt;&gt;&gt; NAME;P1;P2</code> or <code>PMC NAME;P1;P2</code>. Inside the body <code>]1</code> to <code>]8</code> stand for the parameters, substituted as text</li>
+          <li><strong>Local labels:</strong> a label beginning <code>:</code> belongs to the global label above it, so the same <code>:LOOP</code> can appear throughout a source. Inside a macro they are scoped to a single expansion, so a macro called twice does not collide with itself</li>
+          <li><strong>Variables:</strong> a label beginning <code>]</code> may be reassigned as often as you like. <code>VAR 3;4</code> loads <code>]1</code> and <code>]2</code> in one line</li>
+          <li><strong>Testing a parameter:</strong> <code>IF "",]1</code> is true when the parameter was omitted, because <code>IF</code> compares the first character of what it was given</li>
+        </ul>
+
+        <h5>PUT and USE</h5>
+        <p><code>PUT NAME</code> and <code>USE NAME</code> read included source off the disk in drive 1, then drive 2, from either a DOS 3.3 or a ProDOS disk. Merlin's habit of naming source files <code>T.SOMETHING</code> is honoured, so <code>PUT MACROS</code> finds a file saved as <code>T.MACROS</code>. <code>CHN</code> hands assembly over to another file and does not come back.</p>
+
+        <h5>Sweet-16</h5>
+        <p><code>SW</code> switches the opcode field over to Sweet-16, Woz's 16-bit interpreter — <code>SET</code>, <code>LD</code>, <code>ST</code>, <code>LDD</code>, <code>STD</code>, <code>POP</code>, <code>POPD</code>, <code>STP</code>, <code>ADD</code>, <code>SUB</code>, <code>CPR</code>, <code>INR</code>, <code>DCR</code> against registers <code>R0</code>&ndash;<code>R15</code> (with <code>@</code> for the indirect forms), plus <code>BR</code>, <code>BNC</code>, <code>BC</code>, <code>BP</code>, <code>BM</code>, <code>BZ</code>, <code>BNZ</code>, <code>BM1</code>, <code>BNM1</code>, <code>BS</code>, <code>RTN</code>, <code>RS</code> and <code>BK</code>. <code>SW OFF</code> hands the mnemonics back to the 65C02.</p>
 
         <h5>ROM Routines Reference</h5>
         <p>Press <kbd>F2</kbd> or click <strong>ROM</strong> to open the ROM routines panel:</p>
@@ -1124,7 +1166,9 @@ export class DocumentationWindow extends BaseWindow {
         <ul>
           <li><strong>Symbols:</strong> Lists all defined labels and their addresses</li>
           <li><strong>Hex Output:</strong> Shows assembled machine code bytes</li>
+          <li><strong>Problems:</strong> Every error and warning from the last assembly in one list, most serious first. Click a row to jump to the line it is about. Warnings are yellow and do not stop the assembly &mdash; they name something Merlin could do that this assembler cannot</li>
         </ul>
+        <p>The gutter shows each line's address, cycle count and object bytes as the assembler itself reported them, which is why they appear after an assembly rather than as you type: what a line produces depends on the source around it once macros, <code>LUP</code> blocks and conditional assembly are involved. A macro call shows the bytes its expansion produced.</p>
       </section>
 
       <!-- AI Agent Section -->

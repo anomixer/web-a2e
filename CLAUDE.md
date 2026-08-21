@@ -76,6 +76,7 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 - `audio/audio.cpp` - Speaker emulation from $C030 toggles
 - `disk-image/` - Disk image format support (DSK/DO/PO/NIB/WOZ). `gcr_encoding` holds the one copy of the GCR encode/decode routines and the DOS/ProDOS sector interleave tables that both image classes and the filesystem readers use; plus `disk_converter` — converts a loaded image between save formats (DOS order, ProDOS order, WOZ), including encoding a sector image to a WOZ bit stream
 - `disassembler/` - 65C02 instruction disassembler
+- `assembler/` - Merlin-compatible 65C02 assembler (see Assembler below)
 - `input/keyboard.cpp` - Keyboard input handling
 - `cards/` - Pluggable expansion card system (ExpansionCard interface)
 - `cards/disk2/` - Disk II controller card
@@ -113,6 +114,79 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 - `utils/` - Shared utilities (storage, string, BASIC)
 - `windows/` - Base window class and window manager
 
+### Paste / Typed Text
+
+Pasted text (Ctrl+V, the BASIC and assembler windows, and the agent's
+`typeKeyboard`) goes into a **type-ahead buffer inside the core**, not a queue
+in JavaScript. `Emulator::pasteText()` translates the text with the one
+`charToAppleKey` in `keyboard.cpp` and pushes it onto `pasteBuffer_`;
+`loadNextPasteKey()` moves a character into the keyboard latch, and
+`clearKeyboardStrobe()` schedules the next one once the program has read the
+strobe. The machine therefore pulls characters at its own pace — a character
+can never be overwritten before it is read — subject to the minimum gaps
+below.
+
+The host therefore does not meter the paste at all. `input-handler.js` writes
+the text across in whole runs — a paste of any size costs a fixed handful of
+RPCs, where the old path spent one `_charToAppleKey`, one `_isKeyboardReady`
+and one `_runCycles` **per character** and drove the CPU in 500-cycle bursts
+from the main thread, competing with the audio-paced worker for the same
+emulation. What is left in JS is bookkeeping: the 8x speed boost, dropped and
+restored around pauses, and a `_pastePending()` poll to notice the end and fire
+the completion callback. `{token}` sequences (`{ctrl-c}`, `{left}`, `{chr:4}`)
+are still resolved host-side and pushed as single codes with `_pasteKey`.
+
+Two details are load-bearing. `loadNextPasteKey()` refuses to touch the latch
+while the strobe is set, which is what makes the buffer lossless. And it
+refuses to refill the latch *immediately*: a character becomes available
+`PASTE_KEY_GAP_CYCLES` (~15ms of emulated time) after the previous one was
+taken, and `PASTE_LINE_GAP_CYCLES` (~150ms) after a carriage return.
+
+The gap is not cosmetic. Clearing the strobe twice is a keyboard **flush** —
+`POKE -16368,0`, `STA $C010`, the ROM and DOS doing it before settling down to
+wait for input — and it is everywhere in Apple II software. A person typing
+leaves nothing pending for a flush to eat; a buffer that refilled the latch the
+instant the strobe cleared handed each flush a fresh character to throw away.
+The symptom is a paste that arrives with characters missing, in some programs
+and not others: `10 GET A$: POKE -16368,0: PRINT A$;: GOTO 20` received
+`ACEGIKMOQSUWY02468` from `ABCDEFGH…9`, exactly every second character.
+`test_emulator.cpp` pins that case. The carriage-return gap is longer because
+the machine has a line to digest afterwards — Applesoft tokenises it, DOS and
+BASIC.SYSTEM run their command parsers — with flushes at the end of that work.
+
+A read of `$C000` that finds the keyboard empty looks like a better signal than
+a timer — the program asking for input — and it was tried and measured to fail:
+Applesoft polls `$C000` between every statement to check for Ctrl-C, so it
+releases the next character long before the program reaches its flush. Do not
+reintroduce it. Because the gaps are emulated time, the 8x paste speed boost
+shortens the wall-clock wait proportionally; a 2400-character program pastes in
+around seven seconds.
+
+The buffer is host state like the speed multiplier — it is not serialized into save states,
+and `reset()` discards it. Mobile input goes through the same buffer, because
+an on-screen keyboard can deliver several characters in one `input` event and
+writing the latch per character overwrote keys the machine had not read yet.
+
+### AKD (any key down)
+
+`$C010` bit 7 says a key is *physically held*, as opposed to `$C000` bit 7,
+which says a key code is waiting to be read. `Emulator::updateAnyKeyDown()`
+**derives** it from the only two things that can hold a key down — a host key
+currently held (`Keyboard::isAnyKeyDown()`) and a pasted character still
+sitting unread in the latch (`pasteHoldsKey_`) — rather than any path setting
+`keyDown_` directly. That is deliberate: every earlier version asserted AKD
+somewhere with no matching release, so the line went high on the first
+keystroke of the session and stayed there, and key-repeat or game input code
+polling it saw a key held forever.
+
+`Keyboard` tracks held keys by *browser keycode*, with a running count, so a
+key-up always clears the key it names whatever the modifier state was when it
+was pressed, and auto-repeat's stream of key-downs cannot double-count.
+Shift, Control, Caps Lock and the Apple buttons deliberately do not assert AKD
+— they are separate lines on real hardware, not keys in the matrix. Losing
+window focus releases everything, held keys included, because a key held
+across a blur never delivers its key-up.
+
 ### CPU Speed
 
 **View > CPU Speed** picks 1x/2x/4x/8x of the 1.023 MHz clock. The mechanism
@@ -147,6 +221,56 @@ machine state, so a reboot must not drop the user back to 1 MHz;
 touching WASM while a paste boost is live — otherwise `restorePasteSpeed()`
 would put the old speed back when the paste ended. The multiplier is not part
 of a save state.
+
+### Assembler
+
+`src/core/assembler/` is a Merlin-compatible 65C02 assembler, not a generic
+one. Four things in it are load-bearing.
+
+**There is no "pass 1 sizes, pass 2 emits" split.** `assemble()` runs the whole
+source to completion repeatedly until the symbol table and the object size stop
+moving, then once more with diagnostics on. Macros, conditionals and `LUP`
+blocks make the *line stream itself* depend on symbol values, so a sizing pass
+that did not emit could not have followed the same path as the pass that did. A
+forward reference reads its value from `lastPassSymbols_` — the previous pass's
+table — and sets `unresolved_`, which forces absolute addressing so an
+instruction never shrinks to zero page on a guess and oscillates.
+
+**Expressions run strictly left to right with no operator precedence.** `1+2*3`
+is 9. That is Merlin, and real Merlin sources are written assuming it, so adding
+precedence would silently change the bytes they produce. The operators are
+`+ - * /` plus `.` (or), `!` (exclusive or) and `&` (and); `<`, `>` and `^`
+select the low, high and bank byte of the *whole* expression, which is why the
+selector is parsed once in `evaluate()` and applied to the total rather than
+being a term-level unary. Outside an immediate, a leading `<` or `|` forces the
+address width instead.
+
+**A line is four whitespace-separated fields and the comment needs no
+semicolon.** `parseLine` ends the operand at the first space outside a string —
+that is why a Merlin operand never contains a space, and why the editor's
+validator has no "unexpected extra token" rule. String directives are the
+exception: their operand opens with a delimiter of the author's choosing, so it
+is scanned to the matching character first. `STRING_DIRECTIVES` in
+`merlin-highlighting.js` holds the same list for the editor.
+
+**The editor no longer assembles anything itself.** `AsmLineInfo` reports each
+main-source line's address, cycle count and bytes, and
+`assembler-editor-window.js` reads that block through one `heapRead`. It used to
+carry its own 65C02 opcode table, operand parser and expression evaluator to
+fill the gutter; those could not survive macros or conditional assembly, and a
+second encoder is a second thing to be wrong. A macro call site is credited with
+the bytes its expansion produced (`expandAndRecord`), because the body's lines
+are not in the source being edited. Cycle counts come from `CYCLE_TABLE`, per
+opcode rather than per mnemonic, so `LDA $10` and `LDA $1000` differ correctly.
+
+`PUT` and `USE` resolve through an `AsmIncludeProvider` callback so the core
+stays host-free; `wasm_interface.cpp` installs one that reads text files off the
+disk in drive 1 then drive 2, on DOS 3.3 or ProDOS, honouring Merlin's `T.`
+prefix convention. Multiple `ORG`s produce multiple `AsmSegment`s, and
+`loadAsmIntoMemory` places each where it belongs instead of assuming one block.
+`REL`/`ENT`/`EXT`/`LNK` need a linker and are reported as errors; `KBD` and a
+second `XC` are reported as *warnings*, a severity `AsmError::warning` carries
+so an assembly still succeeds.
 
 ### Theming
 
@@ -393,6 +517,7 @@ src/
 │   ├── audio/          # Speaker audio
 │   ├── disk-image/     # Disk image formats (DSK/DO/PO/NIB/WOZ), GCR encoding, format conversion
 │   ├── disassembler/   # 65C02 disassembler
+│   ├── assembler/      # Merlin-compatible 65C02 assembler
 │   ├── input/          # Keyboard handling
 │   ├── cards/          # Expansion card system
 │   │   ├── disk2/         # Disk II controller card

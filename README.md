@@ -349,18 +349,37 @@ Development tools are accessible from the **Dev** menu.
 | Tool | Description |
 |------|-------------|
 | **BASIC Program** | Write, edit, and paste Applesoft BASIC programs with syntax highlighting, autocomplete, line heat map, trace toggle, statement-level breakpoints, variable inspector, and run/stop/pause/step controls |
-| **Assembler** | Full 65C02 assembler with Merlin-style syntax, live validation, ROM routines reference, breakpoint support, and file save/load |
+| **Assembler** | Merlin-compatible 65C02 assembler with macros, conditional assembly, loops, Sweet-16, live validation, ROM routines reference, breakpoint support, and file save/load |
 
 ### Assembler Features
 
+The assembler follows Merlin, not generic assembler convention: expressions run
+strictly left to right with no operator precedence (`1+2*3` is 9), a comment
+needs no semicolon because it is simply the fourth whitespace-separated field,
+and a string's delimiter chooses whether the high bit is set.
+
+- **Macros** — `MAC`/`EOM`, called by name or with `>>>` / `PMC`, parameters `]1`–`]8`, local labels scoped to one expansion
+- **Conditional assembly** — `DO`/`IF`/`ELSE`/`FIN`, nested
+- **Loops** — `LUP` … `--^`
+- **Dummy sections** — `DUM`/`DEND` for laying out structures without emitting code
+- **Local labels and variables** — `:LOCAL` scoped to the preceding global label, `]VAR` reassignable, `VAR` for the numbered set
+- **Full data and string set** — `DFB` `DW` `DA` `DDB` `ADR` `ADRL` `HEX` `CHK` `DS` (with fill and page-align), `ASC` `DCI` `INV` `FLS` `REV` `STR` `STRL`
+- **Included source** — `PUT` and `USE` read from the disk in a drive, DOS 3.3 or ProDOS, honouring Merlin's `T.` naming
+- **Object files** — `DSK`/`SAV` write the object to a disk, `TYP` sets its ProDOS type
+- **Sweet-16** — `SW` switches the opcode field to Woz's 16-bit interpreter
 - **Syntax highlighting** for opcodes, directives, labels, operands, and comments
 - **Column guides** for Merlin's column-based format (Label, Opcode, Operand, Comment)
-- **Live validation** with inline error messages
+- **Live validation** with inline error messages, and warnings for what Merlin could do and a browser cannot
 - **ROM Routines Reference** (F2) — searchable database of Apple II ROM routines with insert capability
 - **Breakpoints** — click gutter or press F9 to toggle breakpoints on instruction lines
 - **File operations** — New, Open, Save with Ctrl/Cmd+N/O/S shortcuts
 - **Symbols panel** — view all defined labels and their addresses
 - **Hex output** — view assembled machine code bytes
+- **Problems panel** — every error and warning from the last assembly in one list; click a row to jump to its line
+
+`REL`, `ENT`, `EXT` and `LNK` produce relocatable object code for a linker,
+which this assembler does not have, so they are reported rather than quietly
+ignored. `MX` and a second `XC` ask for the 65816, which a //e cannot run.
 
 ## AI Agent Integration
 
