@@ -11,6 +11,45 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "August 21, 2026",
+    features: [
+      {
+        title: "A real Merlin assembler",
+        description:
+          "The Assembler window used to accept a plain list of 65C02 instructions and little else. It is now a Merlin-compatible assembler in the emulator's core, and Merlin source written in 1985 assembles as written: macros with parameters and their own local labels, conditional assembly, LUP loops, dummy sections for laying out structures, local labels and variables, the full set of data and string directives, PUT and USE reading included source straight off the disk in a drive, DSK and SAV writing the object back to one, and SW for Woz's Sweet-16 interpreter. It follows Merlin's conventions rather than a generic assembler's — expressions run strictly left to right with no operator precedence, so 1+2*3 is 9, because that is what the sources you might load were written against. Directives that need a linker, and the 65816 ones a //e cannot run, are reported instead of quietly doing nothing. A Problems panel lists every error and warning from the last assembly, and clicking one goes to its line.",
+      },
+      {
+        title: "The gutter now shows what was really assembled",
+        description:
+          "The addresses, cycle counts and bytes beside each line used to come from a second, simpler assembler living in the editor, which meant it could not follow a macro or a conditional and quietly disagreed with the code that was actually produced. The gutter is now filled in by the real assembler, so a line inside a conditional that was not taken shows nothing, a macro call is credited with the bytes its expansion produced, and cycle counts are per opcode rather than per instruction name — LDA $10 and LDA $1000 differ, as they do on the chip.",
+      },
+    ],
+    fixes: [
+      {
+        title: "Pasted text was arriving with characters missing",
+        description:
+          "Paste a program into some titles and roughly every second character vanished, while other programs took the same paste perfectly — which made it look like the paste was too fast rather than wrong. Clearing the keyboard strobe twice is how an Apple II flushes the keyboard, and the ROM, DOS and countless programs do it before settling down to wait for input. A person typing leaves nothing pending for a flush to throw away; the emulator was handing each flush a fresh character. Pasted text now goes into a type-ahead buffer inside the machine, and a character becomes available a short interval after the last one was taken — longer after a carriage return, because the machine has a line to tokenise and a command to run before it asks for the next one. Nothing can now be overwritten before it has been read.",
+      },
+      {
+        title: "The machine thought a key was held down forever",
+        description:
+          "The //e reports whether a key is physically held on a separate line from the one that reports a key waiting to be read, and games and key-repeat code watch it. It went high on the first keystroke of a session and stayed there, because something asserted it with nothing to release it. It is now derived from the only two things that can hold a key down — a key you are actually holding, and a pasted character the program has not read yet — so it releases on its own. Held keys are tracked by the physical key, so letting go of Shift first cannot strand one, auto-repeat cannot double-count, and clicking away from the window releases everything rather than losing the key-up.",
+      },
+      {
+        title: "Typing on a phone or tablet dropped characters",
+        description:
+          "An on-screen keyboard can deliver several characters in one go — autocorrect finishing a word, a swipe, a paste into the input field — and each one was written straight into the keyboard latch, overwriting whatever the machine had not read yet. Mobile typing now goes through the same type-ahead buffer as a paste, so the machine gets all of it at its own pace.",
+      },
+    ],
+    improvements: [
+      {
+        title: "Pasting no longer fights the emulator for time",
+        description:
+          "The old paste ran the CPU itself from the browser's main thread in small bursts, asking the emulator whether the keyboard was ready once per character and translating each character with a separate call — three round trips per key, competing with the audio-driven emulation for the same machine. The text now crosses into the emulator in whole lines, a paste of any size costs a fixed handful of calls, and the machine pulls characters out at its own pace. All the host still does is drop the speed boost and notice when the paste has finished.",
+      },
+    ],
+  },
+  {
     week: "August 15, 2026",
     features: [
       {
