@@ -7,7 +7,8 @@ A cycle-accurate Apple //e Enhanced emulator running in the browser using WebAss
 - **Cycle-accurate 65C02 CPU** — All legal 6502 opcodes plus 65C02 extensions at 1.023 MHz
 - **Full Apple //e memory architecture** — 128KB RAM (64KB main + 64KB auxiliary), language card, soft switches
 - **Multiple display modes** — Text (40/80 col), LoRes, Double LoRes, HiRes, Double HiRes, monochrome
-- **WebGL rendering** — Hardware-accelerated display with configurable CRT shader effects
+- **Signal-accurate composite video** — Decodes the machine's real 14.31818 MHz dot stream rather than looking colours up, so artifact colour, the hi-res half-dot shift and colour burst all emerge from the signal
+- **WebGL rendering** — Hardware-accelerated display with configurable CRT shader effects and saveable monitor profiles
 - **Web Worker architecture** — WASM emulation runs in a dedicated Worker thread, eliminating main-thread blocking
 - **Audio-driven timing** — Web Audio API AudioWorklet drives frame timing at 48kHz via Worker RPC
 - **Disk II controller** — DSK, DO, PO, and WOZ format support with write capability
@@ -190,16 +191,18 @@ The display settings window opens with a **Monitor** preset that sets the whole 
 
 | Preset | What it imitates |
 |--------|------------------|
-| Pixel Exact | No CRT simulation — sharp square pixels |
-| Composite Color | Colour TV or composite monitor — dot triad mask, artefact fringing, chroma bleed |
-| RGB Monitor | Separate colour signals — sharp, no composite artefacts |
+| Pixel Exact | No CRT simulation and no composite effects — sharp square pixels |
+| Composite Color | Colour TV or composite monitor — true NTSC decoding, dot triad mask, chroma bleed |
+| RGB Monitor | Separate colour signals — sharp, with the mild chroma softening of an analogue RGB stage |
 | Monochrome Green | P1 phosphor — long persistence, no mask |
 | Monochrome Amber | P3 phosphor — the warmer mono tube |
+
+Each preset also chooses how the core decodes the machine's dot stream — see [Composite Video](#composite-video) below.
 
 Presets leave brightness, contrast, saturation and the bezel alone; adjusting anything a preset covers relabels it as Custom without changing the value. Every individual control remains under **Advanced**:
 
 - Screen curvature, scanlines, beam bloom, shadow mask (aperture grille or dot triad)
-- Phosphor glow, vignette, NTSC fringing, colour bleed
+- Phosphor glow, vignette, colour bleed
 - Flicker, static noise, jitter, horizontal sync lines
 - Burn In — phosphor persistence, decaying exponentially and per phosphor (green lingers, blue fades first; monochrome tubes decay as one)
 - Brightness, contrast, saturation
@@ -209,6 +212,34 @@ Presets leave brightness, contrast, saturation and the bezel alone; adjusting an
 Scanlines model the beam spot as a Gaussian that widens with brightness, so bright lines are fatter than dark ones — the reason white text on a CRT looks bolder than the same glyphs in a screenshot. The shadow mask has a fixed apparent size regardless of display density.
 
 Animated effects are kept within the accessibility limits for flashing content (no more than three flashes per second, and under a 10% change in screen luminance). Flicker is a slow undulation rather than a rapid random one, and the powered-off screen shows a static no-signal message rather than animated television snow.
+
+#### Saved profiles
+
+Tune the picture however you like, then **Save As…** to keep it under a name of your own. Saved profiles appear under **My Profiles** in the Monitor dropdown, next to the built-in monitors.
+
+Adjusting a saved profile keeps its name and marks it modified, and **Save** writes the changes back without prompting — refining a profile does not mean naming it again each time. Unlike the built-in monitors, a profile remembers *everything*, brightness, contrast, saturation and bezel included: it is a snapshot of a picture you liked, so selecting it restores that picture whole. Profiles live separately from the rest of the display settings, so **Reset to Defaults** does not remove them.
+
+### Composite Video
+
+An Apple //e does not output pixels. It outputs one bit per 14.31818 MHz dot, four dots to a cycle of the 3.579545 MHz colour subcarrier, and every colour it appears to produce is manufactured by the *receiver*. The emulator generates that dot stream and then decodes it, rather than looking colours up in a table:
+
+| Decoder | What it models |
+|---------|----------------|
+| Composite | Full NTSC demodulation — what a composite monitor really shows |
+| RGB Monitor | The digital decode an Apple RGB card does, plus mild chroma softening |
+| Pixel Exact | The same digital decode with no filtering at all |
+| Monochrome | The dot stream straight to a single phosphor |
+
+Several behaviours follow from the signal rather than being special-cased:
+
+- **The hi-res high bit is a real one-dot delay**, pushing a byte's pixels half a hi-res pixel right onto the opposite subcarrier phase. That is the whole mechanism behind orange and blue.
+- **Artifact colours and lo-res colours are the same sixteen colours**, because they are the same mechanism.
+- **Colour burst is modelled per scanline**, and the monitor's colour killer per field. A //e inhibits burst in text mode, so a full text screen is crisp and white; a mixed graphics screen still carries burst on most of its lines, so the text at the bottom fringes green and violet exactly as it does on real hardware.
+- **80-column text on the Composite preset is genuinely soft**, which is why Apple sold a monochrome monitor. Use Pixel Exact, RGB Monitor or a monochrome preset to read it.
+
+The demodulator's phase and gain were fitted by least squares against the physically self-consistent Apple II colours, and the composite lookup table is verified in the test suite to be an exact memoisation of the filter rather than an approximation of it.
+
+Pixel Exact applies no composite effects whatsoever: unlit dots are black and colour never extends past the pixels that are lit. It still shows the artifact colours hi-res art was drawn to exploit — it simply does not smear them.
 
 ### Expansion Cards
 
@@ -241,6 +272,12 @@ Cards are configured via **View > Expansion Slots**.
 ### Joystick & Game Controllers
 
 A floating joystick window provides visual paddle/joystick controls that map to the Apple II game ports ($C064-$C067). Physical game controllers are supported via the Gamepad API — the left stick maps to paddle values and buttons A/B map to Apple II buttons 0/1, with a configurable deadzone. A **Cursor Keys** toggle makes the arrow keys drive the joystick as well as the keyboard — they still reach the emulator, so arrow-key navigation in ProDOS and BASIC keeps working — with an indicator chip in the Monitor title bar when active. The same toggle is in **View > Cursor Keys as Joystick**, which is the way to reach it in the layouts that have no Monitor title bar.
+
+### CPU Speed
+
+**View > CPU Speed** runs the machine at 1x, 2x, 4x or 8x the real 1.023 MHz clock — 8x is roughly an accelerator card. Audio still paces the emulation and still plays, but it plays sped up: everything the speaker does happens in a fraction of the time and rises in pitch to match, exactly as it did on accelerated hardware. The display stays at 60fps; the machine simply gets through more work between frames.
+
+The speed is a host preference, not machine state, so it survives reset and reboot, persists across sessions, and is not written into save states. Pasting still boosts to 8x for the duration of the paste and then hands the machine back to the chosen speed. Any setting above 1x shows a chip in the Monitor title bar.
 
 ## Architecture
 
@@ -315,18 +352,37 @@ Development tools are accessible from the **Dev** menu.
 | Tool | Description |
 |------|-------------|
 | **BASIC Program** | Write, edit, and paste Applesoft BASIC programs with syntax highlighting, autocomplete, line heat map, trace toggle, statement-level breakpoints, variable inspector, and run/stop/pause/step controls |
-| **Assembler** | Full 65C02 assembler with Merlin-style syntax, live validation, ROM routines reference, breakpoint support, and file save/load |
+| **Assembler** | Merlin-compatible 65C02 assembler with macros, conditional assembly, loops, Sweet-16, live validation, ROM routines reference, breakpoint support, and file save/load |
 
 ### Assembler Features
 
+The assembler follows Merlin, not generic assembler convention: expressions run
+strictly left to right with no operator precedence (`1+2*3` is 9), a comment
+needs no semicolon because it is simply the fourth whitespace-separated field,
+and a string's delimiter chooses whether the high bit is set.
+
+- **Macros** — `MAC`/`EOM`, called by name or with `>>>` / `PMC`, parameters `]1`–`]8`, local labels scoped to one expansion
+- **Conditional assembly** — `DO`/`IF`/`ELSE`/`FIN`, nested
+- **Loops** — `LUP` … `--^`
+- **Dummy sections** — `DUM`/`DEND` for laying out structures without emitting code
+- **Local labels and variables** — `:LOCAL` scoped to the preceding global label, `]VAR` reassignable, `VAR` for the numbered set
+- **Full data and string set** — `DFB` `DW` `DA` `DDB` `ADR` `ADRL` `HEX` `CHK` `DS` (with fill and page-align), `ASC` `DCI` `INV` `FLS` `REV` `STR` `STRL`
+- **Included source** — `PUT` and `USE` read from the disk in a drive, DOS 3.3 or ProDOS, honouring Merlin's `T.` naming
+- **Object files** — `DSK`/`SAV` write the object to a disk, `TYP` sets its ProDOS type
+- **Sweet-16** — `SW` switches the opcode field to Woz's 16-bit interpreter
 - **Syntax highlighting** for opcodes, directives, labels, operands, and comments
 - **Column guides** for Merlin's column-based format (Label, Opcode, Operand, Comment)
-- **Live validation** with inline error messages
+- **Live validation** with inline error messages, and warnings for what Merlin could do and a browser cannot
 - **ROM Routines Reference** (F2) — searchable database of Apple II ROM routines with insert capability
 - **Breakpoints** — click gutter or press F9 to toggle breakpoints on instruction lines
 - **File operations** — New, Open, Save with Ctrl/Cmd+N/O/S shortcuts
 - **Symbols panel** — view all defined labels and their addresses
 - **Hex output** — view assembled machine code bytes
+- **Problems panel** — every error and warning from the last assembly in one list; click a row to jump to its line
+
+`REL`, `ENT`, `EXT` and `LNK` produce relocatable object code for a linker,
+which this assembler does not have, so they are reported rather than quietly
+ignored. `MX` and a second `XC` ask for the 65816, which a //e cannot run.
 
 ## AI Agent Integration
 
@@ -393,7 +449,7 @@ web-a2e/
 │   │   ├── cpu/
 │   │   │   └── 6502/        # Cycle-accurate 65C02 processor
 │   │   ├── mmu/             # Memory management, soft switches
-│   │   ├── video/           # Per-scanline video rendering
+│   │   ├── video/           # Per-scanline signal generation + NTSC/RGB decoding
 │   │   ├── audio/           # Speaker emulation
 │   │   ├── disk-image/      # Disk formats (DSK/DO/PO/WOZ), GCR encoding
 │   │   ├── disassembler/    # 65C02 disassembler
@@ -426,7 +482,7 @@ web-a2e/
 │       ├── config/          # App version
 │       ├── debug/           # Debug window implementations
 │       ├── disk-manager/    # Drive UI, persistence, surface renderer, sounds
-│       ├── display/         # WebGL renderer, CRT shaders, display settings
+│       ├── display/         # WebGL renderer, CRT shaders, display settings, user profiles
 │       ├── file-explorer/   # DOS 3.3/ProDOS browser, file viewer, disassembler
 │       ├── help/            # Documentation and release notes
 │       ├── input/           # Keyboard, text selection, joystick, mouse

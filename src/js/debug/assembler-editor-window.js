@@ -6,13 +6,19 @@
  */
 
 import { BaseWindow } from "../windows/base-window.js";
-import { highlightMerlinLineInline } from "../utils/merlin-highlighting.js";
+import {
+  highlightMerlinLineInline,
+  ALL_MNEMONICS,
+  DIRECTIVES,
+  SWEET16_MNEMONICS,
+  STRING_DIRECTIVES,
+} from "../utils/merlin-highlighting.js";
 import {
   MerlinEditorSupport,
+  COL_LABEL,
   COL_OPCODE,
   COL_OPERAND,
   COL_COMMENT,
-  OPCODE_WIDTH,
 } from "../utils/merlin-editor-support.js";
 import {
   ROM_ROUTINES,
@@ -20,7 +26,7 @@ import {
   searchRoutines,
   getRoutinesByCategory,
 } from "../data/apple2-rom-routines.js";
-import { showConfirm } from "../ui/confirm.js";
+import { showConfirm, showPrompt } from "../ui/confirm.js";
 import { escapeHtml } from "../utils/string-utils.js";
 
 export class AssemblerEditorWindow extends BaseWindow {
@@ -40,12 +46,18 @@ export class AssemblerEditorWindow extends BaseWindow {
     this.lastAssembledSize = 0;
     this.lastOrigin = 0;
     this.errors = new Map(); // line number -> error message (from assembler)
+    this.warnings = new Map(); // line number -> warning; the line still assembled
     this.syntaxErrors = new Map(); // line number -> error message (from live validation)
     this.currentLine = -1; // Track current line for auto-assemble
+    // What the last assembly made of each line. These come from the
+    // assembler itself rather than being worked out again here: macros, LUP
+    // blocks and conditional assembly mean the bytes a line produces cannot be
+    // read off the line on its own.
     this.lineBytes = new Map(); // line number -> hex bytes string
-    this.linePCs = new Map(); // line number -> PC address
+    this.linePCs = new Map(); // line number -> address
+    this.lineCycles = new Map(); // line number -> cycles, 0 unless an instruction
     this.symbols = new Map(); // symbol name -> value (from last assembly)
-    this.currentPC = undefined; // current PC for expression evaluation
+    this.macroNames = new Set(); // names defined by MAC in the current text
     this.lineBreakpoints = new Map(); // line number -> breakpoint address
 
     // ---- Viewport rendering state ------------------------------------
@@ -91,6 +103,7 @@ export class AssemblerEditorWindow extends BaseWindow {
             <button class="asm-btn asm-new-btn" title="New (⌘/Ctrl+N)">New</button>
             <button class="asm-btn asm-open-btn" title="Open File (⌘/Ctrl+O)">Open</button>
             <button class="asm-btn asm-save-btn" title="Save File (⌘/Ctrl+S)">Save</button>
+            <button class="asm-btn asm-saveas-btn" title="Save As… (⌘/Ctrl+Shift+S)">Save As…</button>
           </div>
         </div>
         <div class="asm-status-bar">
@@ -168,6 +181,21 @@ export class AssemblerEditorWindow extends BaseWindow {
                 </div>
               </div>
             </div>
+            <div class="asm-splitter asm-splitter-h" data-direction="horizontal">
+              <div class="asm-splitter-handle"></div>
+            </div>
+            <div class="asm-panel asm-problems-panel">
+              <div class="asm-panel-header">
+                <span class="asm-panel-title">Problems</span>
+                <span class="asm-panel-count"></span>
+              </div>
+              <div class="asm-panel-content asm-problems-content">
+                <div class="asm-panel-empty">
+                  <div class="asm-empty-icon">✓</div>
+                  <div class="asm-empty-text">No problems</div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         <div class="asm-shortcuts-bar">
@@ -230,6 +258,7 @@ export class AssemblerEditorWindow extends BaseWindow {
     this.newBtn = this.contentElement.querySelector(".asm-new-btn");
     this.openBtn = this.contentElement.querySelector(".asm-open-btn");
     this.saveBtn = this.contentElement.querySelector(".asm-save-btn");
+    this.saveAsBtn = this.contentElement.querySelector(".asm-saveas-btn");
     this.statusSpan = this.contentElement.querySelector(".asm-status");
     this.currentFileName = null;
     this._fileHandle = null;
@@ -248,6 +277,12 @@ export class AssemblerEditorWindow extends BaseWindow {
     this.hexContent = this.contentElement.querySelector(".asm-hex-content");
     this.hexCount = this.contentElement.querySelector(
       ".asm-hex-panel .asm-panel-count",
+    );
+    this.problemsContent = this.contentElement.querySelector(
+      ".asm-problems-content",
+    );
+    this.problemsCount = this.contentElement.querySelector(
+      ".asm-problems-panel .asm-panel-count",
     );
     this.columnGuides =
       this.contentElement.querySelectorAll(".asm-column-guide");
@@ -379,6 +414,7 @@ export class AssemblerEditorWindow extends BaseWindow {
     this.newBtn.addEventListener("click", () => this.newFile());
     this.openBtn.addEventListener("click", () => this.openFile());
     this.saveBtn.addEventListener("click", () => this.saveFile());
+    this.saveAsBtn.addEventListener("click", () => this.saveFile({ saveAs: true }));
 
     // Editor support (Tab nav, smart enter, autocomplete, etc.)
     this.editorSupport = new MerlinEditorSupport(
@@ -403,6 +439,13 @@ export class AssemblerEditorWindow extends BaseWindow {
       this.scheduleViewportUpdate();
     });
     resizeObserver.observe(editorContainer);
+
+    // A problem is only useful if it takes you to the line it is about.
+    this.problemsContent?.addEventListener("click", (e) => {
+      const row = e.target.closest(".asm-problem-row");
+      const lineNumber = row && parseInt(row.dataset.line, 10);
+      if (lineNumber) this.goToLine(lineNumber);
+    });
 
     // Gutter click handler for breakpoints
     this.gutterContent.addEventListener("click", (e) => {
@@ -435,7 +478,7 @@ export class AssemblerEditorWindow extends BaseWindow {
         this.openFile();
       } else if (modKey && e.key.toLowerCase() === "s") {
         e.preventDefault();
-        this.saveFile();
+        this.saveFile({ saveAs: e.shiftKey });
       }
     });
 
@@ -446,7 +489,7 @@ export class AssemblerEditorWindow extends BaseWindow {
 
     this.updateHighlighting();
     this.validateAllLines();
-    this.encodeAllLineBytes();
+    this.clearLineInfo();
     this.updateGutter();
     this.updateCursorPosition();
   }
@@ -811,12 +854,14 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
   checkLineChangeAndFormat() {
     const newLine = this.getCurrentLineNumber();
     if (newLine !== this.currentLine && this.currentLine !== -1) {
-      // Format, validate, and encode the line we're leaving
+      // Format and validate the line we're leaving. Its bytes are not
+      // recalculated here: what a line assembles to depends on the source
+      // around it, so only a real assembly can say.
       this.formatLine(this.currentLine);
       this.validateLine(this.currentLine);
-      this.encodeLineBytes(this.currentLine);
       this.updateGutter();
       this.updateErrorsOverlay();
+      this.updateProblemsPanel();
       this.currentLine = newLine;
     } else {
       this.currentLine = newLine;
@@ -898,53 +943,56 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
   }
 
   parseLine(line) {
-    // Merlin column layout: Label, Opcode, Operand, Comment (see COL_* constants)
+    // Merlin lines are four whitespace-separated fields: label, opcode,
+    // operand, comment. The comment needs no semicolon — it is simply whatever
+    // follows the operand — which is why a Merlin operand never contains a
+    // space unless it is inside a string.
+    if (line.trim().startsWith(";") || line.trim().startsWith("*")) return null;
+
+    const isSpace = (ch) => ch === " " || ch === "\t";
+    const blank = { label: "", opcode: "", operand: "", comment: "" };
+
+    let i = 0;
     let label = "";
-    let opcode = "";
-    let operand = "";
-    let comment = "";
-
-    // Check for comment at start of line (full-line comment)
-    if (line.trim().startsWith(";") || line.trim().startsWith("*")) {
-      return null;
+    if (line.length && !isSpace(line[0])) {
+      while (i < line.length && !isSpace(line[i])) i++;
+      label = line.slice(0, i);
     }
 
-    // Find comment (starts with ;)
-    let commentIdx = -1;
-    let inQuote = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"' || ch === "'") inQuote = !inQuote;
-      if (ch === ";" && !inQuote) {
-        commentIdx = i;
-        break;
+    while (i < line.length && isSpace(line[i])) i++;
+    if (i >= line.length) return label ? { ...blank, label } : null;
+    if (line[i] === ";") return { ...blank, label, comment: line.slice(i) };
+
+    const opcodeStart = i;
+    while (i < line.length && !isSpace(line[i])) i++;
+    const opcode = line.slice(opcodeStart, i);
+
+    while (i < line.length && isSpace(line[i])) i++;
+    if (i >= line.length) return { ...blank, label, opcode };
+    if (line[i] === ";") {
+      return { ...blank, label, opcode, comment: line.slice(i) };
+    }
+
+    const operandStart = i;
+    if (STRING_DIRECTIVES.has(opcode.toUpperCase())) {
+      // The operand opens with a delimiter of the author's choosing, so the
+      // string runs to the next copy of whatever that character is.
+      const delim = line[i];
+      i++;
+      while (i < line.length && line[i] !== delim) i++;
+      if (i < line.length) i++;
+    }
+    while (i < line.length && !isSpace(line[i])) {
+      const quote = line[i];
+      if (quote === "'" || quote === '"') {
+        i++;
+        while (i < line.length && line[i] !== quote) i++;
+        if (i >= line.length) break;
       }
+      i++;
     }
-
-    let mainPart = commentIdx >= 0 ? line.substring(0, commentIdx) : line;
-    comment = commentIdx >= 0 ? line.substring(commentIdx) : "";
-
-    // Check if line starts with whitespace (no label)
-    const startsWithSpace =
-      mainPart.length > 0 && (mainPart[0] === " " || mainPart[0] === "\t");
-
-    // Split main part by whitespace
-    const tokens = mainPart.trim().split(/\s+/);
-
-    if (tokens.length === 0 || (tokens.length === 1 && tokens[0] === "")) {
-      return null;
-    }
-
-    if (startsWithSpace) {
-      // No label - first token is opcode
-      opcode = tokens[0] || "";
-      operand = tokens.slice(1).join(" ");
-    } else {
-      // First token is label
-      label = tokens[0] || "";
-      opcode = tokens[1] || "";
-      operand = tokens.slice(2).join(" ");
-    }
+    const operand = line.slice(operandStart, i);
+    const comment = line.slice(i).replace(/^\s+/, "");
 
     return { label, opcode, operand, comment };
   }
@@ -952,148 +1000,29 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
   buildFormattedLine(parsed) {
     const { label, opcode, operand, comment } = parsed;
 
+    // A field that has outgrown its column pushes the next one along rather
+    // than being cut off at the column edge or run into. Both matter: a label
+    // longer than the opcode column would otherwise be truncated, and a macro
+    // name — which sits in the opcode field and can be any length — would
+    // otherwise be glued to its first parameter. Either way the line no longer
+    // parses back to what was written.
     let result = "";
-
-    // Label column
-    result = label.padEnd(COL_OPCODE, " ");
-
-    // Opcode column
-    if (opcode) {
-      result =
-        result.substring(0, COL_OPCODE) +
-        opcode.toUpperCase().padEnd(OPCODE_WIDTH, " ");
-    }
-
-    // Operand column
-    if (operand) {
-      result = result.substring(0, COL_OPERAND) + operand;
-    }
-
-    // Comment column
-    if (comment) {
-      const currentLen = result.trimEnd().length;
-      if (currentLen < COL_COMMENT) {
-        result = result.trimEnd().padEnd(COL_COMMENT, " ") + comment;
-      } else {
-        result = result.trimEnd() + " " + comment;
+    const place = (column, text) => {
+      if (!text) return;
+      if (result.length < column) {
+        result = result.padEnd(column, " ");
+      } else if (result.length > 0) {
+        result += " ";
       }
-    }
+      result += text;
+    };
+
+    place(COL_LABEL, label);
+    place(COL_OPCODE, opcode.toUpperCase());
+    place(COL_OPERAND, operand);
+    place(COL_COMMENT, comment);
 
     return result.trimEnd();
-  }
-
-  // 65C02 instruction info: { cycles, bytes } by mnemonic
-  // Cycles shown are base cycles (some modes add +1 for page crossing)
-  getInstructionInfo() {
-    return {
-      // Branch / Flow
-      JMP: { cycles: 3, bytes: 3 },
-      JSR: { cycles: 6, bytes: 3 },
-      BCC: { cycles: 2, bytes: 2 },
-      BCS: { cycles: 2, bytes: 2 },
-      BEQ: { cycles: 2, bytes: 2 },
-      BMI: { cycles: 2, bytes: 2 },
-      BNE: { cycles: 2, bytes: 2 },
-      BPL: { cycles: 2, bytes: 2 },
-      BRA: { cycles: 3, bytes: 2 },
-      BVC: { cycles: 2, bytes: 2 },
-      BVS: { cycles: 2, bytes: 2 },
-      RTS: { cycles: 6, bytes: 1 },
-      RTI: { cycles: 6, bytes: 1 },
-      BRK: { cycles: 7, bytes: 1 },
-      // Load / Store
-      LDA: { cycles: 2, bytes: 2 },
-      LDX: { cycles: 2, bytes: 2 },
-      LDY: { cycles: 2, bytes: 2 },
-      STA: { cycles: 3, bytes: 2 },
-      STX: { cycles: 3, bytes: 2 },
-      STY: { cycles: 3, bytes: 2 },
-      STZ: { cycles: 3, bytes: 2 },
-      // Math / Logic
-      ADC: { cycles: 2, bytes: 2 },
-      SBC: { cycles: 2, bytes: 2 },
-      AND: { cycles: 2, bytes: 2 },
-      ORA: { cycles: 2, bytes: 2 },
-      EOR: { cycles: 2, bytes: 2 },
-      ASL: { cycles: 2, bytes: 1 },
-      LSR: { cycles: 2, bytes: 1 },
-      ROL: { cycles: 2, bytes: 1 },
-      ROR: { cycles: 2, bytes: 1 },
-      INC: { cycles: 2, bytes: 1 },
-      DEC: { cycles: 2, bytes: 1 },
-      INA: { cycles: 2, bytes: 1 },
-      DEA: { cycles: 2, bytes: 1 },
-      INX: { cycles: 2, bytes: 1 },
-      DEX: { cycles: 2, bytes: 1 },
-      INY: { cycles: 2, bytes: 1 },
-      DEY: { cycles: 2, bytes: 1 },
-      CMP: { cycles: 2, bytes: 2 },
-      CPX: { cycles: 2, bytes: 2 },
-      CPY: { cycles: 2, bytes: 2 },
-      BIT: { cycles: 2, bytes: 2 },
-      TRB: { cycles: 5, bytes: 2 },
-      TSB: { cycles: 5, bytes: 2 },
-      // Stack / Transfer
-      PHA: { cycles: 3, bytes: 1 },
-      PHP: { cycles: 3, bytes: 1 },
-      PHX: { cycles: 3, bytes: 1 },
-      PHY: { cycles: 3, bytes: 1 },
-      PLA: { cycles: 4, bytes: 1 },
-      PLP: { cycles: 4, bytes: 1 },
-      PLX: { cycles: 4, bytes: 1 },
-      PLY: { cycles: 4, bytes: 1 },
-      TAX: { cycles: 2, bytes: 1 },
-      TAY: { cycles: 2, bytes: 1 },
-      TSX: { cycles: 2, bytes: 1 },
-      TXA: { cycles: 2, bytes: 1 },
-      TXS: { cycles: 2, bytes: 1 },
-      TYA: { cycles: 2, bytes: 1 },
-      // Flags
-      CLC: { cycles: 2, bytes: 1 },
-      CLD: { cycles: 2, bytes: 1 },
-      CLI: { cycles: 2, bytes: 1 },
-      CLV: { cycles: 2, bytes: 1 },
-      SEC: { cycles: 2, bytes: 1 },
-      SED: { cycles: 2, bytes: 1 },
-      SEI: { cycles: 2, bytes: 1 },
-      NOP: { cycles: 2, bytes: 1 },
-      WAI: { cycles: 3, bytes: 1 },
-      STP: { cycles: 3, bytes: 1 },
-      // 65C02 BBR/BBS (3 bytes: opcode, zp address, relative offset)
-      BBR0: { cycles: 5, bytes: 3 },
-      BBR1: { cycles: 5, bytes: 3 },
-      BBR2: { cycles: 5, bytes: 3 },
-      BBR3: { cycles: 5, bytes: 3 },
-      BBR4: { cycles: 5, bytes: 3 },
-      BBR5: { cycles: 5, bytes: 3 },
-      BBR6: { cycles: 5, bytes: 3 },
-      BBR7: { cycles: 5, bytes: 3 },
-      BBS0: { cycles: 5, bytes: 3 },
-      BBS1: { cycles: 5, bytes: 3 },
-      BBS2: { cycles: 5, bytes: 3 },
-      BBS3: { cycles: 5, bytes: 3 },
-      BBS4: { cycles: 5, bytes: 3 },
-      BBS5: { cycles: 5, bytes: 3 },
-      BBS6: { cycles: 5, bytes: 3 },
-      BBS7: { cycles: 5, bytes: 3 },
-      // 65C02 RMB/SMB (2 bytes: opcode, zp address)
-      RMB0: { cycles: 5, bytes: 2 },
-      RMB1: { cycles: 5, bytes: 2 },
-      RMB2: { cycles: 5, bytes: 2 },
-      RMB3: { cycles: 5, bytes: 2 },
-      RMB4: { cycles: 5, bytes: 2 },
-      RMB5: { cycles: 5, bytes: 2 },
-      RMB6: { cycles: 5, bytes: 2 },
-      RMB7: { cycles: 5, bytes: 2 },
-      SMB0: { cycles: 5, bytes: 2 },
-      SMB1: { cycles: 5, bytes: 2 },
-      SMB2: { cycles: 5, bytes: 2 },
-      SMB3: { cycles: 5, bytes: 2 },
-      SMB4: { cycles: 5, bytes: 2 },
-      SMB5: { cycles: 5, bytes: 2 },
-      SMB6: { cycles: 5, bytes: 2 },
-      SMB7: { cycles: 5, bytes: 2 },
-    };
   }
 
   updateGutter() {
@@ -1109,26 +1038,28 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
    * Build the gutter rows for lines [start, end).
    */
   buildGutterLines(start, end, lines) {
-    const instrInfo = this.getInstructionInfo();
-    const opcodeTable = this.getOpcodeTable();
     const gutterLines = [];
     const numWidth = Math.max(2, String(lines.length).length);
 
     for (let i = start; i < end; i++) {
       const lineNum = String(i + 1).padStart(numWidth, " ");
       const lineNumber = i + 1;
-      const parsed = this.parseLine(lines[i]);
-      let cycles = "";
-      let bytesHex = this.lineBytes.get(lineNumber) || "";
+      const cycleCount = this.lineCycles.get(lineNumber);
+      const cycles = cycleCount ? String(cycleCount) : "";
+      const bytesHex = this.lineBytes.get(lineNumber) || "";
       const hasError =
         this.errors.has(lineNumber) || this.syntaxErrors.has(lineNumber);
-      const errorClass = hasError ? " asm-gutter-error" : "";
+      const errorClass = hasError
+        ? " asm-gutter-error"
+        : this.warnings.has(lineNumber)
+          ? " asm-gutter-warning"
+          : "";
 
-      // Check if this line has an actual instruction (not a directive, comment, or label-only)
-      const isInstruction =
-        parsed && parsed.opcode && opcodeTable[parsed.opcode.toUpperCase()];
+      // Only a line that assembled to an instruction can carry a breakpoint.
+      // The assembler says which those are: it reports a cycle count for an
+      // instruction and none for a directive, a label or a comment.
+      const isInstruction = cycleCount > 0;
 
-      // Check for breakpoint at this line's address (only for instruction lines)
       const lineAddr = this.linePCs.get(lineNumber);
       const hasBreakpoint =
         isInstruction &&
@@ -1147,14 +1078,6 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
         bpIndicator = '<span class="asm-gutter-bp-space"></span>';
       }
 
-      if (parsed && parsed.opcode) {
-        const mnem = parsed.opcode.toUpperCase();
-        const info = instrInfo[mnem];
-        if (info) {
-          cycles = String(info.cycles);
-        }
-      }
-
       gutterLines.push(
         `<div class="asm-gutter-line${errorClass}${bpClass}" data-line="${lineNumber}">` +
           `${bpIndicator}` +
@@ -1171,752 +1094,6 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
   // Compatibility alias
   updateCyclesGutter() {
     this.updateGutter();
-  }
-
-  // 65C02 opcode encoding table: mnemonic -> { mode: opcode }
-  // Modes: IMP, ACC, IMM, ZP, ZPX, ZPY, ABS, ABX, ABY, IND, IZX, IZY, ZPI, REL
-  getOpcodeTable() {
-    return {
-      ADC: {
-        IMM: 0x69,
-        ZP: 0x65,
-        ZPX: 0x75,
-        ABS: 0x6d,
-        ABX: 0x7d,
-        ABY: 0x79,
-        IZX: 0x61,
-        IZY: 0x71,
-        ZPI: 0x72,
-      },
-      AND: {
-        IMM: 0x29,
-        ZP: 0x25,
-        ZPX: 0x35,
-        ABS: 0x2d,
-        ABX: 0x3d,
-        ABY: 0x39,
-        IZX: 0x21,
-        IZY: 0x31,
-        ZPI: 0x32,
-      },
-      ASL: { IMP: 0x0a, ACC: 0x0a, ZP: 0x06, ZPX: 0x16, ABS: 0x0e, ABX: 0x1e },
-      BCC: { REL: 0x90 },
-      BCS: { REL: 0xb0 },
-      BEQ: { REL: 0xf0 },
-      BIT: { IMM: 0x89, ZP: 0x24, ZPX: 0x34, ABS: 0x2c, ABX: 0x3c },
-      BMI: { REL: 0x30 },
-      BNE: { REL: 0xd0 },
-      BPL: { REL: 0x10 },
-      BRA: { REL: 0x80 },
-      BRK: { IMP: 0x00 },
-      BVC: { REL: 0x50 },
-      BVS: { REL: 0x70 },
-      CLC: { IMP: 0x18 },
-      CLD: { IMP: 0xd8 },
-      CLI: { IMP: 0x58 },
-      CLV: { IMP: 0xb8 },
-      CMP: {
-        IMM: 0xc9,
-        ZP: 0xc5,
-        ZPX: 0xd5,
-        ABS: 0xcd,
-        ABX: 0xdd,
-        ABY: 0xd9,
-        IZX: 0xc1,
-        IZY: 0xd1,
-        ZPI: 0xd2,
-      },
-      CPX: { IMM: 0xe0, ZP: 0xe4, ABS: 0xec },
-      CPY: { IMM: 0xc0, ZP: 0xc4, ABS: 0xcc },
-      DEC: { IMP: 0x3a, ACC: 0x3a, ZP: 0xc6, ZPX: 0xd6, ABS: 0xce, ABX: 0xde },
-      DEA: { IMP: 0x3a },
-      DEX: { IMP: 0xca },
-      DEY: { IMP: 0x88 },
-      EOR: {
-        IMM: 0x49,
-        ZP: 0x45,
-        ZPX: 0x55,
-        ABS: 0x4d,
-        ABX: 0x5d,
-        ABY: 0x59,
-        IZX: 0x41,
-        IZY: 0x51,
-        ZPI: 0x52,
-      },
-      INC: { IMP: 0x1a, ACC: 0x1a, ZP: 0xe6, ZPX: 0xf6, ABS: 0xee, ABX: 0xfe },
-      INA: { IMP: 0x1a },
-      INX: { IMP: 0xe8 },
-      INY: { IMP: 0xc8 },
-      JMP: { ABS: 0x4c, IND: 0x6c, IAX: 0x7c },
-      JSR: { ABS: 0x20 },
-      LDA: {
-        IMM: 0xa9,
-        ZP: 0xa5,
-        ZPX: 0xb5,
-        ABS: 0xad,
-        ABX: 0xbd,
-        ABY: 0xb9,
-        IZX: 0xa1,
-        IZY: 0xb1,
-        ZPI: 0xb2,
-      },
-      LDX: { IMM: 0xa2, ZP: 0xa6, ZPY: 0xb6, ABS: 0xae, ABY: 0xbe },
-      LDY: { IMM: 0xa0, ZP: 0xa4, ZPX: 0xb4, ABS: 0xac, ABX: 0xbc },
-      LSR: { IMP: 0x4a, ACC: 0x4a, ZP: 0x46, ZPX: 0x56, ABS: 0x4e, ABX: 0x5e },
-      NOP: { IMP: 0xea },
-      ORA: {
-        IMM: 0x09,
-        ZP: 0x05,
-        ZPX: 0x15,
-        ABS: 0x0d,
-        ABX: 0x1d,
-        ABY: 0x19,
-        IZX: 0x01,
-        IZY: 0x11,
-        ZPI: 0x12,
-      },
-      PHA: { IMP: 0x48 },
-      PHP: { IMP: 0x08 },
-      PHX: { IMP: 0xda },
-      PHY: { IMP: 0x5a },
-      PLA: { IMP: 0x68 },
-      PLP: { IMP: 0x28 },
-      PLX: { IMP: 0xfa },
-      PLY: { IMP: 0x7a },
-      ROL: { IMP: 0x2a, ACC: 0x2a, ZP: 0x26, ZPX: 0x36, ABS: 0x2e, ABX: 0x3e },
-      ROR: { IMP: 0x6a, ACC: 0x6a, ZP: 0x66, ZPX: 0x76, ABS: 0x6e, ABX: 0x7e },
-      RTI: { IMP: 0x40 },
-      RTS: { IMP: 0x60 },
-      SBC: {
-        IMM: 0xe9,
-        ZP: 0xe5,
-        ZPX: 0xf5,
-        ABS: 0xed,
-        ABX: 0xfd,
-        ABY: 0xf9,
-        IZX: 0xe1,
-        IZY: 0xf1,
-        ZPI: 0xf2,
-      },
-      SEC: { IMP: 0x38 },
-      SED: { IMP: 0xf8 },
-      SEI: { IMP: 0x78 },
-      STA: {
-        ZP: 0x85,
-        ZPX: 0x95,
-        ABS: 0x8d,
-        ABX: 0x9d,
-        ABY: 0x99,
-        IZX: 0x81,
-        IZY: 0x91,
-        ZPI: 0x92,
-      },
-      STX: { ZP: 0x86, ZPY: 0x96, ABS: 0x8e },
-      STY: { ZP: 0x84, ZPX: 0x94, ABS: 0x8c },
-      STZ: { ZP: 0x64, ZPX: 0x74, ABS: 0x9c, ABX: 0x9e },
-      TAX: { IMP: 0xaa },
-      TAY: { IMP: 0xa8 },
-      TRB: { ZP: 0x14, ABS: 0x1c },
-      TSB: { ZP: 0x04, ABS: 0x0c },
-      TSX: { IMP: 0xba },
-      TXA: { IMP: 0x8a },
-      TXS: { IMP: 0x9a },
-      TYA: { IMP: 0x98 },
-      WAI: { IMP: 0xcb },
-      STP: { IMP: 0xdb },
-      // BBR/BBS (zero page relative - 3 bytes)
-      BBR0: { ZPR: 0x0f },
-      BBR1: { ZPR: 0x1f },
-      BBR2: { ZPR: 0x2f },
-      BBR3: { ZPR: 0x3f },
-      BBR4: { ZPR: 0x4f },
-      BBR5: { ZPR: 0x5f },
-      BBR6: { ZPR: 0x6f },
-      BBR7: { ZPR: 0x7f },
-      BBS0: { ZPR: 0x8f },
-      BBS1: { ZPR: 0x9f },
-      BBS2: { ZPR: 0xaf },
-      BBS3: { ZPR: 0xbf },
-      BBS4: { ZPR: 0xcf },
-      BBS5: { ZPR: 0xdf },
-      BBS6: { ZPR: 0xef },
-      BBS7: { ZPR: 0xff },
-      // RMB/SMB (zero page - 2 bytes)
-      RMB0: { ZP: 0x07 },
-      RMB1: { ZP: 0x17 },
-      RMB2: { ZP: 0x27 },
-      RMB3: { ZP: 0x37 },
-      RMB4: { ZP: 0x47 },
-      RMB5: { ZP: 0x57 },
-      RMB6: { ZP: 0x67 },
-      RMB7: { ZP: 0x77 },
-      SMB0: { ZP: 0x87 },
-      SMB1: { ZP: 0x97 },
-      SMB2: { ZP: 0xa7 },
-      SMB3: { ZP: 0xb7 },
-      SMB4: { ZP: 0xc7 },
-      SMB5: { ZP: 0xd7 },
-      SMB6: { ZP: 0xe7 },
-      SMB7: { ZP: 0xf7 },
-    };
-  }
-
-  /**
-   * Parse an operand and determine addressing mode + value
-   * Returns { mode, value, value2 } or null if unparseable
-   */
-  parseOperand(operand, mnemonic) {
-    if (!operand || operand.trim() === "") {
-      return { mode: "IMP", value: null };
-    }
-
-    operand = operand.trim();
-    const opcodes = this.getOpcodeTable()[mnemonic];
-    if (!opcodes) return null;
-
-    // Immediate: #$xx or #value
-    if (operand.startsWith("#")) {
-      const val = this.parseValue(operand.substring(1));
-      if (val !== null) {
-        return { mode: "IMM", value: val & 0xff };
-      }
-      return null; // Unresolved symbol
-    }
-
-    // Indirect modes
-    if (operand.startsWith("(")) {
-      // (addr,X) - Indexed indirect
-      if (operand.match(/^\([^)]+,\s*X\)$/i)) {
-        const inner = operand.match(/^\(([^,]+),/i)[1];
-        const val = this.parseValue(inner);
-        if (val !== null) return { mode: "IZX", value: val & 0xff };
-        return null;
-      }
-      // (addr),Y - Indirect indexed
-      if (operand.match(/^\([^)]+\)\s*,\s*Y$/i)) {
-        const inner = operand.match(/^\(([^)]+)\)/i)[1];
-        const val = this.parseValue(inner);
-        if (val !== null) return { mode: "IZY", value: val & 0xff };
-        return null;
-      }
-      // (addr,X) for JMP
-      if (operand.match(/^\([^)]+,\s*X\)$/i) && opcodes.IAX) {
-        const inner = operand.match(/^\(([^,]+),/i)[1];
-        const val = this.parseValue(inner);
-        if (val !== null) return { mode: "IAX", value: val & 0xffff };
-        return null;
-      }
-      // (addr) - Indirect (JMP) or Zero Page Indirect (65C02)
-      if (operand.match(/^\([^)]+\)$/)) {
-        const inner = operand.match(/^\(([^)]+)\)$/)[1];
-        const val = this.parseValue(inner);
-        if (val !== null) {
-          if (opcodes.IND && val > 0xff)
-            return { mode: "IND", value: val & 0xffff };
-          if (opcodes.ZPI) return { mode: "ZPI", value: val & 0xff };
-          if (opcodes.IND) return { mode: "IND", value: val & 0xffff };
-        }
-        return null;
-      }
-    }
-
-    // addr,X or addr,Y
-    if (operand.match(/,\s*X$/i)) {
-      const addrPart = operand.replace(/,\s*X$/i, "").trim();
-      const val = this.parseValue(addrPart);
-      if (val !== null) {
-        if (val <= 0xff && opcodes.ZPX) return { mode: "ZPX", value: val };
-        if (opcodes.ABX) return { mode: "ABX", value: val & 0xffff };
-      }
-      return null;
-    }
-    if (operand.match(/,\s*Y$/i)) {
-      const addrPart = operand.replace(/,\s*Y$/i, "").trim();
-      const val = this.parseValue(addrPart);
-      if (val !== null) {
-        if (val <= 0xff && opcodes.ZPY) return { mode: "ZPY", value: val };
-        if (opcodes.ABY) return { mode: "ABY", value: val & 0xffff };
-      }
-      return null;
-    }
-
-    // Accumulator mode (A or empty for shift/rotate)
-    if (operand.toUpperCase() === "A" && opcodes.ACC) {
-      return { mode: "ACC", value: null };
-    }
-
-    // Branch relative - just parse the target, we'll show ?? for offset
-    if (opcodes.REL) {
-      const val = this.parseValue(operand);
-      // For branches, we can't calculate offset without knowing current PC
-      // Just return the mode with the target value
-      return { mode: "REL", value: val };
-    }
-
-    // Plain address - zero page or absolute
-    const val = this.parseValue(operand);
-    if (val !== null) {
-      if (val <= 0xff && opcodes.ZP) return { mode: "ZP", value: val };
-      if (opcodes.ABS) return { mode: "ABS", value: val & 0xffff };
-    }
-
-    return null; // Unresolved
-  }
-
-  /**
-   * Parse a value or expression. Supports arithmetic (+, -, *, /),
-   * byte selectors (< >), current PC (*), and nested parentheses.
-   */
-  parseValue(str) {
-    if (!str) return null;
-    str = str.trim();
-    if (!str) return null;
-    this._exprPos = 0;
-    this._exprStr = str;
-    const val = this._exprAddSub();
-    return val;
-  }
-
-  _exprSkipSpaces() {
-    while (
-      this._exprPos < this._exprStr.length &&
-      this._exprStr[this._exprPos] === " "
-    ) {
-      this._exprPos++;
-    }
-  }
-
-  _exprPeek() {
-    this._exprSkipSpaces();
-    return this._exprPos < this._exprStr.length
-      ? this._exprStr[this._exprPos]
-      : null;
-  }
-
-  _exprAddSub() {
-    let val = this._exprMulDiv();
-    if (val === null) return null;
-    while (true) {
-      const ch = this._exprPeek();
-      if (ch === "+") {
-        this._exprPos++;
-        const right = this._exprMulDiv();
-        if (right === null) return null;
-        val = val + right;
-      } else if (ch === "-") {
-        this._exprPos++;
-        const right = this._exprMulDiv();
-        if (right === null) return null;
-        val = val - right;
-      } else {
-        break;
-      }
-    }
-    return val;
-  }
-
-  _exprMulDiv() {
-    let val = this._exprUnary();
-    if (val === null) return null;
-    while (true) {
-      const ch = this._exprPeek();
-      // * here is always multiply — PC reference is handled in _exprPrimary
-      if (ch === "*") {
-        this._exprPos++;
-        const right = this._exprUnary();
-        if (right === null) return null;
-        val = val * right;
-      } else if (ch === "/") {
-        this._exprPos++;
-        const right = this._exprUnary();
-        if (right === null) return null;
-        val = right !== 0 ? Math.trunc(val / right) : 0;
-      } else {
-        break;
-      }
-    }
-    return val;
-  }
-
-  _exprUnary() {
-    const ch = this._exprPeek();
-    if (ch === "<") {
-      this._exprPos++;
-      const val = this._exprUnary();
-      return val !== null ? val & 0xff : null;
-    }
-    if (ch === ">") {
-      this._exprPos++;
-      const val = this._exprUnary();
-      return val !== null ? (val >> 8) & 0xff : null;
-    }
-    if (ch === "-") {
-      this._exprPos++;
-      const val = this._exprUnary();
-      return val !== null ? -val : null;
-    }
-    return this._exprPrimary();
-  }
-
-  _exprPrimary() {
-    this._exprSkipSpaces();
-    if (this._exprPos >= this._exprStr.length) return null;
-    const ch = this._exprStr[this._exprPos];
-
-    // Parenthesized sub-expression
-    if (ch === "(") {
-      this._exprPos++;
-      const val = this._exprAddSub();
-      this._exprSkipSpaces();
-      if (
-        this._exprPos < this._exprStr.length &&
-        this._exprStr[this._exprPos] === ")"
-      ) {
-        this._exprPos++;
-      }
-      return val;
-    }
-
-    // Current PC: *
-    if (ch === "*") {
-      this._exprPos++;
-      return this.currentPC !== undefined ? this.currentPC : null;
-    }
-
-    // Hex: $xxxx
-    if (ch === "$") {
-      this._exprPos++;
-      let start = this._exprPos;
-      while (
-        this._exprPos < this._exprStr.length &&
-        /[0-9A-Fa-f]/.test(this._exprStr[this._exprPos])
-      ) {
-        this._exprPos++;
-      }
-      if (this._exprPos === start) return null;
-      return parseInt(this._exprStr.substring(start, this._exprPos), 16);
-    }
-
-    // Binary: %01010101
-    if (ch === "%") {
-      this._exprPos++;
-      let start = this._exprPos;
-      while (
-        this._exprPos < this._exprStr.length &&
-        /[01]/.test(this._exprStr[this._exprPos])
-      ) {
-        this._exprPos++;
-      }
-      if (this._exprPos === start) return null;
-      return parseInt(this._exprStr.substring(start, this._exprPos), 2);
-    }
-
-    // Character literal: 'A'
-    if (ch === "'") {
-      this._exprPos++;
-      if (this._exprPos >= this._exprStr.length) return null;
-      const val = this._exprStr.charCodeAt(this._exprPos);
-      this._exprPos++;
-      if (
-        this._exprPos < this._exprStr.length &&
-        this._exprStr[this._exprPos] === "'"
-      ) {
-        this._exprPos++;
-      }
-      return val;
-    }
-
-    // Decimal number
-    if (/[0-9]/.test(ch)) {
-      let start = this._exprPos;
-      while (
-        this._exprPos < this._exprStr.length &&
-        /[0-9]/.test(this._exprStr[this._exprPos])
-      ) {
-        this._exprPos++;
-      }
-      return parseInt(this._exprStr.substring(start, this._exprPos), 10);
-    }
-
-    // Symbol / label
-    if (/[A-Za-z_:\]]/.test(ch)) {
-      let start = this._exprPos;
-      while (
-        this._exprPos < this._exprStr.length &&
-        /[A-Za-z0-9_:\]]/.test(this._exprStr[this._exprPos])
-      ) {
-        this._exprPos++;
-      }
-      const name = this._exprStr.substring(start, this._exprPos).toUpperCase();
-      if (this.symbols.has(name)) {
-        return this.symbols.get(name);
-      }
-      return null; // Unresolved symbol
-    }
-
-    return null;
-  }
-
-  /**
-   * Encode a line and store the bytes
-   */
-  encodeLineBytes(lineNumber) {
-    if (!this.textarea) return;
-
-    const lines = this.textarea.value.split("\n");
-    if (lineNumber < 1 || lineNumber > lines.length) return;
-
-    const line = lines[lineNumber - 1];
-    const parsed = this.parseLine(line);
-
-    if (!parsed || !parsed.opcode) {
-      this.lineBytes.delete(lineNumber);
-      return;
-    }
-
-    const mnemonic = parsed.opcode.toUpperCase();
-    const opcodes = this.getOpcodeTable()[mnemonic];
-
-    // Skip directives - they don't have opcodes in our table
-    if (!opcodes) {
-      this.lineBytes.delete(lineNumber);
-      return;
-    }
-
-    const operandInfo = this.parseOperand(parsed.operand, mnemonic);
-    if (!operandInfo) {
-      this.lineBytes.delete(lineNumber);
-      return;
-    }
-
-    const opcode = opcodes[operandInfo.mode];
-    if (opcode === undefined) {
-      this.lineBytes.delete(lineNumber);
-      return;
-    }
-
-    // Build the byte string
-    let bytes = opcode.toString(16).toUpperCase().padStart(2, "0");
-
-    if (operandInfo.mode === "IMP" || operandInfo.mode === "ACC") {
-      // 1 byte - just the opcode
-    } else if (operandInfo.mode === "REL") {
-      // Branch - calculate relative offset if we know target and current PC
-      const targetAddr = operandInfo.value;
-      const currentPC = this.linePCs?.get(lineNumber);
-
-      if (targetAddr !== null && currentPC !== undefined) {
-        // Branch offset is relative to PC after the instruction (PC + 2)
-        const nextPC = currentPC + 2;
-        const offset = targetAddr - nextPC;
-
-        // Check if offset is in valid range (-128 to +127)
-        if (offset >= -128 && offset <= 127) {
-          const signedByte = offset < 0 ? 256 + offset : offset;
-          bytes += " " + signedByte.toString(16).toUpperCase().padStart(2, "0");
-        } else {
-          bytes += " ??"; // Out of range
-        }
-      } else {
-        bytes += " ??"; // Unknown target
-      }
-    } else if (
-      ["IMM", "ZP", "ZPX", "ZPY", "IZX", "IZY", "ZPI"].includes(
-        operandInfo.mode,
-      )
-    ) {
-      // 2 bytes
-      if (operandInfo.value !== null) {
-        bytes +=
-          " " +
-          (operandInfo.value & 0xff)
-            .toString(16)
-            .toUpperCase()
-            .padStart(2, "0");
-      } else {
-        bytes += " ??";
-      }
-    } else if (["ABS", "ABX", "ABY", "IND", "IAX"].includes(operandInfo.mode)) {
-      // 3 bytes (little-endian)
-      if (operandInfo.value !== null) {
-        const lo = operandInfo.value & 0xff;
-        const hi = (operandInfo.value >> 8) & 0xff;
-        bytes += " " + lo.toString(16).toUpperCase().padStart(2, "0");
-        bytes += " " + hi.toString(16).toUpperCase().padStart(2, "0");
-      } else {
-        bytes += " ?? ??";
-      }
-    } else if (operandInfo.mode === "ZPR") {
-      // 3 bytes: opcode, zp addr, relative offset
-      bytes += " ?? ??";
-    }
-
-    this.lineBytes.set(lineNumber, bytes);
-  }
-
-  /**
-   * Encode all lines (called after successful assembly)
-   */
-  encodeAllLineBytes() {
-    this.lineBytes.clear();
-    this.linePCs = new Map(); // Track PC for each line
-
-    const lines = this.textarea.value.split("\n");
-
-    // Find ORG from source code, default to $0800 if not found yet
-    let pc = 0x0800;
-
-    // First pass: calculate PC and collect labels/EQU values
-    const localSymbols = new Map();
-    for (let i = 0; i < lines.length; i++) {
-      const lineNumber = i + 1;
-      const parsed = this.parseLine(lines[i]);
-
-      if (parsed && parsed.opcode) {
-        const mnem = parsed.opcode.toUpperCase();
-
-        // Check for ORG directive and update PC
-        if (mnem === "ORG") {
-          this.currentPC = pc;
-          const orgValue = this.parseValue(parsed.operand);
-          if (orgValue !== null) {
-            pc = orgValue;
-          }
-        }
-
-        // Collect label addresses and EQU values
-        if (parsed.label) {
-          const labelUpper = parsed.label.toUpperCase();
-          if (mnem === "EQU") {
-            this.currentPC = pc;
-            const val = this.parseValue(parsed.operand);
-            if (val !== null) {
-              localSymbols.set(labelUpper, val);
-              this.symbols.set(labelUpper, val);
-            }
-          } else {
-            localSymbols.set(labelUpper, pc);
-            this.symbols.set(labelUpper, pc);
-          }
-        }
-      } else if (parsed && parsed.label) {
-        // Label-only line (no opcode)
-        const labelUpper = parsed.label.toUpperCase();
-        localSymbols.set(labelUpper, pc);
-        this.symbols.set(labelUpper, pc);
-      }
-
-      this.linePCs.set(lineNumber, pc);
-
-      if (parsed && parsed.opcode) {
-        const size = this.getInstructionSize(
-          parsed.opcode.toUpperCase(),
-          parsed.operand,
-        );
-        pc += size;
-      }
-    }
-
-    // Second pass: re-evaluate EQU values now that all labels are known
-    pc = 0x0800;
-    for (let i = 0; i < lines.length; i++) {
-      const parsed = this.parseLine(lines[i]);
-      if (parsed && parsed.opcode) {
-        const mnem = parsed.opcode.toUpperCase();
-        if (mnem === "ORG") {
-          this.currentPC = pc;
-          const orgValue = this.parseValue(parsed.operand);
-          if (orgValue !== null) pc = orgValue;
-        }
-        if (parsed.label && mnem === "EQU") {
-          this.currentPC = pc;
-          const val = this.parseValue(parsed.operand);
-          if (val !== null) {
-            this.symbols.set(parsed.label.toUpperCase(), val);
-          }
-        }
-      }
-      this.currentPC = this.linePCs.get(i + 1);
-      if (parsed && parsed.opcode) {
-        const size = this.getInstructionSize(
-          parsed.opcode.toUpperCase(),
-          parsed.operand,
-        );
-        pc += size;
-      }
-    }
-
-    // Third pass: encode with known PCs and symbols
-    for (let i = 1; i <= lines.length; i++) {
-      this.currentPC = this.linePCs.get(i);
-      this.encodeLineBytes(i);
-    }
-    this.currentPC = undefined;
-  }
-
-  /**
-   * Get the size of an instruction in bytes
-   */
-  getInstructionSize(mnemonic, operand) {
-    const opcodes = this.getOpcodeTable()[mnemonic];
-    if (!opcodes) {
-      // Check if it's a directive
-      const upper = mnemonic.toUpperCase();
-      if (upper === "ORG" || upper === "EQU") return 0;
-      if (upper === "DFB" || upper === "DB") {
-        // Count comma-separated values
-        if (!operand) return 1;
-        return operand.split(",").length;
-      }
-      if (upper === "DW" || upper === "DA") {
-        if (!operand) return 2;
-        return operand.split(",").length * 2;
-      }
-      if (upper === "ASC" || upper === "DCI") {
-        // String length (rough estimate)
-        const match = operand?.match(/["']([^"']*)["']/);
-        if (match) return match[1].length;
-        return 0;
-      }
-      if (upper === "DS") {
-        const val = this.parseValue(operand);
-        return val || 0;
-      }
-      if (upper === "HEX") {
-        // Count hex digits / 2
-        const hex = operand?.replace(/[^0-9A-Fa-f]/g, "") || "";
-        return Math.floor(hex.length / 2);
-      }
-      return 0;
-    }
-
-    const operandInfo = this.parseOperand(operand, mnemonic);
-    if (!operandInfo) return 0;
-
-    // Size based on addressing mode
-    switch (operandInfo.mode) {
-      case "IMP":
-      case "ACC":
-        return 1;
-      case "IMM":
-      case "ZP":
-      case "ZPX":
-      case "ZPY":
-      case "IZX":
-      case "IZY":
-      case "ZPI":
-      case "REL":
-        return 2;
-      case "ABS":
-      case "ABX":
-      case "ABY":
-      case "IND":
-      case "IAX":
-      case "ZPR":
-        return 3;
-      default:
-        return 1;
-    }
   }
 
   /**
@@ -1951,136 +1128,21 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
    * Check line syntax and return error message or null if valid
    */
   checkLineSyntax(line) {
-    // Extract comment first (respecting quotes)
-    let commentIdx = -1;
-    let inQuote = false;
-    let quoteChar = null;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if ((ch === '"' || ch === "'") && !inQuote) {
-        inQuote = true;
-        quoteChar = ch;
-      } else if (ch === quoteChar && inQuote) {
-        inQuote = false;
-        quoteChar = null;
-      } else if (ch === ";" && !inQuote) {
-        commentIdx = i;
-        break;
-      }
+    const parsed = this.parseLine(line);
+    if (!parsed) return null;
+
+    // A label on its own is a valid line.
+    if (!parsed.opcode) return null;
+
+    if (!this.isValidOpcode(parsed.opcode)) {
+      return `Unknown mnemonic or directive: ${parsed.opcode}`;
     }
 
-    const mainPart = commentIdx >= 0 ? line.substring(0, commentIdx) : line;
-
-    // If line is just whitespace before comment, that's valid
-    if (!mainPart.trim()) return null;
-
-    // Check if line starts with whitespace (no label)
-    const hasLabel =
-      mainPart.length > 0 && mainPart[0] !== " " && mainPart[0] !== "\t";
-
-    // Tokenize the main part
-    const tokens = [];
-    let current = "";
-    let inStr = false;
-    let strChar = null;
-
-    for (let i = 0; i < mainPart.length; i++) {
-      const ch = mainPart[i];
-
-      if ((ch === '"' || ch === "'") && !inStr) {
-        inStr = true;
-        strChar = ch;
-        current += ch;
-      } else if (ch === strChar && inStr) {
-        inStr = false;
-        strChar = null;
-        current += ch;
-      } else if ((ch === " " || ch === "\t") && !inStr) {
-        if (current) {
-          tokens.push({ text: current, pos: i - current.length });
-          current = "";
-        }
-      } else {
-        current += ch;
-      }
+    // Everything past the operand is Merlin's comment field, which needs no
+    // semicolon — so there is no such thing as an unexpected extra token.
+    if (parsed.operand) {
+      return this.validateOperandNumbers(parsed.opcode, parsed.operand);
     }
-    if (current) {
-      tokens.push({ text: current, pos: mainPart.length - current.length });
-    }
-
-    if (tokens.length === 0) return null;
-
-    // Validate token count based on whether there's a label
-    // Valid patterns:
-    // - Label only: 1 token at col 0
-    // - Opcode only: 1 token not at col 0
-    // - Label + Opcode: 2 tokens, first at col 0
-    // - Opcode + Operand: 2 tokens, first not at col 0
-    // - Label + Opcode + Operand: 3 tokens, first at col 0
-
-    const firstAtCol0 = tokens[0].pos === 0;
-
-    if (hasLabel) {
-      // First token is label
-      if (tokens.length === 1) {
-        // Just a label - valid
-        return null;
-      } else if (tokens.length === 2) {
-        // Label + opcode OR label + something invalid
-        if (!this.isValidOpcode(tokens[1].text)) {
-          return `Unknown mnemonic or directive: ${tokens[1].text}`;
-        }
-        return null;
-      } else if (tokens.length === 3) {
-        // Label + opcode + operand
-        if (!this.isValidOpcode(tokens[1].text)) {
-          return `Unknown mnemonic or directive: ${tokens[1].text}`;
-        }
-        // Validate operand for invalid numbers
-        const operandError = this.validateOperandNumbers(
-          tokens[1].text,
-          tokens[2].text,
-        );
-        if (operandError) return operandError;
-        return null;
-      } else if (tokens.length > 3) {
-        // Too many tokens - find the extra one
-        const extra = tokens
-          .slice(3)
-          .map((t) => t.text)
-          .join(" ");
-        return `Unexpected: ${extra}`;
-      }
-    } else {
-      // No label - first token should be opcode
-      if (tokens.length === 1) {
-        // Just opcode
-        if (!this.isValidOpcode(tokens[0].text)) {
-          return `Unknown mnemonic or directive: ${tokens[0].text}`;
-        }
-        return null;
-      } else if (tokens.length === 2) {
-        // Opcode + operand
-        if (!this.isValidOpcode(tokens[0].text)) {
-          return `Unknown mnemonic or directive: ${tokens[0].text}`;
-        }
-        // Validate operand for invalid numbers
-        const operandError = this.validateOperandNumbers(
-          tokens[0].text,
-          tokens[1].text,
-        );
-        if (operandError) return operandError;
-        return null;
-      } else if (tokens.length > 2) {
-        // Too many tokens
-        const extra = tokens
-          .slice(2)
-          .map((t) => t.text)
-          .join(" ");
-        return `Unexpected: ${extra}`;
-      }
-    }
-
     return null;
   }
 
@@ -2095,6 +1157,10 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     }
 
     const upperOpcode = opcode.toUpperCase();
+
+    // A string directive's operand is text between delimiters of the author's
+    // choosing, so digits in it are characters, not numbers to range-check.
+    if (STRING_DIRECTIVES.has(upperOpcode)) return null;
 
     // Directives that expect 8-bit values
     const byteDirectives = new Set(["DFB", "DB"]);
@@ -2162,72 +1228,12 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
    */
   isValidOpcode(token) {
     const upper = token.toUpperCase();
-
-    // Check against opcode table
-    if (this.getOpcodeTable()[upper]) return true;
-
-    // Check common directives
-    const directives = new Set([
-      "ORG",
-      "EQU",
-      "DS",
-      "DFB",
-      "DB",
-      "DW",
-      "DA",
-      "DDB",
-      "ASC",
-      "DCI",
-      "HEX",
-      "PUT",
-      "USE",
-      "OBJ",
-      "LST",
-      "DO",
-      "ELSE",
-      "FIN",
-      "LUP",
-      "--^",
-      "REL",
-      "TYP",
-      "SAV",
-      "DSK",
-      "CHN",
-      "ENT",
-      "EXT",
-      "DUM",
-      "DEND",
-      "ERR",
-      "CYC",
-      "DAT",
-      "EXP",
-      "PAU",
-      "SW",
-      "USR",
-      "XC",
-      "MX",
-      "TR",
-      "KBD",
-      "PMC",
-      "PAG",
-      "TTL",
-      "SKP",
-      "CHK",
-      "IF",
-      "ELUP",
-      "END",
-      "MAC",
-      "EOM",
-      "<<<",
-      "ADR",
-      "ADRL",
-      "LNK",
-      "STR",
-      "STRL",
-      "REV",
-    ]);
-
-    return directives.has(upper);
+    if (ALL_MNEMONICS.has(upper)) return true;
+    if (DIRECTIVES.has(upper)) return true;
+    if (SWEET16_MNEMONICS.has(upper)) return true;
+    // A macro is called by its own name, so the names this source defines are
+    // opcodes as far as the editor is concerned.
+    return this.macroNames.has(upper);
   }
 
   /**
@@ -2237,13 +1243,24 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     this.syntaxErrors.clear();
     const lines = this.textarea.value.split("\n");
 
-    // First pass: collect all symbol definitions to detect duplicates
+    this.collectMacroNames(lines);
+
+    // First pass: collect symbol definitions to detect duplicates. Three kinds
+    // of label are deliberately exempt. A ']' variable is meant to be
+    // reassigned; a ':' local belongs to whichever global label precedes it, so
+    // the same name recurs legitimately; and a label inside a macro body is
+    // defined once per expansion, not once per source line.
     const symbolDefs = new Map(); // symbol name -> first line number
+    let inMacro = false;
 
     for (let i = 0; i < lines.length; i++) {
       const lineNumber = i + 1;
+      const parsed = this.parseLine(lines[i]);
+      const opcode = parsed?.opcode?.toUpperCase();
+      if (opcode === "MAC") inMacro = true;
+
       const label = this.extractLabel(lines[i]);
-      if (label) {
+      if (label && !inMacro && label[0] !== "]" && label[0] !== ":") {
         const upperLabel = label.toUpperCase();
         if (symbolDefs.has(upperLabel)) {
           const firstLine = symbolDefs.get(upperLabel);
@@ -2255,6 +1272,8 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
           symbolDefs.set(upperLabel, lineNumber);
         }
       }
+
+      if (opcode === "EOM" || opcode === "<<<") inMacro = false;
     }
 
     // Second pass: validate each line for other syntax errors
@@ -2262,6 +1281,20 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
       // Skip lines that already have duplicate symbol errors
       if (!this.syntaxErrors.has(i)) {
         this.validateLine(i);
+      }
+    }
+  }
+
+  /**
+   * Note every name defined by a MAC directive, so a call to one is not
+   * mistaken for an unknown mnemonic.
+   */
+  collectMacroNames(lines) {
+    this.macroNames.clear();
+    for (const line of lines) {
+      const parsed = this.parseLine(line);
+      if (parsed?.opcode?.toUpperCase() === "MAC" && parsed.label) {
+        this.macroNames.add(parsed.label.toUpperCase());
       }
     }
   }
@@ -2305,6 +1338,7 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
 
     // Update error highlights and messages overlay
     this.updateErrorsOverlay();
+    this.updateProblemsPanel();
   }
 
   updateErrorsOverlay() {
@@ -2320,7 +1354,14 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
       allErrors.set(lineNum, msg);
     }
 
-    if (allErrors.size === 0) {
+    // A warning marks a line that assembled anyway, so it never displaces an
+    // error on the same line.
+    const warnings = new Map();
+    for (const [lineNum, msg] of this.warnings) {
+      if (!allErrors.has(lineNum)) warnings.set(lineNum, msg);
+    }
+
+    if (allErrors.size === 0 && warnings.size === 0) {
       this.errorsOverlay.innerHTML = "";
       return;
     }
@@ -2337,6 +1378,13 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
       html += `<div class="asm-error-highlight" style="top: ${top}px; height: ${lineHeight}px"></div>`;
       // Error message (right side, vertically centered)
       html += `<div class="asm-error-msg" style="top: ${centerY}px">${escapeHtml(msg)}</div>`;
+    }
+
+    for (const [lineNum, msg] of warnings) {
+      const top = paddingTop + (lineNum - 1) * lineHeight;
+      const centerY = top + lineHeight / 2;
+      html += `<div class="asm-warning-highlight" style="top: ${top}px; height: ${lineHeight}px"></div>`;
+      html += `<div class="asm-warning-msg" style="top: ${centerY}px">${escapeHtml(msg)}</div>`;
     }
 
     this.errorsOverlay.innerHTML = html;
@@ -2361,6 +1409,7 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
 
     // Clear previous errors
     this.errors.clear();
+    this.warnings.clear();
     this.syntaxErrors.clear();
 
     // Validate all lines for syntax errors before assembly
@@ -2423,40 +1472,117 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
         lm._notify();
       }
 
-      // Re-encode all lines with resolved symbols
-      this.encodeAllLineBytes();
+      // The assembler reports what each line produced; nothing here works it
+      // out a second time.
+      await this.loadLineInfo(wasm);
+      await this.collectDiagnostics(wasm);
 
       await this.updateSymbolTable(wasm);
       await this.updateHexOutput(wasm, origin, size);
       await this.writeObjectFile(wasm, size, origin);
     } else {
-      const errorCount = await wasm._getAsmErrorCount();
+      this.clearLineInfo();
+      const errorCount = await this.collectDiagnostics(wasm);
       this.setStatus(
         `${errorCount} error${errorCount !== 1 ? "s" : ""}`,
         false,
       );
       this.loadBtn.disabled = true;
       this.debugBtn.disabled = true;
-
-      // Collect errors
-      for (let i = 0; i < errorCount; i++) {
-        const line = await wasm._getAsmErrorLine(i);
-        const msgPtr = await wasm._getAsmErrorMessage(i);
-        const msg = await wasm.UTF8ToString(msgPtr);
-
-        if (line >= 1) {
-          this.errors.set(line, msg);
-          // Clear bytes for error lines
-          this.lineBytes.delete(line);
-        }
-      }
-
       this.clearOutputPanels();
     }
 
     // Re-render highlighting with error markers
     this.updateHighlighting();
     this.updateCyclesGutter();
+  }
+
+  /**
+   * Forget what the last assembly said about each line. Called whenever the
+   * text changes wholesale, because the addresses and bytes belong to source
+   * that is no longer there.
+   */
+  clearLineInfo() {
+    this.lineBytes.clear();
+    this.linePCs.clear();
+    this.lineCycles.clear();
+  }
+
+  /**
+   * Read the assembler's per-line records. They arrive as one packed block of
+   * fixed-size structs rather than a call per line, because a gutter needs
+   * every line and the Worker services these on the thread running the
+   * emulation.
+   */
+  async loadLineInfo(wasm) {
+    this.clearLineInfo();
+    if (typeof wasm._getAsmLineCount !== "function") return;
+
+    const [count, recordSize, bufferPtr] = await wasm.batch([
+      ["_getAsmLineCount"],
+      ["_getAsmLineRecordSize"],
+      ["_getAsmLineBuffer"],
+    ]);
+    if (!count || !bufferPtr) return;
+
+    const raw = await wasm.heapRead(bufferPtr, count * recordSize);
+    const view = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
+
+    for (let i = 0; i < count; i++) {
+      const at = i * recordSize;
+      const lineNumber = view.getInt32(at, true);
+      const address = view.getUint16(at + 4, true);
+      const cycles = view.getUint16(at + 6, true);
+      const byteCount = view.getUint8(at + 8);
+
+      this.linePCs.set(lineNumber, address);
+      this.lineCycles.set(lineNumber, cycles);
+
+      if (byteCount > 0) {
+        const shown = Math.min(byteCount, 4);
+        const parts = [];
+        for (let b = 0; b < shown; b++) {
+          parts.push(
+            view.getUint8(at + 9 + b).toString(16).toUpperCase().padStart(2, "0"),
+          );
+        }
+        // A directive can emit more than the four bytes the record carries.
+        if (byteCount > shown) parts.push("…");
+        this.lineBytes.set(lineNumber, parts.join(" "));
+      }
+    }
+  }
+
+  /**
+   * Pull errors and warnings out of the assembler. Warnings name something
+   * Merlin would have done that this assembler cannot — an interactive KBD
+   * prompt, a 65816 opcode — and do not fail the assembly, so they are
+   * collected on a successful run too. Returns the number of real errors.
+   */
+  async collectDiagnostics(wasm) {
+    const count = await wasm._getAsmErrorCount();
+    let errorCount = 0;
+
+    for (let i = 0; i < count; i++) {
+      const [line, msgPtr, isWarning] = await wasm.batch([
+        ["_getAsmErrorLine", i],
+        ["_getAsmErrorMessage", i],
+        ["_getAsmErrorIsWarning", i],
+      ]);
+      const msg = await wasm.UTF8ToString(msgPtr);
+      if (!isWarning) errorCount++;
+
+      if (line >= 1) {
+        if (isWarning) {
+          this.warnings.set(line, msg);
+        } else {
+          this.errors.set(line, msg);
+          this.lineBytes.delete(line);
+        }
+      }
+    }
+
+    return errorCount;
   }
 
   /**
@@ -2624,6 +1750,67 @@ HELLO       ASC  "HELLO WORLD!!!!!!",00`;
     this.hexContent.innerHTML = html;
   }
 
+  /**
+   * Fill the Problems panel from the three places a complaint can come from:
+   * the live syntax check, the assembler's errors, and its warnings. Errors are
+   * listed first because they are what stops the assembly; a warning names
+   * something Merlin could do that this assembler cannot, and the object code
+   * still came out.
+   */
+  updateProblemsPanel() {
+    if (!this.problemsContent) return;
+
+    const problems = [];
+    for (const [line, msg] of this.syntaxErrors) {
+      // An assembler error on the same line is the more specific of the two.
+      if (!this.errors.has(line)) {
+        problems.push({ line, msg, kind: "error" });
+      }
+    }
+    for (const [line, msg] of this.errors) {
+      problems.push({ line, msg, kind: "error" });
+    }
+    for (const [line, msg] of this.warnings) {
+      problems.push({ line, msg, kind: "warning" });
+    }
+
+    const errorCount = problems.filter((p) => p.kind === "error").length;
+    if (this.problemsCount) {
+      this.problemsCount.textContent = problems.length ? problems.length : "";
+      this.problemsCount.classList.toggle("asm-count-error", errorCount > 0);
+      this.problemsCount.classList.toggle(
+        "asm-count-warning",
+        errorCount === 0 && problems.length > 0,
+      );
+    }
+
+    if (problems.length === 0) {
+      this.problemsContent.innerHTML = `
+        <div class="asm-panel-empty">
+          <div class="asm-empty-icon">✓</div>
+          <div class="asm-empty-text">No problems</div>
+        </div>`;
+      return;
+    }
+
+    problems.sort((a, b) => {
+      if (a.kind !== b.kind) return a.kind === "error" ? -1 : 1;
+      return a.line - b.line;
+    });
+
+    let html = '<div class="asm-problem-list">';
+    for (const { line, msg, kind } of problems) {
+      const icon = kind === "error" ? "✕" : "!";
+      html += `<div class="asm-problem-row asm-problem-${kind}" data-line="${line}" title="Go to line ${line}">
+        <span class="asm-problem-icon">${icon}</span>
+        <span class="asm-problem-line">${line}</span>
+        <span class="asm-problem-msg">${escapeHtml(msg)}</span>
+      </div>`;
+    }
+    html += "</div>";
+    this.problemsContent.innerHTML = html;
+  }
+
   clearOutputPanels() {
     // Clear count badges
     if (this.symbolsCount) this.symbolsCount.textContent = "";
@@ -2669,16 +1856,16 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
     this.doClear();
     this.currentFileName = null;
     this.validateAllLines();
-    this.encodeAllLineBytes();
+    this.clearLineInfo();
     this.updateGutter();
     this.updateCursorPosition();
   }
 
   doClear() {
     this.symbols.clear();
-    this.lineBytes.clear();
-    this.linePCs = new Map();
+    this.clearLineInfo();
     this.errors.clear();
+    this.warnings.clear();
     this.syntaxErrors.clear();
     this.loadBtn.disabled = true;
     this.debugBtn.disabled = true;
@@ -2733,8 +1920,10 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
     this.updateHighlighting();
     this.updateGutter();
     this.errors.clear();
+    this.warnings.clear();
     this.syntaxErrors.clear();
     this.clearOutputPanels();
+    this.updateProblemsPanel();
     this.setStatus("", true);
   }
 
@@ -2749,7 +1938,7 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
     this.updateTitle(`Assembler - ${name}`);
     this.updateHighlighting();
     this.validateAllLines();
-    this.encodeAllLineBytes();
+    this.clearLineInfo();
     this.updateGutter();
     this.setStatus(`Opened: ${name}`, true);
   }
@@ -2802,9 +1991,18 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
   }
 
   /**
-   * Save the current source to a file using the host save dialog
+   * Save the current source to a file.
+   *
+   * Save writes back to the file already in use without asking; Save As always
+   * asks for a name. Without the distinction there was no way to choose a name
+   * at all once a file was in play: the picker only appeared when no handle was
+   * held, so the first save claimed the name permanently and opening a file
+   * meant never being asked again. The only escape was New, which throws the
+   * source away.
+   *
+   * @param {{saveAs?: boolean}} [options]
    */
-  async saveFile() {
+  async saveFile({ saveAs = false } = {}) {
     const content = this.textarea.value;
     if (!content.trim()) {
       this.setStatus("Nothing to save", false);
@@ -2815,7 +2013,19 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
     // window.showSaveFilePicker is undefined there. Fall back to a plain
     // anchor download in that case.
     if (typeof window.showSaveFilePicker !== "function") {
-      const filename = this.currentFileName || "untitled.s";
+      // A download names the file for you and cannot be declined, so ask first
+      // whenever the name is not already settled. Same reasoning as the disk
+      // save flow, which asks on these browsers for exactly this reason.
+      let filename = this.currentFileName;
+      if (saveAs || !filename) {
+        filename = await showPrompt(
+          "Save assembly source as:",
+          filename || "untitled.s",
+          "Save",
+        );
+        if (!filename) return;
+      }
+
       try {
         const blob = new Blob([content], { type: "text/plain" });
         const url = URL.createObjectURL(blob);
@@ -2836,8 +2046,9 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
     }
 
     try {
-      // Reuse existing handle if we have one, otherwise prompt
-      if (!this._fileHandle) {
+      // Save As always asks, even when a handle is held; plain Save only asks
+      // when there is nothing to write back to.
+      if (saveAs || !this._fileHandle) {
         this._fileHandle = await window.showSaveFilePicker({
           suggestedName: this.currentFileName || "untitled.s",
           types: [
@@ -2904,23 +2115,12 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
   toggleBreakpoint(lineNumber) {
     if (!this.bpManager) return;
 
-    // Get the PC address for this line
+    // Only a line the last assembly turned into an instruction has an address
+    // to break on: a directive, a label or a comment has none, and a cycle
+    // count is what tells the two apart.
     const address = this.linePCs.get(lineNumber);
-    if (address === undefined) {
-      // No instruction on this line (empty, comment, or directive)
-      return;
-    }
-
-    // Check if line has an actual instruction (not just a label or directive)
-    const lines = this.textarea.value.split("\n");
-    if (lineNumber < 1 || lineNumber > lines.length) return;
-
-    const parsed = this.parseLine(lines[lineNumber - 1]);
-    if (!parsed || !parsed.opcode) return;
-
-    // Skip directives - they don't generate code
-    const opcodes = this.getOpcodeTable();
-    if (!opcodes[parsed.opcode.toUpperCase()]) return;
+    if (address === undefined) return;
+    if (!this.lineCycles.get(lineNumber)) return;
 
     // Toggle the breakpoint
     this.bpManager.toggle(address);
@@ -3270,7 +2470,7 @@ MSG         ASC  "HELLO FROM THE APPLE //E EMULATOR!"
       this.textarea.value = state.content;
       this.updateHighlighting();
       this.validateAllLines();
-      this.encodeAllLineBytes();
+      this.clearLineInfo();
       this.updateGutter();
     }
   }

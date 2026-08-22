@@ -394,6 +394,50 @@
     color: var(--accent-red);
 }
 
+/* Transient confirmation shown in place of the preset description after a
+   profile is saved or deleted. Saving otherwise looks like nothing happened,
+   because the values were already on screen before the click. */
+.display-settings-content .preset-description.status-confirm {
+    color: var(--accent-green);
+    opacity: 1;
+    font-weight: 500;
+}
+
+/* Profile actions — Save / Save As / Delete, under the Monitor dropdown */
+.display-settings-content .profile-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+}
+
+.display-settings-content .settings-btn-compact {
+    width: auto;
+    flex: 1;
+    padding: 4px 6px;
+    /* Three buttons in a 300px window: let them shrink rather than overflow. */
+    min-width: 0;
+    white-space: nowrap;
+}
+
+/* Saving is an ordinary action, so it must not inherit the destructive hover
+   the shared button style carries for Reset to Defaults. */
+.display-settings-content .settings-btn-compact:not(.settings-btn-danger):hover {
+    background: var(--accent-blue-bg-stronger);
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+}
+
+.display-settings-content .settings-btn-compact:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.display-settings-content .settings-btn-compact:disabled:hover {
+    background: var(--glass-bg-header);
+    border-color: var(--control-border);
+    color: var(--text-secondary);
+}
+
 
 /* ============================================
    Joystick Window

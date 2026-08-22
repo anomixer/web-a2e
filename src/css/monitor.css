@@ -525,3 +525,18 @@ body.full-page-mode .full-page-toolbar-wrapper {
     font-size: 0.75rem;
     margin-left: var(--space-md);
 }
+
+/* Accelerated CPU speed chip in the screen window header */
+.screen-window-speed-chip {
+    margin-right: 8px;
+    padding: 1px 5px;
+    border: 1px solid var(--accent-orange-border);
+    border-radius: var(--radius-sm);
+    background: var(--accent-orange-bg);
+    color: var(--accent-orange);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    user-select: none;
+}

@@ -17,7 +17,7 @@ import { RuleBuilderWindow } from "./rule-builder-window.js";
 import { BasicVariableInspector } from "./basic-variable-inspector.js";
 import { BasicProgramParser } from "./basic-program-parser.js";
 import { showToast } from "../ui/toast.js";
-import { showConfirm } from "../ui/confirm.js";
+import { showConfirm, showPrompt } from "../ui/confirm.js";
 
 const BASIC_ERRORS = {
   0x00: "NEXT WITHOUT FOR",
@@ -123,6 +123,7 @@ export class BasicProgramWindow extends BaseWindow {
           <button class="basic-dbg-btn basic-dbg-new-btn" title="New">New</button>
           <button class="basic-dbg-btn basic-dbg-open-btn" title="Open File">Open</button>
           <button class="basic-dbg-btn basic-dbg-save-btn" title="Save File">Save</button>
+          <button class="basic-dbg-btn basic-dbg-saveas-btn" title="Save As…">Save As…</button>
         </div>
         <div class="basic-dbg-status-bar" data-state="idle">
           <div class="basic-dbg-status">
@@ -183,6 +184,10 @@ export class BasicProgramWindow extends BaseWindow {
   }
 
   onContentRendered() {
+    // File state: the handle to write back to, and the name to suggest.
+    this._fileHandle = null;
+    this.currentFileName = null;
+
     // Editor elements
     this.textarea = this.contentElement.querySelector(".basic-textarea");
     this.highlight = this.contentElement.querySelector(".basic-highlight");
@@ -325,6 +330,9 @@ export class BasicProgramWindow extends BaseWindow {
     this.contentElement.querySelector(".basic-dbg-new-btn").addEventListener("click", () => this.newFile());
     this.contentElement.querySelector(".basic-dbg-open-btn").addEventListener("click", () => this.openFile());
     this.contentElement.querySelector(".basic-dbg-save-btn").addEventListener("click", () => this.saveFile());
+    this.contentElement
+      .querySelector(".basic-dbg-saveas-btn")
+      .addEventListener("click", () => this.saveFile({ saveAs: true }));
 
     this.formatBtn.addEventListener("click", () => {
       this.autoFormatCode();
@@ -1398,13 +1406,15 @@ export class BasicProgramWindow extends BaseWindow {
     }
     this.textarea.value = "";
     this._fileHandle = null;
+    this.currentFileName = null;
     this.updateGutter();
     this.updateHighlighting();
     this.updateStats();
   }
 
-  _applyOpenedFile(text) {
+  _applyOpenedFile(text, filename = null) {
     this.textarea.value = text;
+    if (filename) this.currentFileName = filename;
     this.updateGutter();
     this.updateHighlighting();
     this.updateStats();
@@ -1423,7 +1433,7 @@ export class BasicProgramWindow extends BaseWindow {
         if (file) {
           try {
             this._fileHandle = null;
-            this._applyOpenedFile(await file.text());
+            this._applyOpenedFile(await file.text(), file.name);
           } catch (err) {
             console.error("Failed to open file:", err);
           }
@@ -1442,29 +1452,52 @@ export class BasicProgramWindow extends BaseWindow {
       });
       const file = await handle.getFile();
       this._fileHandle = handle;
-      this._applyOpenedFile(await file.text());
+      this._applyOpenedFile(await file.text(), file.name);
     } catch (err) {
       if (err.name !== "AbortError") console.error("Failed to open file:", err);
     }
   }
 
-  async saveFile() {
+  /**
+   * Save the current source to a file.
+   *
+   * Save writes back to the file already in use; Save As always asks for a
+   * name. Without the distinction the name could not be chosen at all once a
+   * file was in play — the picker only appeared when no handle was held — and
+   * on browsers without the File System Access API every save landed as
+   * "program.bas" whatever the program was.
+   *
+   * @param {{saveAs?: boolean}} [options]
+   */
+  async saveFile({ saveAs = false } = {}) {
     const content = this.textarea.value;
     if (!content.trim()) return;
 
     // Safari and Firefox lack the File System Access API; fall back to a
     // plain anchor download when showSaveFilePicker is unavailable.
     if (typeof window.showSaveFilePicker !== "function") {
+      // A download names the file for you and cannot be declined, so ask.
+      let filename = this.currentFileName;
+      if (saveAs || !filename) {
+        filename = await showPrompt(
+          "Save BASIC program as:",
+          filename || "program.bas",
+          "Save",
+        );
+        if (!filename) return;
+      }
+
       try {
         const blob = new Blob([content], { type: "text/plain" });
         const url = URL.createObjectURL(blob);
         const anchor = document.createElement("a");
         anchor.href = url;
-        anchor.download = "program.bas";
+        anchor.download = filename;
         document.body.appendChild(anchor);
         anchor.click();
         anchor.remove();
         URL.revokeObjectURL(url);
+        this.currentFileName = filename;
       } catch (err) {
         console.error("Failed to save file:", err);
       }
@@ -1472,15 +1505,16 @@ export class BasicProgramWindow extends BaseWindow {
     }
 
     try {
-      if (!this._fileHandle) {
+      if (saveAs || !this._fileHandle) {
         this._fileHandle = await window.showSaveFilePicker({
-          suggestedName: "program.bas",
+          suggestedName: this.currentFileName || "program.bas",
           types: [{ description: "BASIC source files", accept: { "text/plain": [".bas", ".txt"] } }],
         });
       }
       const writable = await this._fileHandle.createWritable();
       await writable.write(content);
       await writable.close();
+      this.currentFileName = this._fileHandle.name;
     } catch (err) {
       if (err.name !== "AbortError") console.error("Failed to save file:", err);
     }

@@ -71,10 +71,12 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 
 - `cpu/6502/cpu6502.cpp` - Cycle-accurate 65C02 processor (1.023 MHz)
 - `mmu/mmu.cpp` - 128KB memory management, soft switches ($C000-$CFFF), expansion slots, and the video scanner address generator behind floating-bus reads (Sather's counter equations, so blanking cycles read real video data rather than zero)
-- `video/video.cpp` - TEXT/LORES/HIRES/DHIRES per-scanline rendering
+- `video/video.cpp` - TEXT/LORES/HIRES/DHIRES per-scanline rendering, split into a **signal stage** and a **decode stage** (see Composite Video below)
+- `video/ntsc.cpp` - NTSC composite demodulation, the ideal/RGB digital decoders, and the calibrated 16-colour palette they all share
 - `audio/audio.cpp` - Speaker emulation from $C030 toggles
 - `disk-image/` - Disk image format support (DSK/DO/PO/NIB/WOZ). `gcr_encoding` holds the one copy of the GCR encode/decode routines and the DOS/ProDOS sector interleave tables that both image classes and the filesystem readers use; plus `disk_converter` — converts a loaded image between save formats (DOS order, ProDOS order, WOZ), including encoding a sector image to a WOZ bit stream
 - `disassembler/` - 65C02 instruction disassembler
+- `assembler/` - Merlin-compatible 65C02 assembler (see Assembler below)
 - `input/keyboard.cpp` - Keyboard input handling
 - `cards/` - Pluggable expansion card system (ExpansionCard interface)
 - `cards/disk2/` - Disk II controller card
@@ -112,6 +114,164 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 - `utils/` - Shared utilities (storage, string, BASIC)
 - `windows/` - Base window class and window manager
 
+### Paste / Typed Text
+
+Pasted text (Ctrl+V, the BASIC and assembler windows, and the agent's
+`typeKeyboard`) goes into a **type-ahead buffer inside the core**, not a queue
+in JavaScript. `Emulator::pasteText()` translates the text with the one
+`charToAppleKey` in `keyboard.cpp` and pushes it onto `pasteBuffer_`;
+`loadNextPasteKey()` moves a character into the keyboard latch, and
+`clearKeyboardStrobe()` schedules the next one once the program has read the
+strobe. The machine therefore pulls characters at its own pace — a character
+can never be overwritten before it is read — subject to the minimum gaps
+below.
+
+The host therefore does not meter the paste at all. `input-handler.js` writes
+the text across in whole runs — a paste of any size costs a fixed handful of
+RPCs, where the old path spent one `_charToAppleKey`, one `_isKeyboardReady`
+and one `_runCycles` **per character** and drove the CPU in 500-cycle bursts
+from the main thread, competing with the audio-paced worker for the same
+emulation. What is left in JS is bookkeeping: the 8x speed boost, dropped and
+restored around pauses, and a `_pastePending()` poll to notice the end and fire
+the completion callback. `{token}` sequences (`{ctrl-c}`, `{left}`, `{chr:4}`)
+are still resolved host-side and pushed as single codes with `_pasteKey`.
+
+Two details are load-bearing. `loadNextPasteKey()` refuses to touch the latch
+while the strobe is set, which is what makes the buffer lossless. And it
+refuses to refill the latch *immediately*: a character becomes available
+`PASTE_KEY_GAP_CYCLES` (~15ms of emulated time) after the previous one was
+taken, and `PASTE_LINE_GAP_CYCLES` (~150ms) after a carriage return.
+
+The gap is not cosmetic. Clearing the strobe twice is a keyboard **flush** —
+`POKE -16368,0`, `STA $C010`, the ROM and DOS doing it before settling down to
+wait for input — and it is everywhere in Apple II software. A person typing
+leaves nothing pending for a flush to eat; a buffer that refilled the latch the
+instant the strobe cleared handed each flush a fresh character to throw away.
+The symptom is a paste that arrives with characters missing, in some programs
+and not others: `10 GET A$: POKE -16368,0: PRINT A$;: GOTO 20` received
+`ACEGIKMOQSUWY02468` from `ABCDEFGH…9`, exactly every second character.
+`test_emulator.cpp` pins that case. The carriage-return gap is longer because
+the machine has a line to digest afterwards — Applesoft tokenises it, DOS and
+BASIC.SYSTEM run their command parsers — with flushes at the end of that work.
+
+A read of `$C000` that finds the keyboard empty looks like a better signal than
+a timer — the program asking for input — and it was tried and measured to fail:
+Applesoft polls `$C000` between every statement to check for Ctrl-C, so it
+releases the next character long before the program reaches its flush. Do not
+reintroduce it. Because the gaps are emulated time, the 8x paste speed boost
+shortens the wall-clock wait proportionally; a 2400-character program pastes in
+around seven seconds.
+
+The buffer is host state like the speed multiplier — it is not serialized into save states,
+and `reset()` discards it. Mobile input goes through the same buffer, because
+an on-screen keyboard can deliver several characters in one `input` event and
+writing the latch per character overwrote keys the machine had not read yet.
+
+### AKD (any key down)
+
+`$C010` bit 7 says a key is *physically held*, as opposed to `$C000` bit 7,
+which says a key code is waiting to be read. `Emulator::updateAnyKeyDown()`
+**derives** it from the only two things that can hold a key down — a host key
+currently held (`Keyboard::isAnyKeyDown()`) and a pasted character still
+sitting unread in the latch (`pasteHoldsKey_`) — rather than any path setting
+`keyDown_` directly. That is deliberate: every earlier version asserted AKD
+somewhere with no matching release, so the line went high on the first
+keystroke of the session and stayed there, and key-repeat or game input code
+polling it saw a key held forever.
+
+`Keyboard` tracks held keys by *browser keycode*, with a running count, so a
+key-up always clears the key it names whatever the modifier state was when it
+was pressed, and auto-repeat's stream of key-downs cannot double-count.
+Shift, Control, Caps Lock and the Apple buttons deliberately do not assert AKD
+— they are separate lines on real hardware, not keys in the matrix. Losing
+window focus releases everything, held keys included, because a key held
+across a blur never delivers its key-up.
+
+### CPU Speed
+
+**View > CPU Speed** picks 1x/2x/4x/8x of the 1.023 MHz clock. The mechanism
+was already in the core: `generateStereoAudioSamples()` runs
+`samples * CYCLES_PER_SAMPLE * speedMultiplier_` cycles for a fixed number of
+samples, so audio keeps pacing the machine and the picture keeps arriving at
+60fps — the emulator just covers more emulated time per frame, and the speaker
+rises in pitch along with it, like an accelerator card.
+
+**Both sound sources measure their rate in CPU cycles, so both must be told the
+speed.** `Emulator::applySpeedToAudio()` pushes it to each on every change and
+on card insertion. `Audio::generateStereoSamples()` clamps a buffer whose cycle
+span looks implausible, and that "expected" span scales with the multiplier —
+left at 1x it discarded all but the last eighth of an 8x buffer and replayed the
+remainder at real-time pitch, which is heard as sound that cuts out or refuses
+to speed up. `MockingboardCard` emits one frame per `cyclesPerOutputSample_`,
+also scaled — otherwise it produced eight frames for every one the mixer
+consumed and the backlog grew without bound, heard as normal-pitch music
+falling further and further behind. `test_audio.cpp` and `test_mockingboard.cpp`
+pin both.
+
+`src/js/ui/emulation-speed.js` owns the selection (localStorage, unit-tested in
+`tests/js/ui/emulation-speed.test.js`); `UIController.setupSpeedSelector()`
+wires the menu and `ScreenWindow.setSpeedState()` shows a title-bar chip above
+1x.
+
+Two things are deliberate. `Emulator::reset()` does **not** clear
+`speedMultiplier_` — it is a host preference (or a paste boost in flight), not
+machine state, so a reboot must not drop the user back to 1 MHz;
+`test_emulator.cpp` pins this. And the selector writes through
+`InputHandler.setBaseSpeed()`, which records the new baseline instead of
+touching WASM while a paste boost is live — otherwise `restorePasteSpeed()`
+would put the old speed back when the paste ended. The multiplier is not part
+of a save state.
+
+### Assembler
+
+`src/core/assembler/` is a Merlin-compatible 65C02 assembler, not a generic
+one. Four things in it are load-bearing.
+
+**There is no "pass 1 sizes, pass 2 emits" split.** `assemble()` runs the whole
+source to completion repeatedly until the symbol table and the object size stop
+moving, then once more with diagnostics on. Macros, conditionals and `LUP`
+blocks make the *line stream itself* depend on symbol values, so a sizing pass
+that did not emit could not have followed the same path as the pass that did. A
+forward reference reads its value from `lastPassSymbols_` — the previous pass's
+table — and sets `unresolved_`, which forces absolute addressing so an
+instruction never shrinks to zero page on a guess and oscillates.
+
+**Expressions run strictly left to right with no operator precedence.** `1+2*3`
+is 9. That is Merlin, and real Merlin sources are written assuming it, so adding
+precedence would silently change the bytes they produce. The operators are
+`+ - * /` plus `.` (or), `!` (exclusive or) and `&` (and); `<`, `>` and `^`
+select the low, high and bank byte of the *whole* expression, which is why the
+selector is parsed once in `evaluate()` and applied to the total rather than
+being a term-level unary. Outside an immediate, a leading `<` or `|` forces the
+address width instead.
+
+**A line is four whitespace-separated fields and the comment needs no
+semicolon.** `parseLine` ends the operand at the first space outside a string —
+that is why a Merlin operand never contains a space, and why the editor's
+validator has no "unexpected extra token" rule. String directives are the
+exception: their operand opens with a delimiter of the author's choosing, so it
+is scanned to the matching character first. `STRING_DIRECTIVES` in
+`merlin-highlighting.js` holds the same list for the editor.
+
+**The editor no longer assembles anything itself.** `AsmLineInfo` reports each
+main-source line's address, cycle count and bytes, and
+`assembler-editor-window.js` reads that block through one `heapRead`. It used to
+carry its own 65C02 opcode table, operand parser and expression evaluator to
+fill the gutter; those could not survive macros or conditional assembly, and a
+second encoder is a second thing to be wrong. A macro call site is credited with
+the bytes its expansion produced (`expandAndRecord`), because the body's lines
+are not in the source being edited. Cycle counts come from `CYCLE_TABLE`, per
+opcode rather than per mnemonic, so `LDA $10` and `LDA $1000` differ correctly.
+
+`PUT` and `USE` resolve through an `AsmIncludeProvider` callback so the core
+stays host-free; `wasm_interface.cpp` installs one that reads text files off the
+disk in drive 1 then drive 2, on DOS 3.3 or ProDOS, honouring Merlin's `T.`
+prefix convention. Multiple `ORG`s produce multiple `AsmSegment`s, and
+`loadAsmIntoMemory` places each where it belongs instead of assuming one block.
+`REL`/`ENT`/`EXT`/`LNK` need a linker and are reported as errors; `KBD` and a
+second `XC` are reported as *warnings*, a severity `AsmError::warning` carries
+so an assembly still succeeds.
+
 ### Theming
 
 Light, dark, and system-follow themes controlled by `ThemeManager` (`src/js/ui/theme-manager.js`). Sets `data-theme` attribute on `<html>` for CSS variable switching. All accent and syntax highlighting colours are derived from the six-stripe Apple rainbow logo palette (Green `#61BB46`, Yellow `#FDB827`, Orange `#F5821F`, Red `#E03A3E`, Purple `#963D97`, Blue `#009DDC`), with brightness adjusted per theme for contrast. Speaker, Mockingboard, and disk drive sound volumes are all wired to a single main volume slider with a unified mute toggle.
@@ -136,7 +296,119 @@ The powered-off screen is built by `src/js/display/no-signal-frame.js` as an ord
 
 `WebGLRenderer.draw()` re-derives the drawing buffer size when `devicePixelRatio` changes, because a density change alters no CSS size and so never reaches the `ResizeObserver` that drives `resize()`.
 
-Display Settings (`src/js/display/display-settings-window.js`) leads with a **Monitor preset** — Pixel Exact, Composite Color, RGB Monitor, Monochrome Green, Monochrome Amber — with every individual slider behind an Advanced disclosure. Presets set only the picture, never the user's brightness/contrast/saturation or bezel; editing a setting a preset owns relabels the selection Custom without changing values.
+### Composite Video / Colour Decoding
+
+The //e emits no pixels. It emits one bit per 14.31818 MHz dot, four dots to a
+cycle of the 3.579545 MHz colour subcarrier, and every colour is manufactured by
+the *receiver*. `video.cpp` therefore renders in two stages: the mode emitters
+(`emitText40Scanline`, `emitHiResScanline`, …) write a 1-bit dot stream into
+`dots_`, and `endScanline()` hands the finished line to one of four decoders in
+`ntsc.cpp`. A visible line is 560 dots and the framebuffer is 560 wide, so the
+signal maps 1:1 onto pixels and nothing is ever resampled.
+
+Four things here are load-bearing:
+
+**The luma filter must null both 3.58 MHz and 7.16 MHz exactly.** A flat LORES
+colour *is* a subcarrier-frequency pattern, so subcarrier leaking into luma makes
+greys ripple; leakage at the second harmonic makes a colour's brightness depend
+on which subcarrier phase a dot lands on, which shows up as faint banding. A
+four-tap boxcar — integrate exactly one colour cycle — annihilates both, and is
+cascaded with a windowed sinc for the rest of the response. Do not replace it
+with a plain low pass.
+
+**The calibration constants in `ntsc.hpp` were fitted, not chosen.**
+`BURST_PHASE`, `CHROMA_GAIN` and `LUMA_GAMMA` come from a least-squares fit
+against the physically self-consistent entries of the Apple II palette: black,
+white, both greys, and the four single-bit LORES hues, whose phases a real
+decoder fixes exactly 90 apart. The multi-bit palette entries were excluded
+because they had been hand-tuned and sit 17-24 degrees off. Two independent fits
+agreed on the phase to a quarter of a degree.
+
+**The HIRES high bit is a one-dot delay, not a palette swap.** It pushes the
+byte's seven pixels half a HIRES pixel right, landing them on the opposite
+subcarrier phase; that *is* the mechanism behind orange and blue. The vacated dot
+holds the shift register's previous output rather than going blank.
+
+**Double-resolution modes are one dot later than 40-column ones.** The
+80-column shift path is clocked a dot behind, so the same pattern comes out a
+quarter turn round the colour wheel (`DOUBLE_RES_DELAY` in `video.cpp`). This is
+the fact the old `DLGR_COLORS` table encoded as a copy of `LORES_COLORS` with the
+nibble rotated left by one. Get it wrong and every DHGR picture is hue-rotated
+by 90 degrees — subtle enough to look plausible, so `test_video.cpp` pins it.
+
+**Colour burst is per scanline, but the colour killer is per field.**
+`burstForScanline()` models the machine: a //e inhibits burst in text mode,
+including the bottom four rows of a mixed screen. `chromaEnabled_` models the
+monitor, and it is the flag the decoders actually receive. A real colour killer
+integrates burst presence over a time constant far longer than one line, and the
+3.58 MHz reference flywheels through gaps, so chroma is switched on or off a
+whole field at a time.
+
+Both halves are needed to get the two observable behaviours right. Full text mode
+sends no burst at all, the killer engages, and text is crisp white. Mixed mode
+sends burst on 160 of 192 lines, so the killer never engages and the four text
+rows at the bottom **fringe green and violet along with everything else** — which
+is what real hardware does, and what a per-line gate would wrongly suppress. The
+same mechanism explains why a II+, which never inhibits burst, fringes its text
+in every mode. It also means 80-column text on the Composite preset is genuinely
+mushy, exactly as it was on real hardware.
+
+`VideoColorMode` (types.hpp) selects the decoder: MONOCHROME (dots straight to
+one phosphor), PIXEL_EXACT and RGB_MONITOR (idealised, see below) and COMPOSITE
+(full demodulation). The composite decoder is a 512 KB lookup table indexed by a
+15-dot window and the subcarrier phase — an exact memoisation of the FIR, not an
+approximation, which `test_ntsc.cpp` verifies over all 131072 entries.
+
+**The sharp modes apply no composite effects whatsoever, and that is a
+requirement rather than a nicety.** `decodeIdeal()` is not a demodulator and must
+never become one: an unlit dot is black, and colour never extends past the pixels
+that are actually lit. An earlier version slid a four-dot window over every dot,
+which painted colour onto dots that were off and past the edges of white blocks —
+a composite artifact in a mode whose whole purpose is not having any.
+
+Because the signal alone cannot say what a pattern means — a flat LORES cell and
+a lit HIRES pixel can carry identical dots — each emitter tags its dots with an
+`ntsc::IdealKind`. The two kinds name mechanisms rather than modes, because the
+split does not fall along mode lines:
+
+- `CELL` — one flat colour across the aligned four-dot group. LORES, DLORES and
+  DHGR, whose dots encode an actual colour value.
+- `DOT_GATED` — unlit dots are black, lit ones take the artifact colour their run
+  implies. HIRES *and text*, whose dots are drawn shapes rather than an encoded
+  colour, and which on real hardware pick up artifact colour the same way.
+
+`DOT_GATED` decides between an artifact colour and white by **run length**, not
+byte alignment: a run of two lit dots is one isolated pixel (or one text stroke)
+and takes a colour, three or more reads as white. Run length is used precisely
+because it stays correct across the high bit's half-dot shift without needing to
+know where byte cells begin.
+
+Text therefore carries NTSC colour in the sharp modes too, whenever the burst is
+live — mixed-mode text fringes green and violet exactly as it does under the
+demodulator. What the sharp modes do differently is refuse to let that colour
+spread: the background stays pure black and the strokes keep hard edges. Full
+text mode kills the burst, so an all-text screen is still crisp white.
+
+Display Settings (`src/js/display/display-settings-window.js`) leads with a **Monitor preset** — Pixel Exact, Composite Color, RGB Monitor, Monochrome Green, Monochrome Amber — with every individual slider behind an Advanced disclosure. Each preset also carries a `colorMode`, which selects the core decoder above. Presets set only the picture, never the user's brightness/contrast/saturation or bezel; editing a setting a preset owns relabels the selection Custom without changing values.
+
+**Display profiles.** Beyond the built-in presets, the user can save the current
+picture as a named profile (`src/js/display/display-profiles.js`, unit-tested in
+`tests/js/display/display-profiles.test.js`). Profiles live under their own
+localStorage key, so Reset to Defaults does not take them with it, and they are
+identified by name — saving over a name replaces it.
+
+Two things differ from a built-in preset, both deliberate. A profile captures
+*everything*, brightness, contrast, saturation and bezel included: a built-in
+imitates a monitor and has no business resetting someone's calibration, but a
+profile is a snapshot of a picture the user liked, so restoring it has to give
+that picture back whole. And editing a profile keeps it selected and marks it
+modified, rather than dropping to Custom the way a built-in does — losing the
+name would leave Save nothing to write back to and force a Save As for every
+tweak. Save is enabled only while a selected profile is dirty.
+
+There is deliberately no NTSC Fringing slider. One existed when the shader faked
+composite artifacts by tinting detected edges; the core now produces real
+fringing from the real signal, so a shader knob for it would only double-count.
 
 ### URL Media Parameters
 
@@ -245,10 +517,11 @@ src/
 │   ├── cpu/
 │   │   └── 6502/          # Cycle-accurate 65C02 processor
 │   ├── mmu/            # Memory management and soft switches
-│   ├── video/          # Per-scanline video rendering
+│   ├── video/          # Per-scanline signal generation + NTSC/RGB decoding
 │   ├── audio/          # Speaker audio
 │   ├── disk-image/     # Disk image formats (DSK/DO/PO/NIB/WOZ), GCR encoding, format conversion
 │   ├── disassembler/   # 65C02 disassembler
+│   ├── assembler/      # Merlin-compatible 65C02 assembler
 │   ├── input/          # Keyboard handling
 │   ├── cards/          # Expansion card system
 │   │   ├── disk2/         # Disk II controller card
@@ -278,7 +551,7 @@ src/
     ├── config/         # App version
     ├── debug/          # Debug window implementations
     ├── disk-manager/   # Disk drive operations, persistence, surface rendering, sounds
-    ├── display/        # WebGL renderer, CRT shaders, display settings, no-signal screen
+    ├── display/        # WebGL renderer, CRT shaders, display settings, user profiles, no-signal screen
     ├── file-explorer/  # DOS 3.3 and ProDOS file browser, disassembler
     ├── help/           # Documentation and release notes
     ├── input/          # Keyboard input, text selection, joystick, mouse

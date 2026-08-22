@@ -76,7 +76,14 @@ export class ScreenWindow extends BaseWindow {
       "#screen-window-cursor-keys-toggle",
     );
 
+    // Accelerated-clock indicator. Hidden at 1x — at real //e speed there is
+    // nothing to warn about, and an always-on "1x" is just noise.
+    this._speedChip = document.createElement("span");
+    this._speedChip.className = "screen-window-speed-chip";
+    this._speedChip.style.display = "none";
+
     // Insert charset switch and cursor keys toggle into header
+    this.headerElement.appendChild(this._speedChip);
     this.headerElement.appendChild(charsetSwitch);
     this.headerElement.appendChild(this._cursorKeysSwitch);
     // Lock button appended to the window element so it stays visible in chromeless mode
@@ -149,6 +156,19 @@ export class ScreenWindow extends BaseWindow {
     }
 
     if (this.onStateChange) this.onStateChange();
+  }
+
+  /**
+   * Show the current CPU speed in the title bar, or hide the chip at 1x.
+   */
+  setSpeedState(multiplier, clockText = "") {
+    if (!this._speedChip) return;
+    const accelerated = multiplier > 1;
+    this._speedChip.textContent = `${multiplier}x`;
+    this._speedChip.title = clockText
+      ? `CPU running at ${clockText}`
+      : "Accelerated CPU speed";
+    this._speedChip.style.display = accelerated ? "" : "none";
   }
 
   /**

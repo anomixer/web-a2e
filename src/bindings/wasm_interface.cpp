@@ -160,6 +160,30 @@ void handleRawKeyUp(int browserKeycode, bool shift, bool ctrl, bool alt,
 }
 
 EMSCRIPTEN_KEEPALIVE
+int pasteText(const char *text) {
+  REQUIRE_EMULATOR_OR(0);
+  return static_cast<int>(g_emulator->pasteText(text));
+}
+
+EMSCRIPTEN_KEEPALIVE
+void pasteKey(int appleKey) {
+  REQUIRE_EMULATOR();
+  g_emulator->pasteKey(appleKey);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int pastePending() {
+  REQUIRE_EMULATOR_OR(0);
+  return static_cast<int>(g_emulator->pastePending());
+}
+
+EMSCRIPTEN_KEEPALIVE
+void clearPasteBuffer() {
+  REQUIRE_EMULATOR();
+  g_emulator->clearPasteBuffer();
+}
+
+EMSCRIPTEN_KEEPALIVE
 int charToAppleKey(int charCode) {
   return a2e::charToAppleKey(charCode);
 }
@@ -1019,7 +1043,26 @@ bool isUKCharacterSet() {
   return g_emulator->getVideo().isUKCharacterSet();
 }
 
-// Monochrome display mode (bypasses NTSC artifact coloring)
+// Which kind of receiver decodes the machine's dot stream.
+// 0 = monochrome, 1 = pixel exact, 2 = RGB monitor, 3 = composite.
+// See VideoColorMode in types.hpp.
+EMSCRIPTEN_KEEPALIVE
+void setVideoColorMode(int mode) {
+  REQUIRE_EMULATOR();
+  if (mode < 0 || mode > 3) {
+    return;
+  }
+  g_emulator->getVideo().setColorMode(static_cast<a2e::VideoColorMode>(mode));
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getVideoColorMode() {
+  REQUIRE_EMULATOR_OR(0);
+  return static_cast<int>(g_emulator->getVideo().getColorMode());
+}
+
+// Monochrome display mode. Kept as the older two-state API: it switches to
+// monochrome and back to whichever colour mode was selected before.
 EMSCRIPTEN_KEEPALIVE
 void setMonochrome(bool mono) {
   REQUIRE_EMULATOR();
@@ -2052,9 +2095,94 @@ const char* detokenizeIntegerBasic(const uint8_t* data, int size, bool hasLength
 
 static a2e::Assembler g_assembler;
 static a2e::AsmResult g_asmResult;
+static bool g_asmIncludesWired = false;
+
+// ---- PUT / USE: read included source off the disk in a drive --------------
+//
+// Merlin read its PUT and USE files from the disk it was assembling on, so
+// that is where they are looked for here: drive 1 first, then drive 2, on
+// whichever filesystem the disk carries. Merlin's own convention of naming
+// source files T.SOMETHING is honoured, because a source that says PUT MACROS
+// means the file the assembler saved as T.MACROS.
+
+static bool asmNameMatches(const char* candidate, const std::string& wanted) {
+  auto upper = [](const std::string& s) {
+    std::string r = s;
+    for (auto& c : r) c = static_cast<char>(toupper(static_cast<unsigned char>(c)));
+    return r;
+  };
+  std::string have = upper(candidate);
+  std::string want = upper(wanted);
+  if (have == want) return true;
+  if (have == "T." + want) return true;
+  if (want.rfind("T.", 0) == 0 && have == want.substr(2)) return true;
+  return false;
+}
+
+// Apple text files hold high-bit ASCII with carriage-return line endings and
+// stop at the first null.
+static void asmTextToSource(const uint8_t* data, int length, std::string& out) {
+  out.clear();
+  out.reserve(static_cast<size_t>(length));
+  for (int i = 0; i < length; i++) {
+    uint8_t ch = data[i] & 0x7F;
+    if (ch == 0x00) break;
+    out += (ch == '\r') ? '\n' : static_cast<char>(ch);
+  }
+}
+
+static bool asmReadIncludeFromDisk(const std::string& name, std::string& out) {
+  if (!g_emulator) return false;
+
+  static std::vector<uint8_t> fileBuffer(128 * 1024);
+
+  for (int drive = 0; drive < 2; drive++) {
+    size_t size = 0;
+    const uint8_t* data = g_emulator->getDiskSectorsDOSOrder(drive, &size);
+    if (!data || size == 0) continue;
+
+    if (a2e::DOS33::isDOS33(data, size)) {
+      static a2e::DOS33CatalogEntry entries[512];
+      int count = a2e::DOS33::readCatalog(data, size, entries, 512);
+      for (int i = 0; i < count; i++) {
+        if (!asmNameMatches(entries[i].filename, name)) continue;
+        int length = a2e::DOS33::readFile(data, size, entries[i].firstTrack,
+                                          entries[i].firstSector,
+                                          fileBuffer.data(), fileBuffer.size());
+        if (length <= 0) return false;
+        asmTextToSource(fileBuffer.data(), length, out);
+        return true;
+      }
+      continue;
+    }
+
+    if (a2e::ProDOS::isProDOS(data, size)) {
+      static a2e::ProDOSCatalogEntry entries[2048];
+      int count = a2e::ProDOS::readCatalog(data, size, entries, 2048);
+      for (int i = 0; i < count; i++) {
+        if (entries[i].isDirectory) continue;
+        if (!asmNameMatches(entries[i].filename, name) &&
+            !asmNameMatches(entries[i].path, name)) {
+          continue;
+        }
+        int length = a2e::ProDOS::readFile(data, size, &entries[i],
+                                           fileBuffer.data(), fileBuffer.size());
+        if (length <= 0) return false;
+        asmTextToSource(fileBuffer.data(), length, out);
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
 
 EMSCRIPTEN_KEEPALIVE
 bool assembleSource(const char* source) {
+  if (!g_asmIncludesWired) {
+    g_assembler.setIncludeProvider(asmReadIncludeFromDisk);
+    g_asmIncludesWired = true;
+  }
   g_asmResult = g_assembler.assemble(source);
   return g_asmResult.success;
 }
@@ -2090,6 +2218,71 @@ EMSCRIPTEN_KEEPALIVE
 const char* getAsmErrorMessage(int index) {
   if (index < 0 || index >= static_cast<int>(g_asmResult.errors.size())) return "";
   return g_asmResult.errors[index].message;
+}
+
+// A warning is something Merlin would have done that this assembler cannot —
+// it names the gap without failing the assembly.
+EMSCRIPTEN_KEEPALIVE
+bool getAsmErrorIsWarning(int index) {
+  if (index < 0 || index >= static_cast<int>(g_asmResult.errors.size())) return false;
+  return g_asmResult.errors[index].warning;
+}
+
+// ---- Segments: one contiguous run of object code per ORG ------------------
+
+EMSCRIPTEN_KEEPALIVE
+int getAsmSegmentCount() {
+  return static_cast<int>(g_asmResult.segments.size());
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getAsmSegmentAddress(int index) {
+  if (index < 0 || index >= static_cast<int>(g_asmResult.segments.size())) return 0;
+  return g_asmResult.segments[index].address;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getAsmSegmentOffset(int index) {
+  if (index < 0 || index >= static_cast<int>(g_asmResult.segments.size())) return 0;
+  return static_cast<int>(g_asmResult.segments[index].offset);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getAsmSegmentLength(int index) {
+  if (index < 0 || index >= static_cast<int>(g_asmResult.segments.size())) return 0;
+  return static_cast<int>(g_asmResult.segments[index].length);
+}
+
+// ---- Per-line records ------------------------------------------------------
+//
+// One AsmLineInfo per line of the main source that produced anything. The
+// whole array is handed over as a block: a gutter needs every line at once,
+// and one RPC beats one per line.
+
+EMSCRIPTEN_KEEPALIVE
+int getAsmLineCount() {
+  return static_cast<int>(g_asmResult.lines.size());
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getAsmLineRecordSize() {
+  return static_cast<int>(sizeof(a2e::AsmLineInfo));
+}
+
+EMSCRIPTEN_KEEPALIVE
+const uint8_t* getAsmLineBuffer() {
+  if (g_asmResult.lines.empty()) return nullptr;
+  return reinterpret_cast<const uint8_t*>(g_asmResult.lines.data());
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char* getAsmListing() {
+  return g_asmResult.listing.c_str();
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getAsmObjectType() {
+  return g_asmResult.objectType;
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -2148,10 +2341,14 @@ const char* getAsmObjectStatusMessage(int status) {
 EMSCRIPTEN_KEEPALIVE
 void loadAsmIntoMemory() {
   if (!g_emulator || g_asmResult.output.empty()) return;
-  uint16_t addr = g_asmResult.origin;
-  for (size_t i = 0; i < g_asmResult.output.size(); i++) {
-    g_emulator->writeMemory(static_cast<uint16_t>(addr + i),
-                            g_asmResult.output[i]);
+  // Each ORG starts a segment, so a source that assembles two pieces of code
+  // to two addresses lands both where it asked for rather than one after the
+  // other from the first origin.
+  for (const auto& segment : g_asmResult.segments) {
+    for (uint32_t i = 0; i < segment.length; i++) {
+      g_emulator->writeMemory(static_cast<uint16_t>(segment.address + i),
+                              g_asmResult.output[segment.offset + i]);
+    }
   }
 }
 
