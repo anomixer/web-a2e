@@ -11,6 +11,94 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "August 21, 2026",
+    features: [
+      {
+        title: "A real Merlin assembler",
+        description:
+          "The Assembler window used to accept a plain list of 65C02 instructions and little else. It is now a Merlin-compatible assembler in the emulator's core, and Merlin source written in 1985 assembles as written: macros with parameters and their own local labels, conditional assembly, LUP loops, dummy sections for laying out structures, local labels and variables, the full set of data and string directives, PUT and USE reading included source straight off the disk in a drive, DSK and SAV writing the object back to one, and SW for Woz's Sweet-16 interpreter. It follows Merlin's conventions rather than a generic assembler's — expressions run strictly left to right with no operator precedence, so 1+2*3 is 9, because that is what the sources you might load were written against. Directives that need a linker, and the 65816 ones a //e cannot run, are reported instead of quietly doing nothing. A Problems panel lists every error and warning from the last assembly, and clicking one goes to its line.",
+      },
+      {
+        title: "The gutter now shows what was really assembled",
+        description:
+          "The addresses, cycle counts and bytes beside each line used to come from a second, simpler assembler living in the editor, which meant it could not follow a macro or a conditional and quietly disagreed with the code that was actually produced. The gutter is now filled in by the real assembler, so a line inside a conditional that was not taken shows nothing, a macro call is credited with the bytes its expansion produced, and cycle counts are per opcode rather than per instruction name — LDA $10 and LDA $1000 differ, as they do on the chip.",
+      },
+    ],
+    fixes: [
+      {
+        title: "Pasted text was arriving with characters missing",
+        description:
+          "Paste a program into some titles and roughly every second character vanished, while other programs took the same paste perfectly — which made it look like the paste was too fast rather than wrong. Clearing the keyboard strobe twice is how an Apple II flushes the keyboard, and the ROM, DOS and countless programs do it before settling down to wait for input. A person typing leaves nothing pending for a flush to throw away; the emulator was handing each flush a fresh character. Pasted text now goes into a type-ahead buffer inside the machine, and a character becomes available a short interval after the last one was taken — longer after a carriage return, because the machine has a line to tokenise and a command to run before it asks for the next one. Nothing can now be overwritten before it has been read.",
+      },
+      {
+        title: "The machine thought a key was held down forever",
+        description:
+          "The //e reports whether a key is physically held on a separate line from the one that reports a key waiting to be read, and games and key-repeat code watch it. It went high on the first keystroke of a session and stayed there, because something asserted it with nothing to release it. It is now derived from the only two things that can hold a key down — a key you are actually holding, and a pasted character the program has not read yet — so it releases on its own. Held keys are tracked by the physical key, so letting go of Shift first cannot strand one, auto-repeat cannot double-count, and clicking away from the window releases everything rather than losing the key-up.",
+      },
+      {
+        title: "Typing on a phone or tablet dropped characters",
+        description:
+          "An on-screen keyboard can deliver several characters in one go — autocorrect finishing a word, a swipe, a paste into the input field — and each one was written straight into the keyboard latch, overwriting whatever the machine had not read yet. Mobile typing now goes through the same type-ahead buffer as a paste, so the machine gets all of it at its own pace.",
+      },
+    ],
+    improvements: [
+      {
+        title: "Pasting no longer fights the emulator for time",
+        description:
+          "The old paste ran the CPU itself from the browser's main thread in small bursts, asking the emulator whether the keyboard was ready once per character and translating each character with a separate call — three round trips per key, competing with the audio-driven emulation for the same machine. The text now crosses into the emulator in whole lines, a paste of any size costs a fixed handful of calls, and the machine pulls characters out at its own pace. All the host still does is drop the speed boost and notice when the paste has finished.",
+      },
+    ],
+  },
+  {
+    week: "August 15, 2026",
+    features: [
+      {
+        title: "Run the machine faster than a real one",
+        description:
+          "View > CPU Speed picks 1x, 2x, 4x or 8x of the //e's 1.023 MHz — 8x is roughly what an accelerator card gave you in 1986, and it turns a slow BASIC listing, a long compile or a ProDOS copy from something you wait for into something that is simply done. The sound speeds up with it. Everything the speaker and the Mockingboard do happens in a fraction of the time and rises in pitch to match, exactly as it did on accelerated hardware, so you can hear how fast the machine is going rather than only see it. The picture still runs at sixty frames a second; the machine just gets more done between them. Any setting above 1x shows a small chip in the Monitor title bar so a fast machine is never a mystery, and your choice is remembered between sessions and survives a reset or a reboot — a speed you chose is not something a restart should quietly take away from you. Pasting still sprints to 8x for the duration of the paste and then hands the machine back to whatever speed you picked.",
+      },
+      {
+        title: "Save As for assembly and BASIC source",
+        description:
+          "There was no way to choose the name of a source file once one was in play. Save asked for a name the first time and never again, and opening a file meant never being asked at all, so the only way to save under a different name was to start a new file and lose what you had. Both editors now have a Save As button next to Save, on Ctrl or Cmd with Shift and S. Save writes back to the file you are working on without interrupting; Save As always asks. On Safari and Firefox, which cannot offer a system save dialog, saving used to drop a file into your downloads under a name chosen for you — the BASIC editor always called it program.bas whatever the program was — so both now ask for a name whenever it is not already settled, the same way saving a disk image does.",
+      },
+      {
+        title: "Real composite colour, decoded from the real signal",
+        description:
+          "An Apple //e does not send a monitor pixels. It sends one bit per 14.31818 MHz dot, four dots to a cycle of the colour subcarrier, and every colour you have ever seen on one was manufactured by the monitor from that stream of bits. The emulator used to skip all of that: it looked up colours from a table and then tinted the edges afterwards to suggest fringing. It now generates the dot stream the machine really produces and decodes it the way a monitor does, and several things that were previously approximated fall out of that on their own. The high bit of a hi-res byte is a real half-pixel delay again rather than a swap to a different set of colours, which is the actual reason orange and blue exist and why they sit half a pixel to the right of green and violet. Colour burst is modelled, so text is colourless because the machine stops sending a colour reference during it, not because white was written into the code. And artifact colours and lo-res colours are finally the same sixteen colours, because they are the same mechanism — something the old hand-tuned tables disagreed about. Text on a mixed graphics screen fringes green and violet, exactly as it does on real hardware, while a full screen of text stays crisp and white.",
+      },
+      {
+        title: "Save your own display profiles",
+        description:
+          "The Monitor dropdown offered five monitors and no way to keep one of your own. Tune the picture however you like and Save As gives it a name; it then appears under My Profiles alongside the built-in monitors. Adjusting a saved profile keeps its name and offers Save, which writes the changes back without asking anything, so refining one does not mean naming it again every time. Unlike the built-in monitors, which deliberately leave your brightness, contrast, saturation and bezel alone, a profile remembers everything — it is a snapshot of a picture you liked, so selecting it gives that picture back whole. Profiles are kept separately from the rest of the display settings, so Reset to Defaults does not delete them.",
+      },
+    ],
+    fixes: [
+      {
+        title: "Double hi-res was showing the wrong colours",
+        description:
+          "Every double hi-res picture was a quarter turn out around the colour wheel — greens for blues, pinks for lavenders — which is subtle enough to look like a stylistic choice rather than a fault. The 80-column video path is clocked one dot later than the 40-column one, so the same pattern of dots lands on the next point of the colour cycle and comes out a different colour. That one dot was missing.",
+      },
+      {
+        title: "Colour where there should have been none",
+        description:
+          "Pixel Exact was quietly applying a composite effect. It worked out each pixel's colour by looking at its neighbours, which meant colour bled onto dots that were switched off and spilled past the edges of white shapes — the left edge of a white block ran magenta, violet and lavender before reaching white. A sharp mode should not do that. Unlit dots are now black, colour stops at the last lit dot, and edges are hard. Hi-res pixels and text keep the colours their dot patterns really produce; what they no longer do is smear them.",
+      },
+    ],
+    improvements: [
+      {
+        title: "Composite no longer bends the picture",
+        description:
+          "The Composite Color monitor came with a curved screen. Real colour sets were curved, but curvature is not what that setting is about — the composite look is in how the colour is decoded, and the barrel distortion mostly made the picture harder to read. It is now flat, and this reaches anyone who already had Composite selected rather than only new users. Screen Curvature is still under Advanced.",
+      },
+      {
+        title: "The NTSC Fringing slider has gone",
+        description:
+          "It faked composite artifacts by tinting edges it detected in an already-finished picture, which meant it added colour to things that were never encoded in the first place and missed colour that should have been there. Now that fringing comes out of the signal itself, keeping the slider would only have applied the effect twice.",
+      },
+    ],
+  },
+  {
     week: "August 8, 2026",
     features: [],
     fixes: [

@@ -20,6 +20,7 @@ import {
 // Functions that don't need return values — fire and forget
 const FIRE_AND_FORGET = new Set([
   '_handleRawKeyDown', '_handleRawKeyUp', '_keyDown',
+  '_pasteKey', '_clearPasteBuffer',
   '_mouseMove', '_mouseButton',
   '_setPaused', '_setAudioVolume', '_setAudioMuted',
   '_setMockingboardDebugLogging',

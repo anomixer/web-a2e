@@ -44,12 +44,27 @@ export const ALL_MNEMONICS = new Set([
 
 // Merlin directives (pseudo-ops)
 export const DIRECTIVES = new Set([
-  'ORG', 'EQU', 'DS', 'DFB', 'DW', 'DA', 'DDB', 'ASC', 'DCI', 'HEX',
+  'ORG', 'EQU', '=', 'VAR', 'DS', 'DFB', 'DW', 'DA', 'DDB', 'ASC', 'DCI', 'HEX',
   'PUT', 'USE', 'OBJ', 'LST', 'DO', 'ELSE', 'FIN', 'LUP', '--^', 'REL',
   'TYP', 'SAV', 'DSK', 'CHN', 'ENT', 'EXT', 'DUM', 'DEND', 'ERR', 'CYC',
   'DAT', 'EXP', 'PAU', 'SW', 'USR', 'XC', 'MX', 'TR', 'KBD', 'PMC',
-  'PAG', 'TTL', 'SKP', 'CHK', 'IF', 'ELUP', 'END', 'MAC', 'EOM', '<<<',
-  'ADR', 'ADRL', 'DB', 'LNK', 'STR', 'STRL', 'REV',
+  'PAG', 'TTL', 'SKP', 'CHK', 'IF', 'ELUP', 'END', 'MAC', 'EOM', '<<<', '>>>',
+  'ADR', 'ADRL', 'DB', 'LNK', 'STR', 'STRL', 'REV', 'INV', 'FLS',
+]);
+
+// Directives whose operand opens with a delimiter the author picks, so it may
+// contain spaces and must be scanned to the matching character.
+export const STRING_DIRECTIVES = new Set([
+  'ASC', 'DCI', 'INV', 'FLS', 'REV', 'STR', 'STRL',
+]);
+
+// Sweet-16 interpreter mnemonics, which the SW directive switches on. They are
+// listed apart from the 65C02 set because they are only opcodes inside a SW
+// region — outside one they are ordinary symbols.
+export const SWEET16_MNEMONICS = new Set([
+  'SET', 'LD', 'ST', 'LDD', 'STD', 'POP', 'STP', 'ADD', 'SUB', 'POPD',
+  'CPR', 'INR', 'DCR', 'RTN', 'BR', 'BNC', 'BC', 'BP', 'BM', 'BZ', 'BNZ',
+  'BM1', 'BNM1', 'BK', 'RS', 'BS',
 ]);
 
 // Combined set for detection heuristic

@@ -5,9 +5,11 @@
  *  Mike Daley <michael_daley@icloud.com>
  */
 
-// How often to re-check a paste queue that is stalled because the emulator
-// is paused. Long enough not to busy-wait, short enough to feel immediate.
-const PAUSED_POLL_MS = 50;
+// How often to ask the core whether the paste buffer has drained. The host no
+// longer meters the characters out — it only needs to notice the end, so that
+// it can drop the speed boost and fire the completion callback. Long enough
+// not to spam the worker, short enough that the boost ends promptly.
+const PASTE_POLL_MS = 60;
 
 // Right Alt reports location 2; left reports 1, and 0 means the browser did not
 // say, which we treat as left. Both sides share keyCode 18, so this is the only
@@ -23,16 +25,14 @@ export class InputHandler {
     this.mobileInput = null;
     this.isMobile = false;
 
-    // Paste queue for typing pasted text
-    this.pasteQueue = [];
+    // Paste state. The characters themselves live in the core's keyboard
+    // type-ahead buffer; what is left here is only the bookkeeping around it —
+    // the optional speed boost and the completion callback.
     this.pasteTimer = null;
     this.pasteSpeedUp = false; // whether we've set a speed multiplier for paste
-    this.pasteMultiplier = 1;  // boost the current queue asked for
+    this.pasteMultiplier = 1;  // boost the current paste asked for
     this.savedSpeedMultiplier = 1; // speed before paste started
-
-    // MessageChannel for zero-delay batch scheduling (avoids setTimeout's ~4ms minimum)
-    this.pasteChannel = new MessageChannel();
-    this.pasteChannel.port1.onmessage = () => this.processPasteQueue();
+    this.pasteOnComplete = null;
 
     // Reference to joystick window for cursor-keys-as-joystick feature
     this.joystickWindow = null;
@@ -225,71 +225,48 @@ export class InputHandler {
     return result >= 0 ? result : null;
   }
 
-  // Process paste queue in batches, yielding to the browser periodically
-  // to keep the UI responsive and let the audio worklet drive emulation.
-  // Speed multiplier (set via WASM) makes the audio-driven emulation run
-  // faster, while small boost cycle batches handle immediate key processing.
-  async processPasteQueue() {
-    if (this.pasteQueue.length === 0) {
+  // Watch the core's type-ahead buffer and tidy up when it empties.
+  //
+  // This is all the host does during a paste now. The characters are already
+  // inside the emulator, and the machine loads the next one each time the
+  // program clears the keyboard strobe, so nothing here paces the typing:
+  // it only drops the speed boost and reports completion. The old version
+  // ran the CPU itself in 500-cycle bursts from this thread while polling
+  // _isKeyboardReady() once per character, which competed with the
+  // audio-paced worker for the same emulation and cost a round trip per key.
+  async pollPasteDrain() {
+    // Nothing drains while the emulator is paused, so hand the boost back
+    // rather than leaving the machine set to sprint when it continues.
+    const paused =
+      this.wasmModule._isPaused && (await this.wasmModule._isPaused());
+    if (paused) {
       this.restorePasteSpeed();
-      this.pasteTimer = null;
-      return;
-    }
-
-    // Nothing can drain while the emulator is paused: _runCycles is a no-op and
-    // the keyboard strobe never clears, so the loop below would spin its whole
-    // time budget and reschedule with the speed boost still applied. A
-    // breakpoint hit mid-queue therefore left the multiplier at 8x, and the
-    // emulator sprinted as soon as it was continued. Drop the boost while
-    // paused and check back periodically instead of spinning.
-    if (this.wasmModule._isPaused && (await this.wasmModule._isPaused())) {
-      this.restorePasteSpeed();
-      this.pasteTimer = setTimeout(() => {
-        this.pasteTimer = null;
-        this.processPasteQueue();
-      }, PAUSED_POLL_MS);
-      return;
-    }
-
-    // Re-apply the boost if a pause dropped it.
-    if (!this.pasteSpeedUp && this.pasteMultiplier > 1) {
+    } else if (!this.pasteSpeedUp && this.pasteMultiplier > 1) {
       await this.setPasteSpeed(this.pasteMultiplier);
     }
 
-    const BOOST_BATCH = 500; // small cycle batch for immediate key processing
-    const TIME_BUDGET_MS = 30;
-    const batchEnd = performance.now() + TIME_BUDGET_MS;
+    const pending = this.wasmModule._pastePending
+      ? await this.wasmModule._pastePending()
+      : 0;
 
-    while (this.pasteQueue.length > 0 && performance.now() < batchEnd) {
-      // Wait for keyboard ready, running small boost cycles until it is
-      if (this.wasmModule._isKeyboardReady) {
-        while (!await this.wasmModule._isKeyboardReady()) {
-          await this.wasmModule._runCycles(BOOST_BATCH);
-          if (performance.now() >= batchEnd) break;
-        }
-        if (!await this.wasmModule._isKeyboardReady()) {
-          break;
-        }
-      }
-
-      const appleKey = this.pasteQueue.shift();
-      this.wasmModule._keyDown(appleKey);
-
-      // Run a small burst to start processing the keystroke
-      await this.wasmModule._runCycles(BOOST_BATCH);
+    if (pending > 0) {
+      this.pasteTimer = setTimeout(() => this.pollPasteDrain(), PASTE_POLL_MS);
+      return;
     }
 
-    // Schedule next batch if more characters remain
-    if (this.pasteQueue.length > 0) {
-      this.pasteTimer = true;
-      this.pasteChannel.port2.postMessage(null);
-    } else {
-      this.restorePasteSpeed();
-      this.pasteTimer = null;
-      if (this.pasteOnComplete) {
-        this.pasteOnComplete(false); // false = completed normally
-        this.pasteOnComplete = null;
-      }
+    this.finishPaste(false);
+  }
+
+  // Common exit path for a paste: drop the boost, stop polling, notify.
+  finishPaste(cancelled) {
+    if (typeof this.pasteTimer === "number") clearTimeout(this.pasteTimer);
+    this.pasteTimer = null;
+    this.pasteMultiplier = 1;
+    this.restorePasteSpeed();
+    if (this.pasteOnComplete) {
+      const done = this.pasteOnComplete;
+      this.pasteOnComplete = null;
+      done(cancelled);
     }
   }
 
@@ -304,6 +281,20 @@ export class InputHandler {
     }
   }
 
+  // Set the user's baseline emulation speed (the View menu's CPU Speed).
+  // While a paste boost is live the multiplier in WASM belongs to the paste,
+  // so record the new baseline as the value to restore rather than writing it
+  // through — otherwise restorePasteSpeed() would undo the change.
+  setBaseSpeed(multiplier) {
+    if (this.pasteSpeedUp) {
+      this.savedSpeedMultiplier = multiplier;
+      return;
+    }
+    if (this.wasmModule._setSpeedMultiplier) {
+      this.wasmModule._setSpeedMultiplier(multiplier);
+    }
+  }
+
   // Restore emulation speed after paste completes
   restorePasteSpeed() {
     if (this.pasteSpeedUp && this.wasmModule._setSpeedMultiplier) {
@@ -314,15 +305,9 @@ export class InputHandler {
 
   // Cancel any pending paste operation
   cancelPaste() {
-    if (typeof this.pasteTimer === "number") clearTimeout(this.pasteTimer);
-    this.pasteTimer = null;
-    this.pasteQueue = [];
-    this.pasteMultiplier = 1;
-    this.restorePasteSpeed();
-    if (this.pasteOnComplete) {
-      this.pasteOnComplete(true); // true = cancelled
-      this.pasteOnComplete = null;
-    }
+    if (this.wasmModule._clearPasteBuffer) this.wasmModule._clearPasteBuffer();
+    if (this.pasteTimer === null && !this.pasteOnComplete) return;
+    this.finishPaste(true); // true = cancelled
   }
 
   // Queue text for programmatic input (used by BasicProgramWindow)
@@ -332,19 +317,44 @@ export class InputHandler {
   // parseTokens: when true, recognize {token} special keys (arrows, esc,
   //   enter, tab, del, backspace, space, ctrl combos). Default false so
   //   ordinary paste passes braces through literally.
+  //
+  // The text is handed to the core's keyboard type-ahead buffer in whole runs
+  // rather than a character at a time: translation to Apple II key codes lives
+  // in keyboard.cpp, which is the one place that knows the mapping, and a
+  // paste of any size costs a fixed handful of round trips instead of one per
+  // character.
   async queueTextInput(text, { speedMultiplier = 8, onStart = null, onComplete = null, parseTokens = false } = {}) {
+    if (!text) return;
+
+    // A second paste while one is running joins the queue behind it, but its
+    // completion callback replaces the first — fire the old one as cancelled
+    // rather than dropping it, so a caller awaiting it is never left hanging.
+    if (this.pasteOnComplete && this.pasteOnComplete !== onComplete) {
+      const stale = this.pasteOnComplete;
+      this.pasteOnComplete = null;
+      stale(true);
+    }
     this.pasteOnComplete = onComplete;
     this.pasteMultiplier = speedMultiplier;
     await this.setPasteSpeed(speedMultiplier);
 
     if (parseTokens) {
+      // Literal text accumulates into runs so a whole line is one call; only
+      // a {token} interrupts the run and goes across as a single key code.
+      let run = "";
+      const flush = async () => {
+        if (run) {
+          await this.pushPasteText(run);
+          run = "";
+        }
+      };
+
       let i = 0;
       while (i < text.length) {
         if (text[i] === "{") {
           // "{{" is a literal "{"
           if (text[i + 1] === "{") {
-            const lit = await this.charToAppleKey("{");
-            if (lit !== null) this.pasteQueue.push(lit);
+            run += "{";
             i += 2;
             continue;
           }
@@ -352,30 +362,41 @@ export class InputHandler {
           if (end > i) {
             const code = this.specialKeyToAppleCode(text.slice(i + 1, end));
             if (code !== null) {
-              this.pasteQueue.push(code);
+              await flush();
+              this.wasmModule._pasteKey(code);
               i = end + 1;
               continue;
             }
           }
           // Unrecognized token — fall through and treat "{" literally
         }
-        const appleKey = await this.charToAppleKey(text[i]);
-        if (appleKey !== null) this.pasteQueue.push(appleKey);
+        run += text[i];
         i++;
       }
+      await flush();
     } else {
-      for (const char of text) {
-        const appleKey = await this.charToAppleKey(char);
-        if (appleKey !== null) {
-          this.pasteQueue.push(appleKey);
-        }
-      }
+      await this.pushPasteText(text);
     }
 
-    // Start processing queue if not already running
-    if (!this.pasteTimer && this.pasteQueue.length > 0) {
+    // Start watching for the buffer to drain if we are not already
+    if (this.pasteTimer === null) {
       if (onStart) onStart();
-      this.processPasteQueue();
+      this.pollPasteDrain();
+    }
+  }
+
+  // Copy one run of text into the core's type-ahead buffer. Characters with
+  // no Apple II equivalent are dropped by charToAppleKey() inside the core.
+  async pushPasteText(text) {
+    if (!this.wasmModule._pasteText) return;
+    const byteLength = new TextEncoder().encode(text).length + 1;
+    const ptr = await this.wasmModule._malloc(byteLength);
+    if (!ptr) return;
+    try {
+      await this.wasmModule.stringToUTF8(text, ptr, byteLength);
+      await this.wasmModule._pasteText(ptr);
+    } finally {
+      this.wasmModule._free(ptr);
     }
   }
 
@@ -415,7 +436,7 @@ export class InputHandler {
 
   // Check if a paste operation is in progress
   isPasting() {
-    return this.pasteQueue.length > 0 || this.pasteTimer !== null;
+    return this.pasteTimer !== null;
   }
 
   // Detect if we're on a mobile/touch device
@@ -457,10 +478,9 @@ export class InputHandler {
     this.mobileInput.addEventListener('input', (e) => {
       const data = e.data;
       if (data) {
-        // Process each character typed
-        for (const char of data) {
-          this.sendCharToEmulator(char);
-        }
+        // The whole event goes across at once — an on-screen keyboard can
+        // deliver several characters in one input event.
+        this.sendCharToEmulator(data);
       }
       // Clear the input to be ready for next character
       this.mobileInput.value = '';
@@ -507,12 +527,15 @@ export class InputHandler {
     });
   }
 
-  // Send a character to the emulator (for mobile input)
-  async sendCharToEmulator(char) {
-    const appleKey = await this.charToAppleKey(char);
-    if (appleKey !== null) {
-      this.wasmModule._keyDown(appleKey);
-    }
+  // Send typed text to the emulator (for mobile input).
+  //
+  // Goes through the core's type-ahead buffer rather than writing the latch
+  // directly: an on-screen keyboard can deliver several characters in one
+  // input event (autocorrect, a swipe, a paste into the hidden field), and
+  // writing the latch per character overwrote keys the machine had not read
+  // yet. The buffer also releases AKD once the character is taken.
+  async sendCharToEmulator(text) {
+    await this.pushPasteText(text);
   }
 
   // Show mobile keyboard programmatically
