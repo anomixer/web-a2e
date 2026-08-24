@@ -18,6 +18,12 @@ const HARD_DRIVE_KEYS = { hd: 0, hd1: 0, hd2: 1 };
 /** Extensions the core recognises, floppy and block device alike. */
 const IMAGE_EXTENSION = /\.(dsk|do|po|nib|woz|2mg|hdv)$/i;
 
+/**
+ * Values that turn a flag-shaped parameter on. The empty string is included so
+ * a bare `?autostart` counts, which is how people write flags by hand.
+ */
+const FLAG_TRUE = new Set(["", "1", "true", "yes", "on"]);
+
 /** Per-unit size ceilings, generous enough for real images but not unbounded. */
 export const MAX_FLOPPY_BYTES = 8 * 1024 * 1024;
 export const MAX_HARD_DRIVE_BYTES = 64 * 1024 * 1024;
@@ -87,6 +93,17 @@ export function filenameFromUrl(url, override, fallback = "URL Disk") {
 }
 
 /**
+ * Read a flag-shaped parameter, treating anything unrecognised as off.
+ *
+ * @param {string|null} raw - The raw parameter value, or null when absent
+ * @returns {boolean}
+ */
+export function parseFlag(raw) {
+  if (raw === null || raw === undefined) return false;
+  return FLAG_TRUE.has(String(raw).trim().toLowerCase());
+}
+
+/**
  * Parse the media parameters out of a query string.
  *
  * Unknown parameters are ignored rather than reported — the app has other
@@ -96,11 +113,12 @@ export function filenameFromUrl(url, override, fallback = "URL Disk") {
  * @param {string} base - Absolute URL of the page, for resolving relative paths
  * @returns {{floppies: Array<{unit: number, url: string, filename: string}>,
  *            hardDrives: Array<{unit: number, url: string, filename: string}>,
- *            errors: string[]}}
+ *            autostart: boolean, errors: string[]}}
  */
 export function parseMediaParams(search, base) {
   const params = new URLSearchParams(search);
   const nameOverride = params.get("name") || undefined;
+  const autostart = parseFlag(params.get("autostart"));
 
   const floppies = [];
   const hardDrives = [];
@@ -145,7 +163,7 @@ export function parseMediaParams(search, base) {
     errors.push("Ignored ?name= — it is only applied when one image is loaded");
   }
 
-  return { floppies, hardDrives, errors };
+  return { floppies, hardDrives, autostart, errors };
 }
 
 /**

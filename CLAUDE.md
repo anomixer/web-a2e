@@ -412,12 +412,28 @@ fringing from the real signal, so a shader knob for it would only double-count.
 
 ### URL Media Parameters
 
-`?disk=`, `?disk1=`, `?disk2=`, `?hd=`, `?hd2=` and `?name=` let a link open with images already inserted. Two modules:
+`?disk=`, `?disk1=`, `?disk2=`, `?hd=`, `?hd2=`, `?name=` and `?autostart=` let a link open with images already inserted. Two modules:
 
 - `src/js/utils/url-params.js` — pure parsing and URL validation (http/https only; relative paths resolve against the page). Unit-tested in `tests/js/utils/url-params.test.js`.
 - `src/js/disk-manager/url-media-loader.js` — fetches (`credentials: "omit"`, size-capped) and inserts.
 
 `main.js` parses the URL *before* `DiskManager.init()` / `HardDriveManager.init()` and populates `urlOwnedDrives` / `urlOwnedDevices`, which those managers use to skip restoring persisted images into units a link is about to claim — otherwise the two loads race.
+
+`?autostart=` (or a bare `?autostart`) does **not** power the machine on by
+itself, and cannot: emulation is paced by the audio clock and no browser will
+run an `AudioContext` before a user gesture, so an unattended start yields a
+machine that sits silent or runs unpaced. `main.js:armAutostart()` instead arms
+a one-shot capture-phase listener on `pointerdown`/`keydown`/`touchstart` that
+turns the visitor's first interaction anywhere on the page into the power
+switch. Gestures on `#btn-power`/`#fp-power` are deliberately ignored — those
+already toggle power, and powering on beneath one would let its own click
+switch the machine straight back off.
+
+It routes through `UIController.powerOn()` rather than the button's handler, so
+the power reminder is *hidden* rather than permanently dismissed (a machine
+that started on its own may have started before the visitor ever read the
+hint), and the "No disk? Press Ctrl+Reset for BASIC" hint is suppressed when
+the URL put a floppy in the drive.
 
 Loads are transient: `DiskManager.loadDiskFromUrlData()` deliberately skips `saveDiskToStorage`/`addToRecentDisks`, and `StateManager.suspendAutoSave()` is called for the session so the periodic autosave cannot persist the URL disk by the back door. The stored autosave preference is untouched.
 
@@ -776,8 +792,11 @@ Registered in `agent-tools.js`, organized by category:
 - `emulatorReboot` — cold reset
 - `directLoadBinaryAt` — load base64 data to memory address
 - `directSaveBinaryRangeTo` — read memory range as base64
+- `directLoadFileAt` — load a file from the disk in a drive to a memory address
+- `directMemoryCopy` / `directMemoryFill` — bulk memory operations
 - `captureScreenshot` — capture display as base64 PNG
 - `captureScreenText` — read text from screen (optional row/col range)
+- `typeKeyboard` — type text at the machine (goes through the core's paste buffer, so nothing is dropped)
 
 **BASIC Program** (`basic-program-tools.js`)
 - `directReadBasic` / `directWriteBasic` / `directRunBasic` / `directNewBasic` — direct memory operations
@@ -785,23 +804,32 @@ Registered in `agent-tools.js`, organized by category:
 - `basicProgramRun` / `basicProgramPause` / `basicProgramNew` / `basicProgramRenumber` / `basicProgramFormat`
 - `basicProgramGet` / `basicProgramSet` / `basicProgramLineCount`
 - `basicProgramLoadFile` — load a sandbox file into the editor server-side (source bypasses LLM context); pairs with `save_to from:"basic-editor"`
-- `saveBasicInEditorToLocal` — export from editor
+- `saveBasicInEditorToLocal` / `directSaveBasicInMemoryToLocal` — export from editor or from memory
+- `basicProgramSetBreakpoint` / `basicProgramUnsetBreakpoint` / `basicProgramListBreakpoints` — statement-level breakpoints
+- `basicProgramStepNext` / `basicProgramGetCurrentLine` — stepping and position
+- `basicProgramGetVariables` / `basicProgramSetVariable` — inspect and set Applesoft variables
+- `basicProgramGetHeatMap` — per-line execution counts
 
 **Assembler** (`assembler-tools.js`)
 - `asmAssemble` — compile source code
 - `asmWrite` — load assembled code into memory
 - `asmLoadExample` — load template program
 - `asmNew` / `asmGet` / `asmSet` — editor operations
+- `saveAsmInEditorToLocal` — export from editor
 - `asmLoadFile` — load a sandbox file into the editor server-side (source bypasses LLM context); pairs with `save_to from:"asm-editor"`
 - `asmGetStatus` — compilation status (origin, size, errors)
 - `directExecuteAssemblyAt` — execute at address with optional return address
 
 **Disk Drives** (`disk-tools.js`)
 - `driveInsertDisc` — load disk image (calls MCP `load_disk_image`)
+- `driveInsertBlank` — insert a freshly formatted image
+- `diskDriveEject` — eject a drive
+- `getDiskImageData` — read the current image back out
 - `driveRecentsList` / `driveInsertRecent` / `driveLoadRecent` / `drivesClearRecent` — recent disk management
 
 **SmartPort Hard Drives** (`smartport-tools.js`)
 - `smartportInsertImage` — load hard drive image (calls MCP `load_smartport_image`)
+- `smartportEject` — detach an image
 - `smartportRecentsList` / `smartportInsertRecent` / `smartportClearRecent` — recent image management
 - Validates SmartPort card is installed before operations
 
@@ -816,6 +844,18 @@ Registered in `agent-tools.js`, organized by category:
 - `slotsListAll` — list all slots with current cards and available options
 - `slotsInstallCard` / `slotsRemoveCard` / `slotsMoveCard` — card management
 - Persists to localStorage, triggers emulator reset after changes
+
+**Printers** (`printer-tools.js`)
+- `printerOpen` / `printerClose` / `printerClear` / `printerGetState` — window and paper lifecycle
+- `printerSetPower` / `printerSetOnline` / `printerSetModel` / `printerSetup` — printer configuration
+- `printerSetPageSize` / `printerSetPaperDimensions` / `printerSetRibbon` / `printerSetAutoLineFeed` — media and ribbon
+- `printerSendBytes` / `printerStrike` / `printerSuper` — drive the print head directly
+- `printerFeed` / `printerLineFeed` / `printerFormFeed` — paper movement
+- `printerDumpScreen` — print the current screen
+- `printerCapturePaper` / `printerGetPage` / `printerListHistory` / `printerReloadJob` — read printed output back
+
+**Agent Version** (`agent-version-tools.js`)
+- `getAgentVersion` / `checkAgentCompatibility` — version handshake with the MCP server
 
 ### WASM APIs Used by Agent Tools
 

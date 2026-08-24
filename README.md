@@ -145,6 +145,7 @@ A disk image URL can be passed in the address so a link opens with the disk alre
 | `?disk2=` | Drive 2 |
 | `?hd=` / `?hd2=` | SmartPort devices 1 and 2 |
 | `?name=` | Filename to use when the URL has none (e.g. `download?id=…`) |
+| `?autostart` | Power on at the visitor's first click or keypress |
 
 ```
 https://your-emulator/?disk=https://example.com/demo.dsk
@@ -165,7 +166,7 @@ Notes:
 
   To share something from an archive that refuses, re-host the image somewhere CORS-friendly and link that.
 - `?name=` is required for `.nib` and `.2mg` images behind extensionless URLs, since those formats can't be identified from their contents.
-- The browser will not start audio without a user gesture, and the emulator's timing is driven by the audio clock, so the visitor still clicks Power once to boot.
+- The browser will not start audio without a user gesture, and the emulator's timing is driven by the audio clock, so the visitor still clicks once to boot. `?autostart` makes that click count: the first click or keypress *anywhere on the page* powers the machine on, instead of having to be aimed at the Power button. It cannot boot unattended — no page can start audio on its own — but it turns two steps into one.
 
 ### File Explorer
 
