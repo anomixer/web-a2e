@@ -139,6 +139,11 @@ class AppleIIeEmulator {
         this.wasmModule.requestSamples(count);
       };
 
+      // ...and while audio is still asleep, the Worker paces itself instead.
+      this.audioDriver.onFreeRunChange = (enabled) => {
+        this.wasmModule.setFreeRun(enabled);
+      };
+
       this.frameReady = false;
       this.setupSharedBuffers();
 
@@ -527,7 +532,7 @@ class AppleIIeEmulator {
 
       this.showLoading(false);
       this.reminderController.showPowerReminder(true);
-      this.armAutostart();
+      this.autostart();
 
       console.log("Apple //e Emulator initialized");
     } catch (error) {
@@ -562,35 +567,22 @@ class AppleIIeEmulator {
   }
 
   /**
-   * Arm a one-shot power-on for `?autostart=`.
+   * Power on for `?autostart=`, with no interaction at all.
    *
-   * A link cannot boot the machine by itself, however plainly it asks: the
-   * emulation is paced by the audio clock and no browser will run an
-   * AudioContext before a user gesture, so an unattended start would produce a
-   * machine that either sits silent or runs unpaced. What a link can do is make
-   * the visitor's *first* interaction anywhere on the page be the power switch,
-   * which costs the same one gesture but does not have to be aimed at a button
-   * they have not found yet.
-   *
-   * Gestures on either power button are left alone — those already toggle
-   * power, and powering on underneath one would have its own click switch the
-   * machine straight back off.
+   * The machine runs immediately: the Worker paces itself from a timer while
+   * the AudioContext is still suspended (see AudioDriver.setFreeRun), so a
+   * link boots its disk in front of the visitor rather than waiting to be
+   * touched. The one thing a browser genuinely will not allow is sound before
+   * a gesture, so the machine starts silent and the speaker joins in the
+   * moment the visitor clicks or types anything.
    */
-  armAutostart() {
+  autostart() {
     if (!this.urlMedia?.autostart || this.isRunning()) return;
 
-    const events = ["pointerdown", "keydown", "touchstart"];
-    const fire = (event) => {
-      if (event.target?.closest?.("#btn-power, #fp-power")) return;
-
-      for (const type of events) window.removeEventListener(type, fire, true);
-      this.uiController?.powerOn({
-        // A URL disk is about to boot, so the BASIC hint would be wrong.
-        showBasicHint: this.urlMedia.floppies.length === 0,
-      });
-    };
-
-    for (const type of events) window.addEventListener(type, fire, true);
+    this.uiController?.powerOn({
+      // A URL disk is about to boot, so the BASIC hint would be wrong.
+      showBasicHint: this.urlMedia.floppies.length === 0,
+    });
   }
 
   /**

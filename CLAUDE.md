@@ -419,21 +419,18 @@ fringing from the real signal, so a shader knob for it would only double-count.
 
 `main.js` parses the URL *before* `DiskManager.init()` / `HardDriveManager.init()` and populates `urlOwnedDrives` / `urlOwnedDevices`, which those managers use to skip restoring persisted images into units a link is about to claim — otherwise the two loads race.
 
-`?autostart=` (or a bare `?autostart`) does **not** power the machine on by
-itself, and cannot: emulation is paced by the audio clock and no browser will
-run an `AudioContext` before a user gesture, so an unattended start yields a
-machine that sits silent or runs unpaced. `main.js:armAutostart()` instead arms
-a one-shot capture-phase listener on `pointerdown`/`keydown`/`touchstart` that
-turns the visitor's first interaction anywhere on the page into the power
-switch. Gestures on `#btn-power`/`#fp-power` are deliberately ignored — those
-already toggle power, and powering on beneath one would let its own click
-switch the machine straight back off.
+`?autostart=` (or a bare `?autostart`) powers the machine on at the end of
+`init()` with **no interaction at all** — `main.js:autostart()`. It runs
+immediately because the Worker paces itself while the `AudioContext` is still
+suspended (see Free-Run Clock below); the one thing a browser genuinely
+forbids before a gesture is *sound*, so the machine starts silent and the
+speaker joins in when the visitor first clicks or types.
 
-It routes through `UIController.powerOn()` rather than the button's handler, so
-the power reminder is *hidden* rather than permanently dismissed (a machine
-that started on its own may have started before the visitor ever read the
-hint), and the "No disk? Press Ctrl+Reset for BASIC" hint is suppressed when
-the URL put a floppy in the drive.
+It routes through `UIController.powerOn()` rather than the power button's
+handler, so the power reminder is *hidden* rather than permanently dismissed (a
+machine that started on its own may have started before the visitor ever read
+the hint), and the "No disk? Press Ctrl+Reset for BASIC" hint is suppressed
+when the URL put a floppy in the drive.
 
 Loads are transient: `DiskManager.loadDiskFromUrlData()` deliberately skips `saveDiskToStorage`/`addToRecentDisks`, and `StateManager.suspendAutoSave()` is called for the session so the periodic autosave cannot persist the URL disk by the back door. The stored autosave preference is untouched.
 
@@ -491,6 +488,33 @@ The emulator uses Web Audio API for precise timing:
 Sample *data* therefore never crosses the main thread; only the refill request does. Without `SharedArrayBuffer` the Worker falls back to posting samples for the main thread to relay, which works but puts a busy main thread in the audio path — and because audio paces the emulation, that shows up as speed instability rather than just crackle.
 
 This ensures consistent speed driven by the audio hardware clock.
+
+### Free-Run Clock
+
+Audio pacing has a hole in it: no browser starts an `AudioContext` before a
+user gesture, so on a page nobody has touched there is nothing asking the
+Worker for samples, and a machine that has been powered on **sits frozen** —
+powered, but not running. That is what `?autostart` originally ran into.
+
+`AudioDriver.start()` therefore turns on a stand-in when it finds the context
+suspended (and when audio fails outright): `MSG_SET_FREE_RUN` puts a 16ms
+`setInterval` in the Worker which asks for the samples the elapsed real time is
+worth. Measured at 1.019 MHz against audio pacing's 1.022 MHz. The generated
+audio goes nowhere — the ring drops writes once full, since nothing is reading
+— but frames publish exactly as they do under audio.
+
+Three details keep it honest:
+
+- **The Worker stops free-running the instant a real sample request arrives**,
+  not only when told to. Two clocks driving one emulation would run it at
+  roughly double speed, and this also covers a context that resumes on its own.
+- **`stopFreeRun()` empties the ring** by moving the write position to the read
+  position (the Worker owns the write side, so no race with the reader).
+  Otherwise the AudioWorklet's first sound would be seconds of stale audio.
+- **A tick is capped at 100ms of emulated time.** A throttled or backgrounded
+  tab returns with a huge elapsed time, and chasing all of it would freeze the
+  Worker catching up; the machine loses that time instead, as it does when the
+  audio ring runs dry.
 
 ### WASM Interface Pattern
 
