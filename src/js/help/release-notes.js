@@ -16,10 +16,15 @@ export const RELEASE_NOTES = [
       {
         title: "A shared link can start the machine for you",
         description:
-          "Add ?autostart to a link and the visitor's first click or keypress anywhere on the page powers the //e on, so a link that carries a disk goes straight to booting it instead of asking someone who has never seen the emulator before to find the power button. It does not start on its own, and cannot: a browser will not let a page make sound until someone has interacted with it, and the emulation is paced by the audio clock, so a machine started unattended would sit silent or run at the wrong speed. What this removes is having to aim that interaction. Clicking the power button itself still just works, and the machine does not offer its \"No disk? Press Ctrl+Reset\" hint when the link has already put a disk in the drive.",
+          "Add ?autostart to a link and the //e powers on and boots as the page finishes loading, with nothing to click. Send someone a link to a disk and they watch it boot, rather than arriving at a dark screen and having to work out which button starts a computer they have never used. The machine starts silent, because no browser will let a page make sound until someone has interacted with it — click or type anything and the speaker joins in. Clicking the power button yourself still works exactly as before, and the \"No disk? Press Ctrl+Reset\" hint stays out of the way when the link has already put a disk in the drive.",
       },
     ],
     fixes: [
+      {
+        title: "A powered-on machine could sit frozen instead of running",
+        description:
+          "The emulation is paced by the audio hardware clock — it runs the processor for exactly as long as the sound card asks for sound — which is what keeps the speed steady. But a browser refuses to start audio until someone has interacted with the page, so on a page nobody had touched yet there was nothing asking, and a machine that had been switched on stood still: powered, lit, and not running. The emulator now paces itself from a timer for as long as audio is asleep, and hands back to the audio clock the moment it wakes, so the machine runs from the instant it is switched on whether or not anyone has touched anything yet.",
+      },
       {
         title: "The agent could not load source into the Assembler window",
         description:
