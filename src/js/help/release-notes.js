@@ -11,6 +11,23 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "August 24, 2026",
+    features: [
+      {
+        title: "A shared link can start the machine for you",
+        description:
+          "Add ?autostart to a link and the visitor's first click or keypress anywhere on the page powers the //e on, so a link that carries a disk goes straight to booting it instead of asking someone who has never seen the emulator before to find the power button. It does not start on its own, and cannot: a browser will not let a page make sound until someone has interacted with it, and the emulation is paced by the audio clock, so a machine started unattended would sit silent or run at the wrong speed. What this removes is having to aim that interaction. Clicking the power button itself still just works, and the machine does not offer its \"No disk? Press Ctrl+Reset\" hint when the link has already put a disk in the drive.",
+      },
+    ],
+    fixes: [
+      {
+        title: "The agent could not load source into the Assembler window",
+        description:
+          "Setting the assembler's source through the agent — pasting a program in, or loading one from a file — failed outright, because it was still calling a routine the editor dropped when its gutter started coming from the real assembler. The editor now simply revalidates and redraws, which is what the removed routine had been there to prompt.",
+      },
+    ],
+  },
+  {
     week: "August 21, 2026",
     features: [
       {
