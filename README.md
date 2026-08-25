@@ -145,6 +145,7 @@ A disk image URL can be passed in the address so a link opens with the disk alre
 | `?disk2=` | Drive 2 |
 | `?hd=` / `?hd2=` | SmartPort devices 1 and 2 |
 | `?name=` | Filename to use when the URL has none (e.g. `download?id=…`) |
+| `?autostart` | Power on and boot immediately, with no interaction |
 
 ```
 https://your-emulator/?disk=https://example.com/demo.dsk
@@ -167,8 +168,8 @@ Notes:
   - **Cloudflare Pages** — a Pages Function at `functions/proxy/`, deployed by the optional `cloudflare-pages-deploy.yml` workflow (opt-in via the `CLOUDFLARE_PAGES_ENABLED` repo variable).
   - **Any other static host** — the server needs its own `/proxy/url/<encoded>` endpoint. A simple reverse proxy (e.g. an nginx `location /proxy/url` block, or the Cloudflare Pages Function copied to your host) is enough; on the VPS `npm run deploy` setup, provide that endpoint and the fallback works there too.
   The local Vite dev server serves the same route via a plugin, so development behaves like production. Either way the visitor sees no distinction — the load just succeeds.
-- `?name=` is required for `.2mg` images whose URLs carry no `.2mg` extension (e.g. `download?id=…`), so the core can pick the block-device format. Floppy formats are identified either from the extension or, failing that, by content sniffing (WOZ magic / 143360-byte DSK), so they seldom need `?name=`.
-- The browser will not start audio without a user gesture, and the emulator's timing is driven by the audio clock, so the visitor still clicks Power once to boot.
+- `?name=` is required for `.nib` and `.2mg` images behind extensionless URLs (e.g. `download?id=…`), since those formats can't be identified from their contents. Floppy formats are identified either from the extension or, failing that, by content sniffing (WOZ magic / 143360-byte DSK), so they seldom need `?name=`.
+- `?autostart` boots the machine on load, with nothing to click. The one thing a browser will not allow before a gesture is **sound**, so an autostarted machine runs silent until the visitor clicks or types anything, at which point the speaker joins in. Without `?autostart`, the visitor clicks Power as usual.
 
 ### File Explorer
 

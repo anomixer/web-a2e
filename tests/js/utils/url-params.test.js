@@ -12,6 +12,7 @@ import {
   filenameFromUrl,
   hasMediaParams,
   looksLikeLocalPath,
+  parseFlag,
 } from "../../../src/js/utils/url-params.js";
 
 const BASE = "https://emulator.example/index.html";
@@ -163,6 +164,34 @@ describe("parseMediaParams", () => {
 
   it("ignores parameters it does not recognise", () => {
     const parsed = parse("?theme=dark&speed=warp");
+    expect(hasMediaParams(parsed)).toBe(false);
+    expect(parsed.errors).toEqual([]);
+  });
+});
+
+describe("autostart", () => {
+  it("is off when the parameter is absent", () => {
+    expect(parse("?disk=https://host/a.dsk").autostart).toBe(false);
+  });
+
+  // People write flags by hand, so a bare `?autostart` has to count.
+  it("accepts the spellings a hand-written link uses", () => {
+    for (const value of ["", "=1", "=true", "=TRUE", "=yes", "=on"]) {
+      expect(parse(`?disk=https://host/a.dsk&autostart${value}`).autostart).toBe(true);
+    }
+  });
+
+  it("treats anything else as off rather than guessing", () => {
+    for (const value of ["0", "false", "no", "off", "later"]) {
+      expect(parseFlag(value)).toBe(false);
+    }
+  });
+
+  // The flag is the link author's stated intent; it does not need a disk to
+  // mean something, and refusing it without one would be a silent surprise.
+  it("is honoured on its own, with no media named", () => {
+    const parsed = parse("?autostart=1");
+    expect(parsed.autostart).toBe(true);
     expect(hasMediaParams(parsed)).toBe(false);
     expect(parsed.errors).toEqual([]);
   });

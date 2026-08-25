@@ -16,6 +16,7 @@ const MSG_TRANSFER_DATA = 'transfer-data';
 const MSG_AUDIO_CONFIG = 'audio-config';
 const MSG_FRAMEBUFFER_CONFIG = 'fb-config';
 const MSG_REQUEST_SAMPLES = 'request-samples';
+const MSG_SET_FREE_RUN = 'set-free-run';
 const MSG_RPC_RESULT = 'rpc-result';
 const MSG_RPC_BATCH_RESULT = 'rpc-batch-result';
 const MSG_RPC_ERROR = 'rpc-error';
@@ -294,6 +295,71 @@ function updateControlBlock() {
  * Handle a sample request from the AudioWorklet (via main thread).
  * This is the timing master — the AudioWorklet drives emulation speed.
  */
+// --- Free-run clock ---
+//
+// The emulation is normally paced by the AudioWorklet asking for samples, one
+// request at a time. No browser will start an AudioContext before a user
+// gesture, so on a page nobody has touched yet there is nothing asking, and a
+// machine that has been powered on sits frozen — powered, but not running.
+//
+// This timer stands in for the audio clock until audio can take over. It asks
+// for the samples the elapsed real time is worth, so the machine runs at the
+// right speed; the ring buffer drops them once it is full, since nothing is
+// reading, and the frames the emulation produces are published exactly as they
+// are under audio pacing.
+//
+// It is a stand-in and not a replacement. A timer is coarser than the audio
+// hardware clock and browsers throttle it in background tabs, which is why the
+// AudioWorklet takes back over the moment it exists.
+const SAMPLE_RATE = 48000;
+const FREE_RUN_INTERVAL_MS = 16;
+// A tab that was throttled or backgrounded comes back with a huge elapsed time.
+// Chasing all of it in one tick would freeze the worker while it caught up, so
+// the machine loses that time instead — the same choice the audio path makes
+// when the ring runs dry.
+const FREE_RUN_MAX_SAMPLES = SAMPLE_RATE / 10;
+
+var freeRunTimer = null;
+var freeRunLast = 0;
+
+function freeRunTick() {
+  if (!wasmModule) return;
+
+  var now = performance.now();
+  var elapsed = now - freeRunLast;
+  freeRunLast = now;
+
+  reportPauseState();
+  if (wasmModule._isPaused()) return;
+
+  var count = Math.min(
+    Math.round((elapsed / 1000) * SAMPLE_RATE),
+    FREE_RUN_MAX_SAMPLES
+  );
+  if (count > 0) generateAndSendAudio(count);
+}
+
+function startFreeRun() {
+  if (freeRunTimer !== null) return;
+  freeRunLast = performance.now();
+  freeRunTimer = setInterval(freeRunTick, FREE_RUN_INTERVAL_MS);
+}
+
+function stopFreeRun() {
+  if (freeRunTimer === null) return;
+
+  clearInterval(freeRunTimer);
+  freeRunTimer = null;
+
+  // Drop whatever free-running left in the ring. Nothing was reading it, so it
+  // is seconds of stale audio that the AudioWorklet would otherwise play as its
+  // first sound. The worker owns the write position, so moving it to the read
+  // position empties the ring without touching the reader's side.
+  if (sharedAudioWritePos && sharedAudioReadPos) {
+    Atomics.store(sharedAudioWritePos, 0, Atomics.load(sharedAudioReadPos, 0));
+  }
+}
+
 function handleSampleRequest(count) {
   if (!wasmModule) return;
   reportPauseState();
@@ -375,7 +441,15 @@ self.onmessage = function(event) {
       break;
 
     case MSG_REQUEST_SAMPLES:
+      // Audio is asking, so it is awake and free-running would double-drive the
+      // machine. This also covers an AudioContext that resumes on its own.
+      stopFreeRun();
       handleSampleRequest(msg.count);
+      break;
+
+    case MSG_SET_FREE_RUN:
+      if (msg.enabled) startFreeRun();
+      else stopFreeRun();
       break;
 
     case MSG_AUDIO_CONFIG:

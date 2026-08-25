@@ -412,7 +412,7 @@ fringing from the real signal, so a shader knob for it would only double-count.
 
 ### URL Media Parameters
 
-`?disk=`, `?disk1=`, `?disk2=`, `?hd=`, `?hd2=` and `?name=` let a link open with images already inserted. `?disk=` targets the Disk II floppy drives (formats `.dsk`/`.do`/`.po`/`.woz`); `?hd=` targets the SmartPort block devices (formats `.2mg`/`.hdv`). The pieces:
+`?disk=`, `?disk1=`, `?disk2=`, `?hd=`, `?hd2=`, `?name=` and `?autostart=` let a link open with images already inserted. `?disk=` targets the Disk II floppy drives (formats `.dsk`/`.do`/`.po`/`.woz`); `?hd=` targets the SmartPort block devices (formats `.2mg`/`.hdv`). Three modules:
 
 - `src/js/utils/url-params.js` — pure parsing and URL validation (http/https only; relative paths resolve against the page). Unit-tested in `tests/js/utils/url-params.test.js`.
 - `src/js/disk-manager/url-media-loader.js` — fetches (`credentials: "omit"`, size-capped) and inserts.
@@ -422,6 +422,19 @@ fringing from the real signal, so a shader knob for it would only double-count.
 `fetchImage` in `url-media-loader.js` first tries a direct fetch; when the browser raises the opaque TypeError that signals a CORS refusal, it automatically retries through `/proxy/url/…`. Hosts that already send `Access-Control-Allow-Origin` are never routed through the proxy. Note the dev-server middleware must call `next()` for non-proxy paths — skipping it stalls every other request on the whole server.
 
 `main.js` parses the URL *before* `DiskManager.init()` / `HardDriveManager.init()` and populates `urlOwnedDrives` / `urlOwnedDevices`, which those managers use to skip restoring persisted images into units a link is about to claim — otherwise the two loads race.
+
+`?autostart=` (or a bare `?autostart`) powers the machine on at the end of
+`init()` with **no interaction at all** — `main.js:autostart()`. It runs
+immediately because the Worker paces itself while the `AudioContext` is still
+suspended (see Free-Run Clock below); the one thing a browser genuinely
+forbids before a gesture is *sound*, so the machine starts silent and the
+speaker joins in when the visitor first clicks or types.
+
+It routes through `UIController.powerOn()` rather than the power button's
+handler, so the power reminder is *hidden* rather than permanently dismissed (a
+machine that started on its own may have started before the visitor ever read
+the hint), and the "No disk? Press Ctrl+Reset for BASIC" hint is suppressed
+when the URL put a floppy in the drive.
 
 Loads are transient: `DiskManager.loadDiskFromUrlData()` deliberately skips `saveDiskToStorage`/`addToRecentDisks`, and `StateManager.suspendAutoSave()` is called for the session so the periodic autosave cannot persist the URL disk by the back door. The stored autosave preference is untouched.
 
@@ -479,6 +492,33 @@ The emulator uses Web Audio API for precise timing:
 Sample *data* therefore never crosses the main thread; only the refill request does. Without `SharedArrayBuffer` the Worker falls back to posting samples for the main thread to relay, which works but puts a busy main thread in the audio path — and because audio paces the emulation, that shows up as speed instability rather than just crackle.
 
 This ensures consistent speed driven by the audio hardware clock.
+
+### Free-Run Clock
+
+Audio pacing has a hole in it: no browser starts an `AudioContext` before a
+user gesture, so on a page nobody has touched there is nothing asking the
+Worker for samples, and a machine that has been powered on **sits frozen** —
+powered, but not running. That is what `?autostart` originally ran into.
+
+`AudioDriver.start()` therefore turns on a stand-in when it finds the context
+suspended (and when audio fails outright): `MSG_SET_FREE_RUN` puts a 16ms
+`setInterval` in the Worker which asks for the samples the elapsed real time is
+worth. Measured at 1.019 MHz against audio pacing's 1.022 MHz. The generated
+audio goes nowhere — the ring drops writes once full, since nothing is reading
+— but frames publish exactly as they do under audio.
+
+Three details keep it honest:
+
+- **The Worker stops free-running the instant a real sample request arrives**,
+  not only when told to. Two clocks driving one emulation would run it at
+  roughly double speed, and this also covers a context that resumes on its own.
+- **`stopFreeRun()` empties the ring** by moving the write position to the read
+  position (the Worker owns the write side, so no race with the reader).
+  Otherwise the AudioWorklet's first sound would be seconds of stale audio.
+- **A tick is capped at 100ms of emulated time.** A throttled or backgrounded
+  tab returns with a huge elapsed time, and chasing all of it would freeze the
+  Worker catching up; the machine loses that time instead, as it does when the
+  audio ring runs dry.
 
 ### WASM Interface Pattern
 
@@ -785,8 +825,11 @@ Registered in `agent-tools.js`, organized by category:
 - `emulatorReboot` — cold reset
 - `directLoadBinaryAt` — load base64 data to memory address
 - `directSaveBinaryRangeTo` — read memory range as base64
+- `directLoadFileAt` — load a file from the disk in a drive to a memory address
+- `directMemoryCopy` / `directMemoryFill` — bulk memory operations
 - `captureScreenshot` — capture display as base64 PNG
 - `captureScreenText` — read text from screen (optional row/col range)
+- `typeKeyboard` — type text at the machine (goes through the core's paste buffer, so nothing is dropped)
 
 **BASIC Program** (`basic-program-tools.js`)
 - `directReadBasic` / `directWriteBasic` / `directRunBasic` / `directNewBasic` — direct memory operations
@@ -794,23 +837,32 @@ Registered in `agent-tools.js`, organized by category:
 - `basicProgramRun` / `basicProgramPause` / `basicProgramNew` / `basicProgramRenumber` / `basicProgramFormat`
 - `basicProgramGet` / `basicProgramSet` / `basicProgramLineCount`
 - `basicProgramLoadFile` — load a sandbox file into the editor server-side (source bypasses LLM context); pairs with `save_to from:"basic-editor"`
-- `saveBasicInEditorToLocal` — export from editor
+- `saveBasicInEditorToLocal` / `directSaveBasicInMemoryToLocal` — export from editor or from memory
+- `basicProgramSetBreakpoint` / `basicProgramUnsetBreakpoint` / `basicProgramListBreakpoints` — statement-level breakpoints
+- `basicProgramStepNext` / `basicProgramGetCurrentLine` — stepping and position
+- `basicProgramGetVariables` / `basicProgramSetVariable` — inspect and set Applesoft variables
+- `basicProgramGetHeatMap` — per-line execution counts
 
 **Assembler** (`assembler-tools.js`)
 - `asmAssemble` — compile source code
 - `asmWrite` — load assembled code into memory
 - `asmLoadExample` — load template program
 - `asmNew` / `asmGet` / `asmSet` — editor operations
+- `saveAsmInEditorToLocal` — export from editor
 - `asmLoadFile` — load a sandbox file into the editor server-side (source bypasses LLM context); pairs with `save_to from:"asm-editor"`
 - `asmGetStatus` — compilation status (origin, size, errors)
 - `directExecuteAssemblyAt` — execute at address with optional return address
 
 **Disk Drives** (`disk-tools.js`)
 - `driveInsertDisc` — load disk image (calls MCP `load_disk_image`)
+- `driveInsertBlank` — insert a freshly formatted image
+- `diskDriveEject` — eject a drive
+- `getDiskImageData` — read the current image back out
 - `driveRecentsList` / `driveInsertRecent` / `driveLoadRecent` / `drivesClearRecent` — recent disk management
 
 **SmartPort Hard Drives** (`smartport-tools.js`)
 - `smartportInsertImage` — load hard drive image (calls MCP `load_smartport_image`)
+- `smartportEject` — detach an image
 - `smartportRecentsList` / `smartportInsertRecent` / `smartportClearRecent` — recent image management
 - Validates SmartPort card is installed before operations
 
@@ -825,6 +877,18 @@ Registered in `agent-tools.js`, organized by category:
 - `slotsListAll` — list all slots with current cards and available options
 - `slotsInstallCard` / `slotsRemoveCard` / `slotsMoveCard` — card management
 - Persists to localStorage, triggers emulator reset after changes
+
+**Printers** (`printer-tools.js`)
+- `printerOpen` / `printerClose` / `printerClear` / `printerGetState` — window and paper lifecycle
+- `printerSetPower` / `printerSetOnline` / `printerSetModel` / `printerSetup` — printer configuration
+- `printerSetPageSize` / `printerSetPaperDimensions` / `printerSetRibbon` / `printerSetAutoLineFeed` — media and ribbon
+- `printerSendBytes` / `printerStrike` / `printerSuper` — drive the print head directly
+- `printerFeed` / `printerLineFeed` / `printerFormFeed` — paper movement
+- `printerDumpScreen` — print the current screen
+- `printerCapturePaper` / `printerGetPage` / `printerListHistory` / `printerReloadJob` — read printed output back
+
+**Agent Version** (`agent-version-tools.js`)
+- `getAgentVersion` / `checkAgentCompatibility` — version handshake with the MCP server
 
 ### WASM APIs Used by Agent Tools
 
