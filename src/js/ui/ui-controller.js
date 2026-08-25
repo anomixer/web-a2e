@@ -177,6 +177,26 @@ export class UIController {
   }
 
   /**
+   * Power the machine on from something other than the power button.
+   *
+   * The reminder is hidden rather than dismissed: dismissal is permanent, and
+   * a visitor whose machine started on its own has not decided they no longer
+   * need the hint — they may never have seen it. `showBasicHint` is off when a
+   * disk is already in the drive, because "No disk? Press Ctrl+Reset" is
+   * misleading advice to give someone watching a disk boot.
+   *
+   * @param {{showBasicHint?: boolean}} [options]
+   */
+  powerOn({ showBasicHint = true } = {}) {
+    if (this.emulator.isRunning()) return;
+
+    this.reminderController.showPowerReminder(false);
+    this.emulator.start();
+    if (showBasicHint) this.reminderController.showBasicReminder(true);
+    this.refocusCanvas();
+  }
+
+  /**
    * Set up agent button for MCP server connection
    */
   setupAgentButton() {

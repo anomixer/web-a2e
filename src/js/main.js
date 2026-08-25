@@ -162,6 +162,11 @@ class AppleIIeEmulator {
         this.wasmModule.requestSamples(count);
       };
 
+      // ...and while audio is still asleep, the Worker paces itself instead.
+      this.audioDriver.onFreeRunChange = (enabled) => {
+        this.wasmModule.setFreeRun(enabled);
+      };
+
       this.frameReady = false;
       this.setupSharedBuffers();
 
@@ -550,6 +555,7 @@ class AppleIIeEmulator {
 
       this.showLoading(false);
       this.reminderController.showPowerReminder(true);
+      this.autostart();
 
       console.log("Apple //e Emulator initialized");
     } catch (error) {
@@ -581,6 +587,25 @@ class AppleIIeEmulator {
     if (loaded > 0) {
       this.stateManager?.suspendAutoSave("disks were loaded from the URL");
     }
+  }
+
+  /**
+   * Power on for `?autostart=`, with no interaction at all.
+   *
+   * The machine runs immediately: the Worker paces itself from a timer while
+   * the AudioContext is still suspended (see AudioDriver.setFreeRun), so a
+   * link boots its disk in front of the visitor rather than waiting to be
+   * touched. The one thing a browser genuinely will not allow is sound before
+   * a gesture, so the machine starts silent and the speaker joins in the
+   * moment the visitor clicks or types anything.
+   */
+  autostart() {
+    if (!this.urlMedia?.autostart || this.isRunning()) return;
+
+    this.uiController?.powerOn({
+      // A URL disk is about to boot, so the BASIC hint would be wrong.
+      showBasicHint: this.urlMedia.floppies.length === 0,
+    });
   }
 
   /**

@@ -13,7 +13,7 @@ import {
   MSG_RPC_CALL, MSG_RPC_BATCH, MSG_INIT, MSG_TRANSFER_DATA,
   MSG_RPC_RESULT, MSG_RPC_BATCH_RESULT, MSG_RPC_ERROR,
   MSG_READY, MSG_AUDIO_SAMPLES, MSG_FRAME_READY,
-  MSG_AUDIO_CONFIG, MSG_FRAMEBUFFER_CONFIG, MSG_REQUEST_SAMPLES,
+  MSG_AUDIO_CONFIG, MSG_FRAMEBUFFER_CONFIG, MSG_REQUEST_SAMPLES, MSG_SET_FREE_RUN,
   MSG_PRINTER_BYTE, MSG_PAUSE_STATE,
 } from './rpc-protocol.js';
 
@@ -344,6 +344,21 @@ export class WasmProxy {
   requestSamples(count) {
     if (this.worker) {
       this.worker.postMessage({ type: MSG_REQUEST_SAMPLES, count });
+    }
+  }
+
+  /**
+   * Pace the emulation from a timer in the Worker instead of from audio.
+   *
+   * Used while the AudioContext is suspended — before the page has had a user
+   * gesture — so a powered-on machine runs rather than sitting frozen. The
+   * Worker turns it off by itself as soon as audio starts asking for samples.
+   *
+   * @param {boolean} enabled
+   */
+  setFreeRun(enabled) {
+    if (this.worker) {
+      this.worker.postMessage({ type: MSG_SET_FREE_RUN, enabled });
     }
   }
 

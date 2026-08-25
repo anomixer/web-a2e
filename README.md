@@ -145,6 +145,7 @@ A disk image URL can be passed in the address so a link opens with the disk alre
 | `?disk2=` | Drive 2 |
 | `?hd=` / `?hd2=` | SmartPort devices 1 and 2 |
 | `?name=` | Filename to use when the URL has none (e.g. `download?id=…`) |
+| `?autostart` | Power on and boot immediately, with no interaction |
 
 ```
 https://your-emulator/?disk=https://example.com/demo.dsk
@@ -164,8 +165,8 @@ A path on your own machine (`/Users/you/Downloads/demo.dsk`) will not work — a
 Notes:
 - Disks loaded this way are **not** written to browser storage or the Recent list, and autosave pauses for the session. A link someone shares can't replace the disks in your own drives — reopen the plain address and your session is intact.
 - **CORS is handled automatically.** The browser first tries to fetch the URL directly; if the host sends no `Access-Control-Allow-Origin` (the common case for archive mirrors and plain web servers), the request is retried through the emulator's own same-origin proxy (`/proxy/url/…`), which fetches the file server-side and returns it with permissive CORS headers. On the deployed Cloudflare Pages site this is a Pages Function (`functions/proxy/`); the local Vite dev server serves the same route via a plugin, so development behaves like production. Either way the visitor sees no distinction — the load just succeeds.
-- `?name=` is required for `.2mg` images whose URLs carry no `.2mg` extension (e.g. `download?id=…`), so the core can pick the block-device format. Floppy formats are identified either from the extension or, failing that, by content sniffing (WOZ magic / 143360-byte DSK), so they seldom need `?name=`.
-- The browser will not start audio without a user gesture, and the emulator's timing is driven by the audio clock, so the visitor still clicks Power once to boot.
+- `?name=` is required for `.nib` and `.2mg` images behind extensionless URLs (e.g. `download?id=…`), since those formats can't be identified from their contents. Floppy formats are identified either from the extension or, failing that, by content sniffing (WOZ magic / 143360-byte DSK), so they seldom need `?name=`.
+- `?autostart` boots the machine on load, with nothing to click. The one thing a browser will not allow before a gesture is **sound**, so an autostarted machine runs silent until the visitor clicks or types anything, at which point the speaker joins in. Without `?autostart`, the visitor clicks Power as usual.
 
 ### File Explorer
 

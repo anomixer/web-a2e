@@ -35,6 +35,10 @@ export class AudioDriver {
     // Set by setSharedAudioBuffer() when SharedArrayBuffer is available.
     this.sharedAudioBuffer = null;
 
+    // Called with true when the machine must be paced by something other than
+    // audio, and false when audio has taken over. Wired to the Worker in main.js.
+    this.onFreeRunChange = null;
+
     // Sync C++ audio state with saved JS settings (fire-and-forget via proxy)
     this.wasmModule._setAudioVolume(this.volume);
     this.wasmModule._setAudioMuted(this.muted);
@@ -50,7 +54,12 @@ export class AudioDriver {
       });
 
       if (this.audioContext.state === "suspended") {
-        console.log("Audio context suspended, waiting for user interaction");
+        // No gesture yet, so audio cannot start and nothing will ask the Worker
+        // for samples. Pace the machine from a timer meanwhile: powered on has
+        // to mean running, or a machine started by a link sits frozen until
+        // somebody happens to click.
+        console.log("Audio context suspended, free-running until first gesture");
+        this.setFreeRun(true);
         this.setupAutoResumeAudio();
         this.running = true;
         return;
@@ -59,11 +68,26 @@ export class AudioDriver {
       await this.initAudioNodes();
     } catch (error) {
       console.error("Failed to start audio driver:", error);
-      this.running = true; // Still mark as running — Worker is generating timing
+      // No audio at all on this browser. The machine still has to run.
+      this.setFreeRun(true);
+      this.running = true;
     }
   }
 
+  /**
+   * Ask the Worker to start or stop pacing the emulation from its own timer.
+   *
+   * @param {boolean} enabled
+   */
+  setFreeRun(enabled) {
+    if (this.onFreeRunChange) this.onFreeRunChange(enabled);
+  }
+
   async initAudioNodes() {
+    // Audio is about to pace the machine, so the stand-in timer must go — two
+    // clocks driving the same emulation would run it at roughly double speed.
+    this.setFreeRun(false);
+
     this.gainNode = this.audioContext.createGain();
     this.gainNode.connect(this.audioContext.destination);
     this.gainNode.gain.value = this.muted ? 0 : this.volume;
@@ -196,6 +220,9 @@ export class AudioDriver {
   stop() {
     if (!this.running) return;
     this.running = false;
+
+    // The machine is being powered off; nothing should keep driving it.
+    this.setFreeRun(false);
 
     if (this.workletNode) {
       try {

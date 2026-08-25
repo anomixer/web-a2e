@@ -155,7 +155,6 @@ export const assemblerTools = {
       asmWindow.textarea.value = source;
       asmWindow.updateHighlighting();
       asmWindow.validateAllLines();
-      asmWindow.encodeAllLineBytes();
       asmWindow.updateGutter();
     }
 
@@ -210,7 +209,6 @@ export const assemblerTools = {
       if (asmWindow.updateTitle) asmWindow.updateTitle(filename);
       asmWindow.updateHighlighting();
       asmWindow.validateAllLines();
-      asmWindow.encodeAllLineBytes();
       asmWindow.updateGutter();
     }
 

@@ -13,6 +13,7 @@ export const MSG_TRANSFER_DATA = 'transfer-data';   // { id, fn, args, transferI
 export const MSG_AUDIO_CONFIG = 'audio-config';     // { sharedAudioBuffer } (Phase 2)
 export const MSG_FRAMEBUFFER_CONFIG = 'fb-config';  // { sharedFramebuffer, sharedControl } (Phase 3)
 export const MSG_REQUEST_SAMPLES = 'request-samples'; // { count } — AudioWorklet requesting sample generation
+export const MSG_SET_FREE_RUN = 'set-free-run';     // { enabled } — pace the machine from a timer while audio is asleep
 
 // Worker → Main thread
 export const MSG_RPC_RESULT = 'rpc-result';         // { id, result }
