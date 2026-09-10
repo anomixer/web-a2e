@@ -36,8 +36,13 @@ modules under test are pure logic and run in plain node — a new DOM dependency
 in one of them is a smell, not a reason to add jsdom.
 
 Covers the printer emulation (characterization tests capturing the event stream
-from `PrinterBase.setEventSink()`), the Applesoft listing parser, and input
-mapping.
+from `PrinterBase.setEventSink()`), the Applesoft listing parser, input
+mapping, and the host-side machine profile (that a fetch failure leaves callers
+with a usable //e rather than nothing, that a fetched profile actually reaches
+them, and that a machine key is marshalled into the core's heap as a pointer
+rather than passed as a JavaScript string), and the game port device (that an
+edited storage value falls back to the Apple joystick, and that an opposing
+pair of Joyport directions is dropped rather than sent).
 
 ### Consistency checks
 
@@ -61,7 +66,7 @@ make -j$(sysctl -n hw.ncpu)
 ctest --verbose
 ```
 
-Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk images (DSK/WOZ/GCR), expansion cards (Disk II, Mockingboard, Thunderclock, Mouse, SmartPort, SSC), filesystems (DOS 3.3, ProDOS, Pascal), BASIC tokenizer/detokenizer, assembler, disassembler, keyboard, condition evaluator, and full emulator integration.
+Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk images (DSK/WOZ/GCR), expansion cards (Disk II, Mockingboard, Thunderclock, Mouse, SmartPort, SSC), filesystems (DOS 3.3, ProDOS, Pascal), BASIC tokenizer/detokenizer, assembler, disassembler, keyboard, the Sirius Joyport, condition evaluator, machine profiles (each machine's numbers, the registry, that the subsystems take their timing from the profile they were handed, and that the II+'s differences are real — an NMOS CPU, the //e's soft switches ignored, and colour burst left on in text mode), and full emulator integration.
 
 ## Architecture
 
@@ -78,6 +83,8 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 - `disassembler/` - 65C02 instruction disassembler
 - `assembler/` - Merlin-compatible 65C02 assembler (see Assembler below)
 - `input/keyboard.cpp` - Keyboard input handling
+- `input/joyport.cpp` - Sirius Joyport (two Atari-style digital sticks on the game connector)
+- `machine/machine_profile.hpp` - Per-machine description (CPU variant, timing, memory sizes, display geometry, capabilities, slot layout) and the registry of machines. See Machine Profiles below
 - `cards/` - Pluggable expansion card system (ExpansionCard interface)
 - `cards/disk2/` - Disk II controller card
 - `cards/mockingboard/` - AY-3-8910 sound chip + VIA 6522 timer + Mockingboard card
@@ -113,6 +120,218 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 - `config/` - App version
 - `utils/` - Shared utilities (storage, string, BASIC)
 - `windows/` - Base window class and window manager
+
+### Machine Profiles
+
+The emulator models one machine at a time, and which machine it is comes from a
+**profile**: `src/core/machine/machine_profile.hpp` holds a `MachineProfile`
+per machine and a registry of them. There are two, `APPLE_IIE_PROFILE` and
+`APPLE_II_PLUS_PROFILE`.
+
+**The profile is data, not polymorphism.** The parts of a machine that differ
+between a //e, a II+ and a IIgs are overwhelmingly numbers — a clock rate, a
+scanline count, how much RAM answers, which CPU is fitted, whether the video
+generator inhibits colour burst in text mode. Those live in a struct that the
+subsystems read. They are deliberately not virtual methods: `MMU::read`, the
+video emitters and the CPU dispatch loop are the hottest code in the emulator,
+and an indirect call on a per-cycle or per-dot path would cost real speed to
+serve a machine count of one. Anything a future machine cannot express as data
+— a 65816's 24-bit bus, the IIgs shadowing map, Super Hi-Res — wants its own
+subsystem class chosen once at construction, not a branch taken sixty million
+times a second. The rule is: **a number or a flag goes in the profile; a
+different mechanism goes in a different class that the profile names.**
+
+The profile is threaded by construction, not by lookup. `Emulator(MachineId)`
+selects it and hands it to `MMU` and `Audio`; `Video` takes it *from the MMU*
+rather than as a second argument, because the video scanner and the floating
+bus are the same counters read two ways and a pair that disagreed would be a
+bug with no way to express it. Cards receive it through
+`ExpansionCard::setMachine()`, called by `MMU::insertCard`. Most cards ignore
+it — a Disk II does not care what is at the other end of the bus — but the
+mouse card raises its interrupt at the start of vertical blank, and where
+vertical blank falls belongs to the machine.
+
+**The constants in `types.hpp` did not go away, and that is deliberate.**
+`MAIN_RAM_SIZE`, `FRAMEBUFFER_SIZE` and the rest size `std::array` members at
+compile time, which a runtime profile lookup cannot do. They remain as the
+//e's values, and `machine_profile.hpp` `static_assert`s every one of them
+against the profile, so the two descriptions cannot drift: change one and the
+build fails. Further assertions pin the relationships rather than the numbers —
+a scanline is its blanking plus one cycle per visible column, a visible column
+clocks out 14 dots, the framebuffer is every visible line doubled.
+
+**Every profile is validated at compile time.** `profileIsSelfConsistent()`
+checks that a profile describes a machine that could exist — a scanline is its
+blanking plus one cycle per visible column, a column clocks out 14 dots, the
+framebuffer is every visible line doubled, a machine with no auxiliary bank
+does not claim auxiliary RAM, double hi-res does not exist without 80 columns,
+the ROM reaches the top of the address space, and nothing is fitted to a slot
+the machine does not have. `profileFitsCompiledStorage()` checks it against the
+arrays the build actually allocates, which are sized for the //e and are
+therefore the ceiling for every machine. `allProfilesValid()` runs both over
+the registry in a `static_assert`, so a broken profile does not compile.
+
+**Save states carry the machine id.** The header is `STATE_VERSION` 8, with the
+id written straight after the version. Everything after that point is laid out
+to the saving machine's shape, so a state restored into a different machine
+would be read as garbage rather than fail; the id is what lets `importState`
+refuse it.
+
+**The host asks rather than assumes.** `src/js/machine/machine-profile.js`
+fetches the whole profile as one JSON string through `_getMachineProfileJSON`
+(one round trip — the Worker services RPCs on the thread that runs the
+emulation) and `main.js` does it immediately after the WASM module is up,
+before anything sizes itself to the picture. The WebGL renderer, the
+text-selection overlay, the screenshot path, the save-state preview, the
+printer's screen dump and the agent's `captureScreenshot` all read
+`machineDisplay()` instead of the 560x384 they each used to hardcode. A fetch
+failure is not fatal: the module falls back to the //e, which is a correct
+description of the only machine that exists.
+
+The one place that still fixes a size is the shared framebuffer slot
+(`FB_WIDTH`/`FB_HEIGHT` in `worker/shared-buffers.js`). A `SharedArrayBuffer`
+cannot be resized once handed to the Worker and the AudioWorklet, so the slot
+is allocated up front and must hold any machine's frame. `setupSharedBuffers()`
+checks the fit and falls back to the `postMessage` transport rather than let a
+frame write past the end of the slot.
+
+#### The Apple II Plus
+
+The second profile, and the one that proves the seam carries. Its video timing
+is the same circuit, so every number in `MachineTiming` is identical to the
+//e's and the differences fall entirely in what the machine *has*. Four of them
+matter, because each exercises a different part of the mechanism:
+
+- **An NMOS 6502 rather than a 65C02.** The CPU core already modelled both
+  variants; the profile is what selects one.
+- **No auxiliary bank.** `$C000-$C00F` are the //e's memory and display
+  management switches — 80STORE, RAMRD/RAMWRT, INTCXROM, ALTZP, SLOTC3ROM,
+  80COL, ALTCHARSET — and on a II+ that range manages no memory at all.
+  `writeSoftSwitch` ignores the whole group when the machine has no auxiliary
+  bank, and **that single guard is what makes every 80-column and
+  double-resolution path unreachable**: `Video` selects those modes from the
+  80COL switch, which can now never be set. No second guard in the video code
+  is needed or wanted.
+- **12KB of ROM at `$D000` rather than 16KB at `$C000`,** since nothing on a
+  II+ motherboard answers at `$C100-$CFFF`. `MMU::loadROM` places a machine's
+  image at the offset its `romBaseAddress` implies within the `$C000-$FFFF`
+  window, so the read path — which indexes `address - ROM_WINDOW_BASE` — needs
+  no knowledge of where a given machine's ROM begins.
+- **It never inhibits colour burst.** A //e kills the burst on text lines and
+  so shows crisp white text; a II+ sends a reference on every line and its text
+  fringes green and violet in every mode. `Video::burstForScanline()` reads
+  `caps.inhibitsBurstInText`, so this follows from the profile alone.
+
+**Its character generator stores glyphs the other way round.** A //e's 8KB ROM
+puts bit 0 at the left of a glyph row and leaves the blank scanline at the end
+of each eight-byte cell; a II+'s 2KB ROM puts bit 6 at the left and the blank
+scanline first. Neither is more correct — it is how the part was wired to the
+video shift register — but the renderer reads one layout, so `MMU::loadROM`
+rewrites the image into it (`normaliseCharROM`, driven by `MachineCharRom` in
+the profile). This is done once at load rather than per dot, because it is a
+property of the ROM image and the dot loop is the hottest code in the video
+path. Get it wrong and every character on screen is drawn mirrored, which is
+exactly what the II+ did before this existed.
+
+**It has only one character set, and asking for a second blanks the screen.**
+The UK set is a second bank inside the //e's larger ROM, reached by adding
+0x1000 to the glyph offset. A II+ has nothing there, so every glyph reads back
+blank and the display shows nothing but the cursor — which survives because it
+is the inverse of a blank and so still solid. `caps.hasUkCharSet` gates the
+offset, and the host hides the toggle on a machine that has no second set.
+
+**The II+ ROMs are optional and are not in the repository.** A II+ motherboard
+carries six 2KB ROMs in sockets D0 to F8 covering `$D000-$FFFF`: five of
+Applesoft and the Autostart monitor at `$F800`. `scripts/generate_roms.sh`
+concatenates them in address order, or accepts a single pre-combined
+`apple2plus.rom`, and emits empty arrays when they are absent. **A machine can
+therefore be fully described and still be unable to start.** `Emulator::init()`
+records this in `hasSystemROM()` rather than silently running a //e's ROM or
+none at all, `Emulator::isMachineRunnable()` answers the same question about a
+machine that is not running, and the host's `listMachineProfiles()` puts a
+`runnable` flag on every entry so a chooser does not offer a machine that will
+never reach a prompt.
+
+**Switching machines rebuilds the emulator.** There is no way to convert a
+running machine into a different one — the RAM, the cards and the save state
+are all shaped to the machine that made them — so `_setMachine` destroys the
+global emulator and constructs the new one. Inserted media and host state do
+not survive, exactly as they would not across a page reload, and the caller is
+responsible for putting them back.
+
+**Slot 0 exists on a II+.** `slots_` is indexed by slot number with room for
+eight, and `MMU::insertCard` asks the profile rather than assuming 1-7. What
+goes in slot 0 on a real II+ is the 16K language card, which is how a 48K
+machine becomes the 64K one nearly all II+ software expects; the profile fits
+one as a *fixed* card, because the bank switching at `$C080-$C08F` is the same
+hardware the //e carries on its motherboard, is implemented by the MMU, and is
+not something the user could pull out.
+
+The Expansion Slots window follows all of this. `SlotConfigurationWindow`
+builds its slot list from the profile — which slots exist, and which carry a
+card the user cannot change — rather than from a fixed //e table, and
+`setMachine()` rebuilds it after a switch. A //e shows slots 1-7 with the
+80-column card locked into slot 3; a II+ shows 0-7 with the language card
+locked into slot 0 and slot 3 free for anything. What each free slot *offers*
+stays host presentation (`SLOT_UI`), since that is convention rather than
+machine fact.
+
+**What a machine ships with is in its profile, not in the constructor.**
+`Emulator`'s constructor used to fit a Mockingboard in slot 4 and a Disk II in
+slot 6 whatever the machine was, and `getSlotCardName` reported an 80-column
+card in slot 3 whatever the machine was. Both put hardware in a II+ that it
+never had, and both leaked into the saved slot layout. Defaults now come from
+`slots[].defaultCard` and a fixed slot reports `slots[].fixedCard`. A card the
+machine does not ship is *parked* in `diskStorage_`/`mbStorage_` rather than
+dropped, because `disk_` and `mockingboard_` still point at it and
+`setSlotCard()` fits it later from exactly those members.
+
+**Slot layouts are remembered per machine.** `src/js/machine/slot-storage.js`
+keys them by machine (`a2e-slot-config:apple2e`), because the machines do not
+agree about what a slot is: one shared layout put a II+'s slot 3 card into a
+//e's built-in 80-column slot, and followed a //e's SmartPort onto a machine
+whose defaults are a bare Disk II. A machine with nothing saved falls back to
+its profile's defaults rather than to a shared constant, and an emptied machine
+stays empty — "never configured" and "deliberately stripped" are different
+states. The single pre-machine key is read once as the //e's starting point,
+copied under the //e's own key, and then left alone; an orphan costs nothing,
+and losing somebody's layout to a mistake in that copy would cost more.
+
+#### Choosing a machine
+
+**The header badge names the machine and is how it is changed.** It used to be
+the right-hand half of `apple-logo.png`, so the header announced "//e" whatever
+was running; the logo is now `applem-logo.png` (the wordmark alone) and the
+badge is a live control. `MachineMenu` (`src/js/machine/machine-menu.js`) keeps
+it in step and hangs an ordinary `.header-menu-container` dropdown off it, so
+it inherits the app's open/close, click-outside and Escape handling rather than
+inventing its own. Each entry draws the machine, names it, summarises its CPU,
+memory and columns, ticks the one in use and marks any whose ROMs are missing.
+
+The badge wears `profile.logotype`, not `shortName`. Apple's own marks are not
+always what you would write in a sentence: a II Plus is badged `][`, and
+rendering "II+" in the badge's heavy oblique face produces "//+", which is not
+a designation Apple ever used. `shortName` stays for prose.
+
+The window title follows the machine too, so a browser's window switcher shows
+which machine a tab is running.
+
+Switching is destructive and the menu says so before doing it: the core
+rebuilds the emulator, so inserted media and anything in memory are lost, just
+as they would be on a reload. What is *not* lost is the user's preferences —
+`AppleIIeEmulator.onMachineChanged()` pushes the display settings, volume,
+character set and clock speed back into the new core, because those were the
+user's choices rather than machine state. The chosen machine is remembered in
+localStorage under `a2e-machine` and restored at startup, before the renderer
+and windows are built, so they are made for the right machine rather than
+rebuilt for it a moment later. A remembered machine the build cannot run is
+ignored rather than honoured.
+
+#### Adding a machine
+
+A new `MachineId` and profile entry, a subsystem class for anything that is a
+different mechanism rather than a different number, and its ROMs. Nothing in
+the host needs to know.
 
 ### Paste / Typed Text
 
@@ -186,6 +405,50 @@ Shift, Control, Caps Lock and the Apple buttons deliberately do not assert AKD
 — they are separate lines on real hardware, not keys in the matrix. Losing
 window focus releases everything, held keys included, because a key held
 across a blur never delivers its key-up.
+
+### The Game Port
+
+The game I/O connector takes one device, and which one is a user choice:
+`GamePortDevice` in `src/core/input/joyport.hpp` — the Apple resistive
+joystick, or Sirius Software's **Joyport**.
+
+The Joyport put two Atari CX40-style digital sticks on the connector. Each has
+five switches and the connector has three pushbutton inputs, so it multiplexes:
+AN0 selects the stick, AN1 selects the axis pair, and PB0-PB2 report fire, the
+first of the pair, and the second.
+
+    AN0   AN1   PB0 ($C061)   PB1 ($C062)   PB2 ($C063)
+    off   off   fire 1        left 1        right 1
+    off   on    fire 1        up 1          down 1
+    on    off   fire 2        left 2        right 2
+    on    on    fire 2        up 2          down 2
+
+**The switches are active low, which is why this is a device choice rather than
+an addition.** A line reads *high* while nothing is pressed — the opposite of a
+pushbutton — so a Joyport cannot share PB0/PB1 with the Open and Closed Apple
+keys. `Emulator::getButtonState()` therefore consults the Joyport *instead of*
+`buttonState_` when it is selected, and switching devices releases whatever the
+old one was holding. It is not a slot card and does not want to be: it hangs
+off the 16-pin connector, so the emulator owns it and the pushbutton read path
+consults it.
+
+The device is a host preference like the speed multiplier — `reset()` clears
+the sticks but keeps the device, and neither is written into a save state. The
+core starts every machine on an Apple joystick, so `main.js` pushes the
+remembered choice back in after startup and again in `onMachineChanged()`.
+
+Host-side, `src/js/input/game-port.js` owns the selection, its storage and the
+mapping from a browser gamepad to five switches (unit-tested in
+`tests/js/input/game-port.test.js`); `JoystickWindow` shows one panel per
+device and `GamepadHandler` now tracks *every* connected pad rather than the
+first, because the Joyport takes two. A single pad drives both sticks — a
+one-player game that happens to read stick 2 then still plays, which is worth
+more than a dead second stick. An opposing pair is dropped rather than sent:
+a real gate cannot close left and right at once, and a program that saw both
+would take whichever it tested first.
+
+`test_joyport.cpp` pins the table above and `test_emulator.cpp` pins it through
+the machine's own read path.
 
 ### CPU Speed
 
@@ -545,6 +808,16 @@ Single global `Emulator` instance in C++ (`wasm_interface.cpp`). WASM runs insid
 - `Apple Mouse Interface Card ROM - 342-0270-C.bin` (2KB Mouse Interface Card ROM)
 - `Apple Parallel Interface Card ROM - 341-0057.bin` (512 bytes; upper half is 341-0005 "Parallel Printer" firmware)
 
+**Apple II Plus ROMs are optional.** Without them the II+ profile still exists
+and is listed, but reports itself unrunnable (see Machine Profiles). Supply
+either the six motherboard ROMs or one pre-combined 12KB image:
+
+- `341-0011.bin`, `341-0012.bin`, `341-0013.bin`, `341-0014.bin`,
+  `341-0015.bin` (Applesoft, `$D000-$F7FF`) and `341-0020.bin` (Autostart
+  monitor, `$F800-$FFFF`)
+- or `apple2plus.rom` (12KB, `$D000-$FFFF`)
+- `341-0036.bin` (2KB II+ character generator)
+
 ## Code Organization
 
 ```
@@ -558,7 +831,8 @@ src/
 │   ├── disk-image/     # Disk image formats (DSK/DO/PO/NIB/WOZ), GCR encoding, format conversion
 │   ├── disassembler/   # 65C02 disassembler
 │   ├── assembler/      # Merlin-compatible 65C02 assembler
-│   ├── input/          # Keyboard handling
+│   ├── input/          # Keyboard handling, Sirius Joyport
+│   ├── machine/        # Machine profiles (timing, memory, display, capabilities, slots)
 │   ├── cards/          # Expansion card system
 │   │   ├── disk2/         # Disk II controller card
 │   │   ├── mockingboard/  # AY-3-8910 + VIA 6522 + Mockingboard card
@@ -591,6 +865,7 @@ src/
     ├── file-explorer/  # DOS 3.3 and ProDOS file browser, disassembler
     ├── help/           # Documentation and release notes
     ├── input/          # Keyboard input, text selection, joystick, mouse
+    ├── machine/        # Host-side machine profile fetched from the core
     ├── state/          # Save state manager and persistence
     ├── ui/             # Menu wiring, reminders, slot configuration
     ├── utils/          # Shared utilities (storage, string, BASIC)
