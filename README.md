@@ -1,6 +1,10 @@
 # Apple //e Browser Based Emulator
 
-A cycle-accurate Apple //e Enhanced emulator running in the browser using WebAssembly and WebGL. No JavaScript frameworks — vanilla ES6 modules with Vite for bundling. Having built native emulators in the past, this is my first attempt at a browser-based emulator, hopefully making it easier to allow cross platform users from making use of it :)
+A cycle-accurate Apple II emulator running in the browser using WebAssembly and WebGL. No JavaScript frameworks — vanilla ES6 modules with Vite for bundling. Having built native emulators in the past, this is my first attempt at a browser-based emulator, hopefully making it easier to allow cross platform users from making use of it :)
+
+Two machines are modelled: the **Apple //e Enhanced** and the **Apple II Plus**. See [Machines](#machines).
+
+**[Run it →](https://web-a2e.retrotech71.co.uk/)**  ·  **[Documentation wiki →](https://github.com/mikedaley/web-a2e/wiki)**
 
 ## Features
 
@@ -38,7 +42,7 @@ The emulator runs one machine at a time, and the badge in the header names it �
 | Slot 3 | Built-in 80-column card, fixed | Free |
 | ROMs | Included | **Supply your own** — see [ROM Files](#rom-files) |
 
-A machine's differences are data in its profile rather than special cases scattered through the code, so the II+'s missing auxiliary bank is what makes 80 columns and double hi-res genuinely unreachable rather than merely hidden.
+A machine's differences are data in its profile rather than special cases scattered through the code, so the II+'s missing auxiliary bank is what makes 80 columns and double hi-res genuinely unreachable rather than merely hidden. The [Machines wiki page](https://github.com/mikedaley/web-a2e/wiki/Machines) covers each machine in full.
 
 Switching rebuilds the emulator, so inserted media and anything in memory are lost exactly as they would be on a page reload — the menu says so first. Display settings, volume, character set and CPU speed follow you across, because those were your choices rather than the machine's. Each machine remembers its own slot layout, and the machine you last chose is restored at startup. A machine whose ROMs are missing is still listed, but marked unavailable rather than quietly failing to reach a prompt.
 
@@ -415,7 +419,7 @@ The emulator exposes an AI agent interface via the [Model Context Protocol](http
 
 Agent capabilities include: emulator power/reset, BASIC program editing and execution, 65C02 assembly, disk and hard drive management, file exploration, window management, and expansion slot configuration.
 
-See the [AI Agent wiki page](wiki/AI-Agent.md) for full details.
+See the [Agent Integration wiki page](https://github.com/mikedaley/web-a2e/wiki/Agent-Integration) for full details.
 
 ## Testing
 
