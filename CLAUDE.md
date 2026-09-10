@@ -432,6 +432,20 @@ old one was holding. It is not a slot card and does not want to be: it hangs
 off the 16-pin connector, so the emulator owns it and the pushbutton read path
 consults it.
 
+**The Joyport lets go of PB0/PB1 across a reset, and it has to.** The //e's
+reset routine reads `$C061` and `$C062` to see whether an Apple key is held —
+Open Apple asks for a cold boot, Closed Apple runs the self test. A Joyport
+idles both lines *high*, which is exactly what a held key looks like, so a //e
+with one fitted ran the self test on every reset and never reached a prompt.
+That is faithful: pins 2 and 3 of the game connector really are the Apple keys
+on a //e, which is why the Joyport belongs to the II and II+ era. It is also
+useless. `joyportResetGuardCycle_` therefore releases those two lines for
+`JOYPORT_RESET_GUARD_CYCLES` (~50ms) after a reset — long enough to cover the
+ROM's check, far too short for a game to have asked about the stick. PB2 is
+never released, because no Apple key is wired to it, and a *closed* switch
+still reads low inside the window, so a fire button held through a reset is not
+lost.
+
 The device is a host preference like the speed multiplier — `reset()` clears
 the sticks but keeps the device, and neither is written into a save state. The
 core starts every machine on an Apple joystick, so `main.js` pushes the
