@@ -23,6 +23,10 @@ The Apple //e supported two floppy drives connected to the Disk II controller ca
 
 ---
 
+## Hard Drives
+
+This page covers the 5.25" floppy drives on the Disk II controller. For hard drive volumes -- larger ProDOS disks on `.hdv`, `.po` or `.2mg` images -- see [[SmartPort-Hard-Drives]].
+
 ## Supported Disk Formats
 
 The emulator accepts the following 5.25-inch disk image formats:
@@ -32,10 +36,9 @@ The emulator accepts the following 5.25-inch disk image formats:
 | **DSK** | `.dsk` | Raw sector-order disk image (140KB). The most common format. Sectors are stored in DOS 3.3 logical order. |
 | **DO** | `.do` | Identical to DSK format. The extension explicitly indicates DOS 3.3 sector ordering. |
 | **PO** | `.po` | ProDOS-order disk image (140KB). Sectors are stored in ProDOS physical order. |
-| **NIB** | `.nib` | Nibblised disk image (232,960 bytes). Stores the raw GCR-encoded data as it appears on the disk surface, including sync bytes, address fields, and data fields. |
 | **WOZ** | `.woz` | Bit-level disk image with timing and metadata. The most accurate format, capable of representing copy-protected disks. Stores individual flux transitions. |
 
-The file input accepts all five extensions: `.dsk`, `.do`, `.po`, `.woz`, and `.nib`.
+The file input accepts all five extensions: `.dsk`, `.do`, `.po` and `.woz`
 
 ## Loading a Disk
 
@@ -100,9 +103,7 @@ Each drive includes a real-time canvas rendering of the disk surface. This anima
 - **Head position** -- A small indicator shows which quarter-track the drive head is currently positioned over.
 - **Track access heat map** -- Recently accessed tracks glow with a colour intensity proportional to access frequency. The heat decays over time, so you can see which areas of the disk are being read or written in real time.
 - **Write mode indicator** -- The head indicator changes appearance when the drive is in write mode.
-- **Sticker colour** -- Each inserted disk receives a randomly-assigned vintage label colour (cream, manila, pale green, pale blue, pink, yellow, lavender, or white) derived from a hash of the filename.
 - **Hub hole and reinforcement ring** -- The centre of the disk shows the large hub hole and the white reinforcement ring, matching the physical appearance of a 5.25-inch floppy.
-- **Index hole** -- A small hole in the hub ring area, used by the drive hardware to detect disk rotation.
 
 The surface visualisation can be hidden by clicking the **eye icon** in the window title bar. When hidden, the window switches to a compact mode showing only the controls and status indicators.
 

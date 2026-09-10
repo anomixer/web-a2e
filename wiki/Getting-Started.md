@@ -8,6 +8,7 @@ This guide walks you through your first session with the Apple //e Emulator -- f
 
 - [Requirements](#requirements)
 - [Opening the Emulator](#opening-the-emulator)
+- [Choosing a Machine](#choosing-a-machine)
 - [Powering On](#powering-on)
 - [The Toolbar](#the-toolbar)
 - [Using the Keyboard](#using-the-keyboard)
@@ -33,13 +34,19 @@ No downloads, plugins, or accounts are needed. The emulator loads entirely in th
 
 ## Opening the Emulator
 
-Navigate to the emulator URL. A loading spinner appears while the WebAssembly core initialises. Once ready, the screen shows TV static (the "no signal" pattern), indicating the virtual Apple //e is powered off.
+Navigate to the emulator URL. A loading spinner appears while the WebAssembly core initialises. Once ready, the screen shows the "no signal" pattern, indicating the virtual machine is powered off.
 
 A floating reminder will point to the power button for first-time visitors.
 
+## Choosing a Machine
+
+The badge beside the Apple logo in the header names the machine you are running, and clicking it lets you change it. An Apple //e is the default; an **Apple II Plus** is also available if its ROMs were supplied when the emulator was built.
+
+Switch before you start work: changing machine rebuilds the emulator, so anything in the drives or in memory is lost, just as it would be on a page reload. Your display settings, volume, character set and speed follow you across. See [[Machines]] for what differs between them.
+
 ## Powering On
 
-Click the **Power** button (the circle-with-a-line icon) in the top-left area of the toolbar. The button changes colour to indicate the machine is on, and the screen will display the Apple IIe boot sequence.
+While the machine is off the screen shows a **NO SIGNAL** message. Click the **Power** button (the circle-with-a-line icon) in the toolbar -- the message on screen is part of the picture, not a control, so the toolbar button is the one that works. The button changes colour to indicate the machine is on, and the screen displays the Apple IIe boot sequence.
 
 - If a **disk is inserted**, the Disk II controller will attempt to boot from it.
 - If **no disk** is present, the screen shows a checksum test. A reminder will suggest pressing **Ctrl+Reset** to drop into Applesoft BASIC.
@@ -63,8 +70,8 @@ The toolbar along the top of the page provides access to all emulator functions:
 | **Ctrl+Reset** | Warm reset (preserves memory) |
 | **Reboot** | Cold reset (full restart) |
 | **File** | Auto-save toggle, save states manager |
-| **View** | Theme selector, Disk Drives, File Explorer, Display settings, Joystick/Paddles, Expansion Slots |
-| **Debug** | CPU Debugger, Soft Switches, Memory Map, Memory Browser, Heat Map, Stack Viewer, Zero Page Watch, Mockingboard, Mouse Card |
+| **View** | Theme, layout and auto-hide options, Disk Drives, SmartPort Drives, File Explorer, Display, Joystick/Paddles, Cursor Keys as Joystick, Expansion Slots, Serial Port, Printer, Print Browser |
+| **Debug** | CPU Debugger, Soft Switches, Memory Map, Memory Browser, Heat Map, Stack Viewer, Zero Page Watch, Mockingboard, Mouse Card, Instruction Trace, BASIC Program |
 | **Dev** | Applesoft BASIC editor, 6502 Assembler |
 | **Full Page** | Expand the screen to fill the browser window |
 | **Sound** | Volume slider, mute toggle, drive sounds toggle |
@@ -147,6 +154,16 @@ The emulator supports three themes, selectable from **View > Theme**:
 | **System** | Automatically follows your operating system's light/dark preference |
 
 The theme applies to the toolbar, all debug windows, dialogs, and settings panels. The emulator screen itself is unaffected -- it always renders authentic Apple II colours.
+
+## Sharing a Link
+
+The emulator can open with a disk already inserted, which makes a program shareable as a single URL:
+
+```
+?disk=https://example.com/demo.dsk
+```
+
+See [[URL-Parameters]] for every parameter and the rules around them.
 
 ## Getting Help
 

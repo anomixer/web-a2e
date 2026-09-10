@@ -7,6 +7,7 @@ This page describes the internal architecture of the Apple //e emulator, coverin
 ## Table of Contents
 
 - [Two-Layer Design](#two-layer-design)
+- [Machine Profiles](#machine-profiles)
 - [Component Wiring](#component-wiring)
 - [Audio-Driven Timing](#audio-driven-timing)
 - [Frame Synchronization](#frame-synchronization)
@@ -25,13 +26,16 @@ The emulator is split into two distinct layers:
 
 | Component | File | Responsibility |
 |-----------|------|----------------|
-| CPU | `cpu/cpu6502.cpp` | Cycle-accurate 65C02 processor |
+| CPU | `cpu/6502/cpu6502.cpp` | Cycle-accurate 65C02 processor |
 | MMU | `mmu/mmu.cpp` | 128KB memory, soft switches, expansion slots |
 | Video | `video/video.cpp` | Per-scanline rendering of all 6 video modes |
 | Audio | `audio/audio.cpp` | Speaker toggle tracking and sample generation |
 | Disk | `disk-image/` | DSK/DO/PO/NIB/WOZ format support with GCR encoding |
 | Input | `input/keyboard.cpp` | Browser keycode to Apple II keycode translation |
-| Cards | `cards/` | Pluggable expansion card system (Disk II, Mockingboard, Thunderclock, Mouse) |
+| Cards | `cards/` | Pluggable expansion card system (Disk II, Mockingboard, Thunderclock, Mouse, SmartPort, Super Serial, Parallel, Z-80 SoftCard) |
+| BASIC | `basic/` | Applesoft and Integer BASIC tokenizer, detokenizer, and variable model |
+| Filesystem | `filesystem/` | DOS 3.3, ProDOS and Pascal filesystem parsers |
+| Debug | `debug/` | Breakpoint condition evaluator and host log sink |
 | Emulator | `emulator.cpp` | Core coordinator, state serialization |
 
 **JavaScript Layer** (`src/js/`) -- Browser integration using vanilla ES6 modules (no frameworks):
@@ -39,16 +43,44 @@ The emulator is split into two distinct layers:
 | Component | Directory | Responsibility |
 |-----------|-----------|----------------|
 | Main | `main.js` | `AppleIIeEmulator` class, initialization, render loop |
+| Worker | `worker/` | Web Worker hosting the WASM module, `WasmProxy`, RPC protocol, shared buffers |
 | Audio | `audio/` | Web Audio API driver, AudioWorklet processor |
-| Display | `display/` | WebGL renderer, CRT shader effects |
-| Disk Manager | `disk-manager/` | Disk drive UI, persistence, surface rendering |
-| File Explorer | `file-explorer/` | DOS 3.3 and ProDOS disk browser |
-| Debug | `debug/` | CPU debugger, memory browser, soft switch monitor, etc. |
+| Display | `display/` | WebGL renderer, CRT shader effects, display settings, no-signal screen |
+| Disk Manager | `disk-manager/` | Disk drive UI, SmartPort drives, persistence, surface rendering, drive sounds |
+| File Explorer | `file-explorer/` | DOS 3.3 and ProDOS disk browser with disassembler |
+| Debug | `debug/` | CPU debugger, memory browser, BASIC viewer, assembler editor, and other debug windows |
+| Printer | `printer/` | Virtual printer emulation and paper output |
+| Serial | `serial/` | Serial port connection UI |
+| Agent | `agent/` | AI agent tools and AG-UI client (see [[Agent-Integration]]) |
 | State | `state/` | Save state manager (autosave + 5 manual slots) |
 | Input | `input/` | Keyboard handling, text selection, joystick, mouse |
+| UI | `ui/` | Menu wiring, theming, slot configuration, dialogs |
+| Docking | `docking/` | Window docking and workspace layouts |
+| Help | `help/` | Documentation and release notes windows |
 | Windows | `windows/` | Base window class and window manager |
+| Utils / Config | `utils/`, `config/` | Shared helpers, app version |
 
-The C++ core is compiled to WebAssembly using Emscripten and exposed to JavaScript through a flat C function interface defined in `src/bindings/wasm_interface.cpp`.
+The C++ core is compiled to WebAssembly using Emscripten and exposed through a flat C function interface in `src/bindings/wasm_interface.cpp`.
+
+**The WASM module does not run on the main thread.** It is hosted in a dedicated Web Worker, and the main thread talks to it through `WasmProxy`, an ES6 Proxy that turns `_functionName()` calls into asynchronous RPC. The framebuffer and audio ring are shared through `SharedArrayBuffer` so bulk data never crosses as messages. This split is important enough to have its own page -- see [[Worker-Architecture]] -- and it changes how almost every example below is written: WASM calls return Promises, and direct `HEAPU8` access from the main thread is forbidden.
+
+---
+
+## Machine Profiles
+
+The emulator models one machine at a time, and which machine it is comes from a **profile**: `src/core/machine/machine_profile.hpp` holds a `MachineProfile` per machine — CPU variant, timing, memory sizes, display geometry, capabilities, slot layout — and a registry of them.
+
+**The profile is data, not polymorphism.** What differs between a //e and a II Plus is overwhelmingly numbers, and those live in a struct the subsystems read. They are deliberately not virtual methods: `MMU::read`, the video emitters and the CPU dispatch loop are the hottest code in the emulator, and an indirect call on a per-cycle or per-dot path would cost real speed to serve a machine count of two. The rule is: **a number or a flag goes in the profile; a different mechanism goes in a different class that the profile names.**
+
+The profile is threaded by construction, not by lookup. `Emulator(MachineId)` selects it and hands it to `MMU` and `Audio`; `Video` takes it *from the MMU* rather than as a second argument, because the video scanner and the floating bus are the same counters read two ways and a pair that disagreed would be a bug with no way to express it. Cards receive it through `ExpansionCard::setMachine()`.
+
+The compile-time constants in `types.hpp` remain, because they size `std::array` members at compile time and a runtime lookup cannot. They hold the //e's values and `machine_profile.hpp` `static_assert`s every one of them against the profile, so the two descriptions cannot drift. Further assertions pin *relationships* rather than numbers, and `allProfilesValid()` runs a self-consistency check and a compiled-storage check over the whole registry in a `static_assert` — a broken profile does not compile.
+
+Save states carry the machine id straight after the version, because everything after that point is laid out to the saving machine's shape; the id is what lets `importState` refuse a state from a different machine rather than read it as garbage.
+
+The browser layer asks rather than assumes: `src/js/machine/machine-profile.js` fetches the whole profile as one JSON string in a single round trip, and the renderer, the text-selection overlay, the screenshot path and the save-state preview all read the machine's display geometry instead of hardcoding 560x384. A fetch failure falls back to the //e, which is a correct description of a machine that exists.
+
+Switching machines **rebuilds** the emulator — there is no way to convert a running machine into a different one, since the RAM, the cards and the save state are all shaped to the machine that made them. See [[Machines]] for the user-facing side.
 
 ---
 
@@ -103,21 +135,22 @@ The timing chain flows as follows:
 
 ```
 AudioWorklet (48kHz)
-  --> requests 1600 sample frames from main thread
-    --> AudioDriver.generateSamples(count)
-      --> WASM _generateStereoAudioSamples(buffer, count)
+  --> ring buffer runs low, posts a refill request
+    --> main thread forwards MSG_REQUEST_SAMPLES to the Worker
+      --> Worker: _generateStereoAudioSamples(buffer, count)
         --> Emulator::runCycles(count * CYCLES_PER_SAMPLE * speedMultiplier)
           --> CPU executes instructions
           --> Video renders scanlines progressively
           --> Disk controller updates per instruction
           --> Mockingboard timers tick
         --> Audio::generateStereoSamples() produces speaker + Mockingboard output
-      --> JS copies samples from WASM heap
-    --> Samples sent back to AudioWorklet via postMessage
-  --> AudioWorklet deinterleaves into L/R channels for output
+      --> Worker writes samples straight into the shared audio ring
+  --> AudioWorklet reads the ring directly and deinterleaves for output
 ```
 
-The AudioWorklet processor (`audio-worklet.js`) runs on a separate thread. It processes 128 samples at a time in its `process()` method, consuming from an internal buffer. When the buffer drops below 1,600 frames, it sends a `requestSamples` message to the main thread. The main thread responds by running the emulator for the required number of cycles and returning the generated samples.
+The AudioWorklet processor (`audio-worklet.js`) runs on its own thread, processing 128 samples at a time. When its ring buffer runs low it requests a refill; the Worker generates the samples and writes them into a `SharedArrayBuffer` ring that the worklet reads directly.
+
+**Sample data never crosses the main thread** -- only the small refill request does. That matters because audio paces the emulation: with a busy main thread in the audio path, the symptom is speed instability rather than mere crackle. Without `SharedArrayBuffer` (which needs the COOP/COEP headers) the Worker falls back to posting samples for the main thread to relay. That path still works and must keep working, but it is the slow one.
 
 Each audio sample requires approximately 21.3 CPU cycles (`1,023,000 / 48,000`). The WASM function `generateStereoAudioSamples` runs the emulator for `sampleCount * CYCLES_PER_SAMPLE * speedMultiplier` cycles, then generates interleaved stereo samples (speaker centered on both channels, Mockingboard PSG1 on left, PSG2 on right).
 
@@ -142,9 +175,11 @@ if (currentCycle - lastFrameCycle_ >= CYCLES_PER_FRAME) {
 
 The frame boundary is advanced by exactly `CYCLES_PER_FRAME` rather than set to the current cycle count. This prevents drift and keeps the VBL detection at `$C019` synchronized with raster effects.
 
-On the JavaScript side, `consumeFrameSamples()` tracks how many audio samples have been generated. At 48,000 Hz / 60 Hz = 800 samples per frame, this provides frame-level synchronization. When one or more frames' worth of samples are generated, `AudioDriver` triggers `onFrameReady`, which calls `renderFrame()` to upload the framebuffer to the WebGL texture.
+On the JavaScript side, the Worker writes each completed frame into a double-buffered region of shared memory, writing whichever slot the renderer is not reading, then publishes the index and sets a ready flag. The main thread's `requestAnimationFrame` loop calls `pollSharedFrame()`, which claims the frame with `Atomics.exchange` so the same frame is never uploaded twice.
 
-The `requestAnimationFrame` render loop handles display updates for the non-audio path: debug window updates, beam crosshair overlays, drive LED animations, and forced re-renders when the CPU is paused.
+That replaced allocating a fresh 860KB array per frame. The `requestAnimationFrame` loop also drives debug window updates, the beam crosshair overlay, and forced re-renders when the CPU is paused.
+
+The render loop is deliberately **synchronous**: it used to `await` a pause check before drawing, which pushed the actual texture upload and draw into a microtask after a Worker round-trip -- so a busy Worker, which is exactly the Worker running the emulator, pushed frames past their vsync deadline. Pause state is now pushed from the Worker and cached, and everything else in the loop is fire-and-forget.
 
 ---
 
@@ -158,16 +193,22 @@ static a2e::Emulator *g_emulator = nullptr;
 
 ### Memory Management
 
-JavaScript uses Emscripten's `_malloc` / `_free` for WASM heap allocation and `HEAPU8` / `HEAPF32` for direct memory access. String conversion uses `stringToUTF8()` and `UTF8ToString()`. Example pattern for audio:
+The WASM heap lives in the Worker, so **direct `HEAPU8` / `HEAPF32` access from the main thread is forbidden**. Use the proxy's heap helpers instead, which marshal across the Worker boundary and return typed arrays:
 
 ```javascript
-const bufferPtr = wasmModule._malloc(count * 2 * 4);  // stereo floats
-wasmModule._generateStereoAudioSamples(bufferPtr, count);
-for (let i = 0; i < count * 2; i++) {
-    samples[i] = wasmModule.HEAPF32[(bufferPtr >> 2) + i];
-}
-wasmModule._free(bufferPtr);
+const bytes = await wasmProxy.heapRead(ptr, size);     // Uint8Array
+const words = await wasmProxy.heapReadU32(ptr, count); // Uint32Array
+await wasmProxy.heapWrite(ptr, data);
 ```
+
+`_malloc()` must be awaited; `_free()` is fire-and-forget. `stringToUTF8()` and `UTF8ToString()` are async. For a `char*`-returning export, `wasmProxy.callString(fn, ...args)` decodes in the Worker so a string costs one round-trip instead of two.
+
+Two rules follow from the Worker servicing RPCs on the same thread that runs the emulation, so every round-trip steals emulation time:
+
+- **Batch reads.** `wasmProxy.batch([['_getPC'], ['_getA'], ...])` collapses many reads into one round-trip. `CPUDebuggerWindow.update()` is the reference example: a single 25-call batch.
+- **Bulk work belongs in C++.** A loop that would make one RPC per iteration should become one export. `_disassembleRange` and `_getBasicHeatMapData` exist for exactly this reason.
+
+See [[Worker-Architecture]] for the full contract.
 
 ### Exported Functions
 
@@ -203,12 +244,15 @@ The rendering pipeline has two stages:
 **WebGL Display** -- The JavaScript `WebGLRenderer` uploads the framebuffer as a texture and applies CRT shader effects (scanlines, curvature, bloom, phosphor glow). The display pipeline:
 
 ```
-WASM Framebuffer (560x384 RGBA)
-  --> JS reads via HEAPU8[fbPtr..fbPtr+fbSize]
+WASM Framebuffer (560x384 RGBA, written in the Worker)
+  --> shared framebuffer slot + ready flag (SharedArrayBuffer)
+  --> main thread pollSharedFrame() claims it with Atomics.exchange
   --> WebGLRenderer.updateTexture(framebuffer)
   --> Fragment shader applies CRT effects
   --> Canvas displays final output
 ```
+
+While the machine is powered off the renderer uploads a generated no-signal frame instead, and ignores emulator frames until power returns -- see [[Display-Settings]].
 
 ---
 
@@ -231,7 +275,7 @@ This invokes Emscripten's `emcmake cmake` and `emmake make` to compile the C++ c
 | `EXPORT_NAME` | `createA2EModule` | Global factory name |
 | `ALLOW_MEMORY_GROWTH` | 1 | Dynamic heap expansion |
 | `INITIAL_MEMORY` | 32 MB | Starting heap size |
-| `MAXIMUM_MEMORY` | 64 MB | Maximum heap size |
+| `MAXIMUM_MEMORY` | 256 MB | Maximum heap size |
 | `NO_EXIT_RUNTIME` | 1 | Keep runtime alive |
 | `ASYNCIFY` | 0 | Disabled (not needed) |
 | Optimization | `-O3 -flto` | Full optimization with LTO |
@@ -248,7 +292,11 @@ ROM files are embedded at compile time. A shell script (`scripts/generate_roms.s
 | `342-0273-A-US-UK.bin` | 4 KB | Character ROM (US/UK) |
 | `341-0027.bin` | 256 bytes | Disk II controller ROM |
 | `Thunderclock Plus ROM.bin` | 2 KB | Thunderclock card ROM |
-| `Apple Mouse Interface Card ROM` | 2 KB | Mouse card ROM |
+| `Apple Mouse Interface Card ROM - 342-0270-C.bin` | 2 KB | Mouse card ROM |
+| `Apple Parallel Interface Card ROM - 341-0057.bin` | 512 bytes | Parallel card ROM |
+| `Super Serial Card ROM - 341-0065-A.bin` | 2 KB | Super Serial Card ROM |
+
+The SmartPort card builds its own ROM at runtime rather than loading a dump.
 
 ### JavaScript Build
 
@@ -268,7 +316,16 @@ make -j$(sysctl -n hw.ncpu)
 ctest --verbose
 ```
 
-The native build compiles test executables for CPU compliance (Klaus Dormann), Thunderclock card behavior, and GCR encoding. The emulator itself does not have a native runtime target.
+The native build compiles the Catch2 test suites. They cover the CPU (6502/65C02 including Klaus Dormann compliance), memory and MMU, video, audio, disk images (DSK/WOZ/GCR), every expansion card, the DOS 3.3 / ProDOS / Pascal filesystems, the BASIC tokenizer and detokenizer, the assembler, disassembler, keyboard, condition evaluator, and full emulator integration. The emulator itself has no native runtime target.
+
+There is also a JavaScript test suite and a set of consistency checks:
+
+```bash
+npm test         # Vitest, tests/js/
+npm run check    # export/purity/token guards + npm test
+```
+
+`npm run check` runs three guards, each verified to fail when violated: `EMSCRIPTEN_KEEPALIVE` functions against the `EXPORTED_FUNCTIONS` list in both directions, a check that `src/core/` has no host-platform dependencies, and a check that the generated JS BASIC token table matches the C++ one.
 
 ---
 
@@ -295,9 +352,12 @@ Defined in `src/core/types.hpp`:
 
 ## See Also
 
+- [[Machines]] -- The machines modelled, and how a profile describes one
 - [[CPU-Emulation]] -- 65C02 processor details
 - [[Memory-System]] -- MMU, bank switching, soft switches
 - [[Video-Rendering]] -- Per-scanline rendering and video modes
 - [[Audio-System]] -- Speaker and Mockingboard audio
 - [[Expansion-Slots]] -- Card architecture and slot memory map
 - [[Save-States]] -- Binary state serialization format
+- [[Worker-Architecture]] -- Worker isolation, RPC, and shared memory
+- [[Agent-Integration]] -- MCP and AG-UI control surface

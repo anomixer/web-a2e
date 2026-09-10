@@ -377,7 +377,7 @@ If AudioWorklet is unavailable, the driver falls back to a `ScriptProcessorNode`
 
 ### AudioWorklet
 
-`AppleAudioProcessor` (`src/js/audio/audio-worklet.js`) runs on the Web Audio rendering thread. It maintains a sample buffer and requests new samples from the main thread when the buffer drops below 1600 frames:
+`AppleAudioProcessor` (`src/js/audio/audio-worklet.js`) runs on the Web Audio rendering thread. It reads from a shared ring buffer and asks for a refill when the buffer runs low. The request is relayed to the Worker, which generates the samples and writes them into the ring directly -- sample data never crosses the main thread. Without `SharedArrayBuffer` it falls back to receiving samples by `postMessage` (see [[Worker-Architecture]]):
 
 1. Worklet posts `requestSamples` message with count = 1600
 2. Main thread runs WASM to generate 1600 stereo sample frames
@@ -435,8 +435,8 @@ PSG state includes the 17-bit noise shift register, envelope counter, and envelo
 |------|-------------|
 | `src/core/audio/audio.hpp` | Speaker audio class declaration |
 | `src/core/audio/audio.cpp` | Speaker toggle recording and sample generation |
-| `src/core/cards/mockingboard_card.hpp` | Mockingboard card interface |
-| `src/core/cards/mockingboard_card.cpp` | Card I/O routing, mixing, incremental generation |
+| `src/core/cards/mockingboard/mockingboard_card.hpp` | Mockingboard card interface |
+| `src/core/cards/mockingboard/mockingboard_card.cpp` | Card I/O routing, mixing, incremental generation |
 | `src/core/cards/mockingboard/ay8910.hpp` | AY-3-8910 PSG class declaration |
 | `src/core/cards/mockingboard/ay8910.cpp` | Tone, noise, envelope generators |
 | `src/core/cards/mockingboard/via6522.hpp` | VIA 6522 class declaration |

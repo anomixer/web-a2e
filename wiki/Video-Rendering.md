@@ -593,7 +593,8 @@ After the C++ Video class produces the framebuffer, the JavaScript layer handles
 ```
 C++ Video (560x384 RGBA framebuffer)
   --> WASM _getFramebuffer() returns pointer into WASM heap
-  --> JS reads via HEAPU8[ptr .. ptr + FRAMEBUFFER_SIZE]
+  --> Worker writes it into a shared framebuffer slot (SharedArrayBuffer)
+  --> main thread claims it with Atomics.exchange in pollSharedFrame()
   --> WebGLRenderer.updateTexture(data)
   --> Fragment shader applies CRT effects
   --> Canvas displays final output

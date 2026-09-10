@@ -33,11 +33,11 @@ The autosave system runs in the background while the emulator is powered on. It 
 - Saves immediately when the browser tab becomes hidden (tab switch, minimize)
 - Saves on page unload (closing the tab or navigating away)
 - The autosave indicator briefly flashes in the menu bar each time a save occurs
-- Autosave is enabled by default and can be toggled from the **System** menu
+- Autosave is enabled by default and can be toggled from the **File** menu
 
 ### Toggling Autosave
 
-The autosave toggle is available in the **System** menu. The setting persists across sessions via localStorage.
+The autosave toggle is in the **File** menu. The setting persists across sessions via localStorage.
 
 ### Restoring from Autosave
 
@@ -45,7 +45,7 @@ When the emulator starts, if an autosave state exists, it is automatically resto
 
 ## Save States Window
 
-Open the Save States window from the **System** menu. The window shows all available save slots arranged vertically:
+Open the Save States window from **File > Save States...**. The window shows all available save slots arranged vertically:
 
 - **Autosave row (A)** -- Shows the most recent autosave with a thumbnail, timestamp, and Load/Download buttons
 - **Slots 1-5** -- Manual save slots, each with Save, Load, Clear, and Download buttons
