@@ -11,6 +11,26 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "September 10, 2026",
+    features: [
+      {
+        title: "There is a second machine: the Apple II Plus",
+        description:
+          "The badge in the header is no longer a picture of a //e — it names the machine you are running, and clicking it lets you choose one. There are two: the Apple //e, and the Apple II Plus, the machine most of the software you remember was written on. Its differences are real rather than cosmetic. It has an NMOS 6502 instead of a 65C02, no auxiliary bank at all — which is what makes 80 columns and every double-resolution mode genuinely unavailable rather than merely hidden — its own character generator, only one character set, and it never switches off the colour burst, so its text fringes green and violet in every mode exactly as the real machine's did. Slot 0 exists and holds the language card that turns a 48K machine into the 64K one nearly all II+ software expects. Switching machines rebuilds the machine from scratch, so anything in the drives or in memory is lost just as it would be on a reload — the menu says so before it does it — but your display settings, volume, character set and speed follow you across, because those were your choices and not the machine's. Each machine remembers its own slot layout, so a card you fitted to one does not turn up in the other. The Apple II Plus needs its own ROMs, which are not distributed with the emulator; without them the machine is still listed but is marked as unavailable rather than quietly failing to start.",
+      },
+      {
+        title: "A Sirius Joyport, for two digital joysticks",
+        description:
+          "The Joystick window has a new Game port selector, and it chooses what is plugged into the machine's game connector: the usual Apple joystick, or a Sirius Joyport. The Joyport was Sirius Software's 1981 adapter, and it put two Atari-style digital sticks on the same connector — switches instead of potentiometers, so there was no capacitor to wait for, and two players instead of one. Look at almost any Sirius game and it offers you \"Apple Joystick\" or \"Joyport\"; now the second option works. Choose it and the window swaps its paddle knob for a pair of digital sticks you can work with the mouse, and a connected game controller drives one from either its D-pad or its left stick. Connect two controllers and each one gets a stick; with only one connected it drives both, so a game that reads the second stick still plays. Your choice is remembered, and survives a reset and a change of machine. One small liberty is taken with the hardware: a Joyport holds the machine's two button lines high when nothing is pressed, and on a //e those lines are the Open and Closed Apple keys, so a real //e with a Joyport fitted ran its self test at every reset instead of booting. Here the Joyport lets go of them for an instant after a reset, so the machine starts normally and the sticks work the rest of the time.",
+      },
+      {
+        title: "A font editor for the printers",
+        description:
+          "The glyph banks the virtual printers render from — ImageWriter I and II, the Epson FX-80, the Apple DMP — can now be authored in a standalone editor at /printers/rom-editor.html. It draws characters dot by dot, handles the alternate-language code points each printer swapped in per locale, imports and exports either as a ROM module or as ASCII dot art, and can trace over a scan of a manual's character chart so a font can be rebuilt from the page it was printed on. It is one plain page with no build step, so it opens straight off disk.",
+      },
+    ],
+  },
+  {
     week: "August 24, 2026",
     features: [
       {

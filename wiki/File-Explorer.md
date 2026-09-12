@@ -18,7 +18,7 @@ The File Explorer provides a built-in disk image browser that can read and displ
 
 ## Opening the File Explorer
 
-Open the File Explorer from the **Tools** menu. When the window opens, it automatically reads the disk currently inserted in the selected drive.
+Open the File Explorer from **View > File Explorer**. When the window opens, it automatically reads the disk currently inserted in the selected drive.
 
 ## Interface Layout
 

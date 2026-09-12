@@ -390,6 +390,20 @@ The `BasicBreakpointManager` manages line-level breakpoints for BASIC programs. 
 
 The `BasicProgramParser` reads the tokenized program from memory starting at TXTTAB, parsing the linked list of lines (each line: 2-byte next pointer, 2-byte line number, tokenized text, null terminator).
 
+**Conditional BASIC breakpoints.** A breakpoint can carry a condition expressed in terms of the program's own variables rather than machine state. The condition evaluator understands three BASIC subjects:
+
+| Form | Meaning |
+|------|---------|
+| `BV(name)` | Read a BASIC variable |
+| `BA(name, index)` | Read a one-dimensional array element |
+| `BA2(name, i1, i2)` | Read a two-dimensional array element |
+
+So a breakpoint can be `BV(X) > 100`, stopping when the program's `X` exceeds 100 regardless of which line is executing. Rules can also be **condition-only** -- no line number at all -- which turns them into a watch on the program's data.
+
+Values are read through the Applesoft variable model in `src/core/basic/` (`applesoft_vars`), which decodes MBF floats, variable name and type encoding, and walks VARTAB and ARYTAB.
+
+**Line heat map.** The BASIC window can shade each line by how often it has executed, which finds the hot loop in an unfamiliar listing quickly. The data comes from a single `_getBasicHeatMapData` export rather than per-line queries, for the reason described in [[Worker-Architecture]].
+
 ---
 
 ## Rule Builder
@@ -399,7 +413,7 @@ The Rule Builder (`rule-builder-window.js`) provides a visual interface for comp
 **Features:**
 - Tree-based rule composition with AND/OR groups
 - Nested groups for complex logic
-- Operand types: registers (A, X, Y, SP, PC, P), memory reads, constants
+- Operand types: registers (A, X, Y, SP, PC, P), memory reads, constants, and BASIC variables and array elements (`BV`, `BA`, `BA2`)
 - Comparison operators: equals, not equals, less than, greater than, less/greater or equal
 - Bitwise operators for flag testing
 - Live preview of the generated condition expression

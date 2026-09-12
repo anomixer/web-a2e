@@ -2,9 +2,12 @@
 
 The Apple IIe has seven expansion slots (1-7), each providing I/O space and ROM space for peripheral cards. The emulator supports a configurable set of expansion cards that can be installed in their compatible slots.
 
+**Slots belong to the machine.** An Apple II Plus has eight slots numbered from 0, a different set of fixed cards and different defaults, and it remembers its own layout separately from the //e's. Everything below describes the //e unless it says otherwise; see [Apple II Plus Slots](#apple-ii-plus-slots) and [[Machines]].
+
 ## Table of Contents
 
 - [Slot Map](#slot-map)
+- [Apple II Plus Slots](#apple-ii-plus-slots)
 - [Configuring Slots](#configuring-slots)
 - [Available Cards](#available-cards)
 - [Memory Map](#memory-map)
@@ -14,23 +17,42 @@ The Apple IIe has seven expansion slots (1-7), each providing I/O space and ROM 
 
 The default slot configuration matches a typical Apple IIe setup:
 
-| Slot | Default Card | Description |
+| Slot | Default Card | Typical Use |
 |------|-------------|-------------|
-| 1 | Empty | Printer / Serial |
-| 2 | Empty | Serial / Modem |
+| 1 | Empty | Printer |
+| 2 | Empty | Modem / Serial |
 | 3 | 80-Column (Built-in) | Fixed -- cannot be changed |
-| 4 | Mockingboard | Sound cards / Mouse |
-| 5 | Empty | Clock / Hard drive |
-| 6 | Disk II Controller | Disk drives |
-| 7 | Thunderclock Plus | RAM disk / Clock |
+| 4 | Mockingboard | Mouse / Sound |
+| 5 | Thunderclock Plus | 3.5" drives / Clock |
+| 6 | Disk II Controller | 5.25" drives |
+| 7 | SmartPort | Hard disk / Clock |
+
+## Apple II Plus Slots
+
+A II Plus motherboard has eight slots, numbered from 0, and its defaults are not the //e's:
+
+| Slot | Default Card | Notes |
+|------|-------------|-------|
+| 0 | 16K Language Card | Fixed -- cannot be changed |
+| 1 | Empty | Printer |
+| 2 | Empty | Modem / Serial |
+| 3 | Empty | Free -- there is no built-in 80-column card |
+| 4 | Empty | |
+| 5 | Empty | |
+| 6 | Disk II Controller | 5.25" drives |
+| 7 | Empty | |
+
+Slot 0 holds the language card that turns a 48K machine into the 64K one nearly all II Plus software expects. It is fixed: the bank switching at `$C080-$C08F` is the same hardware a //e carries on its motherboard, and is not something you could pull out.
+
+Slot layouts are stored **per machine**, because the machines do not agree about what a slot is -- one shared layout would put a II Plus's slot 3 card into a //e's built-in 80-column slot. A machine you have never configured falls back to its own defaults; a machine you deliberately stripped stays stripped.
 
 ## Configuring Slots
 
-Open the **Expansion Slots** window from the **System** menu to change which cards are installed in each slot.
+Open the **Expansion Slots** window from **View > Expansion Slots** to change which cards are installed. The window builds its slot list from the machine in use, so a //e shows slots 1-7 with slot 3 locked and a II Plus shows 0-7 with slot 0 locked.
 
 ### How It Works
 
-Each configurable slot has a dropdown menu listing the cards that are compatible with that slot. Select a card from the dropdown, and a warning will appear indicating that changes require a reset. Click **Apply & Reset** to apply all pending changes and restart the emulator.
+Cards are **dragged** from the card tray onto a slot, and dragged off again to remove them. Pending changes are highlighted, and a warning indicates that they require a reset. Click **Apply & Reset** to commit everything and restart the emulator.
 
 ### Slot Restrictions
 
@@ -42,17 +64,23 @@ Each configurable slot has a dropdown menu listing the cards that are compatible
 
 | Slot | Available Cards |
 |------|----------------|
-| 1 | Empty |
-| 2 | Empty |
+| 1 | Parallel Card, Super Serial Card, Z-80 SoftCard |
+| 2 | Parallel Card, Super Serial Card, SmartPort, Z-80 SoftCard |
 | 3 | 80-Column (fixed) |
-| 4 | Empty, Mockingboard, Apple Mouse Card |
-| 5 | Empty, Thunderclock Plus |
-| 6 | Empty, Disk II Controller |
-| 7 | Empty, Thunderclock Plus |
+| 4 | Mockingboard, Mouse Card, SmartPort, Z-80 SoftCard |
+| 5 | Thunderclock Plus, SmartPort, Z-80 SoftCard |
+| 6 | Disk II Controller |
+| 7 | Thunderclock Plus, SmartPort, Z-80 SoftCard |
+
+Any slot can also be left empty.
+
+### No-Slot Clock
+
+The window also has a **No-Slot Clock (DS1215)** toggle. This is not a slot card: the real device was a chip carrier that sat underneath a ROM, piggybacking on the `$C300` address space, so it provides a ProDOS-compatible clock without consuming a slot. Its setting persists under `a2e-nsc-enabled`.
 
 ### Persistence
 
-Slot configuration is saved to localStorage and automatically restored when the emulator is loaded. If no saved configuration exists, the default card assignments shown in the Slot Map above are used.
+Slot configuration is saved to `localStorage` under `a2e-slot-config` and restored on load. With no saved configuration the defaults in the Slot Map above are used.
 
 ## Available Cards
 
@@ -124,6 +152,47 @@ The mouse card firmware runs as native 6502 code on the CPU. The emulator provid
 
 **VBL interrupt support:** When the mouse mode has bit 3 set, an IRQ is generated at the start of each vertical blanking period, allowing software to poll the mouse at a consistent 60 Hz rate.
 
+### SmartPort Hard Drive Controller
+
+A block-device controller providing up to two hard drive volumes, the usual way to give ProDOS a large disk.
+
+- **Compatible slots:** 2, 4, 5, 7 (default 7)
+- **Devices:** 2 block devices
+- **Supported images:** `.hdv`, `.po`, `.2mg`
+- **ROM:** built at runtime rather than loaded from a dump
+
+The card implements the SmartPort call interface (`STATUS`, `READBLOCK`, `WRITEBLOCK`, `FORMAT`, `CONTROL`, `INIT`) plus the older ProDOS block-device entry point, so it works with both calling conventions.
+
+See [[SmartPort-Hard-Drives]] for using it.
+
+### Super Serial Card
+
+An emulation of the Apple Super Serial Card, built around the ACIA 6551.
+
+- **Compatible slots:** 1, 2
+- **I/O space:** ACIA registers (data, status, command, control)
+- **Drives:** ImageWriter I and ImageWriter II virtual printers
+
+Output can be routed to a virtual printer or a serial connection. See [[Printers]].
+
+### Parallel Card
+
+A Centronics-style parallel interface, matching the Apple Parallel Interface Card (341-0057, whose upper ROM half is the 341-0005 "Parallel Printer" firmware).
+
+- **Compatible slots:** 1, 2
+- **Drives:** Epson FX-80 and Apple DMP virtual printers
+
+See [[Printers]].
+
+### Microsoft Z-80 SoftCard
+
+A full Z80 CPU emulation on a card, as the original SoftCard used to run CP/M on an Apple II.
+
+- **Compatible slots:** 1, 2, 4, 5, 7
+- **Implementation:** `src/core/cards/softcard/`, with the Z80 core under `softcard/z80/`
+
+The Z80 and the 6502 share the machine's memory. Accessing the card's soft switch hands control to the Z80, which runs until control is handed back -- the two processors never execute simultaneously.
+
 ## Memory Map
 
 Each expansion slot is assigned dedicated address ranges in the Apple IIe memory map:
@@ -184,4 +253,4 @@ All expansion cards implement the `ExpansionCard` interface, which provides the 
 
 Cards can also generate IRQ interrupts via a callback mechanism, used by the Mockingboard's VIA timers and the Mouse Card's VBL interrupt.
 
-See also: [[Architecture-Overview]], [[Audio-System]], [[Disk-Drives]]
+See also: [[Architecture-Overview]], [[Audio-System]], [[Disk-Drives]], [[SmartPort-Hard-Drives]], [[Printers]]

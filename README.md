@@ -1,9 +1,14 @@
 # Apple //e Browser Based Emulator
 
-A cycle-accurate Apple //e Enhanced emulator running in the browser using WebAssembly and WebGL. No JavaScript frameworks — vanilla ES6 modules with Vite for bundling. Having built native emulators in the past, this is my first attempt at a browser-based emulator, hopefully making it easier to allow cross platform users from making use of it :)
+A cycle-accurate Apple II emulator running in the browser using WebAssembly and WebGL. No JavaScript frameworks — vanilla ES6 modules with Vite for bundling. Having built native emulators in the past, this is my first attempt at a browser-based emulator, hopefully making it easier to allow cross platform users from making use of it :)
+
+Two machines are modelled: the **Apple //e Enhanced** and the **Apple II Plus**. See [Machines](#machines).
+
+**[Run it →](https://web-a2e.retrotech71.co.uk/)**  ·  **[Documentation wiki →](https://github.com/mikedaley/web-a2e/wiki)**
 
 ## Features
 
+- **Two machines** — Apple //e Enhanced and Apple II Plus, chosen from the badge in the header; each is described by a profile, remembers its own slot layout, and the II+ is a real II+ down to its NMOS CPU, single character set and permanently live colour burst
 - **Cycle-accurate 65C02 CPU** — All legal 6502 opcodes plus 65C02 extensions at 1.023 MHz
 - **Full Apple //e memory architecture** — 128KB RAM (64KB main + 64KB auxiliary), language card, soft switches
 - **Multiple display modes** — Text (40/80 col), LoRes, Double LoRes, HiRes, Double HiRes, monochrome
@@ -13,7 +18,7 @@ A cycle-accurate Apple //e Enhanced emulator running in the browser using WebAss
 - **Audio-driven timing** — Web Audio API AudioWorklet drives frame timing at 48kHz via Worker RPC
 - **Disk II controller** — DSK, DO, PO, and WOZ format support with write capability
 - **Expansion cards** — Mockingboard sound card, Thunderclock Plus, Apple Mouse Interface Card, SmartPort hard drive, Super Serial Card, Parallel Card (Centronics), Microsoft Z-80 SoftCard, No-Slot Clock (DS1215)
-- **Virtual dot-matrix printer** — ImageWriter II (colour), ImageWriter I, Epson FX-80, and Apple DMP with period-correct fonts, sounds, and PNG/PDF export
+- **Virtual dot-matrix printer** — ImageWriter II (colour), ImageWriter I, Epson FX-80, and Apple DMP with period-correct fonts, sounds, and PNG/PDF export, plus a standalone font editor at `/printers/rom-editor.html`
 - **File explorer** — Browse DOS 3.3 and ProDOS disk contents with BASIC detokenizer and disassembler
 - **Shareable links** — Pass a disk image URL in the address (`?disk=` floppy or `?hd=` hard drive) to open the emulator with it already loaded; a built-in CORS proxy handles hosts that send no `Access-Control-Allow-Origin`
 - **Save states** — Autosave slot plus 5 manual save slots, stored in IndexedDB
@@ -21,6 +26,25 @@ A cycle-accurate Apple //e Enhanced emulator running in the browser using WebAss
 - **Light/Dark/System themes** — Switchable colour scheme with Apple rainbow logo accent palette
 - **AI Agent integration** — Full programmatic control via MCP and AG-UI event protocol for AI-assisted development
 - **PWA support** — Install as a standalone app with offline functionality
+
+### Machines
+
+The emulator runs one machine at a time, and the badge in the header names it — click it to switch. Two machines are described:
+
+| | Apple //e (Enhanced) | Apple II Plus |
+| --- | --- | --- |
+| CPU | 65C02 | NMOS 6502 |
+| RAM | 128KB (64KB main + 64KB aux) | 48KB + a 16KB language card in slot 0 |
+| Columns | 40 / 80 | 40 |
+| Double-resolution modes | Yes | No |
+| Character sets | US/UK | One |
+| Colour burst in text | Inhibited (crisp white text) | Always sent (text fringes green and violet) |
+| Slot 3 | Built-in 80-column card, fixed | Free |
+| ROMs | Included | **Supply your own** — see [ROM Files](#rom-files) |
+
+A machine's differences are data in its profile rather than special cases scattered through the code, so the II+'s missing auxiliary bank is what makes 80 columns and double hi-res genuinely unreachable rather than merely hidden. The [Machines wiki page](https://github.com/mikedaley/web-a2e/wiki/Machines) covers each machine in full.
+
+Switching rebuilds the emulator, so inserted media and anything in memory are lost exactly as they would be on a page reload — the menu says so first. Display settings, volume, character set and CPU speed follow you across, because those were your choices rather than the machine's. Each machine remembers its own slot layout, and the machine you last chose is restored at startup. A machine whose ROMs are missing is still listed, but marked unavailable rather than quietly failing to reach a prompt.
 
 ## Prerequisites
 
@@ -274,6 +298,10 @@ Cards are configured via **View > Expansion Slots**.
 
 A floating joystick window provides visual paddle/joystick controls that map to the Apple II game ports ($C064-$C067). Physical game controllers are supported via the Gamepad API — the left stick maps to paddle values and buttons A/B map to Apple II buttons 0/1, with a configurable deadzone. A **Cursor Keys** toggle makes the arrow keys drive the joystick as well as the keyboard — they still reach the emulator, so arrow-key navigation in ProDOS and BASIC keeps working — with an indicator chip in the Monitor title bar when active. The same toggle is in **View > Cursor Keys as Joystick**, which is the way to reach it in the layouts that have no Monitor title bar.
 
+**Game port device.** The window's **Game port** selector chooses what is plugged into the game I/O connector: the Apple resistive joystick, or a **Sirius Joyport**. The Joyport was Sirius Software's 1981 adapter that put two Atari CX40-style digital sticks on the same connector, reading them through the annunciators — no RC discharge to wait for, and two players. Choose it and the window swaps its paddle knob for a pair of digital sticks, each with a D-pad and a fire button that can be held with the mouse; a connected gamepad drives stick 1 (or both, with only one pad connected) from either its D-pad or its left stick, and a second gamepad drives stick 2. Games from Sirius Software and others that offer a "Joyport" option will find it. The choice is remembered, and survives reset and a machine switch.
+
+One deliberate departure from the hardware: a Joyport idles the two pushbutton lines *high*, and on a //e those lines are the Open and Closed Apple keys — so a real //e with a Joyport fitted read "Closed Apple held" at every reset and ran the self test instead of booting. The Joyport here lets go of those two lines for about 50ms after a reset, long enough for the ROM to look and far too short for a game to have asked about the stick.
+
 ### CPU Speed
 
 **View > CPU Speed** runs the machine at 1x, 2x, 4x or 8x the real 1.023 MHz clock — 8x is roughly an accelerator card. Audio still paces the emulation and still plays, but it plays sped up: everything the speaker does happens in a fraction of the time and rises in pitch to match, exactly as it did on accelerated hardware. The display stays at 60fps; the machine simply gets through more work between frames.
@@ -394,7 +422,7 @@ The emulator exposes an AI agent interface via the [Model Context Protocol](http
 
 Agent capabilities include: emulator power/reset, BASIC program editing and execution, 65C02 assembly, disk and hard drive management, file exploration, window management, and expansion slot configuration.
 
-See the [AI Agent wiki page](wiki/AI-Agent.md) for full details.
+See the [Agent Integration wiki page](https://github.com/mikedaley/web-a2e/wiki/Agent-Integration) for full details.
 
 ## Testing
 

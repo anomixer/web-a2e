@@ -11,7 +11,9 @@
 #include "cpu/6502/cpu6502.hpp"
 #include "cards/disk2/disk2_card.hpp"
 #include "cards/expansion_card.hpp"
+#include "input/joyport.hpp"
 #include "input/keyboard.hpp"
+#include "machine/machine_profile.hpp"
 #include "cards/mockingboard/mockingboard_card.hpp"
 #include "cards/mouse/mouse_card.hpp"
 #include "cards/smartport/smartport_card.hpp"
@@ -39,8 +41,24 @@ public:
   // BASIC stepping modes
   enum class BasicStepMode { None, Line, Statement };
 
-  Emulator();
+  // Which machine to model. Everything downstream — the CPU fitted, the video
+  // timing, how much RAM answers, which cards the slots take — follows from the
+  // profile this selects.
+  explicit Emulator(MachineId machine = MachineId::AppleIIe);
   ~Emulator();
+
+  // The machine being modelled.
+  const MachineProfile &getMachine() const { return *machine_; }
+
+  // Whether this machine's system ROM was built into the binary. False means
+  // the machine is described but cannot run — see init().
+  bool hasSystemROM() const { return systemRomLoaded_; }
+
+  // The same question about a machine that is not running. Lets a host offer a
+  // choice of machines and say which of them it can actually start, without
+  // building one to find out. The ROM arrays live in emulator.cpp, so asking
+  // here keeps them out of every other translation unit.
+  static bool isMachineRunnable(MachineId machine);
 
   // Initialization
   void init();
@@ -60,7 +78,9 @@ public:
   bool isFrameReady() const { return frameReady_; }
   void clearFrameReady() { frameReady_ = false; }
   const uint8_t *getFramebuffer() const;
-  size_t getFramebufferSize() const { return FRAMEBUFFER_SIZE; }
+  size_t getFramebufferSize() const {
+    return machine_->display.framebufferSize();
+  }
 
   // Input - raw browser keycodes (preferred)
   int handleRawKeyDown(int browserKeycode, bool shift, bool ctrl, bool alt,
@@ -103,6 +123,18 @@ public:
   void setButton(int button, bool pressed);  // Set button state (0=Open Apple, 1=Closed Apple, 2=Button2)
   void setPaddleValue(int paddle, int value);  // Set paddle value (0-3, value 0-255)
   int getPaddleValue(int paddle) const;  // Get paddle value (0-3)
+
+  // Game I/O connector: an Apple resistive joystick or a Sirius Joyport.
+  // Host preference rather than machine state, so it survives reset and is not
+  // written into a save state.
+  /** How long after a reset the Joyport stays off PB0/PB1 (~50ms). */
+  static constexpr uint64_t JOYPORT_RESET_GUARD_CYCLES = 50000;
+
+  void setGamePortDevice(GamePortDevice device);
+  GamePortDevice gamePortDevice() const { return gamePortDevice_; }
+  /** Set one Joyport stick's switches (a mask of Joyport::SwitchBit). */
+  void setJoyportStick(int stick, int switches);
+  int getJoyportStick(int stick) const { return joyport_.stickState(stick); }
 
   // Mouse input
   void mouseMove(int dx, int dy);
@@ -395,6 +427,13 @@ private:
   void toggleSpeaker();
 
   // Components
+  // Not owned: profiles are static constexpr objects with program lifetime.
+  // Declared first so the subsystems below can be constructed from it.
+  const MachineProfile *machine_ = &defaultMachineProfile();
+
+  // Set by init(): whether this machine's ROM is present in the build.
+  bool systemRomLoaded_ = false;
+
   std::unique_ptr<MMU> mmu_;
   std::unique_ptr<CPU6502> cpu_;
   std::unique_ptr<Video> video_;
@@ -466,6 +505,28 @@ private:
   // Button state (Open Apple, Closed Apple, Button 2)
   bool buttonState_[3] = {false, false, false};
   uint8_t getButtonState(int button);
+
+  // Game I/O connector. The Joyport drives the same three pushbutton inputs
+  // the Apple keys do, and drives them inverted, so it replaces them rather
+  // than adding to them — which is why this is a device selection.
+  GamePortDevice gamePortDevice_ = GamePortDevice::AppleJoystick;
+  Joyport joyport_;
+
+  // Cycle after which the Joyport may drive PB0/PB1 again following a reset.
+  //
+  // The //e's reset routine reads $C061 and $C062 to see whether Open or
+  // Closed Apple is held: Open Apple asks for a cold boot, Closed Apple runs
+  // the self test. A Joyport idles both lines *high*, which is exactly what a
+  // held key looks like, so a //e with one plugged in ran the self test on
+  // every reset and could never reach a prompt. That is faithful — the game
+  // connector's pins 2 and 3 really are the Apple keys on a //e, which is why
+  // the Joyport belongs to the II and II+ era — but it makes the device
+  // useless on the machine most people run here.
+  //
+  // So the Joyport lets go of PB0 and PB1 for a brief window after reset, long
+  // enough to cover the ROM's key check and far too short for a game to have
+  // asked about the stick yet. PB2 is untouched: no Apple key is wired to it.
+  uint64_t joyportResetGuardCycle_ = 0;
 
   // Speed control
   int speedMultiplier_ = 1;

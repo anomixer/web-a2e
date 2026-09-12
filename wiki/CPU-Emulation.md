@@ -28,7 +28,7 @@ This page describes the 65C02 CPU emulation implementation, covering the instruc
 
 ## Overview
 
-The CPU is implemented in `src/core/cpu/cpu6502.cpp` and `cpu6502.hpp`. It emulates the WDC 65C02 processor used in the Apple IIe Enhanced, running at 1.023 MHz. The implementation is instruction-level cycle-accurate: each instruction consumes the correct number of cycles as looked up from a 256-entry cycle table, with additional cycles added dynamically for page crossings, taken branches, and decimal mode operations.
+The CPU is implemented in `src/core/cpu/6502/cpu6502.cpp` and `cpu6502.hpp`. It emulates the WDC 65C02 processor used in the Apple IIe Enhanced, running at 1.023 MHz. The implementation is instruction-level cycle-accurate: each instruction consumes the correct number of cycles as looked up from a 256-entry cycle table, with additional cycles added dynamically for page crossings, taken branches, and decimal mode operations.
 
 The CPU does not access memory directly. Instead, it receives read and write callback functions at construction time that route all bus access through the MMU. This allows the MMU to handle soft switches, bank switching, and expansion card I/O transparently.
 
