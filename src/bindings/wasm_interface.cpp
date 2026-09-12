@@ -26,6 +26,10 @@
 // Global emulator instance
 static a2e::Emulator *g_emulator = nullptr;
 
+// Which machine init() will build. Changing it takes effect on the next
+// construction, which is what setMachine() forces.
+static a2e::MachineId g_machineId = a2e::MachineId::AppleIIe;
+
 // Helper macros to reduce repetitive null checks
 #define REQUIRE_EMULATOR() do { if (!g_emulator) return; } while(0)
 #define REQUIRE_EMULATOR_OR(default_val) do { if (!g_emulator) return (default_val); } while(0)
@@ -46,7 +50,7 @@ void init() {
       EM_ASM({ console.log(UTF8ToString($0)); }, message);
     });
 
-    g_emulator = new a2e::Emulator();
+    g_emulator = new a2e::Emulator(g_machineId);
     g_emulator->init();
     // Install the parallel (Centronics) printer tx callback at construction so
     // EVERY ParallelCard created later (when the saved slot config is applied)
@@ -114,7 +118,187 @@ uint8_t *getFramebuffer() {
 }
 
 EMSCRIPTEN_KEEPALIVE
-int getFramebufferSize() { return a2e::FRAMEBUFFER_SIZE; }
+int getFramebufferSize() {
+  REQUIRE_EMULATOR_OR(static_cast<int>(a2e::defaultMachineProfile()
+                                           .display.framebufferSize()));
+  return static_cast<int>(g_emulator->getFramebufferSize());
+}
+
+// ============================================================================
+// Machine profile
+//
+// The host used to hardcode 560x384 and a 1.023 MHz clock in a dozen places.
+// It asks the core instead, so a machine with a different picture or a
+// different clock needs no host change at all.
+// ============================================================================
+
+// C++ linkage: this file is one big extern "C" block for the exports, but a
+// helper returning std::string is not a C function.
+extern "C++" {
+namespace {
+
+std::string machineProfileToJSON(const a2e::MachineProfile &m) {
+  auto boolean = [](bool value) { return value ? "true" : "false"; };
+
+  std::string json = "{";
+  json += "\"id\":" + std::to_string(static_cast<int>(m.id));
+  json += ",\"key\":\"" + std::string(m.key) + "\"";
+  json += ",\"name\":\"" + std::string(m.name) + "\"";
+  json += ",\"shortName\":\"" + std::string(m.shortName) + "\"";
+  json += ",\"logotype\":\"" + std::string(m.logotype) + "\"";
+  json += ",\"cpu\":\"" +
+          std::string(m.cpu == a2e::CPUVariant::CMOS_65C02 ? "65C02" : "6502") +
+          "\"";
+
+  json += ",\"timing\":{";
+  json += "\"cpuClockHz\":" + std::to_string(m.timing.cpuClockHz);
+  json += ",\"cyclesPerScanline\":" + std::to_string(m.timing.cyclesPerScanline);
+  json += ",\"hblankCycles\":" + std::to_string(m.timing.hblankCycles);
+  json += ",\"visibleColumns\":" + std::to_string(m.timing.visibleColumns);
+  json += ",\"scanlinesPerFrame\":" + std::to_string(m.timing.scanlinesPerFrame);
+  json += ",\"visibleScanlines\":" + std::to_string(m.timing.visibleScanlines);
+  json += ",\"mixedModeTextScanline\":" +
+          std::to_string(m.timing.mixedModeTextScanline);
+  json += ",\"cyclesPerFrame\":" + std::to_string(m.timing.cyclesPerFrame());
+  json += "}";
+
+  json += ",\"memory\":{";
+  json += "\"mainRamSize\":" + std::to_string(m.memory.mainRamSize);
+  json += ",\"auxRamSize\":" + std::to_string(m.memory.auxRamSize);
+  json += ",\"romSize\":" + std::to_string(m.memory.romSize);
+  json += ",\"charRomSize\":" + std::to_string(m.memory.charRomSize);
+  json += "}";
+
+  json += ",\"display\":{";
+  json += "\"dotsPerLine\":" + std::to_string(m.display.dotsPerLine);
+  json += ",\"width\":" + std::to_string(m.display.pixelWidth);
+  json += ",\"height\":" + std::to_string(m.display.pixelHeight);
+  json += ",\"lineDoubling\":" + std::to_string(m.display.lineDoubling);
+  json += ",\"framebufferSize\":" + std::to_string(m.display.framebufferSize());
+  json += "}";
+
+  json += ",\"caps\":{";
+  json += std::string("\"hasAuxRam\":") + boolean(m.caps.hasAuxRam);
+  json += std::string(",\"has80Column\":") + boolean(m.caps.has80Column);
+  json += std::string(",\"hasDoubleHires\":") + boolean(m.caps.hasDoubleHires);
+  json += std::string(",\"hasLanguageCard\":") + boolean(m.caps.hasLanguageCard);
+  json += std::string(",\"hasAltCharSet\":") + boolean(m.caps.hasAltCharSet);
+  json += std::string(",\"hasUkCharSet\":") + boolean(m.caps.hasUkCharSet);
+  json += std::string(",\"hasLowercase\":") + boolean(m.caps.hasLowercase);
+  json += std::string(",\"hasInternalSlotRom\":") +
+          boolean(m.caps.hasInternalSlotRom);
+  json += std::string(",\"hasOpenAppleKeys\":") + boolean(m.caps.hasOpenAppleKeys);
+  json += std::string(",\"hasIOUDisable\":") + boolean(m.caps.hasIOUDisable);
+  json += std::string(",\"inhibitsBurstInText\":") +
+          boolean(m.caps.inhibitsBurstInText);
+  json += "}";
+
+  json += ",\"firstSlot\":" + std::to_string(m.firstSlot);
+  json += ",\"lastSlot\":" + std::to_string(m.lastSlot);
+
+  // Only the slots this machine actually has. A II+ has a slot 0 and a //e
+  // does not, so a host that assumed the list started at 1 would silently drop
+  // the one slot that differs.
+  json += ",\"slots\":[";
+  bool firstEntry = true;
+  for (int slot = m.firstSlot; slot <= m.lastSlot; slot++) {
+    const auto &s = m.slots[slot];
+    if (!firstEntry) json += ",";
+    firstEntry = false;
+    json += "{\"slot\":" + std::to_string(slot);
+    json += ",\"fixedCard\":";
+    json += s.fixedCard ? "\"" + std::string(s.fixedCard) + "\"" : "null";
+    json += ",\"defaultCard\":";
+    json += s.defaultCard ? "\"" + std::string(s.defaultCard) + "\"" : "null";
+    json += "}";
+  }
+  json += "]}";
+  return json;
+}
+
+} // namespace
+} // extern "C++"
+
+EMSCRIPTEN_KEEPALIVE
+int getMachineCount() { return a2e::MACHINE_COUNT; }
+
+EMSCRIPTEN_KEEPALIVE
+const char *getMachineKeyAt(int index) {
+  return a2e::machineProfileAt(index).key;
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char *getMachineKey() {
+  REQUIRE_EMULATOR_OR(a2e::defaultMachineProfile().key);
+  return g_emulator->getMachine().key;
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char *getMachineName() {
+  REQUIRE_EMULATOR_OR(a2e::defaultMachineProfile().name);
+  return g_emulator->getMachine().name;
+}
+
+// Whole profile in one round trip: the host needs most of it at once, and the
+// Worker services RPCs on the thread that runs the emulation.
+EMSCRIPTEN_KEEPALIVE
+const char *getMachineProfileJSON() {
+  static std::string buffer;
+  const auto &m =
+      g_emulator ? g_emulator->getMachine() : a2e::defaultMachineProfile();
+  buffer = machineProfileToJSON(m);
+  return buffer.c_str();
+}
+
+// Describe a machine the emulator is not currently running, so a host can list
+// what it could run before committing to one.
+EMSCRIPTEN_KEEPALIVE
+const char *getMachineProfileJSONAt(int index) {
+  static std::string buffer;
+  buffer = machineProfileToJSON(a2e::machineProfileAt(index));
+  return buffer.c_str();
+}
+
+// Whether the running machine's system ROM was built into this binary. A
+// machine can be fully described and still have no ROM to run — the II+ set is
+// optional at build time — and a host that cannot tell the difference would
+// present a machine that never reaches a prompt.
+EMSCRIPTEN_KEEPALIVE
+bool hasSystemROM() {
+  REQUIRE_EMULATOR_OR(false);
+  return g_emulator->hasSystemROM();
+}
+
+// Whether a machine could actually be started, without switching to it.
+EMSCRIPTEN_KEEPALIVE
+bool isMachineRunnable(const char *key) {
+  const auto *profile = a2e::findMachineProfile(key);
+  if (!profile) return false;
+  return a2e::Emulator::isMachineRunnable(profile->id);
+}
+
+// Switch machines. There is no way to convert a running machine into a
+// different one — the RAM, the cards and the save state are all shaped to the
+// machine that made them — so this destroys the emulator and builds the new
+// one from scratch. Inserted media and host state do not survive; the caller
+// is expected to reload them, exactly as it does after a page reload.
+//
+// Returns false and changes nothing if the key names no machine.
+EMSCRIPTEN_KEEPALIVE
+bool setMachine(const char *key) {
+  const auto *profile = a2e::findMachineProfile(key);
+  if (!profile) return false;
+
+  if (g_emulator && profile->id == g_emulator->getMachine().id) {
+    return true; // Already this machine
+  }
+
+  g_machineId = profile->id;
+  delete g_emulator;
+  g_emulator = nullptr;
+  init();
+  return g_emulator != nullptr;
+}
 
 EMSCRIPTEN_KEEPALIVE
 void forceRenderFrame() {
@@ -204,6 +388,34 @@ EMSCRIPTEN_KEEPALIVE
 int getPaddleValue(int paddle) {
   REQUIRE_EMULATOR_OR(128);
   return g_emulator->getPaddleValue(paddle);
+}
+
+// Game I/O connector device: 0 = Apple resistive joystick, 1 = Sirius Joyport.
+EMSCRIPTEN_KEEPALIVE
+void setGamePortDevice(int device) {
+  REQUIRE_EMULATOR();
+  g_emulator->setGamePortDevice(device == 1 ? a2e::GamePortDevice::SiriusJoyport
+                                            : a2e::GamePortDevice::AppleJoystick);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getGamePortDevice() {
+  REQUIRE_EMULATOR_OR(0);
+  return static_cast<int>(g_emulator->gamePortDevice());
+}
+
+// One call per stick rather than one per switch: the host knows all five
+// switches at once, and this is a fire-and-forget RPC on an input path.
+EMSCRIPTEN_KEEPALIVE
+void setJoyportStick(int stick, int switches) {
+  REQUIRE_EMULATOR();
+  g_emulator->setJoyportStick(stick, switches);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int getJoyportStick(int stick) {
+  REQUIRE_EMULATOR_OR(0);
+  return g_emulator->getJoyportStick(stick);
 }
 
 EMSCRIPTEN_KEEPALIVE

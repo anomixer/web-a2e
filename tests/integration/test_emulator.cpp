@@ -559,3 +559,128 @@ TEST_CASE("Emulator paste gives the machine longer after a carriage return",
     REQUIRE(afterReturn > afterChar * 2);
 }
 
+
+// ============================================================================
+// Game I/O connector: Apple joystick vs Sirius Joyport
+// ============================================================================
+
+// The Joyport lets go of PB0/PB1 for a short window after every reset so the
+// //e's reset routine does not read its idle-high lines as held Apple keys.
+// Anything testing the Joyport's steady state has to get past that window.
+static void runPastJoyportResetGuard(Emulator &emu) {
+    emu.runCycles(static_cast<int>(Emulator::JOYPORT_RESET_GUARD_CYCLES) + 1000);
+}
+
+TEST_CASE("Game port defaults to the Apple joystick", "[emulator][joyport]") {
+    Emulator emu;
+    emu.init();
+    REQUIRE(emu.gamePortDevice() == GamePortDevice::AppleJoystick);
+
+    // The Apple keys drive PB0/PB1 active high, as they always have.
+    REQUIRE((emu.readMemory(0xC061) & 0x80) == 0x00);
+    emu.setButton(0, true);
+    REQUIRE((emu.readMemory(0xC061) & 0x80) == 0x80);
+}
+
+TEST_CASE("Joyport drives the pushbuttons through the annunciators",
+          "[emulator][joyport]") {
+    // This is the manual's test program in miniature: select a stick with AN0,
+    // an axis pair with AN1, and read $C061-$C063 — active low.
+    Emulator emu;
+    emu.init();
+    emu.setGamePortDevice(GamePortDevice::SiriusJoyport);
+    runPastJoyportResetGuard(emu);
+
+    emu.readMemory(0xC058); // AN0 off - stick 1
+    emu.readMemory(0xC05A); // AN1 off - horizontal
+
+    // Nothing held: every line reads high, the opposite of an Apple button.
+    REQUIRE((emu.readMemory(0xC061) & 0x80) == 0x80);
+    REQUIRE((emu.readMemory(0xC062) & 0x80) == 0x80);
+    REQUIRE((emu.readMemory(0xC063) & 0x80) == 0x80);
+
+    emu.setJoyportStick(0, Joyport::LEFT | Joyport::FIRE);
+    REQUIRE((emu.readMemory(0xC061) & 0x80) == 0x00); // fire
+    REQUIRE((emu.readMemory(0xC062) & 0x80) == 0x00); // left
+    REQUIRE((emu.readMemory(0xC063) & 0x80) == 0x80); // not right
+
+    emu.readMemory(0xC05B); // AN1 on - vertical
+    REQUIRE((emu.readMemory(0xC062) & 0x80) == 0x80); // left is not up
+    emu.setJoyportStick(0, Joyport::DOWN);
+    REQUIRE((emu.readMemory(0xC063) & 0x80) == 0x00); // down
+
+    // Stick 2 lives behind AN0 and must not answer for stick 1.
+    emu.setJoyportStick(1, Joyport::UP);
+    REQUIRE((emu.readMemory(0xC062) & 0x80) == 0x80);
+    emu.readMemory(0xC059); // AN0 on - stick 2
+    REQUIRE((emu.readMemory(0xC062) & 0x80) == 0x00);
+    REQUIRE((emu.readMemory(0xC063) & 0x80) == 0x80);
+}
+
+TEST_CASE("Joyport ignores the Apple keys, and switching back restores them",
+          "[emulator][joyport]") {
+    Emulator emu;
+    emu.init();
+    runPastJoyportResetGuard(emu);
+    emu.readMemory(0xC058);
+    emu.readMemory(0xC05A);
+
+    emu.setButton(0, true);
+    emu.setGamePortDevice(GamePortDevice::SiriusJoyport);
+    // The Joyport drives PB0 itself, and switching released the held button.
+    REQUIRE((emu.readMemory(0xC061) & 0x80) == 0x80);
+
+    emu.setJoyportStick(0, Joyport::FIRE);
+    emu.setGamePortDevice(GamePortDevice::AppleJoystick);
+    REQUIRE(emu.getJoyportStick(0) == 0);
+    REQUIRE((emu.readMemory(0xC061) & 0x80) == 0x00);
+}
+
+TEST_CASE("Reset releases the sticks but keeps the chosen device",
+          "[emulator][joyport]") {
+    // The device is a host preference like the speed multiplier: a reboot must
+    // not silently unplug the Joyport a game is being played with.
+    Emulator emu;
+    emu.init();
+    emu.setGamePortDevice(GamePortDevice::SiriusJoyport);
+    emu.setJoyportStick(1, Joyport::RIGHT);
+
+    emu.reset();
+
+    REQUIRE(emu.gamePortDevice() == GamePortDevice::SiriusJoyport);
+    REQUIRE(emu.getJoyportStick(1) == 0);
+}
+
+TEST_CASE("The Joyport lets go of PB0/PB1 across a reset",
+          "[emulator][joyport]") {
+    // A Joyport idles PB0 and PB1 high, and that is exactly what the //e's
+    // reset routine reads as a held Open or Closed Apple — Open Apple asks for
+    // a cold boot, Closed Apple runs the self test, so a //e with a Joyport
+    // fitted ran the self test on every reset and never reached a prompt.
+    // The Joyport therefore releases those two lines until the ROM has looked.
+    Emulator emu;
+    emu.init();
+    emu.setGamePortDevice(GamePortDevice::SiriusJoyport);
+    emu.readMemory(0xC058);
+    emu.readMemory(0xC05A);
+
+    emu.warmReset();
+
+    // Immediately after reset the two Apple-key lines read low, so the ROM
+    // sees no key held and boots normally.
+    REQUIRE((emu.readMemory(0xC061) & 0x80) == 0x00);
+    REQUIRE((emu.readMemory(0xC062) & 0x80) == 0x00);
+    // PB2 is not an Apple key and is never released.
+    REQUIRE((emu.readMemory(0xC063) & 0x80) == 0x80);
+
+    // Once the window has passed the Joyport drives all three again.
+    runPastJoyportResetGuard(emu);
+    REQUIRE((emu.readMemory(0xC061) & 0x80) == 0x80);
+    REQUIRE((emu.readMemory(0xC062) & 0x80) == 0x80);
+
+    // ...and a fire button pressed inside the window still reads pressed,
+    // because a closed switch is low either way.
+    emu.warmReset();
+    emu.setJoyportStick(0, Joyport::FIRE);
+    REQUIRE((emu.readMemory(0xC061) & 0x80) == 0x00);
+}

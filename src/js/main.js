@@ -29,6 +29,7 @@ import "../css/documentation.css";
 import "../css/window-switcher.css";
 import "../css/docking.css";
 import "../css/fullscreen-popouts.css";
+import "../css/machine.css";
 import "../css/responsive.css";
 
 import { VERSION } from "./config/version.js";
@@ -38,8 +39,15 @@ import { WebGLRenderer } from "./display/webgl-renderer.js";
 import { AudioDriver } from "./audio/audio-driver.js";
 import { WasmProxy } from "./worker/wasm-proxy.js";
 import {
+  loadMachineProfile,
+  machineDisplay,
+  restoreRememberedMachine,
+} from "./machine/machine-profile.js";
+import {
   allocateSharedBuffers,
   FB_BYTES,
+  FB_WIDTH,
+  FB_HEIGHT,
   CTRL_FRAME_READY,
   CTRL_FRAME_INDEX,
 } from "./worker/shared-buffers.js";
@@ -80,6 +88,7 @@ import { UIController } from "./ui/ui-controller.js";
 import { ThemeManager } from "./ui/theme-manager.js";
 import { showToast } from "./ui/toast.js";
 import { SlotConfigurationWindow } from "./ui/slot-configuration-window.js";
+import { MachineMenu } from "./machine/machine-menu.js";
 import { SerialConnectionWindow } from "./serial/serial-connection-window.js";
 import { PrinterWindow } from "./printer/printer-window.js";
 import { PrinterManager } from "./printer/printer-manager.js";
@@ -148,6 +157,17 @@ class AppleIIeEmulator {
       this.wasmModule = new WasmProxy();
       const wasmBust = import.meta.env.DEV ? Date.now() : VERSION;
       await this.wasmModule.init(`/a2e.js?v=${wasmBust}`);
+
+      // Ask the core which machine it is emulating before anything sizes
+      // itself to the picture. One round trip, and everything downstream —
+      // the screenshot canvas, the selection overlay, the printer's screen
+      // dump — reads the answer instead of assuming a //e.
+      this.machine = await loadMachineProfile(this.wasmModule);
+
+      // ...then move to whichever machine the user last chose. This happens
+      // before the renderer and the windows exist, so they are built for the
+      // right machine rather than being rebuilt for it a moment later.
+      this.machine = await restoreRememberedMachine(this.wasmModule);
 
       // Set up renderer
       const canvas = document.getElementById("screen");
@@ -322,9 +342,17 @@ class AppleIIeEmulator {
       joystickWindow.create();
       this.windowManager.register(joystickWindow);
 
-      this.gamepadHandler = new GamepadHandler(this.wasmModule, joystickWindow);
+      this.gamepadHandler = new GamepadHandler(
+        this.wasmModule,
+        joystickWindow,
+        joystickWindow.gamePort,
+      );
       joystickWindow.gamepadHandler = this.gamepadHandler;
       this.inputHandler.joystickWindow = joystickWindow;
+      this.joystickWindow = joystickWindow;
+      // The core starts every machine on an Apple joystick, so a remembered
+      // Joyport has to be pushed back in.
+      joystickWindow.applyGamePort();
 
       // Show accelerated speeds in the monitor title bar
       this.emulationSpeed.onChange((multiplier) => {
@@ -393,6 +421,7 @@ class AppleIIeEmulator {
       // empty slot 4, and leaves mouse capture disabled until the next slot edit.
       await slotConfigWindow.create();
       this.windowManager.register(slotConfigWindow);
+      this.slotConfigWindow = slotConfigWindow;
 
       // Release notes window
       this.releaseNotesWindow = new ReleaseNotesWindow();
@@ -507,6 +536,20 @@ class AppleIIeEmulator {
         emulationSpeed: this.emulationSpeed,
       });
       this.uiController.init();
+
+      // The header badge names the machine and is how it is changed. Created
+      // after the UI controller so the generic header-menu open/close wiring
+      // is already in place for it.
+      this.machineMenu = new MachineMenu({
+        wasmModule: this.wasmModule,
+        onMachineChanged: async (profile) => {
+          this.machine = profile;
+          this.renderer.setMachineDisplay(profile.display);
+          await this.onMachineChanged();
+          showToast(`Switched to ${profile.name}`, "info", 4000);
+        },
+      });
+      await this.machineMenu.init();
 
       // Set up state manager
       this.stateManager = new StateManager({
@@ -632,6 +675,41 @@ class AppleIIeEmulator {
   }
 
   /**
+   * Put the host back together after the core has rebuilt itself as a
+   * different machine.
+   *
+   * A switch destroys the emulator and constructs a new one, so everything the
+   * host had pushed *into* the core is gone with it: the picture it had chosen,
+   * the volume, the character set, the clock speed. None of that is machine
+   * state — it is the user's preferences, and they were true a moment ago and
+   * are still true now. Re-applying them is what makes a switch feel like
+   * changing computers rather than losing your settings.
+   */
+  async onMachineChanged() {
+    // The picture first, so nothing is drawn with the core's defaults.
+    if (this.displaySettings) {
+      this.displaySettings.applyAllSettings();
+    }
+    if (this.audioDriver) {
+      this.audioDriver.applyVolumeToEmulator?.();
+    }
+    if (this.emulationSpeed) this.emulationSpeed.apply();
+    if (this.uiController) this.uiController.applyCharacterSet?.();
+    // A rebuilt core is back on the Apple joystick; the game port is the
+    // user's choice, not the machine's.
+    this.joystickWindow?.applyGamePort();
+
+    // The slots a machine has, and which of them the user may touch, are the
+    // machine's own business — a II+ has a slot 0 and no built-in 80-column
+    // card, so the window has to be rebuilt rather than merely refreshed.
+    if (this.slotConfigWindow) await this.slotConfigWindow.setMachine();
+
+    await this.updateMouseHandlerState();
+    if (this.diskManager) this.diskManager.syncWithEmulatorState?.();
+    if (this.hardDriveManager) this.hardDriveManager.syncWithEmulatorState();
+  }
+
+  /**
    * Check if the emulator is running
    * @returns {boolean}
    */
@@ -671,8 +749,7 @@ class AppleIIeEmulator {
   captureScreenshot() {
     if (!this._lastFramebuffer) return null;
 
-    const width = 560;
-    const height = 384;
+    const { width, height } = machineDisplay();
 
     if (!this._screenshotCanvas) {
       this._screenshotCanvas = document.createElement("canvas");
@@ -702,6 +779,20 @@ class AppleIIeEmulator {
   setupSharedBuffers() {
     this._sharedControl = null;
     this._sharedFrameViews = null;
+
+    // The shared framebuffer slot is a fixed allocation (see shared-buffers.js)
+    // and the Worker writes a whole frame into it. A machine whose picture does
+    // not fit would run past the end of the slot, so refuse the shared path and
+    // fall back to postMessage rather than corrupt memory.
+    const { width: fbWidth, height: fbHeight } = machineDisplay();
+    if (fbWidth > FB_WIDTH || fbHeight > FB_HEIGHT) {
+      console.warn(
+        `Machine framebuffer ${fbWidth}x${fbHeight} exceeds the shared slot ` +
+          `${FB_WIDTH}x${FB_HEIGHT} — using postMessage transport. ` +
+          `Raise FB_WIDTH/FB_HEIGHT in shared-buffers.js.`
+      );
+      return;
+    }
 
     const buffers = allocateSharedBuffers();
     if (!buffers) {

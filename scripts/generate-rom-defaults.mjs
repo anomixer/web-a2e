@@ -1,0 +1,204 @@
+#!/usr/bin/env node
+/*
+ * generate-rom-defaults.mjs - Generate the ROM editor's built-in font defaults
+ *
+ * src/js/printer/*-rom*.js are the authority: the printer models render from
+ * them, so they are the charsets that actually ship, and the editor opens on
+ * the same glyphs rather than an empty grid.
+ *
+ * Walks every ROM module, collects each exported bank with its locale
+ * overrides, and writes the result into rom-editor.html between the generated
+ * markers. Keying by export base rather than by editor mode keeps the two
+ * decoupled: a new ROM module is picked up with no change here, and the editor
+ * looks its bank up by the exportBase already in MODE_CONFIG.
+ *
+ * Usage:
+ *   node scripts/generate-rom-defaults.mjs           # write the file
+ *   node scripts/generate-rom-defaults.mjs --check   # verify it is current
+ *
+ * Written by
+ *  Shawn Bullock <shawn@agenticexpert.ai>
+ *  Mike Daley <michael_daley@icloud.com>
+ */
+
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { dirname, resolve } from "node:path";
+
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const PRINTER_DIR = resolve(ROOT, "src/js/printer");
+// The editor ships as a static page rather than a bundled module, so it lives in
+// public/ and Vite copies it verbatim; the ROM banks it reads stay in src/.
+const EDITOR = resolve(ROOT, "public/printers/rom-editor.html");
+
+const BEGIN = "// ==== BEGIN GENERATED FONT DEFAULTS ====";
+const END = "// ==== END GENERATED FONT DEFAULTS ====";
+
+// The ROM modules carry locale overrides in two shapes, and both must be read.
+// The ImageWriter files export one bank per locale as BASE_XX, where XX is a
+// two-letter national set — two letters is what separates IW2_STANDARD_FIXED_DE
+// (an override) from DMP_STANDARD_PROP (its own bank). The DMP file keeps its
+// per-locale banks module-private and reachable only through a nested
+// BASE_LOCALES object, so the export list alone does not see them.
+const LOCALE_SUFFIX = /^(.+)_([A-Z]{2})$/;
+const MAP_SUFFIX = /^(.+)_LOCALE_MAP$/;
+const LOCALES_SUFFIX = /^(.+)_LOCALES$/;
+
+/** @returns {string[]} ROM module filenames, sorted for stable output */
+function romModules() {
+  return readdirSync(PRINTER_DIR)
+    .filter((f) => f.endsWith(".js") && f.includes("-rom"))
+    .sort();
+}
+
+/**
+ * Collect every exported binding from the ROM modules.
+ * @returns {Promise<Map<string, unknown>>} export name -> value
+ */
+async function collectExports() {
+  const all = new Map();
+  for (const file of romModules()) {
+    const mod = await import(pathToFileURL(resolve(PRINTER_DIR, file)).href);
+    for (const [name, value] of Object.entries(mod)) {
+      if (all.has(name)) {
+        throw new Error(`Duplicate export ${name} (${file})`);
+      }
+      all.set(name, value);
+    }
+  }
+  return all;
+}
+
+/** A glyph bank is an object of numeric code -> array of column bitmasks. */
+function isGlyphBank(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const entries = Object.entries(value);
+  if (!entries.length) return false;
+  return entries.every(
+    ([code, cols]) => !isNaN(Number(code)) && Array.isArray(cols),
+  );
+}
+
+/**
+ * Group the flat export list into banks, each with its locale map and overrides.
+ * @param {Map<string, unknown>} all
+ */
+function buildBanks(all) {
+  // _LOCALE_MAP and _LOCALES are checked before the two-letter rule: without
+  // that order "DMP_STANDARD_FIXED_LOCALES" parses as base "..._LOCAL" + "ES".
+  const bases = [...all.keys()].filter((name) => {
+    if (MAP_SUFFIX.test(name) || LOCALES_SUFFIX.test(name)) return false;
+    const m = LOCALE_SUFFIX.exec(name);
+    if (m && all.has(m[1])) return false;
+    return isGlyphBank(all.get(name));
+  });
+
+  const banks = {};
+  for (const base of bases.sort()) {
+    const bank = { base: all.get(base), localeMap: [], locales: {} };
+    const map = all.get(`${base}_LOCALE_MAP`);
+    if (Array.isArray(map)) bank.localeMap = map;
+    for (const [name, value] of all) {
+      const m = LOCALE_SUFFIX.exec(name);
+      if (m && m[1] === base && isGlyphBank(value)) bank.locales[m[2]] = value;
+    }
+    const nested = all.get(`${base}_LOCALES`);
+    if (nested && typeof nested === "object") {
+      for (const [loc, glyphs] of Object.entries(nested)) {
+        if (isGlyphBank(glyphs)) bank.locales[loc] = glyphs;
+      }
+    }
+    banks[base] = bank;
+  }
+  return banks;
+}
+
+const hex = (n) => `0x${Number(n).toString(16).padStart(2, "0")}`;
+const cols = (a) => a.map((b) => hex(b)).join(",");
+
+/** Render one code -> columns table as compact but diffable source. */
+function renderGlyphs(indent, glyphs) {
+  return Object.keys(glyphs)
+    .map(Number)
+    .sort((a, b) => a - b)
+    .map((c) => `${indent}${hex(c)}:[${cols(glyphs[c])}],`)
+    .join("\n");
+}
+
+function renderDefaults(banks) {
+  const out = [BEGIN];
+  out.push("// Generated by scripts/generate-rom-defaults.mjs — do not edit by hand.");
+  out.push("// Regenerate with: npm run generate:rom-defaults");
+  out.push("const ROM_FONT_DEFAULTS = {");
+  for (const [base, bank] of Object.entries(banks)) {
+    out.push(`  ${base}: {`);
+    out.push("    base: {");
+    out.push(renderGlyphs("      ", bank.base));
+    out.push("    },");
+    if (bank.localeMap.length) {
+      const tuples = bank.localeMap
+        .map(([loc, code]) => `["${loc}",${hex(code)}]`)
+        .join(",");
+      out.push(`    localeMap: [${tuples}],`);
+    } else {
+      out.push("    localeMap: [],");
+    }
+    const locNames = Object.keys(bank.locales).sort();
+    if (locNames.length) {
+      out.push("    locales: {");
+      for (const loc of locNames) {
+        out.push(`      ${loc}: {`);
+        out.push(renderGlyphs("        ", bank.locales[loc]));
+        out.push("      },");
+      }
+      out.push("    },");
+    } else {
+      out.push("    locales: {},");
+    }
+    out.push("  },");
+  }
+  out.push("};");
+  out.push(END);
+  return out.join("\n");
+}
+
+/** Splice the generated block into rom-editor.html between its markers. */
+function splice(html, defaults) {
+  const start = html.indexOf(BEGIN);
+  const stop = html.indexOf(END);
+  if (start === -1 || stop === -1) {
+    throw new Error(
+      `rom-editor.html has no generated-block markers.\nExpected:\n  ${BEGIN}\n  ${END}`,
+    );
+  }
+  return html.slice(0, start) + defaults + html.slice(stop + END.length);
+}
+
+const banks = buildBanks(await collectExports());
+const defaults = renderDefaults(banks);
+const html = readFileSync(EDITOR, "utf8");
+const updated = splice(html, defaults);
+
+const bankCount = Object.keys(banks).length;
+const glyphCount = Object.values(banks).reduce(
+  (n, b) =>
+    n +
+    Object.keys(b.base).length +
+    Object.values(b.locales).reduce((m, l) => m + Object.keys(l).length, 0),
+  0,
+);
+
+if (process.argv.includes("--check")) {
+  if (updated !== html) {
+    console.error(
+      "rom-editor.html font defaults are stale. Run: npm run generate:rom-defaults",
+    );
+    process.exit(1);
+  }
+  console.log(`rom-editor font defaults current (${bankCount} banks, ${glyphCount} glyphs)`);
+} else {
+  writeFileSync(EDITOR, updated);
+  console.log(
+    `Wrote ${bankCount} banks, ${glyphCount} glyphs into public/printers/rom-editor.html`,
+  );
+}

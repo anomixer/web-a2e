@@ -276,7 +276,7 @@ The `advanceBitPosition()` method advances the nibble position based on elapsed 
 
 ## WOZ Format
 
-WOZ is a bit-accurate disk image format that captures exact magnetic flux transitions. It preserves copy-protection schemes and timing variations that sector-based formats cannot represent.
+WOZ is a bit-accurate disk image format that captures exact magnetic flux transitions. It preserves copy-protection schemes and timing variations that sector-based formats cannot represent. **NOTE THAT COPY PROTECTION IS STILL CAUSING SOME ISSUES SO MORE WORK TO BE DONE :) **
 
 ### File Structure
 
@@ -532,8 +532,8 @@ Disk image data (sector data and modifications) is saved separately as part of t
 
 | File | Description |
 |------|-------------|
-| `src/core/cards/disk2_card.hpp` | Disk II controller card interface |
-| `src/core/cards/disk2_card.cpp` | Controller implementation, LSS, P6 ROM |
+| `src/core/cards/disk2/disk2_card.hpp` | Disk II controller card interface |
+| `src/core/cards/disk2/disk2_card.cpp` | Controller implementation, LSS, P6 ROM |
 | `src/core/disk-image/disk_image.hpp` | Abstract disk image base class |
 | `src/core/disk-image/dsk_disk_image.hpp` | DSK format class declaration |
 | `src/core/disk-image/dsk_disk_image.cpp` | DSK nibblization, denibblization, stepper |

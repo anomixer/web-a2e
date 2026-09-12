@@ -1,0 +1,84 @@
+# Printers
+
+The emulator includes four virtual dot-matrix printers, rendered onto simulated fanfold paper. Anything an Apple II could print -- a BASIC listing, a ProDOS catalog, an AppleWorks document, banner software -- produces a page you can read, save or print for real.
+
+Open **View > Printer...** for the printer and its paper, and **View > Print Browser...** to review past output.
+
+---
+
+## Table of Contents
+
+- [Supported Printers](#supported-printers)
+- [Connecting a Printer](#connecting-a-printer)
+- [Printing from the Apple](#printing-from-the-apple)
+- [The Print Browser](#the-print-browser)
+- [Editing the Printer Fonts](#editing-the-printer-fonts)
+- [How It Works](#how-it-works)
+
+---
+
+## Supported Printers
+
+| Printer | Interface | Notes |
+|---------|-----------|-------|
+| **Epson FX-80** | Parallel Card | The de-facto standard dot-matrix printer; ESC/P command set |
+| **Apple DMP** | Parallel Card | Apple's Dot Matrix Printer |
+| **ImageWriter I** | Super Serial Card | Apple's serial dot-matrix printer |
+| **ImageWriter II** | Super Serial Card | Adds draft, standard and NLQ print qualities |
+
+Each printer emulates its own character ROM, so the glyph shapes, character spacing and print quality modes are those of the machine being imitated rather than a generic font. The ImageWriter II, for instance, carries separate ROMs for draft, standard and near-letter-quality output in both fixed and proportional spacing.
+
+## Connecting a Printer
+
+A printer needs the right interface card installed:
+
+- **Epson FX-80** and **Apple DMP** need a **Parallel Card** in slot 1 or 2.
+- **ImageWriter I** and **ImageWriter II** need a **Super Serial Card** in slot 1 or 2.
+
+Install the card from **View > Expansion Slots** (see [[Expansion-Slots]]), then choose the printer model in the Printer window.
+
+Printer sounds can be toggled independently; they are wired to the same main volume control as the speaker and drives.
+
+## Printing from the Apple
+
+Printing works exactly as on real hardware -- redirect output to the slot holding the interface card:
+
+```
+PR#1            REM send output to slot 1
+CATALOG         REM this now goes to the printer
+PR#0            REM back to the screen
+```
+
+From Applesoft you can also `PRINT CHR$(4);"PR#1"` inside a program. Software with its own printer setup (AppleWorks, Print Shop) should be pointed at whichever slot holds the card.
+
+## The Print Browser
+
+The Print Browser collects completed pages so you can go back through a session's output. Pages can be saved as images, and the paper rendering is what gets exported -- what you see is what you get.
+
+## Editing the Printer Fonts
+
+The glyph banks the models render from can be authored in a standalone editor at **`/printers/rom-editor.html`**.
+
+- Draws characters dot by dot on the model's own glyph grid.
+- Handles the alternate-language code points each printer swapped in per locale.
+- Imports and exports either as a ROM module or as ASCII dot art.
+- Traces over a scan of a manual's character chart, so a font can be rebuilt from the page it was printed on.
+
+It is one plain page with no build step and no imports, so it opens straight off disk as readily as from the emulator. The printer ROM modules in the source tree remain the authority — the editor's built-in defaults are generated from them, and a check in `npm run check` fails if the two drift apart.
+
+## How It Works
+
+The interface card receives bytes from the Apple exactly as the real hardware would: the Parallel Card takes Centronics-style strobed bytes, and the Super Serial Card runs them through an emulated **ACIA 6551**, so baud rate and framing behave as they should.
+
+Those bytes reach a printer emulation in `src/js/printer/`, which interprets the control codes of the selected model -- ESC/P for the Epson, Apple's own escape sequences for the DMP and ImageWriters -- and rasterises the result through the printer's character ROM onto the paper canvas.
+
+Because the printer is driven by the byte stream rather than by intercepting BASIC, anything that talks to the card prints correctly, including software that does its own graphics by sending column-addressed bit patterns.
+
+The printer emulation is covered by characterization tests in `tests/js/`, which capture the event stream from `PrinterBase.setEventSink()` -- so a change in how a control code is interpreted shows up as a test diff rather than as a subtly wrong page.
+
+---
+
+## See Also
+
+- [[Expansion-Slots]] -- installing the Parallel or Super Serial Card
+- [[Architecture-Overview]] -- where printer emulation sits in the JavaScript layer

@@ -37,7 +37,7 @@ The emulator translates modern keyboard input to Apple IIe key codes. Standard a
 | Your Keyboard | Apple //e Key | Notes |
 |---------------|---------------|-------|
 | Left Alt | Open Apple | Modifier key, joystick button 0 |
-| Right Alt | Closed Apple (Solid Apple) | Modifier key, joystick button 1 |
+| Right Alt / Windows key | Closed Apple (Solid Apple) | Modifier key, joystick button 1 |
 | Ctrl | Control | Control key modifier |
 | Shift | Shift | Shift modifier |
 | Caps Lock | Caps Lock | Tracked and sent to the emulator core |
@@ -67,6 +67,8 @@ These shortcuts are handled by the emulator's JavaScript layer, not the Apple II
 | Ctrl+\` | Open the Window Switcher overlay |
 | Option+Tab | Cycle focus to the next open window |
 | Option+Shift+Tab | Cycle focus to the previous open window |
+
+The arrow keys can additionally drive the joystick -- see the Cursor Keys toggle in [[Input-Devices]]. They keep working as keys while it is on.
 
 ## Debugger Shortcuts
 

@@ -76,6 +76,14 @@ export class DocumentationWindow extends BaseWindow {
             </svg>
             Install App
           </button>
+          <button data-section="machines">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <rect x="3" y="3" width="18" height="13" rx="2"/>
+              <line x1="7" y1="20" x2="17" y2="20"/>
+              <line x1="12" y1="16" x2="12" y2="20"/>
+            </svg>
+            Machines
+          </button>
           <button data-section="keyboard">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <rect x="2" y="4" width="20" height="16" rx="2"/>
@@ -217,6 +225,7 @@ export class DocumentationWindow extends BaseWindow {
 
         <h4>What is the Apple //e?</h4>
         <p>The Apple //e (Enhanced) was Apple's most popular Apple II model, released in 1983. It featured 128KB of RAM with auxiliary memory, 80-column text display, double hi-res graphics (560x192), and ran thousands of educational, productivity, and entertainment programs.</p>
+        <p>It is not the only machine here. The badge in the header names the machine you are running, and clicking it lets you switch to an <strong>Apple II Plus</strong> &mdash; see <strong>Machines</strong> for what differs and what the II+ needs before it will start.</p>
 
         <h4>Emulated Hardware</h4>
         <ul>
@@ -226,8 +235,8 @@ export class DocumentationWindow extends BaseWindow {
           <li><strong>Storage:</strong> Two Disk II floppy drives, SmartPort hard drives</li>
           <li><strong>Audio:</strong> Speaker with accurate timing, Mockingboard (dual AY-3-8910)</li>
           <li><strong>Expansion:</strong> Disk II, Mockingboard, Mouse Card, Thunderclock Plus, Super Serial Card, Parallel Card, Microsoft Z-80 SoftCard, SmartPort, and a No-Slot Clock</li>
-          <li><strong>Peripherals:</strong> Virtual dot-matrix printer, joystick / paddles, and physical game controllers</li>
-          <li><strong>ROM:</strong> Apple //e Enhanced ROM set</li>
+          <li><strong>Peripherals:</strong> Virtual dot-matrix printer, joystick / paddles or a Sirius Joyport, and physical game controllers</li>
+          <li><strong>ROM:</strong> Apple //e Enhanced ROM set (the Apple II Plus supplies its own &mdash; see Machines)</li>
         </ul>
 
         <div class="info-box tip">
@@ -283,6 +292,32 @@ export class DocumentationWindow extends BaseWindow {
         <div class="info-box info">
           <p><strong>Note:</strong> Your saved state, disk images, and settings are preserved across updates.</p>
         </div>
+      </section>
+
+      <!-- Machines Section -->
+      <section id="doc-machines" class="documentation-section">
+        <h3>Machines</h3>
+        <p>The emulator runs one machine at a time, and the badge in the header names it. Click the badge to choose a different one.</p>
+
+        <h4>Apple //e</h4>
+        <p>The 1983 Enhanced //e: a 65C02 at 1.023 MHz, 128KB of RAM as 64KB main plus 64KB auxiliary, 80-column text, double hi-res, and a built-in 80-column card locked into slot 3. This is the default and needs nothing extra.</p>
+
+        <h4>Apple II Plus</h4>
+        <p>The 1979 machine most of the software you remember was written on. Its differences from the //e are real, not cosmetic:</p>
+        <ul>
+          <li><strong>An NMOS 6502</strong> rather than a 65C02, so the 65C02-only instructions are not there.</li>
+          <li><strong>No auxiliary bank.</strong> The //e's memory and display switches manage nothing on a II+, which is what makes 80-column text and every double-resolution mode genuinely unavailable rather than merely switched off.</li>
+          <li><strong>Its own character generator, and only one character set.</strong> There is no second bank to switch to, so the alternate set is not offered.</li>
+          <li><strong>It never switches off the colour burst.</strong> A //e kills the burst on text lines and shows crisp white text; a II+ sends a reference on every line, so its text fringes green and violet in every mode &mdash; exactly as the real machine did.</li>
+          <li><strong>Slot 0 exists</strong> and holds the language card, which is how a 48K machine becomes the 64K one nearly all II+ software expects. Slot 3 is free for anything, since there is no built-in 80-column card to occupy it.</li>
+        </ul>
+
+        <div class="info-box warning">
+          <p><strong>The Apple II Plus needs its own ROMs.</strong> They are not distributed with the emulator. Without them the machine is still listed but marked unavailable, rather than quietly failing to reach a prompt. See the project README for which ROM images to supply and where to put them before building.</p>
+        </div>
+
+        <h4>Switching machines</h4>
+        <p>Switching rebuilds the machine from scratch, so anything in the drives or in memory is lost &mdash; exactly as it would be on a page reload. The menu warns you before it does it. What does follow you across is everything that was your choice rather than the machine's: display settings, volume, character set and CPU speed. Each machine remembers its own expansion slot layout, so a card fitted to one does not turn up in the other, and the machine you last chose is restored the next time you open the emulator.</p>
       </section>
 
       <!-- Keyboard Reference Section -->
@@ -372,7 +407,8 @@ export class DocumentationWindow extends BaseWindow {
         <h4>Joystick, Paddles &amp; Game Controllers</h4>
         <p>Open <strong>View &gt; Joystick / Paddles</strong> for an on-screen controller with a draggable pad, PDL0/PDL1 gauges, and button 0/1 (Open/Closed Apple) indicators.</p>
         <ul>
-          <li><strong>Physical controllers:</strong> Enable the <strong>Gamepad</strong> toggle to use a connected game controller via the browser Gamepad API. The left stick maps to the paddles and the A/B buttons to Apple buttons 0/1, with an adjustable deadzone.</li>
+          <li><strong>Game port:</strong> The selector at the top of the window chooses what is plugged into the machine's game connector &mdash; an <strong>Apple Joystick</strong> (the usual analog paddles) or a <strong>Sirius Joyport</strong>. The Joyport was Sirius Software's 1981 adapter, and it put two Atari-style digital sticks on the same connector: switches rather than potentiometers, so nothing has to wait for a capacitor, and two players rather than one. Most Sirius games offer &quot;Apple Joystick&quot; or &quot;Joyport&quot; as a choice on their title screen &mdash; pick the one that matches this selector. Choosing the Joyport swaps the paddle knob for a pair of digital sticks, each with a D-pad and a fire button you can hold with the mouse. The choice is remembered, and survives a reset and a change of machine. (A real Joyport idles the two pushbutton lines high, and on a //e those lines <em>are</em> the Open and Closed Apple keys &mdash; so a //e with one fitted ran its self test at every reset instead of booting. Here the Joyport lets go of them for an instant after a reset, so the machine starts normally.)</li>
+          <li><strong>Physical controllers:</strong> Enable the <strong>Gamepad</strong> toggle to use a connected game controller via the browser Gamepad API. On an Apple Joystick the left stick maps to the paddles and the A/B buttons to Apple buttons 0/1, with an adjustable deadzone. On a Joyport either the D-pad or the left stick closes the four direction switches and A/B is fire; connect two controllers and each drives one stick, or leave one connected and it drives both so a game that reads the second stick still plays.</li>
           <li><strong>Cursor keys as joystick:</strong> A <strong>JOY</strong> toggle in the screen window's title bar makes the arrow keys drive full-deflection joystick input for games that expect a joystick. The arrows still reach the emulator as ordinary keys, so ProDOS and BASIC navigation keeps working while it is on. The label highlights green while active, and the setting is remembered between sessions.</li>
         </ul>
       </section>
@@ -836,6 +872,9 @@ export class DocumentationWindow extends BaseWindow {
           </tbody>
         </table>
         <p>Custom widths and form lengths set by dragging the paper edges are kept within the carriage limits of the selected model (for example the ImageWriter II accepts a 3&Prime;&ndash;9&Prime; body and a 1&Prime;&ndash;69&Prime; form length).</p>
+
+        <h4>Editing the printer fonts</h4>
+        <p>The glyph banks the models render from can be authored in a standalone editor at <code>/printers/rom-editor.html</code>. It draws characters dot by dot, handles the alternate-language code points each printer swapped in per locale, imports and exports either as a ROM module or as ASCII dot art, and can trace over a scan of a manual's character chart so a font can be rebuilt from the page it was printed on. It is one plain page with no build step, so it opens straight off disk as readily as from the emulator.</p>
 
         <h4>Print History &amp; Print Browser</h4>
         <p>Every page is captured automatically as it exits the printer and stored in your browser, so output survives closing the window or reloading the page. Open <strong>View &gt; Print Browser...</strong> to review your full print history:</p>
