@@ -66,7 +66,7 @@ make -j$(sysctl -n hw.ncpu)
 ctest --verbose
 ```
 
-Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk images (DSK/WOZ/GCR), expansion cards (Disk II, Mockingboard, Thunderclock, Mouse, SmartPort, SSC), filesystems (DOS 3.3, ProDOS, Pascal), BASIC tokenizer/detokenizer, assembler, disassembler, keyboard, the Sirius Joyport, condition evaluator, machine profiles (each machine's numbers, the registry, that the subsystems take their timing from the profile they were handed, and that the II+'s differences are real — an NMOS CPU, the //e's soft switches ignored, and colour burst left on in text mode), and full emulator integration.
+Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk images (DSK/WOZ/GCR), expansion cards (Disk II, the IWM behind a //c's drive, Mockingboard, Thunderclock, Mouse, SmartPort, SSC), filesystems (DOS 3.3, ProDOS, Pascal), BASIC tokenizer/detokenizer, assembler, disassembler, keyboard, the Sirius Joyport, condition evaluator, machine profiles (each machine's numbers, the registry, that the subsystems take their timing from the profile they were handed, that the II+'s differences are real — an NMOS CPU, the //e's soft switches ignored, and colour burst left on in text mode — and that the //c is a //e in its numbers but has no expansion sockets, so every slot it decodes is fixed and every slot address reads its own ROM — each machine also booted to its prompt), the IWM (that it reads the same nibbles off the same image as the card, and that its register file answers to the Q7/Q6 pair), a //c's serial ports (where the ACIA answers, both directions of the line, and that its firmware drives them through PR# and IN#), a //c's IOU mouse (each switch, one interrupt per step, and its own firmware tracking a mouse across the screen and back to the clamp), and full emulator integration — including every machine booting DOS 3.3 through the controller it has.
 
 ## Architecture
 
@@ -84,15 +84,19 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 - `assembler/` - Merlin-compatible 65C02 assembler (see Assembler below)
 - `input/keyboard.cpp` - Keyboard input handling
 - `input/joyport.cpp` - Sirius Joyport (two Atari-style digital sticks on the game connector)
+- `input/mouse_iou.cpp` - A //c's mouse: IOU soft switches and an interrupt per unit of travel, rather than a card
 - `machine/machine_profile.hpp` - Per-machine description (CPU variant, timing, memory sizes, display geometry, capabilities, slot layout) and the registry of machines. See Machine Profiles below
 - `cards/` - Pluggable expansion card system (ExpansionCard interface)
-- `cards/disk2/` - Disk II controller card
+- `cards/disk_controller.*` - The 5.25" drive mechanism both machines share: two drives, the stepper, the motor and Woz's Logic State Sequencer clocked from the P6 ROM
+- `cards/disk2/` - Disk II controller card: the shared controller plus its P5A boot ROM
+- `cards/iwm/` - Integrated Woz Machine, a //c's controller: the shared controller plus the status/handshake/mode registers, and no ROM
 - `cards/mockingboard/` - AY-3-8910 sound chip + VIA 6522 timer + Mockingboard card
 - `cards/mouse/` - Apple Mouse Interface Card
 - `cards/parallel/` - Centronics parallel card (drives Epson FX-80 and Apple DMP)
 - `cards/smartport/` - SmartPort hard drive controller (2 block devices, self-built ROM)
 - `cards/softcard/` - Microsoft Z-80 SoftCard with Z80 CPU emulation
 - `cards/ssc/` - Super Serial Card with ACIA 6551 (drives ImageWriter I and ImageWriter II)
+- `cards/serial/` - A //c's two built-in serial ports: the SSC's ACIA 6551 with no card around it and no ROM
 - `cards/thunderclock/` - Thunderclock Plus real-time clock card
 - `filesystem/` - DOS 3.3, ProDOS and Pascal filesystem parsers, plus DOS 3.3 and ProDOS *writers* (`DOS33::writeFile`/`writeBinaryFile`, `ProDOS::writeFile`) used by the assembler's Merlin `DSK` directive; results are reported through the shared `FsWriteStatus` in `fs_write_status.hpp`
 - `basic/` - Applesoft and Integer BASIC detokenizer, tokenizer, token tables, and
@@ -121,12 +125,32 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 - `utils/` - Shared utilities (storage, string, BASIC)
 - `windows/` - Base window class and window manager
 
+### Interrupts
+
+**The IRQ input is a level, and the CPU samples it every instruction.**
+`CPU6502::irq()` is an edge, latched until the CPU can take it — that is how a
+device interrupting while the I flag is set is not forgotten — but the line
+itself is polled through `setIRQStatusCallback()`, a predicate the `Emulator`
+builds from the devices that can hold it down: the Mockingboard's VIAs, the
+mouse (a card's, or a //c's IOU), and the serial ports. Without the poll, a
+handler that returns without clearing its device is never re-entered, and a
+device that lets go can still deliver one more interrupt from the latch —
+neither of which is what the hardware does.
+
+The predicate is deliberately a handful of null checks against pointers the
+`Emulator` already holds, not a walk of the slot array asking every card: the
+CPU dispatch loop is the hottest code here and eight virtual calls per
+instruction would be paying for devices that do not exist. It is also only
+sampled while the I flag is clear, which costs under 1% rather than ~4%. A card
+that can hold the line and is not in that list is still heard through its own
+edge; what it cannot do is re-interrupt a handler that ignored it.
+
 ### Machine Profiles
 
 The emulator models one machine at a time, and which machine it is comes from a
 **profile**: `src/core/machine/machine_profile.hpp` holds a `MachineProfile`
-per machine and a registry of them. There are two, `APPLE_IIE_PROFILE` and
-`APPLE_II_PLUS_PROFILE`.
+per machine and a registry of them. There are three, `APPLE_IIE_PROFILE`,
+`APPLE_II_PLUS_PROFILE` and `APPLE_IIC_PROFILE`.
 
 **The profile is data, not polymorphism.** The parts of a machine that differ
 between a //e, a II+ and a IIgs are overwhelmingly numbers — a clock rate, a
@@ -296,6 +320,84 @@ stays empty — "never configured" and "deliberately stripped" are different
 states. The single pre-machine key is read once as the //e's starting point,
 copied under the //e's own key, and then left alone; an orphan costs nothing,
 and losing somebody's layout to a mistake in that copy would cost more.
+
+#### The Apple //c
+
+A //e folded into a slab: the same 65C02, the same 128K, the same IOU and MMU,
+so every number in timing, memory and display is the //e's and almost every
+capability is too. What differs is the back of the machine.
+
+**It has no expansion sockets, but it decodes all seven slot addresses.** The
+firmware and everything written for a //e depend on those addresses, so each
+one answers to a part soldered to the board: two 6551 serial ports in slots 1
+and 2, the 80-column firmware in slot 3, the mouse in slot 4, and the disk port
+in slot 6. Every slot is therefore a *fixed* slot — the part of `MachineSlot` a
+//e exercises only in slot 3 — and `caps.hasExpansionSlots` is false, which is
+what stops the slot window offering a card to a machine that has nowhere to
+take one.
+
+**That capability is also a memory rule.** With no socket there is nowhere for
+a card's ROM to live, so the firmware for all of it is inside the 16KB system
+ROM and `$C100-$CFFF` reads the internal ROM whatever INTCXROM and SLOTC3ROM
+say: those switches choose between the internal ROM and a slot that does not
+exist. `MMU::read` and `MMU::peek` take that branch first, before the switches.
+Without it the region reads zeroes, the reset lands on a `BRK`, and the vector
+sends it to another one — a //c wedged at `$C803` before drawing anything.
+
+**Two smaller differences are modelled.** 4KB of character generator rather
+than 8KB, so there is no second set to ask for; and a disk that is not a Disk
+II — the drive hangs off an IWM at `$C0E0`, so slot 6 names `"iwm"` rather than
+the card a //e fits there.
+
+**Its disk is an IWM, and the sequencer under it is the card's.** The chip
+decodes the same sixteen addresses at `$C0E0-$C0EF` and means the same things
+by them, so what is below it — the drives, the stepper, the motor, the LSS — is
+`DiskController`, shared with `Disk2Card`; `IWM` adds the register file a read
+sees in front of it (data, status, handshake, and a mode register writable only
+with the motor off) and has no ROM, because a //c's disk firmware is in the
+system ROM rather than in slot 6's 256 bytes. Which class gets built is the
+profile's `slots[6].fixedCard`, and `Emulator::getDisk()` hands out the base,
+so nothing the host asks about a drive had to change. A //c boots DOS 3.3 from
+the drive in its case.
+
+**Its serial ports are the SSC's ACIA with no card around it.** Slots 1 and 2
+each hold a `SerialPort` composing an `ACIA6551` at the slot's offsets 8-B —
+`$C098-$C09B` and `$C0A8-$C0AB`, the same four addresses an SSC answers — so
+`PR#1` and `IN#2` work off the machine's own firmware. There is deliberately no
+base class shared with `SSCCard`: what the two have in common *is* the ACIA and
+they already share it by composing it, the way the hardware does. What is left
+over is a card's DIP switches and 2KB ROM against a port's nothing, and a base
+class holding four forwarding methods would describe a part that does not
+exist. This is the other half of the IWM's rule — share a mechanism, not a
+resemblance.
+
+The host's serial calls (`setSerialTxCallback`, `serialReceive`) serve both
+machines, because the question is about a serial line rather than about what
+provides it: transmit goes to every port there is, and a byte arriving from
+outside goes to port 2, the modem port, since a printer does not talk back.
+
+**Its mouse is the IOU, and is the one part that is not a card at all.** A //e's
+mouse is an MC6821 in a slot with a ROM and a command protocol; a //c's is two
+quadrature lines into the IOU, so `MouseIOU` (`input/mouse_iou.cpp`) is owned by
+the `Emulator` and hooked into `MMU::readSoftSwitch`/`writeSoftSwitch` by a
+pointer that is null on every other machine — which is what keeps a //e's
+`$C015`, `$C063` and `$C066` exactly as they were. The profile names "mouse" in
+slot 4 only because that is where a //c's mouse *firmware* lives.
+
+Two things about it are load-bearing:
+
+- **Travel is interrupts, not a delta.** The IOU counts nothing. Each unit of
+  movement toggles X0, the edge raises an IRQ, and the firmware's handler reads
+  X1 for the direction and adds one to a position in slot 4's screen holes. So
+  host movement is banked and released one step at a time, and never onto a
+  flag the handler has not cleared — releasing them faster loses the ones in
+  between, which looks like a mouse that moves part of the way and sticks.
+- **`$C015` and `$C017` report; only `$C048` clears.** Table 9-2 of the //c
+  Technical Reference calls them RstXInt and RstYInt and says a read resets
+  them, and the machine's own handler proves otherwise: it reads `$C015` and
+  ORs `$C017` to see whether either fired, BITs each again to see which, then
+  writes `$C048` when it is done. A read that cleared would send every X
+  movement down the Y path. The firmware is the authority, not the table.
 
 #### Choosing a machine
 
@@ -858,6 +960,7 @@ src/
 │   │   ├── smartport/     # SmartPort hard drive controller
 │   │   ├── softcard/      # Microsoft Z-80 SoftCard
 │   │   │   └── z80/       # Z80 CPU emulation core
+│   │   ├── serial/        # A //c's built-in serial ports (compose ACIA 6551)
 │   │   ├── ssc/           # Super Serial Card + ACIA 6551
 │   │   └── thunderclock/  # Thunderclock Plus real-time clock
 │   ├── filesystem/     # DOS 3.3, ProDOS and Pascal parsers; DOS 3.3/ProDOS file writing
@@ -948,6 +1051,7 @@ class ExpansionCard {
 - `SmartPortCard` (`cards/smartport/`) - SmartPort hard drive controller, 2 block devices, self-built ROM (user-configurable slot)
 - `SoftCardZ80` (`cards/softcard/`) - Microsoft Z-80 SoftCard with Z80 CPU emulation (`cards/softcard/z80/`)
 - `SSCCard` (`cards/ssc/`) - Super Serial Card with ACIA 6551; drives ImageWriter I and ImageWriter II virtual printers (slots 1–2)
+- `SerialPort` (`cards/serial/`) - One of a //c's two built-in ports: the same ACIA 6551, no DIP switches and no ROM (slots 1 and 2, fixed)
 - `ThunderclockCard` (`cards/thunderclock/`) - ProDOS-compatible real-time clock (slots 5, 7)
 - `NoSlotClock` - DS1215 real-time clock piggybacking on $C300 ROM (not a slot card; toggle in Expansion Slots UI)
 

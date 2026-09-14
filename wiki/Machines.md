@@ -2,7 +2,7 @@
 
 The emulator models one machine at a time, and the badge in the header names it. Click the badge to choose a different one.
 
-There are two: the **Apple //e** and the **Apple II Plus**.
+There are three: the **Apple //e**, the **Apple II Plus** and the **Apple //c**.
 
 ---
 
@@ -11,6 +11,7 @@ There are two: the **Apple //e** and the **Apple II Plus**.
 - [Choosing a Machine](#choosing-a-machine)
 - [Apple //e](#apple-e)
 - [Apple II Plus](#apple-ii-plus)
+- [Apple //c](#apple-c)
 - [What Survives a Switch](#what-survives-a-switch)
 - [ROMs](#roms)
 - [How It Works](#how-it-works)
@@ -53,7 +54,7 @@ The 1979 machine most of the software you remember was written on. Its differenc
 | Graphics | Lo-Res and Hi-Res only |
 | Character sets | One |
 | Slots | 0–7, with the language card fixed in slot 0 and slot 3 free |
-| ROMs | **You supply them** — see [ROMs](#roms) |
+| ROMs | 16KB firmware at `$C000-$FFFF`, plus a 4KB character generator |
 
 ### No auxiliary bank
 
@@ -76,6 +77,62 @@ The UK character set is a second bank inside the //e's larger ROM. A II Plus has
 A II Plus motherboard has eight slots, numbered from 0. Slot 0 holds the 16K language card, which is how a 48K machine becomes the 64K one nearly all II Plus software expects. It is fitted as a **fixed** card: the bank switching at `$C080-$C08F` is the same hardware a //e carries on its motherboard, and is not something you could pull out.
 
 Slot 3 is free, since there is no built-in 80-column card to occupy it.
+
+## Apple //c
+
+The 1984 portable: a //e folded into a slab, with the drive in the case and nothing to plug a card into. It boots, reads disks, prints, takes a mouse and runs software.
+
+| | |
+|---|---|
+| CPU | 65C02 at 1.023 MHz |
+| RAM | 128KB — 64KB main plus a 64KB auxiliary bank, soldered down |
+| Text | 40 and 80 columns |
+| Graphics | Lo-Res, Double Lo-Res, Hi-Res, Double Hi-Res |
+| Character sets | One |
+| Slots | None. The slot addresses are decoded, but every one is soldered |
+| ROMs | 16KB firmware at `$C000-$FFFF`, plus a 4KB character generator |
+
+The machine modelled is the original //c, ROM 255: one internal 5.25" drive and an external port, no UniDisk 3.5 and no memory expansion — both arrived on later ROMs and put different things in slots 4 and 5.
+
+### The same custom chips as a //e
+
+A //c carries the //e's IOU and MMU, so every number in its timing, memory and display is the //e's, and so is nearly every capability. Its text is crisp white for the same reason a //e's is, it runs the same 65C02, and it answers the same soft switches. What differs is the back of the machine.
+
+### No slots, only slot addresses
+
+A //c has no expansion sockets at all. The firmware and every program written for a //e still expect to find peripherals at slot addresses, so the machine decodes all seven — but each one answers to a part soldered to the board:
+
+| Slot | What is there |
+|---|---|
+| 1 | Serial port 1 — the printer port, a 6551 with no handshake lines |
+| 2 | Serial port 2 — the modem port, a 6551 with the full set |
+| 3 | 80-column firmware, where a //e has its card |
+| 4 | The mouse, built in |
+| 5 | Nothing |
+| 6 | The disk port: an IWM driving the internal drive and the external connector |
+| 7 | Nothing |
+
+The slot window shows them all, and none of them can be changed. Slots 5 and 7 are listed as having no socket rather than being offered a card, which is the difference between a machine whose slots are empty and one that has no slots.
+
+Because there is no socket, there is nowhere for a card's ROM to live either: the firmware for the serial ports, the mouse and the drive is part of the 16KB system ROM. `$C100-$CFFF` therefore reads the internal ROM on a //c whatever INTCXROM and SLOTC3ROM say — those switches choose between the internal ROM and a slot that does not exist. A //e with an empty slot reads the floating bus at the same addresses.
+
+### The disk is an IWM, not a card
+
+Slot 6 decodes the sixteen addresses a Disk II card does, and the chip Apple soldered there answers them: the Integrated Woz Machine, the same controller in one package. The drives, the stepper, the motor and the sequencer are the same code the card uses; what the IWM adds is a register file — status, handshake and a mode register — and what it lacks is a `$C600` boot ROM, because a //c's disk firmware is part of its system ROM. A //c boots DOS 3.3 and ProDOS from the drive in its case exactly as a //e does from a card. See [[Disk-System-Internals]].
+
+### The serial ports are the SSC's chip without the card
+
+Slots 1 and 2 each hold a 6551 ACIA — the same chip a Super Serial Card carries, at the same four addresses within the slot (`$C098-$C09B` and `$C0A8-$C0AB`). So `PR#1` sends what the machine prints out of the printer port, and `IN#2` takes what arrives at the modem port, both through the //c's own firmware. An ImageWriter attached to the printer port prints exactly as one on an SSC does; the Printer window offers it without a card being installed, because on this machine there is nothing to install.
+
+What a port does not have is the card's other half: no DIP switches to set its speed (the firmware keeps that), and no ROM, since a //c's serial firmware is part of the system ROM.
+
+### The mouse is the IOU, not a card
+
+A //e's mouse is a card in a slot: a PIA, a ROM, and a command protocol the firmware talks over the PIA's ports. A //c's mouse plugs into the back panel and its two quadrature lines go straight into the IOU, so what software gets is a handful of soft switches — `$C058-$C05F` to allow and shape the interrupts, `$C015` and `$C017` to say which axis moved, `$C066` and `$C067` for which way, `$C063` for the button, `$C048` to acknowledge.
+
+There is no counter in the hardware. Every unit of travel is an interrupt, and the firmware in the system ROM reads the direction and adds one to a position it keeps in slot 4's screen holes; the button is sampled in the same handler's vertical-blanking path. Slot 4 names "mouse" in the slot window for that firmware's sake, but there is nothing in a socket and nothing to remove.
+
+Mouse-driven software — MousePaint, AppleWorks' mouse support — therefore works on a //c with no card installed, and the mouse is captured in the browser exactly as it is on a //e (see [[Input-Devices]]).
 
 ## What Survives a Switch
 
@@ -104,18 +161,25 @@ A II Plus motherboard carries six 2KB ROMs in sockets D0 to F8 covering `$D000-$
 - **or** `apple2plus.rom` (12KB, `$D000-$FFFF`)
 - `341-0036.bin` (2KB character generator)
 
+The //c carries one 16KB ROM covering `$C000-$FFFF` and a 4KB character generator:
+
+- `342-0272-A.bin` (16KB, `$C000-$FFFF`) **or** `apple2c.rom`
+- `342-0265-A.bin` (4KB character generator; some dumps label the same part `341-0265-A.bin`, which is also accepted)
+
+`342-0272-A` is ROM 255, the original //c, which is the machine the profile describes. The later 32KB ROMs — `342-0033-A` (ROM 0), `341-0445-A` and `341-0445-B` (ROMs 3 and 4) — are bank-switched and carry different peripherals in slots 4 and 5, so they are a different machine and are not taken.
+
 Put them in `roms/` and rebuild. Without them the machine is still fully described and still listed in the menu, but is marked **unavailable** — a machine that could never reach a prompt is not offered rather than failing silently.
 
 ## How It Works
 
 A machine is **data, not polymorphism**. What differs between a //e and a II Plus is overwhelmingly numbers — a clock rate, a scanline count, how much RAM answers, which CPU is fitted, whether the video generator inhibits colour burst in text mode — and those live in a `MachineProfile` struct that the subsystems read.
 
-They are deliberately not virtual methods. `MMU::read`, the video emitters and the CPU dispatch loop are the hottest code in the emulator, and an indirect call on a per-cycle or per-dot path would cost real speed to serve a machine count of two. The rule is: **a number or a flag goes in the profile; a different mechanism goes in a different class that the profile names.**
+They are deliberately not virtual methods. `MMU::read`, the video emitters and the CPU dispatch loop are the hottest code in the emulator, and an indirect call on a per-cycle or per-dot path would cost real speed to serve a machine count of three. The rule is: **a number or a flag goes in the profile; a different mechanism goes in a different class that the profile names.**
 
-Every profile is validated at compile time — that a scanline is its blanking plus one cycle per visible column, that a machine with no auxiliary bank does not claim auxiliary RAM, that double hi-res does not exist without 80 columns, that nothing is fitted to a slot the machine does not have — so a broken profile does not compile.
+Every profile is validated at compile time — that a scanline is its blanking plus one cycle per visible column, that a machine with no auxiliary bank does not claim auxiliary RAM, that double hi-res does not exist without 80 columns, that nothing is fitted to a slot the machine does not have, that a machine with no sockets ships nothing the user could then remove — so a broken profile does not compile.
 
 Save states carry the machine id in their header, and a state saved on one machine is refused by the other rather than being read as garbage.
 
-Adding a third machine needs a profile entry, a subsystem class for anything that is a different mechanism rather than a different number, and its ROMs. Nothing in the browser layer needs to know.
+Adding a machine needs a profile entry, a subsystem class for anything that is a different mechanism rather than a different number, and its ROMs. Nothing in the browser layer needs to know: the //c arrived in the menu, the slot window and the window title without any of them being told about it, because all three read the profile.
 
 See also: [[Expansion-Slots]], [[Input-Devices]], [[Architecture-Overview]], [[Video-Rendering]]
