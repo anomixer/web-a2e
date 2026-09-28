@@ -86,6 +86,8 @@ import { EmulationSpeed, clockLabel } from "./ui/emulation-speed.js";
 import { StateManager } from "./state/state-manager.js";
 import { SaveStatesWindow } from "./state/save-states-window.js";
 import { AgentManager } from "./agent/index.js";
+import { installDesktopHost } from "./platform/desktop-host.js";
+import { initNativeMenu } from "./platform/native-menu.js";
 import { SerialManager } from "./serial/serial-manager.js";
 import { DockManager } from "./docking/index.js";
 import {
@@ -625,7 +627,10 @@ class AppleIIeEmulator {
       this.reminderController.showPowerReminder(true);
       this.autostart();
 
-      console.log("Apple //e Emulator initialized");
+      // The desktop build's menu bar, read off the header now that it is wired.
+      initNativeMenu();
+
+      console.log("ApplEm initialized");
     } catch (error) {
       console.error("Failed to initialize emulator:", error);
       this.showLoading(false);
@@ -1054,7 +1059,7 @@ class AppleIIeEmulator {
     this.reminderController = null;
     this.uiController = null;
 
-    console.log("Apple //e Emulator destroyed");
+    console.log("ApplEm destroyed");
   }
 }
 
@@ -1107,6 +1112,8 @@ if ("serviceWorker" in navigator && isInstalled) {
 
 // Initialize when DOM is ready
 document.addEventListener("DOMContentLoaded", () => {
+  installDesktopHost();
+
   // Display version in header
   const versionEl = document.getElementById("app-version");
   if (versionEl) {

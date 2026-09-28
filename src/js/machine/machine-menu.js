@@ -84,7 +84,7 @@ export class MachineMenu {
       this.trigger.title = `${machine.name} — click to change machine`;
     }
     // The tab follows too, so a window switcher shows which machine a tab runs.
-    document.title = `${machine.name} Emulator`;
+    document.title = `ApplEm \u00b7 ${machine.name}`;
   }
 
   /** Re-read the machine list and redraw the dropdown. */

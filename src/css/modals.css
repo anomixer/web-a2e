@@ -606,3 +606,8 @@ div.modal.hidden {
     background: var(--accent-blue);
     color: var(--bg-primary);
 }
+
+/* A reminder with nothing on screen to point at (see ReminderController). */
+.no-target .reminder-arrow {
+    display: none;
+}

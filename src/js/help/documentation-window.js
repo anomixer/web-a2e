@@ -213,7 +213,7 @@ export class DocumentationWindow extends BaseWindow {
       <!-- Getting Started Section -->
       <section id="doc-getting-started" class="documentation-section active">
         <h3>Getting Started</h3>
-        <p>Welcome to the Apple //e Emulator! This web-based emulator faithfully recreates the Apple //e Enhanced computer from 1983, allowing you to run classic Apple II software directly in your browser.</p>
+        <p>Welcome to ApplEm! It recreates four Apple II computers and runs their software directly in your browser or as a desktop app.</p>
 
         <h4>Quick Start</h4>
         <ol class="quick-start-list">
@@ -223,20 +223,25 @@ export class DocumentationWindow extends BaseWindow {
           <li>Type <kbd>PR#6</kbd> and press <kbd>Return</kbd> to boot from drive 1</li>
         </ol>
 
-        <h4>What is the Apple //e?</h4>
-        <p>The Apple //e (Enhanced) was Apple's most popular Apple II model, released in 1983. It featured 128KB of RAM with auxiliary memory, 80-column text display, double hi-res graphics (560x192), and ran thousands of educational, productivity, and entertainment programs.</p>
-        <p>It is not the only machine here. The badge in the header names the machine you are running, and clicking it lets you switch to an <strong>Apple II Plus</strong> &mdash; see <strong>Machines</strong> for what differs and what the II+ needs before it will start.</p>
+        <h4>The machines</h4>
+        <ul>
+          <li><strong>Apple II Plus</strong> (1979): a 6502, 48KB plus a 16KB language card, 40 columns and upper case</li>
+          <li><strong>Apple //e Enhanced</strong> (1983): a 65C02, 128KB, 80 columns and double hi-res. The default</li>
+          <li><strong>Apple //c</strong> (1984): a //e in a case, with its disk drive, serial ports and mouse built in</li>
+          <li><strong>Apple IIgs</strong> (1986): a 65C816 at 2.8 MHz, up to 8MB, Super Hi-Res and the Ensoniq synthesiser</li>
+        </ul>
+        <p>The badge in the header names the machine you are running, and clicking it lets you switch. See <strong>Machines</strong> for what each one has and what it needs before it will start.</p>
 
         <h4>Emulated Hardware</h4>
         <ul>
-          <li><strong>CPU:</strong> 65C02 processor at 1.023 MHz (cycle-accurate)</li>
-          <li><strong>Memory:</strong> 128KB RAM (64KB main + 64KB auxiliary)</li>
-          <li><strong>Video:</strong> All Apple //e display modes including Double Hi-Res</li>
+          <li><strong>CPU:</strong> 6502 or 65C02 at 1.023 MHz (cycle-accurate), and the IIgs's 65C816</li>
+          <li><strong>Memory:</strong> 64KB on a II Plus, 128KB on a //e and //c, 256KB to 8MB on a IIgs</li>
+          <li><strong>Video:</strong> Every Apple II display mode, from 40-column text to Double Hi-Res and Super Hi-Res</li>
           <li><strong>Storage:</strong> Two Disk II floppy drives, SmartPort hard drives</li>
           <li><strong>Audio:</strong> Speaker with accurate timing, Mockingboard (dual AY-3-8910)</li>
           <li><strong>Expansion:</strong> Disk II, Mockingboard, Mouse Card, Thunderclock Plus, Super Serial Card, Parallel Card, Microsoft Z-80 SoftCard, SmartPort, and a No-Slot Clock</li>
           <li><strong>Peripherals:</strong> Virtual dot-matrix printer, joystick / paddles or a Sirius Joyport, and physical game controllers</li>
-          <li><strong>ROM:</strong> Apple //e Enhanced ROM set (the Apple II Plus supplies its own &mdash; see Machines)</li>
+          <li><strong>ROM:</strong> Each machine's own ROM set; see Machines for which are built in</li>
         </ul>
 
         <div class="info-box tip">
@@ -252,7 +257,7 @@ export class DocumentationWindow extends BaseWindow {
         <h4>Chrome / Edge (Desktop)</h4>
         <ol class="quick-start-list">
           <li>Click the <strong>install icon</strong> in the address bar (right side)</li>
-          <li>Or click the <strong>three dots menu</strong> (⋮) and select "Install Apple //e Emulator"</li>
+          <li>Or click the <strong>three dots menu</strong> (⋮) and select "Install ApplEm"</li>
           <li>Click <strong>Install</strong> in the dialog</li>
           <li>The app will open in its own window and appear in your applications</li>
         </ol>

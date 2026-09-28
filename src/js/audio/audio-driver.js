@@ -113,23 +113,57 @@ export class AudioDriver {
     console.log("Audio driver started (relay mode)");
   }
 
+  /**
+   * Start the audio nodes once the context runs, however it comes to.
+   *
+   * A browser leaves a context created before any gesture suspended until
+   * something resumes it, and a click or a key press is what does. WebKit in a
+   * desktop app's webview (the Tauri build) has no such rule: it creates the
+   * context suspended and starts it by itself a moment later. So by the first
+   * click the context is already running; waiting for a gesture to find it
+   * suspended left the nodes never built and the machine free-running in
+   * silence for the rest of the session. The context's own statechange is
+   * therefore what starts the nodes, and a gesture only asks it to resume.
+   */
   setupAutoResumeAudio() {
+    const context = this.audioContext;
+    let started = false;
+
+    const startNodes = async () => {
+      // One context, one set of nodes: a stop() or a later start() owns the
+      // next context, and this one's events must not build anything for it.
+      if (started || this.audioContext !== context || context.state !== "running") return;
+      started = true;
+      removeGestureListeners();
+      context.removeEventListener("statechange", startNodes);
+      try {
+        console.log("Audio context running");
+        await this.initAudioNodes();
+      } catch (e) {
+        console.error("Failed to start audio nodes:", e);
+      }
+    };
+
     const resumeAudio = async () => {
-      if (this.audioContext && this.audioContext.state === "suspended") {
+      if (this.audioContext !== context) return removeGestureListeners();
+      if (context.state === "suspended") {
         try {
-          await this.audioContext.resume();
-          console.log("Audio context resumed");
-          await this.initAudioNodes();
+          await context.resume();
         } catch (e) {
           console.error("Failed to resume audio context:", e);
         }
       }
+      startNodes();
+    };
+
+    const removeGestureListeners = () => {
       document.removeEventListener("click", resumeAudio);
       document.removeEventListener("keydown", resumeAudio);
     };
 
-    document.addEventListener("click", resumeAudio, { once: true });
-    document.addEventListener("keydown", resumeAudio, { once: true });
+    context.addEventListener("statechange", startNodes);
+    document.addEventListener("click", resumeAudio);
+    document.addEventListener("keydown", resumeAudio);
   }
 
   async startWithWorklet() {

@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <meta
             name="description"
-            content="Apple II Enhanced emulator for the browser"
+            content="An Apple II emulator for the browser: the II Plus, //e, //c and IIgs"
         />
         <meta name="theme-color" content="#0a0a0b" />
         <meta name="mobile-web-app-capable" content="yes" />
@@ -13,11 +13,11 @@
             name="apple-mobile-web-app-status-bar-style"
             content="black-translucent"
         />
-        <meta name="apple-mobile-web-app-title" content="Apple //e" />
-        <title>Apple //e Emulator</title>
+        <meta name="apple-mobile-web-app-title" content="ApplEm" />
+        <title>ApplEm</title>
         <link rel="manifest" href="/manifest.json" />
-        <link rel="icon" type="image/svg+xml" href="/icons/icon-192.svg" />
-        <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
+        <link rel="icon" type="image/png" href="/icons/icon-192.png" />
+        <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
         <link
@@ -33,7 +33,7 @@
                         <img
                             class="logo-image"
                             src="/assets/applem-logo.png"
-                            alt="AppleEm"
+                            alt="ApplEm"
                         />
                         <!--
                           The machine badge. This used to be the second half of
@@ -705,7 +705,7 @@
                     <div class="loader-ring"></div>
                     <div class="loader-ring"></div>
                 </div>
-                <p>Initializing Apple //e...</p>
+                <p>Starting ApplEm...</p>
             </div>
 
             <!-- Power On Reminder -->
@@ -715,7 +715,9 @@
                     <div class="reminder-text">
                         <span class="reminder-title">Ready to go!</span>
                         <span class="reminder-hint"
-                            >Click the <strong>power button</strong> to start
+                            ><span data-desktop-html="Choose &lt;strong&gt;Machine &#8250; Power On&lt;/strong&gt;"
+                                >Click the <strong>power button</strong></span
+                            > to start
                             the <span id="power-reminder-machine">Apple //e</span></span
                         >
                     </div>
@@ -751,7 +753,9 @@
                 <div class="reminder-content">
                     <div class="reminder-text">
                         <span class="reminder-hint"
-                            >No disk? Press <strong>Ctrl+Reset</strong> for
+                            >No disk? <span data-desktop-html="Choose &lt;strong&gt;Machine &#8250; Ctrl+Reset&lt;/strong&gt;"
+                                >Press <strong>Ctrl+Reset</strong></span
+                            > for
                             Apple II BASIC</span
                         >
                     </div>

@@ -16,6 +16,13 @@ header {
     transition: transform 0.25s ease, opacity 0.25s ease;
 }
 
+/* The desktop build puts everything the header offers in the native menu
+   bar (src/js/platform/native-menu.js), so the window is all picture. The
+   header stays in the page, because it is still what the menu drives. */
+html.tauri-host header {
+    display: none;
+}
+
 /* Auto-hide header mode — fixed so it doesn't take flow space */
 header.auto-hide {
     position: fixed;
