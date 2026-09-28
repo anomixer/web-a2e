@@ -2205,10 +2205,24 @@ static a2e::SmartPortCard* smartPortCard() {
 
 EMSCRIPTEN_KEEPALIVE
 bool insertSmartPortImage(int device, uint8_t* data, int size, const char* filename) {
+  // A IIgs decides when its SmartPort's ROM may appear, so it goes through
+  // the machine rather than straight to the card.
+  if (g_iigs) {
+    return g_iigs->insertBlockImage(device, data, static_cast<size_t>(size),
+                                    filename ? filename : "");
+  }
   auto* card = smartPortCard();
   if (!card) return false;
   return card->insertImage(device, data, static_cast<size_t>(size),
                            filename ? filename : "");
+}
+
+// An image is in, but the ROM that boots from it waits for the next reset: a
+// IIgs's SmartPort replaces the machine's own slot 5 firmware only then.
+EMSCRIPTEN_KEEPALIVE
+bool isSmartPortROMPending() {
+  auto* card = smartPortCard();
+  return card && card->isROMPending();
 }
 
 EMSCRIPTEN_KEEPALIVE
