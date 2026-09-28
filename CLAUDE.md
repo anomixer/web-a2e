@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Apple //e Browser Based Emulator - A cycle-accurate Apple II Enhanced emulator running in the browser using WebAssembly (C++ backend) and WebGL rendering. No JavaScript frameworks; vanilla ES6 modules with Vite for bundling.
+ApplEm - A cycle-accurate Apple II emulator (II Plus, //e, //c and IIgs) running in the browser using WebAssembly (C++ backend) and WebGL rendering. No JavaScript frameworks; vanilla ES6 modules with Vite for bundling.
 
 ## Build Commands
 
@@ -18,7 +18,30 @@ npm run deploy        # Deploy to the configured rsync target (see .env.deploy.e
 npm test              # JavaScript tests (Vitest)
 npm run check         # check:exports + check:core-purity + check:basic-tokens + npm test
 npm run generate:basic-tokens  # Regenerate src/js/utils/basic-tokens.js from C++
+npm run tauri:dev     # Desktop app (Tauri v2) around the Vite dev server
+npm run tauri:build   # Desktop app bundle (.app/.dmg) in src-tauri/target/release/bundle
+npm run desktop:mac   # Desktop app signed with Developer ID, notarised and stapled
 ```
+
+## Desktop Build (Tauri)
+
+`src-tauri/` wraps the same frontend and WASM core in a native window, as
+web-spec's desktop build does; `docs/TAURI.md` has the detail. Three things
+are load-bearing:
+
+- **The packaged app serves itself on `http://localhost:47123`**
+  (`tauri-plugin-localhost`, COOP/COEP added in `src-tauri/src/lib.rs`).
+  WKWebView leaves `SharedArrayBuffer` undefined on Tauri's `tauri://` scheme
+  even when the page is cross-origin isolated. The port is fixed because it is
+  the origin every setting and save state is stored under. Only one copy runs
+  (`tauri-plugin-single-instance`), because a second would claim the same port.
+- **There is no header; the native menu bar is it.** `src/js/platform/native-menu.js`
+  reads the hidden header into a model and each native item clicks the control
+  it stands for, so no menu logic is duplicated. It rebuilds only when the model
+  changes, and always after a menu action (macOS flips a check item's tick itself).
+- **⌘ combinations the machine does not want go to the menu bar**, and ⌘Q
+  always does (`InputHandler.handleKeyDown`, desktop only). The screen otherwise
+  swallows every key, and WKWebView, unlike a browser, lets it.
 
 ## Deployment
 
@@ -124,6 +147,7 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 - `help/` - Documentation and release notes windows
 - `input/` - Keyboard input, text selection, joystick, mouse
 - `ui/` - Menu wiring, reminders, slot configuration, custom confirm dialogs
+- `platform/` - Desktop (Tauri) host: `runtime.js` (`isTauri()`), `desktop-host.js`, `native-menu.js`
 - `state/` - State serialization and persistence (autosave + 5 manual slots)
 - `config/` - App version
 - `utils/` - Shared utilities (storage, string, BASIC)
@@ -207,7 +231,11 @@ Three things in it are worth knowing:
   bank `$00` or `$01` lands in fast RAM *and* is copied to `$E0`/`$E1`, because
   the video only ever looks at the Mega II's side. Which regions those are is
   the `$C035` register, and its bits read backwards: a set bit turns a region's
-  shadowing **off**.
+  shadowing **off**. **The copy is a Mega II cycle and the processor waits for
+  it**, so a shadowed write costs a slow access whatever the speed register
+  says (`shadowWrite` reports whether it copied and `write` charges it, as
+  GSSquared's `megaiiWrite` does). Charged as fast, drawing ran up to a tenth
+  faster than a real machine beside it.
 - **`$C035` bit 6 changes what an address is**, rather than where a write also
   goes: with I/O and language card shadowing inhibited, banks `$00`/`$01` are
   plain RAM from `$C000` up, which is how a program gets a contiguous 128KB.
@@ -540,6 +568,16 @@ that answers at `$Cn00` whatever `$C02D` says, because a part the machine has is
 on the internal side of that switch. The machine's own slot 5 firmware is real
 but polls the IWM for a Sony 3.5" drive, so it cannot serve a block image; with
 nothing inserted the SmartPort has no ROM and that firmware shows through.
+**Which of the two answers at `$C5xx` changes only at reset**
+(`SmartPortCard::setROMFollowsReset`). At "Check startup device!" the firmware
+runs its slot 5 code over and over, and an image inserted then used to swap the
+SmartPort's ROM in under a CPU part way through the old code: the machine
+landed in the monitor at whatever byte its next instruction fell on. An image
+inserted while the machine runs is readable at once and its ROM takes over at
+the next Ctrl+Reset or power on (the host says so); one inserted before the CPU
+has run since reset latches straight away, which is how a machine started with
+an image boots from it; ejecting the last image leaves the ROM, answering "no
+device", until reset. `test_iigs_boot.cpp` inserts deep in `$C5xx` and pins both.
 `SmartPortCard::setExecutingAt` is how a trap card is told the CPU is executing
 its entry point rather than reading it — a 6502 has already advanced the program
 counter by then and a 65816 has not, and the card must not guess.
@@ -1499,6 +1537,14 @@ The emulator uses Web Audio API for precise timing:
 Sample *data* therefore never crosses the main thread; only the refill request does. Without `SharedArrayBuffer` the Worker falls back to posting samples for the main thread to relay, which works but puts a busy main thread in the audio path — and because audio paces the emulation, that shows up as speed instability rather than just crackle.
 
 This ensures consistent speed driven by the audio hardware clock.
+
+**A refill is one video frame, 800 samples, and the low-water mark is two.**
+The Worker publishes one picture per request, after running all of it, so a
+request spanning two frames drew both into the same framebuffer and the screen
+got 30 pictures a second (`REFILL_FRAMES` in `audio-worklet.js`). Frames still
+arrive with a few milliseconds of jitter against the display's refresh, and
+with two framebuffer slots one that lands just after another overwrites it:
+measured, about 53 of the 60 are shown.
 
 ### Free-Run Clock
 

@@ -1,4 +1,6 @@
-# Apple //e Browser Based Emulator
+# ApplEm
+
+An Apple II emulator for the browser and the desktop.
 
 A cycle-accurate Apple II emulator running in the browser using WebAssembly and WebGL. No JavaScript frameworks — vanilla ES6 modules with Vite for bundling. Having built native emulators in the past, this is my first attempt at a browser-based emulator, hopefully making it easier to allow cross platform users from making use of it :)
 
@@ -130,6 +132,18 @@ npm run dev           # Start dev server at localhost:3000 (hot-reload for JS on
 ```
 
 Open http://localhost:3000 in your browser.
+
+### Desktop App
+
+The same emulator also builds as a native desktop app with Tauri v2. Every
+menu the web app has is in the native menu bar instead, so the window is all
+screen. It needs Rust (`rustup`) as well; see `docs/TAURI.md`.
+
+```bash
+npm run tauri:dev     # Run it around the dev server
+npm run tauri:build   # Build ApplEm.app / .dmg into src-tauri/target/release/bundle
+npm run desktop:mac   # The same, signed with Developer ID and notarised (docs/TAURI.md)
+```
 
 ### Other Commands
 

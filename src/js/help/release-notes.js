@@ -11,6 +11,33 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "September 28, 2026",
+    features: [
+      {
+        title: "A desktop app for macOS",
+        description:
+          "ApplEm now builds as a native Mac app, with the header's menus in the menu bar and the whole window given to the picture.",
+      },
+    ],
+    fixes: [
+      {
+        title: "A IIgs no longer draws faster than the real machine",
+        description:
+          "A write to a shadowed screen has to reach the 1MHz side of the machine, and the processor waits for it. Those writes were charged at full speed, so drawing ran up to a tenth fast.",
+      },
+      {
+        title: "Every frame reaches the screen",
+        description:
+          "Audio asked for two frames of emulation at a time and only the second was shown, so the picture updated 30 times a second. It now asks for one, and the screen gets all 60.",
+      },
+      {
+        title: "A hard drive image inserted at \"Check startup device!\" no longer crashes a IIgs",
+        description:
+          "Its SmartPort firmware used to replace slot 5's while that code was running. It now takes over at the next Ctrl+Reset, and a message says so.",
+      },
+    ],
+  },
+  {
     week: "September 25, 2026",
     fixes: [
       {
