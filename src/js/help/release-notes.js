@@ -12,7 +12,24 @@
 export const RELEASE_NOTES = [
   {
     week: "September 29, 2026",
+    features: [
+      {
+        title: "Breakpoints on an address range",
+        description:
+          "Type a range such as $2000-$20FF in the CPU Debugger's Breakpoints tab. A read or write range watches every address in it, and an exec range stops when execution enters it.",
+      },
+      {
+        title: "Breakpoints on the stack pointer",
+        description:
+          "Choose SP as the source and give a value or a range. The machine stops when the stack pointer enters it, so $00-$3F catches a runaway stack.",
+      },
+    ],
     fixes: [
+      {
+        title: "A //e keeps its hard drive image across a reload",
+        description:
+          "Applying the saved slot layout at startup built a new, empty SmartPort card and lost the restored image. It is now restored after the layout is in place, and refitting a slot with the card it already holds changes nothing.",
+      },
       {
         title: "A watchpoint no longer crashes a SmartPort boot",
         description:

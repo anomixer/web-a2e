@@ -5,4 +5,4 @@
  *  Mike Daley <michael_daley@icloud.com>
  */
 
-export const VERSION = "1.8.2";
+export const VERSION = "1.8.3";
