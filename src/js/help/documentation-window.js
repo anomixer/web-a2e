@@ -999,6 +999,8 @@ export class DocumentationWindow extends BaseWindow {
         <ul>
           <li><strong>Type:</strong> Choose from <em>Exec</em> (execution), <em>Read</em> (memory read), <em>Write</em> (memory write), or <em>R/W</em> (read or write)</li>
           <li><strong>Address:</strong> Enter a hex address (e.g., <code>FF69</code>) or a symbol name if symbols are loaded</li>
+          <li><strong>Range:</strong> Enter two addresses with a dash (e.g., <code>$2000-$20FF</code>, or <code>HOME-COUT</code> with symbols). A Read, Write or R/W range watches every address in it. An Exec range stops when execution enters it, not on every instruction inside it, so Run carries on from a stop within the range</li>
+          <li><strong>SP:</strong> Choose <em>SP</em> as the source to stop on the stack pointer. Enter a value (<code>$F0</code>) to stop when SP reaches it, or a range (<code>$00-$3F</code>) to stop when SP enters it, which catches a runaway stack. The machine stops just after the instruction that moved SP. On a IIgs, SP is sixteen bits (<code>$01FF</code> in emulation mode)</li>
           <li><strong>Conditions:</strong> Optionally add a condition expression. Click the condition cell to open the Rule Builder, or type expressions directly:
             <ul>
               <li><code>A==#$FF</code> &mdash; break when accumulator equals $FF</li>

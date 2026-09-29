@@ -7,7 +7,7 @@
 
 import { BaseWindow } from "../windows/base-window.js";
 import { getSymbolInfo, getCategoryClass, ALL_SYMBOLS } from "./symbols.js";
-import { BreakpointManager } from "./breakpoint-manager.js";
+import { BreakpointManager, parseAddressRange } from "./breakpoint-manager.js";
 import { LabelManager } from "./label-manager.js";
 import {
   machineProcessor,
@@ -172,6 +172,7 @@ export class CPUDebuggerWindow extends BaseWindow {
               <select id="bp-source-select" title="Breakpoint source">
                 <option value="addr">Addr</option>
                 <option value="switch">Switch</option>
+                <option value="stack">SP</option>
               </select>
               <select id="bp-type-select" title="Breakpoint type">
                 <option value="exec">Exec</option>
@@ -179,7 +180,7 @@ export class CPUDebuggerWindow extends BaseWindow {
                 <option value="write">Write</option>
                 <option value="readwrite">R/W</option>
               </select>
-              <input type="text" id="breakpoint-input" placeholder="$XXXX" spellcheck="false">
+              <input type="text" id="breakpoint-input" placeholder="$XXXX or $XXXX-$YYYY" title="An address, or a range: $2000-$20FF" spellcheck="false">
               <select id="bp-switch-select" title="Soft switch" style="display:none"></select>
               <button class="cpu-dbg-add-btn" id="breakpoint-add-btn" title="Add breakpoint">+</button>
             </div>
@@ -379,9 +380,19 @@ export class CPUDebuggerWindow extends BaseWindow {
 
       bpSourceSelect.addEventListener("change", () => {
         const isSwitch = bpSourceSelect.value === "switch";
+        const isStack = bpSourceSelect.value === "stack";
         const bpInput = this.contentElement.querySelector("#breakpoint-input");
-        if (bpInput) bpInput.style.display = isSwitch ? "none" : "";
+        if (bpInput) {
+          bpInput.style.display = isSwitch ? "none" : "";
+          // A stack breakpoint is a value of SP or a range of them, and fires
+          // when SP enters it. Read, write and exec mean nothing for it.
+          bpInput.placeholder = isStack ? "SP $XX or $XX-$YY" : "$XXXX or $XXXX-$YYYY";
+          bpInput.title = isStack
+            ? "Stops when the stack pointer enters this value or range: $00-$3F catches a runaway stack"
+            : "An address, or a range: $2000-$20FF";
+        }
         bpSwitchSelect.style.display = isSwitch ? "" : "none";
+        if (bpTypeSelect) bpTypeSelect.style.display = isStack ? "none" : "";
 
         if (isSwitch) {
           // Hide Exec option, auto-select R/W
@@ -636,16 +647,32 @@ export class CPUDebuggerWindow extends BaseWindow {
           name,
         });
       }
+    } else if (sourceSelect && sourceSelect.value === "stack") {
+      // Stack pointer mode: a value of SP or a range of them, as wide as the
+      // processor's SP register (8 bits on a 6502, 16 on a 65816).
+      const input = this.contentElement.querySelector("#breakpoint-input");
+      if (!input) return;
+      const spMax = machineProcessor().registerBits > 8 ? 0xffff : 0xff;
+      const range = parseAddressRange(input.value, (part) => {
+        const m = part.match(/^\$?(?:0x)?([0-9A-Fa-f]{1,4})$/);
+        if (!m) return null;
+        const value = parseInt(m[1], 16);
+        return value <= spMax ? value : null;
+      });
+      if (range) {
+        this.bpManager.add(range.start, { type: "stack", endAddress: range.end });
+        input.value = "";
+      }
     } else {
-      // Address mode: parse the text input
+      // Address mode: an address or a range, symbols allowed at either end.
+      // A range is watched as a whole, and an exec range stops when the PC
+      // enters it.
       const input = this.contentElement.querySelector("#breakpoint-input");
       if (!input) return;
 
-      const text = input.value.trim();
-      const addr = this.resolveAddress(text) ?? parseInt(text, 16);
-
-      if (!isNaN(addr) && addr >= 0 && addr <= machineAddressMask()) {
-        this.bpManager.add(addr, { type });
+      const range = parseAddressRange(input.value, (part) => this.resolveAddress(part));
+      if (range && range.start >= 0 && range.end <= machineAddressMask()) {
+        this.bpManager.add(range.start, { type, endAddress: range.end });
         input.value = "";
       }
     }
@@ -884,6 +911,8 @@ export class CPUDebuggerWindow extends BaseWindow {
       ['_getDBR'],
       ['_getDirectPage'],
       ['_getCpuWidths'],
+      ['_isStackBreakpointHit'],
+      ['_getStackBreakpointHitLow'],
       // Negative centre address means "use the current PC" — see the
       // _disassembleRange export. Passing pc explicitly is impossible here
       // because we do not have it until this very batch returns.
@@ -933,7 +962,7 @@ export class CPUDebuggerWindow extends BaseWindow {
           this.wasmModule._setPaused(false);
           return;
         }
-        this._hitBpAddr = entry.address;
+        this._hitBpAddr = entry.key;
       } else if (!await this.bpManager.shouldBreak(wpAddr)) {
         // Fallback for direct-address match
         this.wasmModule._setPaused(false);
@@ -952,13 +981,26 @@ export class CPUDebuggerWindow extends BaseWindow {
       // covers every later update that re-examines the same still-set hit.
       if (tempHit || this.bpManager.isTempStop(bpAddr)) {
         this._hitBpAddr = bpAddr;
-      } else if (!await this.bpManager.shouldBreak(bpAddr)) {
-        // Condition not met - resume execution
+      } else {
+        // The breakpoint at this address, or a range the PC entered.
+        const entry = this.bpManager.findExec(bpAddr);
+        if (!entry || !await this.bpManager.shouldBreakEntry(entry)) {
+          // Condition not met - resume execution
+          this.wasmModule._setPaused(false);
+          return;
+        }
+        this._hitBpAddr = entry.key;
+      }
+    }
+
+    // A stack pointer breakpoint reports on its own, by the start of its range.
+    if (isPaused && results[S.STACK_BP_HIT]) {
+      const entry = this.bpManager.findStack(results[S.STACK_BP_LOW]);
+      if (!entry || !await this.bpManager.shouldBreakEntry(entry)) {
         this.wasmModule._setPaused(false);
         return;
-      } else {
-        this._hitBpAddr = bpAddr;
       }
+      this._hitBpAddr = entry.key;
     }
 
     // Clear hit address when running
@@ -1034,7 +1076,9 @@ export class CPUDebuggerWindow extends BaseWindow {
     DBR: 25,
     DP: 26,
     CPU_WIDTHS: 27,
-    DISASM: 28,
+    STACK_BP_HIT: 28,
+    STACK_BP_LOW: 29,
+    DISASM: 30,
   };
 
   /**
@@ -2015,6 +2059,7 @@ export class CPUDebuggerWindow extends BaseWindow {
     read: "R",
     write: "W",
     readwrite: "RW",
+    stack: "SP",
   };
 
   static BP_TYPE_TITLES = {
@@ -2022,6 +2067,7 @@ export class CPUDebuggerWindow extends BaseWindow {
     read: "Read watchpoint",
     write: "Write watchpoint",
     readwrite: "Read/Write watchpoint",
+    stack: "Stack pointer breakpoint: stops when SP enters this value or range",
   };
 
   static SOFT_SWITCH_GROUPS = [
@@ -2225,9 +2271,13 @@ export class CPUDebuggerWindow extends BaseWindow {
       if (addr === this._hitBpAddr) item.classList.add("hit");
 
       const typeIcon = CPUDebuggerWindow.BP_TYPE_ICONS[entry.type] || "●";
-      const typeTitle = CPUDebuggerWindow.BP_TYPE_TITLES[entry.type] || "";
+      let typeTitle = CPUDebuggerWindow.BP_TYPE_TITLES[entry.type] || "";
+      if (entry.type === "exec" && entry.endAddress !== entry.address) {
+        typeTitle = "Execution range: stops when the PC enters it";
+      }
       const typeClass =
-        entry.type === "exec" ? "bp-type-exec" : "bp-type-watch";
+        entry.type === "exec" ? "bp-type-exec"
+          : entry.type === "stack" ? "bp-type-stack" : "bp-type-watch";
 
       // Check if this is a named soft switch breakpoint with a range
       const isRange =
@@ -2247,6 +2297,14 @@ export class CPUDebuggerWindow extends BaseWindow {
         const rangeStr = isRange ? `$${startHex}-${endHex}` : `$${startHex}`;
         html += `<span class="bp-name" title="${rangeStr}">${entry.name}</span>`;
         html += `<span class="bp-range">${rangeStr}</span>`;
+      } else if (entry.type === "stack") {
+        const digits = machineProcessor().registerBits > 8 ? 4 : 2;
+        const hex = (v) => "$" + v.toString(16).toUpperCase().padStart(digits, "0");
+        const value = isRange ? `${hex(entry.address)}-${hex(entry.endAddress)}` : hex(entry.address);
+        html += `<span class="bp-addr bp-stack">SP ${value}</span>`;
+      } else if (isRange) {
+        const rangeStr = `${this.formatAddr(entry.address)}-${this.formatAddr(entry.endAddress)}`;
+        html += `<span class="bp-addr">${rangeStr}</span>`;
       } else {
         html += `<span class="bp-addr">${this.formatAddr(addr)}</span>`;
         // Symbol name for address
@@ -2311,7 +2369,7 @@ export class CPUDebuggerWindow extends BaseWindow {
     } else {
       // Fallback to prompt if Rule Builder not wired
       const condition = prompt(
-        `Condition for breakpoint at $${formatMachineAddress(addr)}:\n` +
+        `Condition for breakpoint at $${formatMachineAddress(entry.address)}:\n` +
           `Examples: A==#$FF, PEEK($00)==#$42, C==1 && X>=#$10`,
         entry.condition || "",
       );

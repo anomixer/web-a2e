@@ -27,6 +27,8 @@ const FIRE_AND_FORGET = new Set([
   '_setUKCharacterSet', '_setSerialTxCallback',
   '_stopDiskMotor',
   '_enableBreakpoint', '_addBreakpoint', '_removeBreakpoint',
+  '_addBreakpointRange', '_removeBreakpointRange', '_enableBreakpointRange',
+  '_addStackBreakpoint', '_removeStackBreakpoint', '_enableStackBreakpoint',
   '_clearTempBreakpoint',
   '_addWatchpoint', '_removeWatchpoint',
   '_clearBasicBreakpoints', '_clearBasicBreakpointHit',

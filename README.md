@@ -476,7 +476,7 @@ All debug windows are accessible from the **Debug** menu.
 | **Mouse Card** | PIA registers, position, mode, interrupt state |
 | **Rule Builder** | Complex conditional breakpoints with C-style expressions |
 
-The CPU debugger supports breakpoints (conditional with expression evaluation), watchpoints, beam breakpoints (video position with wildcard-scanline support), execution tracing, and a call stack viewer. Labels and symbols are supported for both system routines and user-defined addresses. Debugger state (breakpoints, watches, settings) persists across save/load.
+The CPU debugger supports breakpoints (conditional with expression evaluation) on an address, an address range or the stack pointer, watchpoints over an address or a range, beam breakpoints (video position with wildcard-scanline support), execution tracing, and a call stack viewer. Labels and symbols are supported for both system routines and user-defined addresses. Debugger state (breakpoints, watches, settings) persists across save/load.
 
 ## Dev Tools
 

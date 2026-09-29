@@ -827,6 +827,58 @@ uint32_t getBreakpointAddress() {
   return machineDebug()->breakpointAddress();
 }
 
+// An execution range fires when the PC enters it, and reports through the
+// breakpoint hit above with the PC that entered. Identified by its start.
+EMSCRIPTEN_KEEPALIVE
+void addBreakpointRange(uint32_t start, uint32_t end) {
+  REQUIRE_DEBUG();
+  machineDebug()->addBreakpointRange(start, end);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void removeBreakpointRange(uint32_t start) {
+  REQUIRE_DEBUG();
+  machineDebug()->removeBreakpointRange(start);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void enableBreakpointRange(uint32_t start, bool enabled) {
+  REQUIRE_DEBUG();
+  machineDebug()->enableBreakpointRange(start, enabled);
+}
+
+// A stack pointer breakpoint fires when SP enters [low, high], and has its own
+// hit because it is not an address the host can look a breakpoint up by.
+EMSCRIPTEN_KEEPALIVE
+void addStackBreakpoint(uint32_t low, uint32_t high) {
+  REQUIRE_DEBUG();
+  machineDebug()->addStackBreakpoint(low, high);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void removeStackBreakpoint(uint32_t low) {
+  REQUIRE_DEBUG();
+  machineDebug()->removeStackBreakpoint(low);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void enableStackBreakpoint(uint32_t low, bool enabled) {
+  REQUIRE_DEBUG();
+  machineDebug()->enableStackBreakpoint(low, enabled);
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool isStackBreakpointHit() {
+  REQUIRE_DEBUG_OR(false);
+  return machineDebug()->isStackBreakpointHit();
+}
+
+EMSCRIPTEN_KEEPALIVE
+uint32_t getStackBreakpointHitLow() {
+  REQUIRE_DEBUG_OR(0);
+  return machineDebug()->stackBreakpointHitLow();
+}
+
 // ============================================================================
 // BASIC Breakpoints
 // ============================================================================

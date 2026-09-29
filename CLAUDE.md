@@ -909,6 +909,14 @@ machine does not ship is *parked* in `diskStorage_`/`mbStorage_` rather than
 dropped, because `disk_` and `mockingboard_` still point at it and
 `setSlotCard()` fits it later from exactly those members.
 
+**Refitting a slot with the card it holds changes nothing**, and startup
+restores hard drive images only after the saved layout is applied
+(`main.js`, after `slotConfigWindow.create()`). Both matter: a refit builds a
+new, empty card, and a SmartPort's images are in the card, so a //e used to
+come back from every reload with its drive empty. The ordering covers a layout
+that moves the SmartPort, which the no-op alone would not.
+`test_emulator_disk.cpp` pins the refit.
+
 **Slot layouts are remembered per machine.** `src/js/machine/slot-storage.js`
 keys them by machine (`a2e-slot-config:apple2e`), because the machines do not
 agree about what a slot is: one shared layout put a II+'s slot 3 card into a
@@ -1861,6 +1869,20 @@ step.
   entry points are traps, and a peek that read them ran every block call
   twice: a //e booting a SmartPort image with any watchpoint set ended in
   the monitor. `test_mmu_slots.cpp` and `test_emulator_disk.cpp` pin it.
+- **Execution ranges and stack pointer breakpoints fire on entry.** An exec
+  breakpoint over `$2000-$20FF` stops when the PC moves from outside the range
+  to inside it, and a stack breakpoint (`MachineDebug::addStackBreakpoint`)
+  when SP does the same with its range; neither stops again while the value
+  stays inside, or Run inside a range would be Step. A range is primed by the
+  first check after it is added, so one put around the code the machine is
+  paused in does not fire on resume. Both are measured on every instruction
+  whatever else stops the machine, so entry is always relative to the
+  instruction before. A stack hit has its own flag (`_isStackBreakpointHit`),
+  because the host looks a PC hit up by address. The host keys stack entries
+  at `STACK_KEY_BASE` plus the value (`breakpoint-manager.js`), so SP `$F0`
+  and an exec breakpoint at `$00F0` can coexist. `test_machine_debug.cpp` pins
+  the rules and `test_emulator_debug.cpp`/`test_iigs_debug.cpp` pin them on a
+  running machine.
 - **`MachineDebug` (`core/debug/machine_debug.*`) is the mechanism**, owned by
   both `Emulator` and `IIgsMachine`: breakpoints (with the temporary one
   behind step over and step out), watchpoints, the trace ring and beam

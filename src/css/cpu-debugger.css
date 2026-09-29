@@ -1082,6 +1082,14 @@
     color: var(--accent-blue);
 }
 
+.cpu-bp-item .bp-type-stack {
+    color: var(--accent-purple);
+}
+
+.cpu-bp-item .bp-addr.bp-stack {
+    color: var(--accent-purple);
+}
+
 .cpu-bp-item .bp-addr {
     color: var(--accent-red);
     flex-shrink: 0;
