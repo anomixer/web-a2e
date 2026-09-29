@@ -430,6 +430,11 @@ class AppleIIeEmulator {
       // empty slot 4, and leaves mouse capture disabled until the next slot edit.
       await slotConfigWindow.create();
       this.windowManager.register(slotConfigWindow);
+
+      // Hard drive images go in only now, into the SmartPort the saved layout
+      // put wherever it put it. Restored any earlier, an image was inserted
+      // into the default card and lost when the layout was applied.
+      await this.hardDriveManager.restoreImages();
       this.slotConfigWindow = slotConfigWindow;
 
       // Release notes window

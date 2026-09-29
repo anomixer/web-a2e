@@ -79,8 +79,9 @@ export class HardDriveManager {
         this.closeRecentDropdown();
       }
     });
-
-    this.restoreImages();
+    // Saved images are restored by main.js once the saved slot layout is in
+    // the machine, not here: fitting that layout builds the SmartPort afresh
+    // when it moves, and an image restored before then went with the old card.
   }
 
   setupDevice(deviceNum) {
@@ -354,7 +355,7 @@ export class HardDriveManager {
       try {
         const imageData = await loadImageFromStorage(deviceNum);
         if (imageData) {
-          this.loadImageFromData(deviceNum, imageData.filename, imageData.data);
+          await this.loadImageFromData(deviceNum, imageData.filename, imageData.data);
         }
       } catch (error) {
         console.error(`Error restoring HD image for device ${deviceNum + 1}:`, error);
