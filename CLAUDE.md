@@ -1855,6 +1855,12 @@ because "this machine has none" is the answer. The alternative was a second
 set of exports and a second set of windows, and two of everything to keep in
 step.
 
+- **A peek must never read a card.** While a watchpoint is armed,
+  `MMU::read` peeks every address first so the callback has a value, so
+  `MMU::peek` asks a slot card for `peekROM`, not `readROM`. A SmartPort's
+  entry points are traps, and a peek that read them ran every block call
+  twice: a //e booting a SmartPort image with any watchpoint set ended in
+  the monitor. `test_mmu_slots.cpp` and `test_emulator_disk.cpp` pin it.
 - **`MachineDebug` (`core/debug/machine_debug.*`) is the mechanism**, owned by
   both `Emulator` and `IIgsMachine`: breakpoints (with the temporary one
   behind step over and step out), watchpoints, the trace ring and beam
