@@ -11,6 +11,21 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "September 29, 2026",
+    fixes: [
+      {
+        title: "A watchpoint no longer crashes a SmartPort boot",
+        description:
+          "With any watchpoint set, every SmartPort call on a //e ran twice, and booting a hard drive image such as Total Replay dropped into the monitor. Checking a watchpoint no longer triggers the card.",
+      },
+      {
+        title: "Frames that arrive together are both shown",
+        description:
+          "Frames are now queued rather than overwritten, so the screen shows all 60 a second instead of about 53.",
+      },
+    ],
+  },
+  {
     week: "September 28, 2026",
     features: [
       {
