@@ -66,8 +66,10 @@ them, and that a machine key is marshalled into the core's heap as a pointer
 rather than passed as a JavaScript string), the game port device (that an
 edited storage value falls back to the Apple joystick, and that an opposing
 pair of Joyport directions is dropped rather than sent), which menu items each
-machine is offered (`machine-availability`), and the save-state header the
-host reads to tell which machine wrote a state (`state-header`).
+machine is offered (`machine-availability`), the save-state header the
+host reads to tell which machine wrote a state (`state-header`), and the
+frame queue between the Worker and the renderer (`frame-queue`), including
+that the Worker never writes into the slot the renderer is holding.
 
 ### Consistency checks
 
@@ -1518,7 +1520,7 @@ Key patterns:
 
 When `SharedArrayBuffer` is available (requires the COOP/COEP headers Vite sets), `main.js:setupSharedBuffers()` allocates three buffers and both the framebuffer and audio bypass `postMessage` entirely:
 
-- **Framebuffer** — double-buffered (`FB_SLOTS`). The Worker writes the slot the renderer is not reading and publishes the index via `CTRL_FRAME_INDEX` + `CTRL_FRAME_READY`; `pollSharedFrame()` claims it with `Atomics.exchange`. This replaced allocating a fresh 860KB array every frame.
+- **Framebuffer** is a queue of four slots (`FB_SLOTS`, rules in `worker/frame-queue.js`, unit-tested). The Worker counts frames written (`CTRL_FRAMES_WRITTEN`) and the renderer counts frames taken (`CTRL_FRAMES_SHOWN`), each the only writer of its own counter, so no lock. Each refresh `pollFrame()` takes the *oldest* unshown frame, and jumps to the newest past `MAX_FRAME_BACKLOG`, so frames that arrive together are shown on successive refreshes instead of one hiding the other. At most `FB_SLOTS - 2` wait, which keeps the Worker out of the slot the renderer holds (a paused machine redraws it, a screenshot reads it). A full queue drops the new frame. `emulator-worker.js` is a classic Worker and carries its own copy of the producer half; keep the two in step. The postMessage fallback queues posted frames by the same rule. This replaced allocating a fresh 860KB array every frame.
 - **Audio ring** — the AudioWorklet reads generated samples directly, so the main thread is no longer in the audio critical path. Only the small refill request still routes through it.
 - **Control block** — Int32 status fields (see `CTRL_*` in `shared-buffers.js`). Currently only pause and frame state are consumed; the register fields are groundwork for removing debug-window RPCs.
 
@@ -1541,10 +1543,10 @@ This ensures consistent speed driven by the audio hardware clock.
 **A refill is one video frame, 800 samples, and the low-water mark is two.**
 The Worker publishes one picture per request, after running all of it, so a
 request spanning two frames drew both into the same framebuffer and the screen
-got 30 pictures a second (`REFILL_FRAMES` in `audio-worklet.js`). Frames still
-arrive with a few milliseconds of jitter against the display's refresh, and
-with two framebuffer slots one that lands just after another overwrites it:
-measured, about 53 of the 60 are shown.
+got 30 pictures a second (`REFILL_FRAMES` in `audio-worklet.js`). Frames
+still arrive with a few milliseconds of jitter against the display's refresh,
+which the frame queue absorbs: measured, 60 published and 60 shown, on both
+transports.
 
 ### Free-Run Clock
 

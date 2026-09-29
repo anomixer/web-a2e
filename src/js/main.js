@@ -58,9 +58,9 @@ import {
   FB_BYTES,
   FB_WIDTH,
   FB_HEIGHT,
-  CTRL_FRAME_READY,
-  CTRL_FRAME_INDEX,
+  FB_SLOTS,
 } from "./worker/shared-buffers.js";
+import { takeFrame, MAX_FRAME_BACKLOG } from "./worker/frame-queue.js";
 import { InputHandler, TextSelection, JoystickWindow, MouseHandler, GamepadHandler } from "./input/index.js";
 import { DiskManager } from "./disk-manager/index.js";
 import { DiskDrivesWindow } from "./disk-manager/disk-drives-window.js";
@@ -192,13 +192,16 @@ class AppleIIeEmulator {
       this.setupSharedBuffers();
 
       // Fallback transport, used when SharedArrayBuffer is unavailable (no
-      // COOP/COEP headers). Both paths end up setting _lastFramebuffer.
+      // COOP/COEP headers). Both paths end up setting _lastFramebuffer, and
+      // both queue frames rather than keep only the newest (see frame-queue.js):
+      // frames arrive to audio's timing, not the display's, and two that land
+      // between refreshes must both be shown.
       this.wasmModule.onAudioSamples = (samples) => {
         this.audioDriver.relaySamples(samples);
       };
+      this._postedFrames = [];
       this.wasmModule.onFrameReady = (fbData) => {
-        this._lastFramebuffer = fbData;
-        this.frameReady = true;
+        this._postedFrames.push(fbData);
       };
 
       // Set up input handler
@@ -872,10 +875,10 @@ class AppleIIeEmulator {
 
     this._sharedControl = new Int32Array(buffers.control);
     // One view per slot, created once, so picking up a frame costs no allocation.
-    this._sharedFrameViews = [
-      new Uint8Array(buffers.framebuffer, 0, FB_BYTES),
-      new Uint8Array(buffers.framebuffer, FB_BYTES, FB_BYTES),
-    ];
+    this._sharedFrameViews = Array.from(
+      { length: FB_SLOTS },
+      (_, slot) => new Uint8Array(buffers.framebuffer, slot * FB_BYTES, FB_BYTES),
+    );
 
     this.audioDriver.setSharedAudioBuffer(buffers.audio);
     this.wasmModule.configureSharedAudio(buffers.audio);
@@ -887,14 +890,29 @@ class AppleIIeEmulator {
   }
 
   /**
-   * Pick up a completed frame from the shared framebuffer, if one is waiting.
-   * Clearing the flag with exchange means we never re-upload the same frame.
+   * Take the next frame to show, if one has arrived since the last refresh.
+   *
+   * One frame per refresh, the oldest first, so frames that arrived together
+   * are shown on successive refreshes; past MAX_FRAME_BACKLOG the newest is
+   * taken instead, so a backlog costs a skipped frame rather than growing
+   * delay. The shared path's rules are in frame-queue.js, and the posted
+   * frames of the fallback path follow the same ones.
    */
-  pollSharedFrame() {
-    if (!this._sharedControl) return;
-    if (Atomics.exchange(this._sharedControl, CTRL_FRAME_READY, 0) !== 1) return;
-    const slot = Atomics.load(this._sharedControl, CTRL_FRAME_INDEX);
-    this._lastFramebuffer = this._sharedFrameViews[slot] || this._sharedFrameViews[0];
+  pollFrame() {
+    if (this._sharedControl) {
+      const slot = takeFrame(this._sharedControl);
+      if (slot < 0) return;
+      this._lastFramebuffer = this._sharedFrameViews[slot];
+      this.frameReady = true;
+      return;
+    }
+
+    const posted = this._postedFrames;
+    if (!posted || posted.length === 0) return;
+    this._lastFramebuffer =
+      posted.length > MAX_FRAME_BACKLOG ? posted[posted.length - 1] : posted[0];
+    if (posted.length > MAX_FRAME_BACKLOG) posted.length = 0;
+    else posted.shift();
     this.frameReady = true;
   }
 
@@ -942,7 +960,7 @@ class AppleIIeEmulator {
     const render = () => {
       try {
         this._renderFrameCount++;
-        this.pollSharedFrame();
+        this.pollFrame();
         this.windowManager.updateAll(this.wasmModule);
 
         // Throttle disk LED updates to ~15fps (every 4th frame)

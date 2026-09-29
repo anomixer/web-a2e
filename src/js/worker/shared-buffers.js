@@ -21,11 +21,10 @@
 export const FB_WIDTH = 848;
 export const FB_HEIGHT = 480;
 export const FB_BYTES = FB_WIDTH * FB_HEIGHT * 4; // RGBA, sized for the largest machine's frame (a IIgs's raster)
-// Two frames are allocated and written alternately: the Worker fills the half
-// the renderer is not reading, so a frame can never be torn by a write landing
-// mid-upload. Which half holds the newest complete frame is published in the
-// control block as CTRL_FRAME_INDEX.
-export const FB_SLOTS = 2;
+// Frames are queued rather than overwritten (see frame-queue.js), so frames
+// that arrive close together are all shown. Four slots: one the renderer is
+// holding, one being written, and two waiting. Must be a power of two.
+export const FB_SLOTS = 4;
 export const FB_TOTAL_BYTES = FB_BYTES * FB_SLOTS;
 
 // --- Audio ring buffer (Phase 2) ---
@@ -41,7 +40,7 @@ export const AUDIO_DATA_OFFSET = AUDIO_HEADER_BYTES; // byte offset of ring data
 
 // --- Control/status block (Phase 3) ---
 // All Int32 values, indexed by Int32 offset
-export const CTRL_FRAME_READY = 0;
+export const CTRL_FRAMES_WRITTEN = 0;               // frames the Worker has published
 export const CTRL_IS_PAUSED = 1;
 export const CTRL_PC = 2;
 export const CTRL_A = 3;
@@ -57,7 +56,7 @@ export const CTRL_BP_HIT = 12;
 export const CTRL_BP_ADDR = 13;
 export const CTRL_TOTAL_CYCLES_LO = 14;
 export const CTRL_TOTAL_CYCLES_HI = 15;
-export const CTRL_FRAME_INDEX = 16;                 // which framebuffer half holds the newest frame
+export const CTRL_FRAMES_SHOWN = 16;                // frames the renderer has taken (or skipped)
 export const CTRL_BLOCK_INTS = 64;                  // 256 bytes
 export const CTRL_BLOCK_BYTES = CTRL_BLOCK_INTS * 4;
 
