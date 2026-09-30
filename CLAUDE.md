@@ -155,6 +155,39 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 - `utils/` - Shared utilities (storage, string, BASIC)
 - `windows/` - Base window class and window manager
 
+### WOZ flux tracks
+
+A WOZ 2.1 image can hold some tracks as flux timings (the FLUX chunk: a
+second quarter-track map, over TMAP, naming TRKS entries whose bytes are
+125ns intervals between transitions, 255 carrying into the next byte).
+**They are played back by time, not converted to bits**, because the
+difference can be the copy protection: Sirius's Bandits writes parts of
+each track at 3.7us a cell and parts at 4.1us, and its loader times its latch
+reads to tell them apart. The bits are identical either way; converted to a
+bit stream, every one of those tracks failed its checksum and the boot
+retried track 1.5 for ever.
+
+`WozDiskImage::fluxToPulses` turns a track into a pulse stream with one bit
+per tick of the sequencer's clock (7 master cycles, exactly 45/176 of a flux
+tick), and `DiskImage::isTickTimed()`/`readTick()` let `clockLSS` take a pulse
+on whichever of its eight ticks it arrives, as the real P6 sequencer does,
+instead of one bit at phase 4. Three rules follow from it:
+
+- **The flux bytes are kept and saved as flux.** `exportData` writes a FLUX
+  chunk (on a block boundary, which INFO names) and TRKS covers its track
+  data. A save state carries the disk through `exportData`, so a state of a
+  flux disk that came back as bits would not boot.
+- **Writing to a flux track turns it into bits**, because what a drive lays
+  down is bits (`convertFluxTrackToBits`, interval rounding at the machine's
+  31.29-tick cell).
+- **The head keeps its angle** crossing between a flux track (position in
+  ticks) and a bit track (in cells): `moveHeadTo` rescales.
+
+`test_woz_disk_image.cpp` pins the timing, the precedence over TMAP, the
+save and the write. `test_emulator_disk.cpp` boots Bandits through a save
+state when `A2E_BANDITS_WOZ` points at the image, which is not in the
+repository, and fails at track 1.5 without the tick-timed sequencer.
+
 ### Interrupts
 
 **The IRQ input is a level, and the CPU samples it every instruction.**
