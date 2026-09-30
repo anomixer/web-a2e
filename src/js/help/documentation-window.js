@@ -213,7 +213,7 @@ export class DocumentationWindow extends BaseWindow {
       <!-- Getting Started Section -->
       <section id="doc-getting-started" class="documentation-section active">
         <h3>Getting Started</h3>
-        <p>Welcome to the Apple //e Emulator! This web-based emulator faithfully recreates the Apple //e Enhanced computer from 1983, allowing you to run classic Apple II software directly in your browser.</p>
+        <p>Welcome to ApplEm! It recreates four Apple II computers and runs their software directly in your browser or as a desktop app.</p>
 
         <h4>Quick Start</h4>
         <ol class="quick-start-list">
@@ -223,20 +223,25 @@ export class DocumentationWindow extends BaseWindow {
           <li>Type <kbd>PR#6</kbd> and press <kbd>Return</kbd> to boot from drive 1</li>
         </ol>
 
-        <h4>What is the Apple //e?</h4>
-        <p>The Apple //e (Enhanced) was Apple's most popular Apple II model, released in 1983. It featured 128KB of RAM with auxiliary memory, 80-column text display, double hi-res graphics (560x192), and ran thousands of educational, productivity, and entertainment programs.</p>
-        <p>It is not the only machine here. The badge in the header names the machine you are running, and clicking it lets you switch to an <strong>Apple II Plus</strong> &mdash; see <strong>Machines</strong> for what differs and what the II+ needs before it will start.</p>
+        <h4>The machines</h4>
+        <ul>
+          <li><strong>Apple II Plus</strong> (1979): a 6502, 48KB plus a 16KB language card, 40 columns and upper case</li>
+          <li><strong>Apple //e Enhanced</strong> (1983): a 65C02, 128KB, 80 columns and double hi-res. The default</li>
+          <li><strong>Apple //c</strong> (1984): a //e in a case, with its disk drive, serial ports and mouse built in</li>
+          <li><strong>Apple IIgs</strong> (1986): a 65C816 at 2.8 MHz, up to 8MB, Super Hi-Res and the Ensoniq synthesiser</li>
+        </ul>
+        <p>The badge in the header names the machine you are running, and clicking it lets you switch. See <strong>Machines</strong> for what each one has and what it needs before it will start.</p>
 
         <h4>Emulated Hardware</h4>
         <ul>
-          <li><strong>CPU:</strong> 65C02 processor at 1.023 MHz (cycle-accurate)</li>
-          <li><strong>Memory:</strong> 128KB RAM (64KB main + 64KB auxiliary)</li>
-          <li><strong>Video:</strong> All Apple //e display modes including Double Hi-Res</li>
+          <li><strong>CPU:</strong> 6502 or 65C02 at 1.023 MHz (cycle-accurate), and the IIgs's 65C816</li>
+          <li><strong>Memory:</strong> 64KB on a II Plus, 128KB on a //e and //c, 256KB to 8MB on a IIgs</li>
+          <li><strong>Video:</strong> Every Apple II display mode, from 40-column text to Double Hi-Res and Super Hi-Res</li>
           <li><strong>Storage:</strong> Two Disk II floppy drives, SmartPort hard drives</li>
           <li><strong>Audio:</strong> Speaker with accurate timing, Mockingboard (dual AY-3-8910)</li>
           <li><strong>Expansion:</strong> Disk II, Mockingboard, Mouse Card, Thunderclock Plus, Super Serial Card, Parallel Card, Microsoft Z-80 SoftCard, SmartPort, and a No-Slot Clock</li>
           <li><strong>Peripherals:</strong> Virtual dot-matrix printer, joystick / paddles or a Sirius Joyport, and physical game controllers</li>
-          <li><strong>ROM:</strong> Apple //e Enhanced ROM set (the Apple II Plus supplies its own &mdash; see Machines)</li>
+          <li><strong>ROM:</strong> Each machine's own ROM set; see Machines for which are built in</li>
         </ul>
 
         <div class="info-box tip">
@@ -252,7 +257,7 @@ export class DocumentationWindow extends BaseWindow {
         <h4>Chrome / Edge (Desktop)</h4>
         <ol class="quick-start-list">
           <li>Click the <strong>install icon</strong> in the address bar (right side)</li>
-          <li>Or click the <strong>three dots menu</strong> (⋮) and select "Install Apple //e Emulator"</li>
+          <li>Or click the <strong>three dots menu</strong> (⋮) and select "Install ApplEm"</li>
           <li>Click <strong>Install</strong> in the dialog</li>
           <li>The app will open in its own window and appear in your applications</li>
         </ol>
@@ -312,12 +317,31 @@ export class DocumentationWindow extends BaseWindow {
           <li><strong>Slot 0 exists</strong> and holds the language card, which is how a 48K machine becomes the 64K one nearly all II+ software expects. Slot 3 is free for anything, since there is no built-in 80-column card to occupy it.</li>
         </ul>
 
-        <div class="info-box warning">
-          <p><strong>The Apple II Plus needs its own ROMs.</strong> They are not distributed with the emulator. Without them the machine is still listed but marked unavailable, rather than quietly failing to reach a prompt. See the project README for which ROM images to supply and where to put them before building.</p>
-        </div>
+        <h4>Apple //c</h4>
+        <p>The 1984 portable: a //e folded into a slab. The same 65C02, the same 128KB, the same timing &mdash; what differs is the back of it.</p>
+        <ul>
+          <li><strong>No expansion sockets at all</strong>, but it decodes all seven slot addresses, because the firmware and everything written for a //e depend on them. Each one answers to a part soldered to the board.</li>
+          <li><strong>Two serial ports</strong> in slots 1 and 2, so <code>PR#1</code> prints and <code>IN#2</code> listens.</li>
+          <li><strong>A disk drive in its case</strong>, hanging off an Integrated Woz Machine rather than a Disk II card.</li>
+          <li><strong>A mouse that is not a card</strong> &mdash; two quadrature lines into the IOU, counted one interrupt per unit of travel. There is nothing to install and nothing to remove.</li>
+        </ul>
+        <p>Because there is nowhere to put a card, the Expansion Slots window is hidden on a //c rather than greyed out.</p>
+
+        <h4>Apple IIgs</h4>
+        <p>The 1986 machine that took the Apple II 16-bit. It boots GS/OS System 6.0.4 to the Finder, with a working mouse and sound.</p>
+        <ul>
+          <li><strong>A 65C816 at 2.8 MHz</strong> on a 24-bit bus, with 16-bit registers and two operating modes. It drops to 1.023 MHz whenever a drive is turning, exactly as the real machine does.</li>
+          <li><strong>256K to 8M of fast RAM</strong>, which you choose from the Machine menu and which is remembered.</li>
+          <li><strong>Super Hi-Res</strong> &mdash; 320 or 640 pixels wide with a palette per scanline &mdash; alongside every mode a //e has, because a IIgs contains a Mega II and a Mega II is a //e.</li>
+          <li><strong>An Ensoniq</strong> with thirty-two oscillators, and a speaker as well.</li>
+          <li><strong>A battery-backed clock</strong> whose Control Panel settings survive a reload.</li>
+          <li><strong>A SmartPort in slot 5</strong>, part of the machine rather than a card you fit, serving hard drive images to GS/OS.</li>
+        </ul>
 
         <h4>Switching machines</h4>
-        <p>Switching rebuilds the machine from scratch, so anything in the drives or in memory is lost &mdash; exactly as it would be on a page reload. The menu warns you before it does it. What does follow you across is everything that was your choice rather than the machine's: display settings, volume, character set and CPU speed. Each machine remembers its own expansion slot layout, so a card fitted to one does not turn up in the other, and the machine you last chose is restored the next time you open the emulator.</p>
+        <p>Switching rebuilds the machine from scratch, so anything in the drives or in memory is lost &mdash; exactly as it would be on a page reload. The menu warns you before it does it. What follows you across is what was your choice rather than the machine's: volume, character set and CPU speed. What is remembered <em>per machine</em> is its expansion slot layout, its display settings, its save states, and whether &#8984; acts as Open Apple &mdash; so returning to a machine brings back the way you had it. The machine you last chose is restored the next time you open the emulator.</p>
+
+        <p>Menu items for hardware the running machine does not have are hidden rather than disabled. A greyed-out &ldquo;Expansion Slots&rdquo; on a //c would only raise the question of how to enable it, and the answer is a different computer.</p>
       </section>
 
       <!-- Keyboard Reference Section -->
@@ -332,10 +356,12 @@ export class DocumentationWindow extends BaseWindow {
           </thead>
           <tbody>
             <tr><td><kbd>Enter</kbd></td><td>Return</td><td>Confirm input, run commands</td></tr>
-            <tr><td><kbd>Backspace</kbd></td><td>Delete</td><td>Delete character left</td></tr>
+            <tr><td><kbd>Backspace</kbd></td><td>Left arrow ($08)</td><td>Deletes to the left in Applesoft</td></tr>
+            <tr><td><kbd>Delete</kbd> (forward delete)</td><td>Delete ($7F)</td><td>The key marked DELETE on a //e, //c and IIgs</td></tr>
             <tr><td><kbd>Esc</kbd></td><td>Escape</td><td>Cancel, exit menus</td></tr>
             <tr><td><kbd>Tab</kbd></td><td>Tab</td><td>Tab character</td></tr>
             <tr><td><kbd>&#8592;</kbd> <kbd>&#8594;</kbd> <kbd>&#8593;</kbd> <kbd>&#8595;</kbd></td><td>Arrow Keys</td><td>Cursor movement, game controls</td></tr>
+            <tr><td>Numeric keypad</td><td>Digits, * + - . / and Return</td><td>As the main keys; a IIgs flags them as keypad keys</td></tr>
           </tbody>
         </table>
 
@@ -345,12 +371,20 @@ export class DocumentationWindow extends BaseWindow {
             <tr><th>Your Keyboard</th><th>Apple //e Key</th><th>Notes</th></tr>
           </thead>
           <tbody>
-            <tr><td><kbd>Alt</kbd> (Left)</td><td>Open Apple (&#63743;)</td><td>Modifier key, joystick button 0</td></tr>
-            <tr><td><kbd>Alt</kbd> (Right)</td><td>Closed Apple</td><td>Modifier key, joystick button 1</td></tr>
-            <tr><td><kbd>Ctrl</kbd></td><td>Control</td><td>Control key modifier</td></tr>
-            <tr><td><kbd>Ctrl</kbd>+<kbd>Pause/Break</kbd></td><td>Reset</td><td>Warm reset (Ctrl+Reset)</td></tr>
+            <tr><td><kbd>Alt</kbd> / <kbd>Option</kbd> (Left)</td><td>Open Apple (&#63743;)</td><td>Modifier key, joystick button 0. A II+ has no Apple keys, so there it is just button 0</td></tr>
+            <tr><td><kbd>Alt</kbd> / <kbd>Option</kbd> (Right)</td><td>Closed Apple</td><td>Modifier key, joystick button 1 (just button 1 on a II+)</td></tr>
+            <tr><td><kbd>&#8984;</kbd></td><td>Open Apple, on a IIgs</td><td>See below. On the other machines &#8984; and the Windows key press nothing</td></tr>
+            <tr><td><kbd>Ctrl</kbd></td><td>Control</td><td>Control characters: Ctrl+A to Ctrl+Z, and Ctrl with @ [ \\ ] ^ _ for $00 and $1B-$1F; Ctrl+2, Ctrl+6 and Ctrl+- are Ctrl+@, Ctrl+^ and Ctrl+_ without Shift, as on a //e</td></tr>
+            <tr><td><kbd>Shift</kbd></td><td>Shift</td><td>On a //c it also pulls PB2 ($C063) low, as the real keyboard does</td></tr>
+            <tr><td><kbd>Caps Lock</kbd></td><td>Caps Lock</td><td>Upper case letters; a IIgs reports it in $C025</td></tr>
+            <tr><td><kbd>Ctrl</kbd>+<kbd>Pause/Break</kbd></td><td>Ctrl+Reset</td><td>Warm reset, on keyboards that have the key; the toolbar button does the same</td></tr>
           </tbody>
         </table>
+
+        <h4>Which key is Open Apple depends on the machine</h4>
+        <p>On the 8-bit machines the two Option keys are the Apple keys &mdash; left Open, right Closed &mdash; and &#8984; is left to the browser. A IIgs's keyboard is a Mac's: &#8984; <em>is</em> its Open Apple and Option its Closed Apple, and GS/OS drives its menus with &#8984;-letter, so on that machine the emulator takes &#8984; while it has the keyboard.</p>
+        <p><strong>View &gt; &#8984; as Open Apple</strong> is the switch. It is remembered per machine and is on by default for the IIgs only. Your browser still keeps &#8984;W, &#8984;Q and a few others for itself, which is why this is a choice rather than a rule.</p>
+        <p><strong>An Apple II Plus types upper case only.</strong> Its keyboard has no lower case and Applesoft on it rejects a lower-case keyword, so letters arrive as capitals whatever Shift or Caps Lock say.</p>
 
         <h4>Control Key Combinations</h4>
         <table class="key-table">
@@ -710,12 +744,19 @@ export class DocumentationWindow extends BaseWindow {
         <h4>What Gets Saved</h4>
         <ul>
           <li><strong>CPU State:</strong> All registers (A, X, Y, SP, PC) and flags</li>
-          <li><strong>Memory:</strong> Full 128KB RAM (main + auxiliary)</li>
+          <li><strong>Memory:</strong> Full 128KB RAM (main + auxiliary), and a IIgs's fast RAM as well</li>
           <li><strong>Language Card:</strong> 16KB Language Card RAM</li>
           <li><strong>Soft Switches:</strong> All memory banking and display modes</li>
-          <li><strong>Disk Drives:</strong> Complete disk images with modifications</li>
+          <li><strong>Expansion cards:</strong> Every slot, by card, with that card's own state</li>
+          <li><strong>Disk Drives:</strong> Complete disk images with modifications, hard drives included</li>
           <li><strong>Settings:</strong> Display, sound, and window positions</li>
         </ul>
+
+        <div class="info-box">
+          <p><strong>A state knows which machine wrote it.</strong> Every machine begins its state with the same header, so the emulator can tell a //e's from a IIgs's before loading either. Load a state saved on another machine and it offers to switch to that machine first &mdash; a save is a save of a whole computer, and asking for it back is asking for that computer back. Save slots and the autosave are kept per machine for the same reason.</p>
+        </div>
+
+        <p>A state that includes hard drive images can be tens of megabytes, because a SmartPort card's saved state <em>is</em> its images.</p>
 
         <h4>Auto-Save</h4>
         <p>When enabled (default), state is saved every 5 seconds while the emulator is running. Auto-save also triggers when:</p>
@@ -958,6 +999,8 @@ export class DocumentationWindow extends BaseWindow {
         <ul>
           <li><strong>Type:</strong> Choose from <em>Exec</em> (execution), <em>Read</em> (memory read), <em>Write</em> (memory write), or <em>R/W</em> (read or write)</li>
           <li><strong>Address:</strong> Enter a hex address (e.g., <code>FF69</code>) or a symbol name if symbols are loaded</li>
+          <li><strong>Range:</strong> Enter two addresses with a dash (e.g., <code>$2000-$20FF</code>, or <code>HOME-COUT</code> with symbols). A Read, Write or R/W range watches every address in it. An Exec range stops when execution enters it, not on every instruction inside it, so Run carries on from a stop within the range</li>
+          <li><strong>SP:</strong> Choose <em>SP</em> as the source to stop on the stack pointer. Enter a value (<code>$F0</code>) to stop when SP reaches it, or a range (<code>$00-$3F</code>) to stop when SP enters it, which catches a runaway stack. The machine stops just after the instruction that moved SP. On a IIgs, SP is sixteen bits (<code>$01FF</code> in emulation mode)</li>
           <li><strong>Conditions:</strong> Optionally add a condition expression. Click the condition cell to open the Rule Builder, or type expressions directly:
             <ul>
               <li><code>A==#$FF</code> &mdash; break when accumulator equals $FF</li>

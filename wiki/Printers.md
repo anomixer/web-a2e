@@ -23,8 +23,8 @@ Open **View > Printer...** for the printer and its paper, and **View > Print Bro
 |---------|-----------|-------|
 | **Epson FX-80** | Parallel Card | The de-facto standard dot-matrix printer; ESC/P command set |
 | **Apple DMP** | Parallel Card | Apple's Dot Matrix Printer |
-| **ImageWriter I** | Serial (SSC, or a //c's printer port) | Apple's serial dot-matrix printer |
-| **ImageWriter II** | Serial (SSC, or a //c's printer port) | Adds draft, standard and NLQ print qualities |
+| **ImageWriter I** | Serial (SSC, or a //c's or IIgs's printer port) | Apple's serial dot-matrix printer |
+| **ImageWriter II** | Serial (SSC, or a //c's or IIgs's printer port) | Adds draft, standard and NLQ print qualities |
 
 Each printer emulates its own character ROM, so the glyph shapes, character spacing and print quality modes are those of the machine being imitated rather than a generic font. The ImageWriter II, for instance, carries separate ROMs for draft, standard and near-letter-quality output in both fixed and proportional spacing.
 
@@ -33,7 +33,7 @@ Each printer emulates its own character ROM, so the glyph shapes, character spac
 A printer needs the right interface card installed:
 
 - **Epson FX-80** and **Apple DMP** need a **Parallel Card** in slot 1 or 2.
-- **ImageWriter I** and **ImageWriter II** need a serial port: a **Super Serial Card** in slot 1 or 2, or — on a //c — the printer port, which is already there and cannot be removed.
+- **ImageWriter I** and **ImageWriter II** need a serial port: a **Super Serial Card** in slot 1 or 2, or — on a //c or a IIgs — the printer port, which is already there and cannot be removed.
 
 Install the card from **View > Expansion Slots** (see [[Expansion-Slots]]), then choose the printer model in the Printer window.
 
@@ -55,6 +55,13 @@ From Applesoft you can also `PRINT CHR$(4);"PR#1"` inside a program. Software wi
 
 The Print Browser collects completed pages so you can go back through a session's output. Pages can be saved as images, and the paper rendering is what gets exported -- what you see is what you get.
 
+It is also where the earlier pages of a long print live. A browser will not host
+a canvas long enough for a whole multi-page job, so the paper on screen is a
+window a few pages deep and it scrolls as printing goes on; each page is written
+to the Print Browser as it leaves the top. Nothing is lost -- the PDF button and
+the multi-page PNG export both cover the whole job, not just the pages still on
+the paper.
+
 ## Editing the Printer Fonts
 
 The glyph banks the models render from can be authored in a standalone editor at **`/printers/rom-editor.html`**.
@@ -74,6 +81,28 @@ Those bytes reach a printer emulation in `src/js/printer/`, which interprets the
 
 Because the printer is driven by the byte stream rather than by intercepting BASIC, anything that talks to the card prints correctly, including software that does its own graphics by sending column-addressed bit patterns.
 
+### Graphics bands, and the Automatic Line Feed switch
+
+A GS/OS print is entirely graphics. The ImageWriter driver rasterises the page
+and sends it as 8-dot bands, writing `CR`, `ESC T 16`, `LF` before each one:
+16/144 of an inch is exactly eight dots at the head's 1/72" pitch, so the bands
+abut and the page comes out solid.
+
+The **Automatic Line Feed** switch interacts with that. It is on by default,
+because plain Apple II text printing needs it — Applesoft sends a bare `CR` and
+expects the paper to move — and the emulation treats a `CR`+`LF` pair as one
+line ending so text that sends both is not double spaced. What the driver puts
+between its `CR` and its `LF` is an escape that sets the distance for that very
+feed, so the pairing has to survive a control sequence that prints nothing.
+Before it did, every band fed twice and each printed line came out sliced in
+half by a 1/8" white stripe. Anything that lays ink down still ends the pairing,
+so `CR`, a character, `LF` feeds twice as it should.
+
+On a real ImageWriter the same stream behaves the same way, which is why Apple's
+instructions for GS/OS say to set the Automatic Line Feed DIP (SW2-1) **off**.
+Turning the switch off in the Printer window is still the exact setting: it also
+gives the driver's top margin back, which the pairing shortens by one feed.
+
 The printer emulation is covered by characterization tests in `tests/js/`, which capture the event stream from `PrinterBase.setEventSink()` -- so a change in how a control code is interpreted shows up as a test diff rather than as a subtly wrong page.
 
 ---
@@ -82,3 +111,16 @@ The printer emulation is covered by characterization tests in `tests/js/`, which
 
 - [[Expansion-Slots]] -- installing the Parallel or Super Serial Card
 - [[Architecture-Overview]] -- where printer emulation sits in the JavaScript layer
+
+## Printing from a IIgs
+
+A IIgs's two sockets are the two halves of one Z8530, and **which half is which was measured rather than reasoned about**: slot 1's firmware programs one pair of registers and slot 2's the other, so the **printer port is channel A** — the opposite of what both the address order and the port numbering suggest.
+
+The host's printer manager needs to know none of that. The IIgs profile names `serial1` and `serial2` in slots 1 and 2, exactly as a //c does, so an ImageWriter is found reachable without anything being told about a third kind of machine.
+
+Two things in that path print nothing at all when they are wrong, and both are worth knowing if a IIgs ever stops printing:
+
+- **An unplugged port answers as a device that is present and ready** — both CTS and DCD — because what is on the end of it is an emulated printer, and the firmware polls both before every character. A port that answered honestly sat in that loop for ever.
+- **The loopback cable between the two ports is not fitted by default.** It is a test rig that only the Apple IIgs Diagnostic's External Serial Ports Test asks for, and with it on, a byte the printer driver sends goes round to the other socket instead of out of the machine. It is a tick box in the Serial Port window, deliberately not remembered across sessions.
+
+**A GS/OS print is graphics, not text.** The ImageWriter driver rasterises each page into 8-dot bands and writes `CR`, `ESC T 16`, `LF` before each one — 16/144" is exactly eight dots at the head's pitch, so the bands abut. That pairing of carriage return and line feed has to survive an escape sequence that prints nothing, or every band feeds twice and each line comes out sliced in half by a white stripe.

@@ -10,18 +10,21 @@
 // This is the *allocation* size, not a description of the machine. A
 // SharedArrayBuffer cannot be resized after it is handed to the Worker and the
 // AudioWorklet, so the slot is sized once, up front, and has to be at least as
-// large as the framebuffer of any machine the core can run. Today that is the
-// //e's 560x384 and the two numbers coincide; a machine with a bigger picture
-// means raising these, and main.js checks the fit at startup rather than
-// letting a frame write past the end of the slot.
-export const FB_WIDTH = 560;
-export const FB_HEIGHT = 384;
-export const FB_BYTES = FB_WIDTH * FB_HEIGHT * 4; // 860,160 bytes RGBA
-// Two frames are allocated and written alternately: the Worker fills the half
-// the renderer is not reading, so a frame can never be torn by a write landing
-// mid-upload. Which half holds the newest complete frame is published in the
-// control block as CTRL_FRAME_INDEX.
-export const FB_SLOTS = 2;
+// large as the framebuffer of any machine the core can run.
+//
+// The biggest is the IIgs's: 640x400, which is a Super Hi-Res screen. The //e,
+// the II Plus and the //c all draw 560x384 into a slot that is larger than
+// they need, which costs 164KB of address space each and saves the transport
+// falling back to postMessage on the one machine that would not fit. main.js
+// still checks the fit at startup rather than letting a frame write past the
+// end of the slot.
+export const FB_WIDTH = 848;
+export const FB_HEIGHT = 480;
+export const FB_BYTES = FB_WIDTH * FB_HEIGHT * 4; // RGBA, sized for the largest machine's frame (a IIgs's raster)
+// Frames are queued rather than overwritten (see frame-queue.js), so frames
+// that arrive close together are all shown. Four slots: one the renderer is
+// holding, one being written, and two waiting. Must be a power of two.
+export const FB_SLOTS = 4;
 export const FB_TOTAL_BYTES = FB_BYTES * FB_SLOTS;
 
 // --- Audio ring buffer (Phase 2) ---
@@ -37,7 +40,7 @@ export const AUDIO_DATA_OFFSET = AUDIO_HEADER_BYTES; // byte offset of ring data
 
 // --- Control/status block (Phase 3) ---
 // All Int32 values, indexed by Int32 offset
-export const CTRL_FRAME_READY = 0;
+export const CTRL_FRAMES_WRITTEN = 0;               // frames the Worker has published
 export const CTRL_IS_PAUSED = 1;
 export const CTRL_PC = 2;
 export const CTRL_A = 3;
@@ -53,7 +56,7 @@ export const CTRL_BP_HIT = 12;
 export const CTRL_BP_ADDR = 13;
 export const CTRL_TOTAL_CYCLES_LO = 14;
 export const CTRL_TOTAL_CYCLES_HI = 15;
-export const CTRL_FRAME_INDEX = 16;                 // which framebuffer half holds the newest frame
+export const CTRL_FRAMES_SHOWN = 16;                // frames the renderer has taken (or skipped)
 export const CTRL_BLOCK_INTS = 64;                  // 256 bytes
 export const CTRL_BLOCK_BYTES = CTRL_BLOCK_INTS * 4;
 

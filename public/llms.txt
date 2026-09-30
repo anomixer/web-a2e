@@ -1,6 +1,6 @@
-# Apple //e Emulator
+# ApplEm
 
-> Cycle-accurate Apple IIe emulator running in the browser using WebAssembly.
+> Cycle-accurate Apple II emulator (II Plus, //e, //c and IIgs) running in the browser using WebAssembly.
 
 ## Default Tools
 

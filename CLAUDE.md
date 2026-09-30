@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Apple //e Browser Based Emulator - A cycle-accurate Apple II Enhanced emulator running in the browser using WebAssembly (C++ backend) and WebGL rendering. No JavaScript frameworks; vanilla ES6 modules with Vite for bundling.
+ApplEm - A cycle-accurate Apple II emulator (II Plus, //e, //c and IIgs) running in the browser using WebAssembly (C++ backend) and WebGL rendering. No JavaScript frameworks; vanilla ES6 modules with Vite for bundling.
 
 ## Build Commands
 
@@ -18,7 +18,30 @@ npm run deploy        # Deploy to the configured rsync target (see .env.deploy.e
 npm test              # JavaScript tests (Vitest)
 npm run check         # check:exports + check:core-purity + check:basic-tokens + npm test
 npm run generate:basic-tokens  # Regenerate src/js/utils/basic-tokens.js from C++
+npm run tauri:dev     # Desktop app (Tauri v2) around the Vite dev server
+npm run tauri:build   # Desktop app bundle (.app/.dmg) in src-tauri/target/release/bundle
+npm run desktop:mac   # Desktop app signed with Developer ID, notarised and stapled
 ```
+
+## Desktop Build (Tauri)
+
+`src-tauri/` wraps the same frontend and WASM core in a native window, as
+web-spec's desktop build does; `docs/TAURI.md` has the detail. Three things
+are load-bearing:
+
+- **The packaged app serves itself on `http://localhost:47123`**
+  (`tauri-plugin-localhost`, COOP/COEP added in `src-tauri/src/lib.rs`).
+  WKWebView leaves `SharedArrayBuffer` undefined on Tauri's `tauri://` scheme
+  even when the page is cross-origin isolated. The port is fixed because it is
+  the origin every setting and save state is stored under. Only one copy runs
+  (`tauri-plugin-single-instance`), because a second would claim the same port.
+- **There is no header; the native menu bar is it.** `src/js/platform/native-menu.js`
+  reads the hidden header into a model and each native item clicks the control
+  it stands for, so no menu logic is duplicated. It rebuilds only when the model
+  changes, and always after a menu action (macOS flips a check item's tick itself).
+- **⌘ combinations the machine does not want go to the menu bar**, and ⌘Q
+  always does (`InputHandler.handleKeyDown`, desktop only). The screen otherwise
+  swallows every key, and WKWebView, unlike a browser, lets it.
 
 ## Deployment
 
@@ -40,9 +63,13 @@ from `PrinterBase.setEventSink()`), the Applesoft listing parser, input
 mapping, and the host-side machine profile (that a fetch failure leaves callers
 with a usable //e rather than nothing, that a fetched profile actually reaches
 them, and that a machine key is marshalled into the core's heap as a pointer
-rather than passed as a JavaScript string), and the game port device (that an
+rather than passed as a JavaScript string), the game port device (that an
 edited storage value falls back to the Apple joystick, and that an opposing
-pair of Joyport directions is dropped rather than sent).
+pair of Joyport directions is dropped rather than sent), which menu items each
+machine is offered (`machine-availability`), the save-state header the
+host reads to tell which machine wrote a state (`state-header`), and the
+frame queue between the Worker and the renderer (`frame-queue`), including
+that the Worker never writes into the slot the renderer is holding.
 
 ### Consistency checks
 
@@ -66,7 +93,7 @@ make -j$(sysctl -n hw.ncpu)
 ctest --verbose
 ```
 
-Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk images (DSK/WOZ/GCR), expansion cards (Disk II, the IWM behind a //c's drive, Mockingboard, Thunderclock, Mouse, SmartPort, SSC), filesystems (DOS 3.3, ProDOS, Pascal), BASIC tokenizer/detokenizer, assembler, disassembler, keyboard, the Sirius Joyport, condition evaluator, machine profiles (each machine's numbers, the registry, that the subsystems take their timing from the profile they were handed, that the II+'s differences are real — an NMOS CPU, the //e's soft switches ignored, and colour burst left on in text mode — and that the //c is a //e in its numbers but has no expansion sockets, so every slot it decodes is fixed and every slot address reads its own ROM — each machine also booted to its prompt), the IWM (that it reads the same nibbles off the same image as the card, and that its register file answers to the Q7/Q6 pair), a //c's serial ports (where the ACIA answers, both directions of the line, and that its firmware drives them through PR# and IN#), a //c's IOU mouse (each switch, one interrupt per step, and its own firmware tracking a mouse across the screen and back to the clamp), and full emulator integration — including every machine booting DOS 3.3 through the controller it has.
+Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk images (DSK/WOZ/GCR), expansion cards (Disk II, the IWM behind a //c's drive, Mockingboard, Thunderclock, Mouse, SmartPort, SSC), filesystems (DOS 3.3, ProDOS, Pascal), BASIC tokenizer/detokenizer, assembler, disassembler, keyboard, the Sirius Joyport, condition evaluator, machine profiles (each machine's numbers, the registry, that the subsystems take their timing from the profile they were handed, that the II+'s differences are real — an NMOS CPU, the //e's soft switches ignored, and colour burst left on in text mode — and that the //c is a //e in its numbers but has no expansion sockets, so every slot it decodes is fixed and every slot address reads its own ROM — each machine also booted to its prompt), the IWM (that it reads the same nibbles off the same image as the card, and that its register file answers to the Q7/Q6 pair), a //c's serial ports (where the ACIA answers, both directions of the line, and that its firmware drives them through PR# and IN#), a //c's IOU mouse (each switch, one interrupt per step, and its own firmware tracking a mouse across the screen and back to the clamp), and full emulator integration — including every machine booting DOS 3.3 through the controller it has, the IIgs included (which also checks the image it booted from is byte-for-byte what went in).
 
 ## Architecture
 
@@ -75,16 +102,18 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 **C++ Core (src/core/)** - Pure emulation logic compiled to WebAssembly:
 
 - `cpu/6502/cpu6502.cpp` - Cycle-accurate 65C02 processor (1.023 MHz)
+- `cpu/65816/` - The IIgs's 65C816: 24-bit bus, 16-bit registers, native and emulation modes. `cpu65816.cpp` is bus, stack, addressing and operations; `cpu65816_dispatch.cpp` is the 256-opcode table
 - `mmu/mmu.cpp` - 128KB memory management, soft switches ($C000-$CFFF), expansion slots, and the video scanner address generator behind floating-bus reads (Sather's counter equations, so blanking cycles read real video data rather than zero)
 - `video/video.cpp` - TEXT/LORES/HIRES/DHIRES per-scanline rendering, split into a **signal stage** and a **decode stage** (see Composite Video below)
 - `video/ntsc.cpp` - NTSC composite demodulation, the ideal/RGB digital decoders, and the calibrated 16-colour palette they all share
 - `audio/audio.cpp` - Speaker emulation from $C030 toggles
 - `disk-image/` - Disk image format support (DSK/DO/PO/NIB/WOZ). `gcr_encoding` holds the one copy of the GCR encode/decode routines and the DOS/ProDOS sector interleave tables that both image classes and the filesystem readers use; plus `disk_converter` — converts a loaded image between save formats (DOS order, ProDOS order, WOZ), including encoding a sector image to a WOZ bit stream
-- `disassembler/` - 65C02 instruction disassembler
+- `disassembler/` - instruction disassemblers: `disassembler.*` is the 65C02's, `disassembler65816.*` the 65816's. They are separate because a 65816 has no illegal opcodes, 24-bit addresses, modes a 6502 never had, and instruction lengths that depend on the M and X flags — so the processor's state is an input to disassembly. Its table is read off `cpu65816_dispatch.cpp` rather than a datasheet, and `test_disassembler65816.cpp` executes every opcode on the CPU in both widths and both modes and checks the distance the program counter moved against the length reported
 - `assembler/` - Merlin-compatible 65C02 assembler (see Assembler below)
 - `input/keyboard.cpp` - Keyboard input handling
 - `input/joyport.cpp` - Sirius Joyport (two Atari-style digital sticks on the game connector)
 - `input/mouse_iou.cpp` - A //c's mouse: IOU soft switches and an interrupt per unit of travel, rather than a card
+- `iigs/` - The Apple IIgs's own parts, kept apart from every other machine's. `iigs_spec.hpp` holds the numbers no other machine has (two clock rates, fast and slow RAM, shadowing, Super Hi-Res geometry, sound RAM); `iigs_memory.*` is the 24-bit address space — banks, fast RAM, ROM, shadowing, and the SHADOW/SPEED/STATE registers; `iigs_video.*` is Super Hi-Res and the `$C029` switch between the machine's two video systems; `iigs_adb.*` is the keyboard and mouse controller; `iigs_clock.*` is the battery-backed clock and the 256 bytes of settings beside it; `iigs_sound.*` is the Ensoniq — its RAM, the window onto it, and the thirty-two oscillators, clocked and interrupting; `iigs_scc.*` is the Z8530 behind the serial ports, with nothing plugged into it; `iigs_machine.*` is the coordinator, as `Emulator` is for the 8-bit machines. Nothing here is included by a machine that is not a IIgs, and nothing outside it grows an `if (IIgs)`
 - `machine/machine_profile.hpp` - Per-machine description (CPU variant, timing, memory sizes, display geometry, capabilities, slot layout) and the registry of machines. See Machine Profiles below
 - `cards/` - Pluggable expansion card system (ExpansionCard interface)
 - `cards/disk_controller.*` - The 5.25" drive mechanism both machines share: two drives, the stepper, the motor and Woz's Logic State Sequencer clocked from the P6 ROM
@@ -93,7 +122,7 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 - `cards/mockingboard/` - AY-3-8910 sound chip + VIA 6522 timer + Mockingboard card
 - `cards/mouse/` - Apple Mouse Interface Card
 - `cards/parallel/` - Centronics parallel card (drives Epson FX-80 and Apple DMP)
-- `cards/smartport/` - SmartPort hard drive controller (2 block devices, self-built ROM)
+- `cards/smartport/` - SmartPort hard drive controller (2 block devices, self-built ROM). A //e fits one in a slot; a IIgs has one in slot 5 as part of the machine
 - `cards/softcard/` - Microsoft Z-80 SoftCard with Z80 CPU emulation
 - `cards/ssc/` - Super Serial Card with ACIA 6551 (drives ImageWriter I and ImageWriter II)
 - `cards/serial/` - A //c's two built-in serial ports: the SSC's ACIA 6551 with no card around it and no ROM
@@ -102,7 +131,7 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 - `basic/` - Applesoft and Integer BASIC detokenizer, tokenizer, token tables, and
   variable representation (`applesoft_vars` — MBF floats, name/type decoding,
   VARTAB/ARYTAB walking)
-- `debug/` - Condition evaluator for breakpoint expressions (supports BV/BA/BA2 for BASIC variable/array reads), and `debug_log` (host-installed log sink; the core never writes to a console itself)
+- `debug/` - `machine_debug.*` (breakpoints, watchpoints, the trace ring, beam breakpoints — shared by both machines; see Debugging any machine), the condition evaluator for breakpoint expressions (supports BV/BA/BA2 for BASIC variable/array reads, and takes a `MachineView` so either machine can answer), and `debug_log` (host-installed log sink; the core never writes to a console itself)
 - `noslot_clock.cpp` - DS1215 No-Slot Clock (ProDOS RTC at $C300)
 - `emulator.cpp` - Core coordinator
 - `emulator/emulator_state.cpp` - State serialization (exportState/importState)
@@ -120,6 +149,7 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 - `help/` - Documentation and release notes windows
 - `input/` - Keyboard input, text selection, joystick, mouse
 - `ui/` - Menu wiring, reminders, slot configuration, custom confirm dialogs
+- `platform/` - Desktop (Tauri) host: `runtime.js` (`isTauri()`), `desktop-host.js`, `native-menu.js`
 - `state/` - State serialization and persistence (autosave + 5 manual slots)
 - `config/` - App version
 - `utils/` - Shared utilities (storage, string, BASIC)
@@ -145,12 +175,573 @@ sampled while the I flag is clear, which costs under 1% rather than ~4%. A card
 that can hold the line and is not in that list is still heard through its own
 edge; what it cannot do is re-interrupt a handler that ignored it.
 
+### The 65816
+
+`CPU65816` (`cpu/65816/`) is a separate class from `CPU6502`, and deliberately:
+a 65816 has a 24-bit bus, 16-bit registers whose width changes at runtime, a
+direct page and a stack that can sit anywhere in bank zero, separate banks for
+code and data, and a second operating mode. Folding that into `CPU6502` would
+put a width test on every load, store and arithmetic operation in the hottest
+loop of a //e to serve a machine a //e is not. A machine is built from one or
+the other.
+
+**Cycle counts, not the cycle pattern.** `CPU6502` models which cycle of an
+instruction touches which address, because a //e's video reads the bus during
+those cycles. A IIgs's video does not read the 65816's bus at all — it reads the
+Mega II's, on the other side of the machine — so this core counts cycles and
+does not pretend to place them.
+
+**Three rules in it are worth knowing before changing anything:**
+
+- **Widths belong to the processor, not to the addressing mode.** Every
+  operation takes an effective address and reads its own operand at whatever
+  width the flags currently say, which is why `opADC` takes a `uint32_t` and
+  not a value.
+- **Two kinds of address behave differently at the top of a bank.** An
+  immediate operand comes from the program bank and a direct page or stack
+  operand from bank zero, and neither bank ever increments; an operand reached
+  through the data bank does cross into the next one. They are the same number,
+  so the addressing mode says which it produced (`operandWrapsInBank_`) and the
+  next access consumes the answer.
+- **The instructions a 6502 never had ignore emulation mode's stack wrap.**
+  PHD, PLD, PEA, PEI, PER, PLB, JSL and RTL walk the stack pointer through all
+  sixteen bits and it is forced back into page one at the end, which is why PLD
+  with the pointer at `$01FE` really does read its high byte from `$0200`.
+
+**It is verified against 5.1 million recorded states from a real 65816**
+(SingleStepTests/65816): every opcode, both modes, 10,000 vectors each,
+registers, memory and cycle count. `tests/conformance/test_65816_vectors.cpp`
+runs them and skips unless `A2E_65816_VECTORS` points at the files, which are
+3GB and not in the repository. Four bugs came out of it that the unit tests did
+not find: the indexed page-cross cycle applies when the index is 16 bits wide
+*or* crosses a page rather than only crossing; writes and read-modify-writes
+never pay it; decimal mode takes V from the value before the top digit's
+correction; and the two bank-wrap rules above.
+
+### A IIgs's memory
+
+`IIgsMemory` (`core/iigs/iigs_memory.*`) is the 24-bit map, and **the Mega II
+side of it is an `MMU`** — the same class a //e is built from, constructed with
+the IIgs profile. Banks `$E0`/`$E1` are its main and auxiliary RAM, `$C000-$CFFF`
+in the four banks that see it are its soft switches, and `$D000-$FFFF` is its
+language card. That is not a convenience: a IIgs really does contain a //e, and
+when the video is written it will read that MMU exactly as `Video` already does.
+
+Three things in it are worth knowing:
+
+- **Shadowing is a copy, not a redirection.** A write to a display region of
+  bank `$00` or `$01` lands in fast RAM *and* is copied to `$E0`/`$E1`, because
+  the video only ever looks at the Mega II's side. Which regions those are is
+  the `$C035` register, and its bits read backwards: a set bit turns a region's
+  shadowing **off**. **The copy is a Mega II cycle and the processor waits for
+  it**, so a shadowed write costs a slow access whatever the speed register
+  says (`shadowWrite` reports whether it copied and `write` charges it, as
+  GSSquared's `megaiiWrite` does). Charged as fast, drawing ran up to a tenth
+  faster than a real machine beside it.
+- **`$C035` bit 6 changes what an address is**, rather than where a write also
+  goes: with I/O and language card shadowing inhibited, banks `$00`/`$01` are
+  plain RAM from `$C000` up, which is how a program gets a contiguous 128KB.
+- **Bank `$00` still obeys the //e's memory switches, and they send it into
+  bank `$01`.** A IIgs is a //e whose main RAM is bank `$00` and whose
+  auxiliary RAM is bank `$01`, so RAMRD and RAMWRT move `$0200-$BFFF`, ALTZP
+  the zero page, stack and language card, and 80STORE with PAGE2 (and HIRES)
+  the text and first hi-res pages — overriding RAMRD/RAMWRT there.
+  `IIgsMemory::effectiveBank` is the rule, applied before the write lands and
+  before it shadows, so a bank `$00` write that belongs in `$01` reaches `$E1`.
+  The 80-column firmware depends on it: a line's even columns go to the text
+  page with 80STORE and PAGE2 on, and a machine that left them in bank `$00`
+  drew every other column blank. Bank `$01` is never redirected. This is the
+  same rule GSSquared applies in `calc_aux_read`/`calc_aux_write`.
+- **`$C068` (STATEREG) is eight of the //e's soft switches in one byte**, and
+  writing it drives those switches through their own addresses so everything
+  watching them sees the change the usual way. It has no bit for the language
+  card's *write* latch, so `setStateRegister` reads that off the machine and
+  preserves it: changing the memory map must not quietly write-protect the
+  card, or quietly unprotect it.
+
+### A IIgs that boots
+
+`IIgsMachine` (`core/iigs/iigs_machine.*`) is to a IIgs what `Emulator` is to
+the other three: it owns the CPU, the memory and the video, and runs them. The
+video is the //e's `Video` class reading the Mega II's MMU, because that is
+what a IIgs's //e-mode picture is drawn by.
+
+**The machine has two clocks, and the slow one lives in `IIgsMemory`.** The
+65816 runs at 2.8MHz until it reaches the Mega II, and that *access* is
+stretched to a 1.023MHz cycle — so the clock ticks inside the memory, as each
+slow-side access happens, and `IIgsMachine` adds the rest of the instruction
+afterwards at whatever the speed register says. Keeping it there is what lets
+it advance *during* an instruction: a disk read loop is a few cycles with one
+access in it, and a drive whose clock only moved between instructions sees that
+loop in lumps.
+
+**The rest of the instruction is the rest of it.** `takeSlowAccesses()` returns
+how many of an instruction's cycles went to the slow side, and `step()`
+subtracts them before converting what is left — a cycle spent waiting on the
+Mega II is not also a cycle spent running. Charging both halves is easy to do
+and invisible until something is timed against it: the boot ROM's read loop
+runs out of bank `$00`'s I/O space, so *every* cycle of it is a slow access,
+and it came out at thirteen cycles where the disk expects seven.
+
+**A Mega II access from the fast side waits for the slow clock, and fast RAM
+is refreshed.** `IIgsMemory::slowAccess` charges an access to the Mega II
+the rest of the slow cycle in progress and then a whole one, because the
+processor stops at the slow clock's edge; `IIgsMachine::slowCyclesFor`
+stretches fast cycles run from RAM by one refresh cycle in every ten (2.8MHz
+comes out near 2.5), and code in ROM goes at the full rate. Both are
+GSSquared's rules, and the Apple IIgs Diagnostic's speed test is the check: it
+counts a nine-cycle loop between two changes of `$C02E` and accepts 25 or 26
+at fast speed and 14 or 15 at slow, which is what the machine now counts
+(`test_iigs_boot.cpp` runs the same loop). `$C02E`/`$C02F` are the Mega II's
+counters as the IIgs exposes them — vertical `$100-$1BF` over the picture and
+`$1C0-$1FF` then `$FA-$FF` through blanking, horizontal 0 then `$40-$7F` — from
+a beam query the machine installs. `$C046`'s flags say what happened whether
+or not it was enabled, and only `$C047` clears them; the diagnostic's handler
+switches VBL off before it looks and must still find the flag.
+
+**`$C036`'s bottom four bits are a veto on the fast clock, not a speed
+setting.** They are slot motor detect, one each for slots 4 to 7, and a drive
+turning in an enabled slot drops the whole machine to 1.023MHz until it stops.
+`IIgsMemory::isFastSpeed()` asks a `SlotMotorQuery` the machine installs, so
+the memory needs to know nothing about drives. This is what makes a Disk II
+readable at all: the controller holds a finished byte for about two bit cells,
+and at 2.8MHz the firmware's poll comes round three times per byte and reads
+half of them twice.
+
+**Control-Reset and the power switch are two different things on a IIgs, as
+on a //e.** `IIgsMachine::warmReset()` is the RESET line: the registers, the
+Mega II's switches and the chips that take the line go back to their reset
+values and the CPU takes the vector from ROM, but the fast RAM, the Mega II's
+RAM and the disk in the drive are exactly as they were — so the firmware finds
+its warm-start bytes at `$03F2` and restarts what was running. `reset()` is the
+power switch, and it now clears the *fast* RAM too: it used to leave it, and
+since the firmware decides between a cold and a warm start by what it finds in
+bank `$00`, every "Reboot" was a warm one. `_warmReset` used to call `reset()`
+for a IIgs, so Control-Reset was a reboot. `test_iigs_boot.cpp` pins both.
+
+**`$C029` bit 5 shows double hi-res in black and white.** The System 2
+Finder and the 80-column desktop programs draw a 560-dot double hi-res
+picture with Super Hi-Res *off* and this bit *set*, and the VGC shows the dots
+as they are; decoding them into colour instead — which the Mega II's video did,
+knowing only bit 7 — fringed every letter red and green. `IIgsMemory` reports
+the register through `setNewVideoCallback` and `Video::setDoubleHiResMonochrome`
+sends a double hi-res line through the monochrome decoder, white on black; a
+monochrome monitor still has the last word. `test_iigs_video.cpp` pins colour
+without the bit, grey with it, and green on a green screen either way.
+
+**A IIgs's text is drawn, not transmitted.** `$C022` (TCOLOR) holds the two
+colours the VGC substitutes for lit and unlit text dots and the bottom nibble of
+`$C034` holds the border — the top nibble of that address is the clock's, which
+is why `$06` sets a blue border and starts no transaction. `Video::setTextColours`
+is how that reaches the //e's video: a text line is decoded into those two
+colours instead of through a receiver, and a machine that never calls it behaves
+exactly as before. Monochrome still overrides it, because a monochrome monitor
+has one phosphor whatever the machine sent.
+
+**A IIgs's frame is the raster a monitor shows, border included.** The
+Mega II's line is 65 cycles: 40 of picture, 12 of blanking, and 13 of border —
+6 before the picture and 7 after; its frame is 262 lines: 200 of picture, 22 of
+blanking, and 40 of border — 19 above and 21 below. Those are the cycles
+GSSquared's scanner flags as border. **What is drawn is the part of that a
+monitor's bezel does not hide**: three cycles either side and twelve lines
+above and below, which keeps the border's shape and puts it at about the width
+it has on the glass — every border cycle drawn made it a fifth of the picture's
+width, which no monitor of the period showed. `iigs_spec.hpp` holds both sets
+of numbers. At Super Hi-Res's 16 pixels a cycle the frame is therefore
+**736x448** (lines doubled) with the 640x400 picture at (48, 24), and
+`IIgsVideo` fills the rest with the colour in `$C034`'s bottom nibble — in
+Super Hi-Res too, which used to fill the frame with no border at all. **The
+//e's 560x384 goes in the same width, stretched to 640** (eight pixels for
+every seven dots, linearly), because a text screen and a Super Hi-Res screen
+are the same width on the monitor, **and centred in the 200 lines**
+(`MEGAII_TOP`), because 192 is eight short of 200 and putting all eight at the
+bottom made the bottom border deeper than the top. The profile's `text` rectangle says where the text
+screen landed, so the host's text selection maps a pointer onto a cell through
+it rather than assuming the text fills the frame, and its `aspect` says the
+shape the monitor shows the frame at: a //e's 560x384 at its own ratio, as
+always, and the IIgs raster at 4:3. `machineAspect()` drives the screen window
+and a `--screen-aspect` CSS variable drives the full-page layout. The shared
+framebuffer slot is sized 848x480, which holds it. `test_iigs_video.cpp` pins
+the raster and `test_machine_profile.cpp` the profile.
+
+**The SCC is a real Z8530 with nothing plugged into it.** `IIgsSCC`
+(`core/iigs/iigs_scc.*`) at `$C038-$C03B` is the register file behind the
+command/data pair per channel, the transmitter and receiver with their
+timing, local loopback and auto echo, the baud rate generator, and the
+interrupt logic — because software exercises all of that without a cable.
+The Diagnostic's Serial Internal Test writes every register and reads it
+back, then arms the zero-count interrupt with the slowest time constant and
+measures the interval between two of them: **the zero count comes every
+`TC + 2` clocks of 3.6864MHz, not twice that**, because the generator's output
+toggles at each zero and the baud rate is half the zero count. A generator
+counting the output's period fell outside the window. It then sends bytes
+round the local loop at 600 baud, polling RR1's all-sent and RR0's receive
+bit. `IIgsMachine::step` advances the chip on the slow clock beside the
+Ensoniq, and `IIgsMemory::interruptPending()` includes it, gated on WR9's
+MIE. **A loopback cable is fitted between the two ports** —
+`IIgsSCC::setLoopbackCable`, on by default because nothing else is ever
+plugged in — crossing each port's transmit into the other's receiver and
+its DTR into the other's CTS, which is what the External Serial Ports Test
+asks for. **The transmitter is clocked from whatever WR11 selects**: the
+crystal on RTxC, the generator, or the TRxC pin, then WR4's divider. The
+Serial Crystal Test clocks a byte straight from the crystal at x64 and times
+its all-sent at 174 microseconds; a transmitter that took the generator's rate
+regardless took a fifth of a second. `test_iigs_devices.cpp` pins the
+register file, the zero count, the loop, the cable, the clock source and the
+interrupts.
+
+**The clock chip is a serial line, and it answers on the read transfer.**
+`$C033` is the byte and `$C034` drives it: bit 7 starts a transfer, bit 6 is
+its direction (set, the chip supplies the byte; clear, it takes the one in
+`$C033`), and bit 5 holds the chip selected across the transfers of one
+transaction — the firmware's driver drops it after every one, and
+`IIgsClock` goes back to expecting a command when it does. A transaction is a
+command byte and then a data byte, each its own transfer, with the 256 bytes of
+battery RAM addressed across two command bytes. What matters is *when* the
+chip answers a read: on the read-direction transfer, not when it sees the
+command. The driver — the same routine in the ROM and in the IIgs Diagnostic —
+stores whatever it is holding to `$C033` before every transfer, the read of
+the data byte included, so a chip that answered early had its answer
+overwritten and then took the junk as its next command. The Diagnostic's Clock
+RAM Test read every clock byte back as that junk, retried 256 times, and
+dropped into the monitor. The seconds are seeded from the host's clock when
+the chip is made and then counted by the machine: `IIgsMemory::tickClocks`
+ticks the chip on the same second that raises the VGC's one-second interrupt,
+because on the real machine that interrupt *is* the chip's tick. The
+Diagnostic writes `$FFFFFFFF` and waits for the roll-over, which a clock
+reading the host would never show a machine running faster than real time.
+`test_iigs_devices.cpp` pins the protocol, the junk, and the tick.
+
+**Banks `$00` and `$01` are 64K of fast RAM each, language card included.**
+Their `$D000-$FFFF` is the bank's own memory in the shape of a //e's card, with
+the second `$D000` bank being the 4K hidden under `$C000`; the Mega II's card
+belongs to `$E0`/`$E1` alone, and `MMU::readLanguageCardRAM`/`writeLanguageCardRAM`
+take main-or-aux as an argument for it. `IIgsMemory::fastLanguageCardAddress` is
+the rule for the fast side. Three earlier models of this each broke GS/OS in a
+way that looked like something else — see `wiki/Apple-IIgs.md`.
+
+**Vectors are pulled from ROM whatever the map shows** — the FPI answering the
+65816's VPB line. `CPU65816::setVectorReadCallback` is the hook; nothing on a
+IIgs writes a vector into RAM, and GS/OS copies its kernel over `$D000-$FFFF`
+with interrupts enabled.
+
+**Interrupts.** `IIgsMemory::interruptPending()` is the OR of the ADB
+(`$C027`, full/enable pairs), the VGC (`$C023`: the scan line is enable bit 1
+with flag bit 5, the one-second tick enable bit 2 with flag bit 6; both
+acknowledged through `$C032`, bit 5 low for the scan line and bit 6 low for
+the second), and the Mega II (`$C041`/`$C046`/`$C047`, VBL and quarter-second);
+the CPU samples it every instruction. The scan-line interrupt is asked for by
+bit 6 of a Super Hi-Res line's control byte and raised by
+`IIgsMachine::raiseScanLineInterrupts` as the beam finishes that line.
+QuickDraw II draws the mouse pointer from it, through the handler it installs
+at `$E1:0028` — the vector the ROM's `AND #$22 / LSR / LSR` dispatch reaches —
+so with the two VGC pairs swapped the pointer was redrawn once a second, on the
+tick that arrived through QuickDraw's vector instead. The ROM's manager asks the SCC *first*
+and the Ensoniq's `$E0` *last*, so `$C038-$C03B` must answer RR3 with nothing
+pending until something is, and register `$E0` reads active-low "none" —
+either one wrong is *Unclaimed Sound Interrupt*. `$C071-$C07F` map the ROM's vector firmware into the I/O page.
+
+**The 256 bytes of battery RAM are the host's to keep**, because a real
+machine's battery keeps them and the Control Panel's settings only mean
+anything if they survive. `src/js/machine/iigs-battery-ram.js` restores them
+before the machine runs and writes them back when the core says they changed
+(`_batteryRamChanged()`, one boolean, rather than comparing 256 bytes).
+**They go out and come back exactly as the firmware wrote them, checksum
+included**: the firmware validates that checksum before trusting the contents
+and its algorithm has not been worked out here, but it never needs to be as
+long as nothing alters the bytes. Alter one and the firmware writes its own
+defaults over the lot, which is what a machine with a dead battery does on
+every start and is what this machine did before. GSSquared keeps its battery
+RAM in a file the same way and also does not compute the checksum.
+`test_iigs_boot.cpp` proves the firmware then leaves them alone: not one byte
+written on the second start.
+
+**The ADB controller has to take exactly the bytes each command carries, and
+has to answer a bus transaction in a frame.** The firmware writes a command and
+then its arguments to `$C026`, so a command whose argument count is wrong leaves
+its own bytes to be read as commands: read-memory takes *two* bytes because its
+address is sixteen bits, a Listen takes two, and the undocumented `$12`/`$13`
+take two. A command above `$1F` addresses the bus rather than the controller —
+high nibble the command, low nibble the device, `$8n-$Bn` Listen registers 0 to
+3 and `$Cn-$Fn` Talk, with `$70-$73` the controller's own "stop polling that
+device". A Talk is answered with a header byte with bit 7 set whose bottom three
+bits are one *less* than the count that follows, because the firmware's read
+loop counts down to one after an INY; a device with nothing to say still sends
+the header. Register 3 is what the firmware enumerates the bus with, and answers
+with the device's address and a handler byte. Get any of it wrong and the
+firmware sits in a read loop until its own counter expires, reports the
+transaction incomplete, and unwinds through a tool error path whose `RTL` lands
+in the middle of an instruction in the Tool Locator — so the boot ends in the
+monitor, with the message hidden behind whatever Super Hi-Res was showing. That
+is what stalled a System 6.0.4 install disk at its splash screen.
+`test_iigs_devices.cpp` pins the counts, the frame and the empty answer.
+
+**`$C025` says which modifier keys are down**, and it used to read zero
+whatever was held. The Event Manager reads it on every event, so a machine
+answering zero has no shift-click and no command-key menu shortcut.
+`IIgsMachine::reportModifiers` fills it in from the browser's own flags plus
+the Apple keys the `Keyboard` already tracks for a //e's pushbuttons, and the
+latch in bit 5 comes up on any change and clears on a read, which is how a
+program tells "nothing held" from "pressed and released between two polls".
+
+**The Control Panel's hotkey still does not work, and the reason is now
+known rather than guessed.** Control-Open-Apple-Escape reaches the machine
+correctly — the modifiers read `$A2` and the key latches as `$9B` — but
+nothing running looks at it. Measured under ProDOS with a program polling for
+a key: `$C000` read 111,899 times while the hotkey was held, `$C025` read
+zero times. The ADB microcontroller is not the answer either: `$C026`'s
+sequence-detect bits are Control-Command-Reset and Control-Command-Delete and
+there is no bit for Escape (Table 6-3 of the Hardware Reference). That leaves
+the firmware's interrupt-driven Desk Manager, which never starts here — the
+ADB status register reads `$00` after boot, so the keyboard interrupt it would
+need was never enabled. Finding what enables it is where the next attempt
+should start.
+
+**How much fast RAM a IIgs has is a user choice**, from 256K to 8M, in the
+Machine menu and remembered in localStorage. `_setIIgsMemoryKB` rebuilds the
+machine, as switching machines does, and `main.js` applies the remembered size
+*before* the machine is built rather than after. `clampFastRamSize` rounds to
+whole 64K banks; banks above what is fitted must not answer, because the
+firmware sizes memory by writing to one and reading it back. System 6.0.4 boots to the Finder
+with a working mouse; the built-in SmartPort in slot 5 serves it hard drive images
+through GS/OS's extended calls.
+
+**A IIgs's seven slots each hold two things, and `$C02D` says which answers.**
+Chapter 8 of the Hardware Reference: every slot is a real socket *and* has a
+built-in device assigned to it, and "only one device can be selected at a time
+for each slot". The register moves **both the ROM and the I/O** for slots 1, 2,
+5, 6 and 7; for slot 4 it moves the ROM only, because "I/O space for slots 3
+and 4 is always enabled"; and slot 3 is not in the register at all — bit 3 is
+reserved and its ROM follows the //e's own SLOTC3ROM. `IIgsMemory` holds the
+user's cards in `slotCards_`, separate from the Mega II's slots where the
+machine's own parts live, and `slotIOIsCard`/`slotRomIsCard` are those rules.
+A slot switched to a card that is not there reads the floating bus, and the
+machine's own device must *not* answer in its place.
+
+**The Control Panel's setting is held against the firmware, because we are the
+Control Panel.** On a real machine that choice lives in battery RAM and the
+firmware copies it into `$C02D` on every start. We cannot write that battery
+RAM — the checksum algorithm is not known here and the firmware would rewrite
+its defaults — so `IIgsMemory::overrideSlot` remembers the bits the user
+actually chose and a firmware write to `$C02D` is *merged* rather than obeyed
+for those. A slot nobody has touched is left entirely to the firmware, which is
+what keeps a machine with no cards behaving exactly as before. Without this a
+card fitted before boot was ignored from the first reset onwards.
+
+**`$C800-$CFFF` is one window seven cards share**, and a card claims it by
+having its own `$Cn00` read; `$CFFF` hands it back, as INTC8ROM does on a //e.
+Without it a card with more firmware than 256 bytes — a Super Serial Card, a
+Thunderclock, a parallel card — has nowhere to put the rest of it.
+
+**A card's samples are added after the `$C03C` amplifier, not through it.** A
+Mockingboard in a socket has its own output on the real machine, so scaling it
+by the volume nibble would fade a card's music along with the ROM's bell — the
+same reason the Ensoniq is kept off that nibble.
+
+**A slot given to "Your Card" with nothing in it reads the bus.** `$C02D`
+says which slots the internal firmware answers for; a slot switched away from
+it with no card fitted answers `$FF`, as an empty slot on any Apple II answers
+with the bus, rather than showing the firmware the setting was meant to hide
+(`IIgsMemory::slotIsExternalAndEmpty`). ProDOS 8 2.4.1 finds the AppleTalk
+firmware's `ATLK` signature in slot 7 and calls into it, which ends in a BRK
+at `$C711` on a ROM 01 — a ProDOS 2.4.1 bug, fixed in 2.4.2 ("not compatible
+with the AppleTalk Workstation card"), and 2.4.3 boots here — and the known
+way round it is to set slot 7 to Your Card, which only works if the firmware
+then goes away.
+
+**The IIgs's SmartPort answers where the machine's own firmware does.** The
+real slot 5 firmware has `$C5FF = $0A`: its ProDOS entry at `$C50A` and its
+SmartPort entry at `$C50D`, and software written for a IIgs hard-codes those
+rather than reading `$C5FF`. `SmartPortCard::setProDOSEntry(0x0A)` lays the
+card's ROM out that way (the fall-through boot path branches over the entries
+to its stub at `$10`), and its `$C5FE` status byte is the firmware's `$BF`
+whatever is fitted — four volumes, removable, interrupting. ProDOS 8 1.x needs
+the drive 2 that byte implies: its device-table builder pushes a byte per
+device that is not the boot device and pops one per other device in the boot
+slot, which only balances with two drives there. A card laid out like a card,
+reporting the one image it held, sent every demo disk booting ProDOS 8 1.x
+into a BRK — first at `$C711`'s neighbour when a `JSR $C50D` found an RTS, then
+after the ProDOS splash from the unbalanced stack. `SmartPortCard::
+setTransferCallback` reports every block transfer, for a trace or a debugger.
+
+**Slot 5 is the IIgs's SmartPort, and it is part of the machine** — no card to
+fit, no Control Panel setting. `IIgsMemory::setInternalCardSlot` names the slot
+that answers at `$Cn00` whatever `$C02D` says, because a part the machine has is
+on the internal side of that switch. The machine's own slot 5 firmware is real
+but polls the IWM for a Sony 3.5" drive, so it cannot serve a block image; with
+nothing inserted the SmartPort has no ROM and that firmware shows through.
+**Which of the two answers at `$C5xx` changes only at reset**
+(`SmartPortCard::setROMFollowsReset`). At "Check startup device!" the firmware
+runs its slot 5 code over and over, and an image inserted then used to swap the
+SmartPort's ROM in under a CPU part way through the old code: the machine
+landed in the monitor at whatever byte its next instruction fell on. An image
+inserted while the machine runs is readable at once and its ROM takes over at
+the next Ctrl+Reset or power on (the host says so); one inserted before the CPU
+has run since reset latches straight away, which is how a machine started with
+an image boots from it; ejecting the last image leaves the ROM, answering "no
+device", until reset. `test_iigs_boot.cpp` inserts deep in `$C5xx` and pins both.
+`SmartPortCard::setExecutingAt` is how a trap card is told the CPU is executing
+its entry point rather than reading it — a 6502 has already advanced the program
+counter by then and a 65816 has not, and the card must not guess.
+
+**A IIgs has a game port like every other Apple II, and the host drives it
+through the same three calls.** The paddle timers are the Mega II's, so
+`IIgsMachine::setPaddleValue` hands the value to the MMU inside it, and
+`setButton` holds one of the three pushbutton lines down — ORed with the Apple
+keys in the button callback, because `$C061`/`$C062` are one line each rather
+than two. The bindings for all three used to answer only `g_emulator`, which
+returns early while a IIgs is running, so a joystick, a gamepad and the
+Joystick window's cursor keys moved nothing at all on that machine.
+
+**The Sirius Joyport fits that connector too**, and the multiplexing works
+here as it does on a //e: the annunciators choose the stick and the axis pair,
+and the Joyport answers `$C061-$C063` *instead of* the Apple keys, active low.
+**Its reset guard has to be a hundred times longer than a //e's.** Both lines
+idle high, which is a held Open and Closed Apple to firmware deciding how to
+start, and a IIgs asks twice — measured at about 229,000 and 396,000 cycles of
+the Mega II's clock, after its power-on diagnostics, and never again — where a
+//e's reset routine asks within a few milliseconds. With the //e's 50,000-cycle
+window a machine with a Joyport fitted went into the self test and drew nothing
+at all; `IIgsMachine::JOYPORT_RESET_GUARD_CYCLES` is a second's worth, which
+covers both looks and is still far shorter than the time anything takes to boot
+off a disk and ask about a stick. `test_iigs_boot.cpp` pins the table and the
+boot.
+
+**A mouse report's two top bits are two buttons.** `$C024` gives X then Y,
+seven bits of movement each; the X byte's bit 7 is button 1, which the mouse
+here does not have, and the Y byte's is button 0. The same button in both
+was two presses to the firmware, and the Finder opened a folder on a single
+click.
+
+**The volume nibble in `$C03C` reaches the speaker and not the Ensoniq.** One
+amplifier really does carry both on the machine, and modelling that sounded
+wrong: sound software drops the nibble to about 5 and puts it back to 15
+around every burst of DOC access, in flips lasting well under ten
+milliseconds, so scaling the synthesiser by it wobbles a steady note at
+whatever rate the software happens to be transferring at, and leaves the
+average level low as well. The host's volume control is the amplifier for the
+Ensoniq instead. GSSquared does the same, for the same reason, and names two
+more: a stereo card taps the DOC's channels ahead of the volume control, and
+at least one game sets the nibble to zero while playing through one. The
+speaker keeps the nibble, because the ROM's bell fades by walking it down.
+
+**Where the nibble is applied it is a taper, not a ratio.**
+`amplifierGain()` in `iigs_spec.hpp` is a cube root, and that came out of a
+measurement: `nibble / 15` put the machine 9.5dB below a //e for the same
+speaker click at the setting its own firmware boots with, 0.150 peak against
+0.450. There is no turning it up from inside either, because the Control Panel
+hotkey is not implemented and the firmware rewrites battery RAM's volume byte
+(`$1E`) whenever its checksum does not match. The taper keeps what the nibble
+is for — silence at zero, full output at fifteen, every step ordered — and
+puts the default within 3dB of the other machines.
+
+**The nibble also reads back as it was written**, which it did not:
+`readControl()` forced it to 15, so the Control Panel's volume setting and the
+toolbox's `SetSoundVolume`, which all change it by reading the register and
+writing it back, were working from a machine that claimed to be at full
+volume. `test_iigs_devices.cpp` pins the taper, the readback and the
+Ensoniq's independence from the nibble; `test_iigs_boot.cpp` pins the
+speaker's level at the firmware's own volume.
+
+**A IIgs has a speaker as well as an Ensoniq.** `$C030` is a Mega II address, so
+`IIgsMachine` owns an `Audio` toggled on the slow clock and adds the Ensoniq's
+samples on top. Without it the machine is silent through every beep and click.
+The volume nibble in `$C03C` is the amplifier's and scales both: the ROM's bell
+fades out by turning it down, and the firmware sets it to 5 from battery RAM.
+For the speaker the gain follows the nibble's writes at the slow-clock times
+they happened (`IIgsMemory::setVolumeCallback`, applied per sample in
+`IIgsMachine::generateStereoAudioSamples` through a twenty-millisecond slew),
+after the coupling stage: one gain per buffer, taken from the nibble at the
+buffer's end, made the fade a staircase and brought the speaker's decaying
+tail back at full level when the ROM put the volume back — a note after the
+bell. `test_iigs_boot.cpp` rings it and checks the envelope.
+
+**The Ensoniq runs on the machine's clock and it interrupts.** `IIgsSound` is
+the chip as GSSquared and MAME model it — resolution-shifted table addressing,
+a zero byte halting every mode, the table's end wrapping free-run and halting
+the rest, swap mode handing over to the partner, sync mode restarting the
+oscillator below, one scan per `8 × (oscillators + 2)` ticks of 7.16MHz.
+`IIgsMachine::step` feeds `advance()` the slow clock and the chip produces a
+frame per scan into a ring that `generateSamples()` resamples to the host at
+the chip's rate over the host's, nudged by up to half a percent to hold the
+backlog near four milliseconds. **Every oscillator is summed, whatever channel it
+is assigned to**, because the chip has one analogue output pin: it visits its
+channels in turn and puts each one's sample on that same pin, with the channel
+strobes saying which channel is on it. A stock machine filters the pin and
+hears the sum; only a stereo card in a slot uses the strobes to pull the
+channels apart, and there is no such card here. Splitting by the channel field
+instead put a game's bass in one speaker and its melody in the other — Spy
+Hunter played one or the other rather than both. **The uppermost enabled
+oscillator is heard three times over**, which is real silicon and is MAME's
+note. An
+oscillator with its interrupt bit set raises one when it halts; `$E0` names it
+active low and clears it on the read; `IIgsMemory::interruptPending()` includes
+the chip. The sound tools play every sample through swapped pairs refilled
+from those interrupts, so a chip that only ran when the host asked for a
+buffer, and never interrupted, played the first buffer of anything and stopped.
+
+**A IIgs's printer is on the back of the machine, and the port is channel A.**
+The two sockets are the two halves of one Z8530, and which half is which was
+measured rather than reasoned about: slot 1's firmware programs `$C039`/`$C03B`
+and slot 2's `$C038`/`$C03A`, so the printer port is channel **A** — the
+opposite of what both the address order and the port numbering suggest.
+`IIgsMachine::setSerialTxCallback` hands the host a byte with the port it left
+by (1 or 2) and `serialReceive` puts one into the modem port, which is what the
+//c's pair of calls mean on a machine with two ports. The host's own printer
+does not have to know any of it: `serial1`/`serial2` in slots 1 and 2 of the
+IIgs profile are the same names a //c uses, so the printer manager finds an
+ImageWriter reachable without being told about a third machine.
+
+Two things in that path print nothing at all when they are wrong, and both are
+pinned by `test_iigs_boot.cpp`. **An unplugged port answers as a device that is
+present and ready** — CTS *and* DCD — because what is on the end of it is an
+emulated printer, and the firmware polls both before every character; a port
+that answered honestly sat in that loop for ever. And **the loopback cable
+between the two ports is not fitted by default**: it is a test rig that only
+the Apple IIgs Diagnostic's External Serial Ports Test asks for, and with it on
+a byte the printer driver sends goes round to the other socket instead of out
+of the machine. It is a tick box in the Serial Port window, deliberately not
+remembered across sessions.
+
+**ENABLE is not the motor, and `DiskController::isDriveEnabled()` is the
+difference.** A drive keeps turning for about a second after the CPU switches
+it off; `isMotorOn()` says so, and that is right for reading. But the IWM's
+mode register is writable exactly while the *line* is low, and the sequencer
+must not write flux when it is. The IIgs firmware exercises both in one
+instruction — it switches the drive off and writes the mode register at
+`$C0EF`, which is also Q7 — so a machine that asks about the mechanism instead
+of the wire spins for a second and erases track zero while it does it.
+
+**Two devices had to exist before the machine would draw anything**, which is
+earlier than the plan expected: the firmware's power-on diagnostics sync and
+interrogate the **ADB** controller and test the **Ensoniq's** RAM before the
+splash screen. A IIgs whose `$C027` never answers stops with `Fatal system
+error-> 0911`. Both are real devices in their own files now, with the keyboard,
+the mouse and the synthesiser still to come.
+
+**A ROM image's banks can be either way round**, and `loadROM` asks rather than
+assumes: it looks for the emulation reset vector, which every IIgs ROM has at
+`$FF:FFFC`. Get it wrong and the machine resets to `$00:0000`.
+
 ### Machine Profiles
 
 The emulator models one machine at a time, and which machine it is comes from a
 **profile**: `src/core/machine/machine_profile.hpp` holds a `MachineProfile`
-per machine and a registry of them. There are three, `APPLE_IIE_PROFILE`,
-`APPLE_II_PLUS_PROFILE` and `APPLE_IIC_PROFILE`.
+per machine and a registry of them. There are four: `APPLE_IIE_PROFILE`,
+`APPLE_II_PLUS_PROFILE`, `APPLE_IIC_PROFILE` and `APPLE_IIGS_PROFILE`.
+
+**A profile also says which family it belongs to, and that is what selects the
+parts.** `MachineFamily::AppleII` is the three 8-bit machines: one design, built
+from `MMU`, `Video`, `Audio` and `CPU6502`, differing only by the numbers in
+their profiles. `MachineFamily::AppleIIgs` is a different computer — a 65816 on
+a 24-bit bus, a memory controller that shadows banks, a second display system,
+an Ensoniq — and it is built from its own classes in `core/iigs/`. The family is
+chosen once, at construction, and is also what the compile-time validation asks
+before applying a rule that only holds for one design: a IIgs is not measured
+against the //e-sized arrays it does not use, or against "a visible column
+clocks out 14 dots" when its picture is 640 dots wide. See `wiki/Apple-IIgs.md`
+for the plan; `Emulator::isMachineRunnable` returns false for the whole family
+until its parts exist, whatever ROMs are in the build.
 
 **The profile is data, not polymorphism.** The parts of a machine that differ
 between a //e, a II+ and a IIgs are overwhelmingly numbers — a clock rate, a
@@ -195,11 +786,19 @@ arrays the build actually allocates, which are sized for the //e and are
 therefore the ceiling for every machine. `allProfilesValid()` runs both over
 the registry in a `static_assert`, so a broken profile does not compile.
 
-**Save states carry the machine id.** The header is `STATE_VERSION` 8, with the
-id written straight after the version. Everything after that point is laid out
-to the saving machine's shape, so a state restored into a different machine
-would be read as garbage rather than fail; the id is what lets `importState`
-refuse it.
+**Save states carry the machine id, and every machine writes the same header.**
+Twelve bytes — magic, format version, machine id — begin a state whichever
+machine wrote it. Everything after that point is laid out to the saving
+machine's shape, so a state restored into a different machine would be read as
+garbage rather than fail; the id is what lets `importState` refuse it. The
+Apple II family's layout is `STATE_VERSION` 9 in `emulator_state.cpp`; a IIgs's
+is its own (`iigs_state.cpp`, version 1), because the two share nothing after
+the header and have no reason to move together. The host reads the header
+itself (`src/js/state/state-header.js`) and, asked to load a state saved on
+another machine, switches to that machine first rather than let the core
+refuse — a save is a save of a whole machine, and loading one is asking for it
+back. The autosave is kept per machine for the same reason (see State
+Serialization).
 
 **The host asks rather than assumes.** `src/js/machine/machine-profile.js`
 fetches the whole profile as one JSON string through `_getMachineProfileJSON`
@@ -310,6 +909,14 @@ machine does not ship is *parked* in `diskStorage_`/`mbStorage_` rather than
 dropped, because `disk_` and `mockingboard_` still point at it and
 `setSlotCard()` fits it later from exactly those members.
 
+**Refitting a slot with the card it holds changes nothing**, and startup
+restores hard drive images only after the saved layout is applied
+(`main.js`, after `slotConfigWindow.create()`). Both matter: a refit builds a
+new, empty card, and a SmartPort's images are in the card, so a //e used to
+come back from every reload with its drive empty. The ordering covers a layout
+that moves the SmartPort, which the no-op alone would not.
+`test_emulator_disk.cpp` pins the refit.
+
 **Slot layouts are remembered per machine.** `src/js/machine/slot-storage.js`
 keys them by machine (`a2e-slot-config:apple2e`), because the machines do not
 agree about what a slot is: one shared layout put a II+'s slot 3 card into a
@@ -371,10 +978,11 @@ class holding four forwarding methods would describe a part that does not
 exist. This is the other half of the IWM's rule — share a mechanism, not a
 resemblance.
 
-The host's serial calls (`setSerialTxCallback`, `serialReceive`) serve both
-machines, because the question is about a serial line rather than about what
-provides it: transmit goes to every port there is, and a byte arriving from
-outside goes to port 2, the modem port, since a printer does not talk back.
+The host's serial calls (`setSerialTxCallback`, `serialReceive`) serve every
+machine that has a serial line, a IIgs included, because the question is about
+the line rather than about what provides it: transmit goes to every port there
+is, and a byte arriving from outside goes to port 2, the modem port, since a
+printer does not talk back.
 
 **Its mouse is the IOU, and is the one part that is not a card at all.** A //e's
 mouse is an MC6821 in a slot with a ROM and a command protocol; a //c's is two
@@ -428,6 +1036,23 @@ localStorage under `a2e-machine` and restored at startup, before the renderer
 and windows are built, so they are made for the right machine rather than
 rebuilt for it a moment later. A remembered machine the build cannot run is
 ignored rather than honoured.
+
+#### Menus follow the machine
+
+`src/js/ui/machine-availability.js` says which menu items the running machine
+can use, from its profile and the cards fitted, and
+`UIController.applyMachineMenus()` hides the rest — at startup, after a switch,
+and whenever the Expansion Slots window applies a change. Hidden rather than
+disabled: a greyed "Expansion Slots" on a //c invites the question of how to
+enable it, and the answer is a different computer. What goes: Expansion Slots
+on a //c (no sockets) and on a IIgs (its core does not answer `_setSlotCard`;
+its slots' "card or port" choice is not modelled); CPU Speed on a IIgs (the
+multiplier is `Emulator`'s); SmartPort Drives, Serial Port and Printer unless
+something provides them (a IIgs's slot 5 and its two sockets, a //c's ports, or
+a card); the Mockingboard and Mouse Card debug windows unless the card is
+fitted — a //c's "mouse" is the IOU, which has no PIA to show. A separator left
+with nothing after it goes too. `tests/js/ui/machine-availability.test.js` pins
+the table.
 
 #### Adding a machine
 
@@ -691,9 +1316,17 @@ Four things here are load-bearing:
 colour *is* a subcarrier-frequency pattern, so subcarrier leaking into luma makes
 greys ripple; leakage at the second harmonic makes a colour's brightness depend
 on which subcarrier phase a dot lands on, which shows up as faint banding. A
-four-tap boxcar — integrate exactly one colour cycle — annihilates both, and is
-cascaded with a windowed sinc for the rest of the response. Do not replace it
-with a plain low pass.
+four-tap boxcar, integrating exactly one colour cycle, annihilates both, and it
+is now the whole filter. Do not replace it with a plain low pass, and do not
+cascade anything on top of it without a reason: it used to be followed by an
+11-tap 4 MHz windowed sinc, and that cascade was where a composite picture's
+extra softness came from. The two agree to within a decibel below 3 MHz, so the
+sinc bought nothing where the shape of a character lives; what it did was take
+13 to 30 dB out of the 4 to 6 MHz band, which carries the edges. The boxcar
+alone is also the more faithful model, because a period set's luma path was a
+trap at the subcarrier rather than a brick wall at 4 MHz, and nothing above
+7.16 MHz exists in the input to leak back in. `hannSinc` is kept, unused and
+marked so, because it is the right tool if a future change does need shaping.
 
 **The calibration constants in `ntsc.hpp` were fitted, not chosen.**
 `BURST_PHASE`, `CHROMA_GAIN` and `LUMA_GAMMA` come from a least-squares fit
@@ -733,8 +1366,12 @@ in every mode. It also means 80-column text on the Composite preset is genuinely
 mushy, exactly as it was on real hardware.
 
 `VideoColorMode` (types.hpp) selects the decoder: MONOCHROME (dots straight to
-one phosphor), PIXEL_EXACT and RGB_MONITOR (idealised, see below) and COMPOSITE
-(full demodulation). The composite decoder is a 512 KB lookup table indexed by a
+one phosphor), PIXEL_EXACT and RGB_MONITOR (idealised, see below), COMPOSITE
+(full demodulation) and SOLID, which is not a receiver at all — it paints each
+cell the colour its value names, over its own dots and no further, so nothing
+fringes. Every mode carries that colour out of band in `cellColour_`, set by
+the emitter: LORES, DLORES and DHGR from the value a cell holds, HIRES from a
+rule applied to the bits (below). The composite decoder is a 512 KB lookup table indexed by a
 15-dot window and the subcarrier phase — an exact memoisation of the FIR, not an
 approximation, which `test_ntsc.cpp` verifies over all 131072 entries.
 
@@ -753,8 +1390,49 @@ split does not fall along mode lines:
 - `CELL` — one flat colour across the aligned four-dot group. LORES, DLORES and
   DHGR, whose dots encode an actual colour value.
 - `DOT_GATED` — unlit dots are black, lit ones take the artifact colour their run
-  implies. HIRES *and text*, whose dots are drawn shapes rather than an encoded
-  colour, and which on real hardware pick up artifact colour the same way.
+  implies. Text, whose dots are drawn shapes rather than an encoded colour, and
+  which on real hardware picks up artifact colour the same way.
+- `DOT_GATED_CELL` — HIRES, which is both at once and which one depends on who is
+  looking. Every receiver treats it exactly as `DOT_GATED`; only `SOLID` reads it
+  differently. A HIRES picture is a drawn shape to a monitor, but the artist chose
+  those dots *for* their colour — a solid violet field is `$55`/`$2A` alternating
+  and lights only half the dots, so gating on lit dots paints it as violet
+  stripes on black rather than as the violet field that was drawn.
+
+**The HIRES rule for SOLID lives in `Video::emitHiResScanline`, in pixels, not
+dots.** A lit pixel beside a lit pixel is white over its own two dots. A lit
+pixel on its own is its column's colour — violet or green, blue or orange if its
+byte's high bit is set — painted over its whole *pair*, unlit partner included,
+which is what makes a `$55`/`$2A` field one colour with no stripes. Everything
+else is black. White decided per pixel and colour per pair is what keeps both
+true: a pair rule alone leaves a coloured end on every odd-width white stroke,
+and a pixel rule alone paints stripes through every field. It has to be the
+emitter and not the decoder because only the emitter knows which byte a pixel
+came from, and by the time the dots reach `ntsc.cpp` the high bit has become a
+half-dot shift and the byte boundaries are gone.
+
+**It took four goes, and each failure looked plausible.** Worth knowing before
+touching it:
+
+- *Reading each four-dot group as a palette index* is the CELL rule, and it is
+  wrong for a shape: white is a RUN of three or more, but a group reads as white
+  only when all four of its own dots are lit, so a three-dot stroke across a
+  group boundary came out aqua on one side and brown on the other. A hi-res
+  title screen rendered as green and magenta confetti.
+- *Filling every coloured group* then doubled every isolated pixel, because a
+  lone two-dot pixel at the edge of a letter is also half a group. Hence the
+  field test.
+- *Counting a run in both the groups it straddles* let one pixel paint eight
+  dots, which closed the gaps between letters drawn in colour and ran a word
+  into a solid slab. Hence one run, one group.
+- *Leaving lone pixels the colour the sharp decoders give them* kept the flecks,
+  only thinner: one title screen carries 185 two-dot runs and every one is a
+  single-pixel feature of a letter meant to be white.
+
+The cost is deliberate and worth stating: a genuinely intended one-pixel colour
+detail, with no colour beside it, comes out white. A mode that cannot tell that
+apart from a letter's serif has to choose, and this one is called Solid
+**Colour**, not Solid Artifact.
 
 `DOT_GATED` decides between an artifact colour and white by **run length**, not
 byte alignment: a run of two lit dots is one isolated pixel (or one text stroke)
@@ -768,7 +1446,9 @@ demodulator. What the sharp modes do differently is refuse to let that colour
 spread: the background stays pure black and the strokes keep hard edges. Full
 text mode kills the burst, so an all-text screen is still crisp white.
 
-Display Settings (`src/js/display/display-settings-window.js`) leads with a **Monitor preset** — Pixel Exact, Composite Color, RGB Monitor, Monochrome Green, Monochrome Amber — with every individual slider behind an Advanced disclosure. Each preset also carries a `colorMode`, which selects the core decoder above. Presets set only the picture, never the user's brightness/contrast/saturation or bezel; editing a setting a preset owns relabels the selection Custom without changing values.
+Display Settings (`src/js/display/display-settings-window.js`) leads with a **Monitor preset** — Pixel Exact, Composite Color, RGB Monitor, Monochrome Green, Monochrome Amber — with every individual slider behind an Advanced disclosure. Each preset also carries a `colorMode`, which selects the core decoder above. Presets set only the picture, never the user's brightness/contrast/saturation, bezel or screen border; editing a setting a preset owns relabels the selection Custom without changing values.
+
+**Display settings are remembered per machine** (`src/js/display/display-storage.js`, unit-tested): a //e's composite look for games has no business on a IIgs's RGB desktop. Each machine has its own localStorage key; the pre-machine key is read once as the //e's. Each machine's defaults differ in one value, the **Screen Border**: 35% on the 8-bit machines, whose picture fills the frame, and 0 on a IIgs, which draws its own border. Saved display profiles stay global — they are named snapshots any machine may pick.
 
 **Display profiles.** Beyond the built-in presets, the user can save the current
 picture as a named profile (`src/js/display/display-profiles.js`, unit-tested in
@@ -848,7 +1528,7 @@ Key patterns:
 
 When `SharedArrayBuffer` is available (requires the COOP/COEP headers Vite sets), `main.js:setupSharedBuffers()` allocates three buffers and both the framebuffer and audio bypass `postMessage` entirely:
 
-- **Framebuffer** — double-buffered (`FB_SLOTS`). The Worker writes the slot the renderer is not reading and publishes the index via `CTRL_FRAME_INDEX` + `CTRL_FRAME_READY`; `pollSharedFrame()` claims it with `Atomics.exchange`. This replaced allocating a fresh 860KB array every frame.
+- **Framebuffer** is a queue of four slots (`FB_SLOTS`, rules in `worker/frame-queue.js`, unit-tested). The Worker counts frames written (`CTRL_FRAMES_WRITTEN`) and the renderer counts frames taken (`CTRL_FRAMES_SHOWN`), each the only writer of its own counter, so no lock. Each refresh `pollFrame()` takes the *oldest* unshown frame, and jumps to the newest past `MAX_FRAME_BACKLOG`, so frames that arrive together are shown on successive refreshes instead of one hiding the other. At most `FB_SLOTS - 2` wait, which keeps the Worker out of the slot the renderer holds (a paused machine redraws it, a screenshot reads it). A full queue drops the new frame. `emulator-worker.js` is a classic Worker and carries its own copy of the producer half; keep the two in step. The postMessage fallback queues posted frames by the same rule. This replaced allocating a fresh 860KB array every frame.
 - **Audio ring** — the AudioWorklet reads generated samples directly, so the main thread is no longer in the audio critical path. Only the small refill request still routes through it.
 - **Control block** — Int32 status fields (see `CTRL_*` in `shared-buffers.js`). Currently only pause and frame state are consumed; the register fields are groundwork for removing debug-window RPCs.
 
@@ -867,6 +1547,14 @@ The emulator uses Web Audio API for precise timing:
 Sample *data* therefore never crosses the main thread; only the refill request does. Without `SharedArrayBuffer` the Worker falls back to posting samples for the main thread to relay, which works but puts a busy main thread in the audio path — and because audio paces the emulation, that shows up as speed instability rather than just crackle.
 
 This ensures consistent speed driven by the audio hardware clock.
+
+**A refill is one video frame, 800 samples, and the low-water mark is two.**
+The Worker publishes one picture per request, after running all of it, so a
+request spanning two frames drew both into the same framebuffer and the screen
+got 30 pictures a second (`REFILL_FRAMES` in `audio-worklet.js`). Frames
+still arrive with a few milliseconds of jitter against the display's refresh,
+which the frame queue absorbs: measured, 60 published and 60 shown, on both
+transports.
 
 ### Free-Run Clock
 
@@ -982,7 +1670,7 @@ src/
     ├── file-explorer/  # DOS 3.3 and ProDOS file browser, disassembler
     ├── help/           # Documentation and release notes
     ├── input/          # Keyboard input, text selection, joystick, mouse
-    ├── machine/        # Host-side machine profile fetched from the core
+    ├── machine/        # Host-side machine profile fetched from the core; the IIgs memory size
     ├── state/          # Save state manager and persistence
     ├── ui/             # Menu wiring, reminders, slot configuration
     ├── utils/          # Shared utilities (storage, string, BASIC)
@@ -1044,12 +1732,99 @@ class ExpansionCard {
 - `SoftCardZ80` (`cards/softcard/`) - Microsoft Z-80 SoftCard with Z80 CPU emulation (`cards/softcard/z80/`)
 - `SSCCard` (`cards/ssc/`) - Super Serial Card with ACIA 6551; drives ImageWriter I and ImageWriter II virtual printers (slots 1–2)
 - `SerialPort` (`cards/serial/`) - One of a //c's two built-in ports: the same ACIA 6551, no DIP switches and no ROM (slots 1 and 2, fixed)
+
+**The paper canvas is a window, not the whole job.** A browser caps a canvas
+(~32767 px a side, and iOS Safari by total area), and one 8.5x11" page at the
+default SS=3 is already ~13.5M backing pixels — about 54MB. `PrinterWindow`
+therefore keeps a few pages live (`_liveWindowPages`, asked of the browser via
+`canvasFits` and bounded by `MAX_LIVE_BACKING_PX`) and scrolls the paper through
+it: `_scrollWindow` writes the departing pages to the page store, shifts the
+bitmap up by whole pages and advances `_pagesScrolled`, which `_yToCanvas`
+subtracts from every coordinate. Whole pages, because the page-break overlay and
+every slice in the snapshot and export paths are page-aligned.
+
+Two consequences are load-bearing. **Ink asks for its row rather than working
+it out** (`_reserveRow`): making room can scroll the window, so the canvas y is
+only settled after the call — a caller that computed it first drew a page-height
+off once a long print started scrolling. And **an export is the job, not the
+window**: `_allJobPages()` puts the stored pages before the live ones, which is
+what the PDF and the multi-page ZIP use. Page records are numbered from the
+start of the job, and the Print Browser counts a job's pages itself rather than
+trusting the `pageCount` stamped on a record that was written while the job was
+still short.
+
+Before this the height was simply clamped, and every dot past the last page that
+fitted was dropped: a four-page print kept one page and silently lost three.
+
+**A GS/OS print is graphics, and the Automatic Line Feed switch nearly ruins
+it.** The ImageWriter driver rasterises the page into 8-dot bands and writes
+`CR`, `ESC T 16`, `LF` before each — 16/144" is exactly eight dots at the head's
+1/72" pitch, so the bands abut. `CItohPrinter` treats `CR`+`LF` as one line
+ending when the switch is on (which plain Applesoft text needs), and that
+pairing has to survive an escape sequence that prints nothing: the driver's
+escape sets the distance for the very `LF` it precedes. With any `ESC` byte
+breaking the pairing, every band fed twice and each line of a real GS/OS print
+came out sliced in half by a 1/8" white stripe. `_inked()` drops the pairing
+whenever a character or a graphics column is laid down, so `CR`, ink, `LF`
+still feeds twice. `tests/js/printer/citoh.test.js` pins the band pitch against
+a byte stream captured from System 6.0.4 printing through ImageWriter/Printer
+v4.2.
 - `ThunderclockCard` (`cards/thunderclock/`) - ProDOS-compatible real-time clock (slots 5, 7)
 - `NoSlotClock` - DS1215 real-time clock piggybacking on $C300 ROM (not a slot card; toggle in Expansion Slots UI)
 
 ## State Serialization
 
-Binary format with versioned header. Includes CPU state, 128KB RAM, Language Card (16KB), soft switches, disk images with modifications, filenames, and debugger state. Autosave slot plus 5 manual save slots. Stored in browser IndexedDB. Window option state (toggles, view modes, mute states) is persisted separately via localStorage.
+Binary format with a versioned header that every machine shares (magic,
+version, machine id — see Machine Profiles). `src/core/emulator/state_stream.hpp`
+is the `StateWriter`/`StateReader` pair every machine writes through, so the
+rules — little-endian, a blob is its length then its bytes, a read past the end
+fails once rather than crashing — are in one place; `drive_state.hpp` is the
+two floppies, image and head position, shared by both machines.
+
+**Apple II family** (`emulator_state.cpp`): CPU, 128KB RAM, both language
+cards, the soft switches (packed and restored by `MMU::packSwitchesForState` /
+`restoreSwitchesFromState`, which writes the switches' own addresses so
+everything watching them sees the change), the keyboard latch and buttons,
+then **every slot by card id with that card's own state** — so a state refits
+the cards it was saved with, through `setSlotCard`, and an SSC, a parallel
+card, a SoftCard, a //c's built-in ports and its IWM's mode register all come
+back — then the disks, the No-Slot Clock, and a //c's IOU mouse with the steps
+it had banked. A card's state is sized in 32 bits because a SmartPort card's
+state is its hard drive images.
+
+**IIgs** (`iigs_state.cpp`): the 65816 — mode first, then the flags, then the
+registers, because `setEmulation` and `setP` each force the widths the mode
+requires — then `IIgsMemory::serialize`: the fast RAM (refused on restore if a
+different amount is fitted), the Mega II's RAM, language card and switches,
+every register of the memory controller, the slow clock, and the devices,
+each with its own `serialize`/`deserialize` — ADB (queues included), the clock
+chip (battery RAM, seconds, a transaction in flight), the SCC's two channels,
+the Ensoniq (RAM, oscillators, registers; not its output ring, which is the
+host's backlog). Then the machine's own counters, the IWM, the floppies and
+the SmartPort with its images. `test_iigs_state.cpp` round-trips each part.
+
+**A card's state is written straight into the buffer, and the buffer is
+reserved for it.** A SmartPort card's state is its hard drive images, so a
+machine with two 32MB volumes writes a state of about 72MB. Serializing each
+card into a temporary and copying that in held two further copies of the
+payload at once, and the buffer's own growth doubled it again — about 190MB of
+heap to write 72MB. That went past `MAXIMUM_MEMORY` and **aborted the module**,
+which is worse than it sounds: an aborted module rejects everything asked of it
+afterwards, so the symptom was every control in the app going dead rather than
+one save failing. `StateWriter::blobFrom` writes the card's bytes in place and
+patches the length to what `serialize` actually returned, both `exportState`s
+reserve the card sizes up front, and the ceiling is 512MB. The host also
+reports a failed save now: every notification in `handleSave` came after the
+await, so a rejected save said nothing at all.
+
+Autosave plus 5 manual save slots, stored in browser IndexedDB, each record
+naming the machine that wrote it. **The autosave is per machine**
+(`autosave:<key>`; the record from before there was more than one machine is
+the //e's), because a state restores only into the machine that wrote it and
+one shared autosave would come back to nothing for every machine but the last.
+The Save States window labels a slot saved on another machine and, on Load,
+asks before switching to it. Window option state (toggles, view modes, mute
+states) is persisted separately via localStorage.
 
 ## Release Process
 
@@ -1065,7 +1840,7 @@ When the user says "release", perform all of the following steps:
 
 Built-in debug windows accessible via Debug menu:
 
-- CPU Debugger: registers (REGS, FLAGS, TIMING, BEAM sections), breakpoints, stepping, disassembly with symbols
+- CPU Debugger: registers (REGS, FLAGS, TIMING, BEAM sections), breakpoints, stepping, disassembly with symbols. The Breakpoints/Watch/Beam panel under the disassembly has a splitter on its top edge and a fold button at the end of its tab bar; its height and whether it is folded live in the window state, and picking a tab on a folded panel opens it
 - Memory Browser: hex/ASCII view of 128KB address space with search
 - Memory Heat Map: real-time memory access visualization (read/write/combined modes)
 - Memory Map: address space layout overview
@@ -1076,6 +1851,94 @@ Built-in debug windows accessible via Debug menu:
 - Mouse Card: PIA registers, position, mode, interrupt state, protocol activity
 - BASIC Program Viewer: view, load, and tokenize BASIC programs from memory, line heat map, trace toggle, statement-level breakpoints, conditional breakpoints on variables/arrays, condition-only rules, variable inspector, run/stop/pause/step controls
 - Rule Builder: complex conditional breakpoints with C-style expressions, supports CPU registers/memory and BASIC variables/arrays as subjects
+
+### Debugging any machine
+
+**Every debug question is asked once, at the widest shape, and a machine
+answers as much of it as it has.** A 6502's answer is a 65816's with the high
+halves zero and no banks, so addresses are 24 bits throughout the debug layer
+and A/X/Y/SP are 16. What a machine does not have — a program bank, a data
+bank, a direct page, a second mode — reads as zero rather than as an error,
+because "this machine has none" is the answer. The alternative was a second
+set of exports and a second set of windows, and two of everything to keep in
+step.
+
+- **A peek must never read a card.** While a watchpoint is armed,
+  `MMU::read` peeks every address first so the callback has a value, so
+  `MMU::peek` asks a slot card for `peekROM`, not `readROM`. A SmartPort's
+  entry points are traps, and a peek that read them ran every block call
+  twice: a //e booting a SmartPort image with any watchpoint set ended in
+  the monitor. `test_mmu_slots.cpp` and `test_emulator_disk.cpp` pin it.
+- **Execution ranges and stack pointer breakpoints fire on entry.** An exec
+  breakpoint over `$2000-$20FF` stops when the PC moves from outside the range
+  to inside it, and a stack breakpoint (`MachineDebug::addStackBreakpoint`)
+  when SP does the same with its range; neither stops again while the value
+  stays inside, or Run inside a range would be Step. A range is primed by the
+  first check after it is added, so one put around the code the machine is
+  paused in does not fire on resume. Both are measured on every instruction
+  whatever else stops the machine, so entry is always relative to the
+  instruction before. A stack hit has its own flag (`_isStackBreakpointHit`),
+  because the host looks a PC hit up by address. The host keys stack entries
+  at `STACK_KEY_BASE` plus the value (`breakpoint-manager.js`), so SP `$F0`
+  and an exec breakpoint at `$00F0` can coexist. `test_machine_debug.cpp` pins
+  the rules and `test_emulator_debug.cpp`/`test_iigs_debug.cpp` pin them on a
+  running machine.
+- **`MachineDebug` (`core/debug/machine_debug.*`) is the mechanism**, owned by
+  both `Emulator` and `IIgsMachine`: breakpoints (with the temporary one
+  behind step over and step out), watchpoints, the trace ring and beam
+  breakpoints. None of them is about an instruction set, so none belongs to a
+  machine. `beamPosition()` is the beam arithmetic, which both derive from
+  their own profile's timing. The //e's older 16-bit methods forward to it.
+- **Two things are deliberately not shared.** Cycle profiling is a counter per
+  address — 256KB for a 6502 and 64MB for a 65816 — so it stays //e-only and
+  the host's heat overlay simply switches itself off. The call-stack summary is
+  built by the //e's run loop as it executes JSRs and the IIgs machine keeps no
+  such list, so it reports none rather than showing a //e's.
+- **A watchpoint on a IIgs is checked on the processor's bus, not inside the
+  memory.** That is the difference between the program touching an address and
+  anything touching it: the Mega II's video reads the text page on every one of
+  192 lines, and a watchpoint there that fired for the scanner would stop the
+  machine before a program had run.
+- **`ConditionEvaluator` takes a `MachineView`** — a peek function and the
+  registers — rather than a `const Emulator&`. Before that, a conditional
+  breakpoint on a IIgs was evaluated against a machine that did not exist: it
+  silently never fired and every expression read zero.
+- **The profile describes the processor** (`processor` in the JSON: address
+  bits, register bits, whether there are banks, a direct page and modes, and
+  the two sets of flag names a 65816 has), and the host builds its panels from
+  it. `machineProcessor()`, `formatMachineAddress()` and `machineAddressMask()`
+  in `src/js/machine/machine-profile.js` are how; `BaseWindow.formatAddr()`
+  goes through the same formatter so every window writes an address the same
+  way — four digits, or a bank and a slash as the machine's own monitor writes
+  it. A machine change reaches every window through
+  `WindowManager.notifyMachineChanged()`, so a window added later is included
+  without anyone remembering.
+- **Disassembly is chosen by the core, not the host**, because only something
+  holding the live processor can walk a 65816's code stream: its instruction
+  lengths depend on the M and X flags. `_disassembleRange` emits three
+  tab-separated fields — address, bytes, text — rather than one fixed-width
+  string the caller sliced by column, which stopped working the moment an
+  address needed six digits and would have failed silently.
+- **The listing always shows the centre as an instruction.** `_disassembleRange`
+  chooses its start by an alignment search (`disasm_align.hpp`): it tries every
+  lookback from the furthest inwards and keeps the first forward walk that
+  lands exactly on the centre, falling back to the centre itself with no
+  context. A fixed lookback walked forward from a random byte and trusted
+  wherever it ended up, so with slot 5 empty and every byte above `$C600`
+  reading `$A0`, a misread `LDY #$A2` at `$C5FF` ate the first byte of the boot
+  ROM and the PC never appeared in the listing (issue #76).
+  `test_disassembler.cpp` pins that case.
+- **The trace's rows are formatted in the core** (`_formatTraceRange`), which
+  is one round trip for the visible window instead of one heap read per row,
+  and one operand formatter per processor rather than one per place that wants
+  one. `_getTraceEntrySize` is asked for rather than assumed, because the entry
+  grew when it had to hold a 65816's registers.
+- **What only covers part of a IIgs says so.** The heat map tracks the Mega
+  II's MMU — the side where the video, the firmware's workspace and Applesoft
+  live — and its titles name the banks and note that fast RAM is not covered,
+  rather than letting a sparse map read as an idle machine. The zero page watch
+  shows the direct page register and marks it when it has moved, because its
+  addresses are absolute bank-zero ones.
 
 ## Keyboard Shortcuts
 
@@ -1091,6 +1954,38 @@ Built-in debug windows accessible via Debug menu:
 | F10              | Step Over                |
 | F11              | Step Into                |
 | Shift+F11        | Step Out                 |
+
+**Which host key is Open Apple is the machine's choice.** On the 8-bit
+machines the two Option keys are the Apple keys — left Open, right Closed — and
+⌘ is left to the browser. A IIgs's keyboard is a Mac's: ⌘ *is* its Open Apple
+and Option its Closed Apple, and GS/OS drives its menus with ⌘-letter, so on
+that machine the emulator takes ⌘ while it has the keyboard. **View > ⌘ as
+Open Apple** is the switch, remembered per machine
+(`src/js/input/apple-keys.js`, default on for the IIgs only, unit-tested). With
+it on, `InputHandler.translateAppleKeys()` sends ⌘ to the core as the left Alt
+and either Option as the right, so the core's Apple-key tracking needs no
+second mapping; every ⌘ combination is `preventDefault`ed (a browser still
+keeps ⌘W, ⌘Q and the like for itself, which is why this is a choice); and
+because macOS delivers no key-up for a key let go while ⌘ is held, the keys
+pressed under ⌘ are released when ⌘ is, or AKD would stay high.
+
+**The rest of the mapping is the same on every machine, and the differences
+are the machine's.** `keyboard.cpp` maps Backspace to left arrow (`$08`,
+which is how Applesoft deletes), forward Delete to `$7F` (the key marked
+DELETE), the numeric keypad to what the number row types, and Control with
+`@ [ \ ] ^ _` to `$00` and `$1B-$1F` as the encoder does, with the 2, 6 and
+- keys reading as `@`, `^` and `_` under Control whether or not Shift is held. The core only ever
+hears the Apple keys as the two Alt keys and ignores the Meta keys: on the
+8-bit machines the host blocks ⌘ and the Windows key, and on a IIgs it sends
+⌘ as the left Alt, so nothing left to the browser can press an Apple key. A
+II+ has no lower case (`caps.hasLowercase`, applied through
+`Keyboard::setUppercaseOnly`) and no Apple keys, so the Alt keys are its two
+pushbuttons. A //c has the shift-key modification built in, so
+`MouseIOU::setShiftKey` pulls `$C063` low for Shift as well as the mouse
+button; the Enhanced //e does not have it, so there `$C063` stays the game
+port's third button. Ctrl+Pause/Break is Ctrl+Reset on keyboards that have
+the key. `test_keyboard.cpp`, `test_mouse_iou.cpp` and `test_emulator.cpp`
+pin all of it.
 
 The Joystick window has a **Cursor Keys** toggle that also drives the joystick from the arrow keys (full deflection 0/255 per axis). The arrows keep reaching the emulator's keyboard as normal, so ProDOS selectors, catalog menus and BASIC line editing still work while the toggle is on. When enabled, a "CURSOR KEYS" chip appears in the Monitor title bar. The same toggle is in the View menu (`btn-cursor-keys-joystick`), which is how it is reached in the layouts that have no Monitor title bar; menu item, header switch and state restores are kept in sync through `JoystickWindow.onCursorKeysChanged`. The setting persists via localStorage.
 
