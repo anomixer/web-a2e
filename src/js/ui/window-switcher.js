@@ -13,6 +13,7 @@ const WINDOW_CATEGORIES = [
       { id: "disk-drives", title: "Disk Drives" },
       { id: "hard-drives", title: "SmartPort Drives" },
       { id: "file-explorer-window", title: "File Explorer" },
+      { id: "disk-inspector", title: "Disk Inspector" },
       { id: "save-states", title: "Save States" },
     ],
   },

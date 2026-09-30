@@ -147,6 +147,15 @@ export class DocumentationWindow extends BaseWindow {
             </svg>
             File Explorer
           </button>
+          <button data-section="disk-inspector">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <circle cx="12" cy="12" r="6"/>
+              <circle cx="12" cy="12" r="2"/>
+              <line x1="12" y1="2" x2="12" y2="6"/>
+            </svg>
+            Disk Inspector
+          </button>
           <button data-section="state">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
@@ -554,8 +563,11 @@ export class DocumentationWindow extends BaseWindow {
           <div class="format-item"><code>.DO</code><span>DOS order (same as .DSK)</span></div>
           <div class="format-item"><code>.PO</code><span>ProDOS sector order (140KB)</span></div>
           <div class="format-item"><code>.NIB</code><span>Nibble image (raw GCR)</span></div>
-          <div class="format-item"><code>.WOZ</code><span>WOZ format with copy protection</span></div>
+          <div class="format-item"><code>.WOZ</code><span>WOZ 1.0, 2.0 and 2.1, including flux tracks, with copy protection intact</span></div>
         </div>
+
+        <h4>Flux Images</h4>
+        <p>A WOZ 2.1 image can store some tracks as flux timings, recording when each magnetic transition passed the head rather than just the bits. These are played to the drive at their recorded timing, so copy protection that depends on a track being written faster or slower than normal works as it did on the real disk. When you save a flux image, those tracks are saved as flux. If the machine writes to a flux track, that one track becomes an ordinary bit track, just as a real drive records bits.</p>
 
         <h4>Drive Controls</h4>
         <ul>
@@ -734,6 +746,73 @@ export class DocumentationWindow extends BaseWindow {
 
         <div class="info-box tip">
           <p><strong>Tip:</strong> The File Explorer uses virtual scrolling for large files, so even massive disassemblies load instantly.</p>
+        </div>
+      </section>
+
+      <!-- Disk Inspector Section -->
+      <section id="doc-disk-inspector" class="documentation-section">
+        <h3>Disk Inspector</h3>
+        <p>The Disk Inspector shows what is physically recorded on a floppy: every track, every sector, every byte, and on a flux image, how long each bit took to pass the head. It works the same way for every format (<code>.dsk</code>, <code>.do</code>, <code>.po</code> and <code>.woz</code>, flux included) because it reads each track exactly as the drive would. Open it from <strong>View &gt; Disk Inspector</strong>, or from the window switcher (<kbd>Ctrl</kbd>+<kbd>\`</kbd>).</p>
+
+        <h4>Toolbar</h4>
+        <ul>
+          <li><strong>Drive 1 / Drive 2:</strong> Which drive to inspect.</li>
+          <li><strong>Disk summary:</strong> The image's name, then chips for its format (16 sector, 13 sector, both, or non-standard), the number of tracks, how many sectors read correctly, any bad checksums, tracks that hold no standard sectors, and flux tracks.</li>
+          <li><strong>Structure / Timing:</strong> What the colours mean (see below).</li>
+          <li><strong>Follow head:</strong> Keeps the track view on whichever track the drive's head is over, so you can watch a disk load. Clicking a track or using the arrow keys turns it off.</li>
+        </ul>
+
+        <h4>The Platter</h4>
+        <p>The left side is the disk seen from above. Track 0 is at the rim and each ring inward is a quarter track, 160 in all. The disk turns while the drive's motor is running, under a head drawn at the top where the emulated head is (yellow while the drive is active). A black dot marks the index hole.</p>
+        <ul>
+          <li><strong>Hover</strong> anywhere to see the track, what is recorded there, the sector it belongs to, and on a flux track how long its cells are.</li>
+          <li><strong>Click</strong> a ring to show that track on the right. Clicking inside a sector selects that sector too.</li>
+          <li><kbd>&uarr;</kbd> / <kbd>&darr;</kbd> step one quarter track, and <kbd>Page Up</kbd> / <kbd>Page Down</kbd> a whole track, once the platter has focus.</li>
+        </ul>
+        <h4>Zooming the Platter</h4>
+        <ul>
+          <li><strong>Scroll</strong> over the platter to zoom in around the pointer, from the whole disk down to single flux transitions (600&times;). The buttons in its corner do the same, and <kbd>+</kbd>, <kbd>-</kbd> and <kbd>0</kbd> work once the platter has focus.</li>
+          <li><strong>Drag</strong> to move around, and <strong>double-click</strong> or <strong>Fit</strong> to see the whole disk again.</li>
+          <li>While zoomed in the disk holds still and the head moves round it instead, marked by a line and a dot on the track it is reading.</li>
+          <li>Once only a few dozen tracks are in view, each one is read in full, so what you see is drawn cell by cell rather than summarised. From about 100&times; each byte's value is written along its ring, and from about 250&times; every 1 bit appears as a flux transition across it (a larger window gets there sooner). Hovering then names the exact byte under the pointer.</li>
+          <li>In <strong>Timing</strong> mode a moderate zoom shows how a protected disk's fast and slow stretches line up from one track to the next.</li>
+        </ul>
+
+        <p>A quarter track with nothing recorded, next to one that has data, is drawn faded. A real head reads a track from the quarter track either side of it, and disks recorded on half tracks would otherwise look nearly empty. Hovering there says which track the head picks up.</p>
+
+        <h4>Structure Colours</h4>
+        <ul>
+          <li><strong>Sync:</strong> Self-sync <code>FF</code> bytes in the gaps between fields.</li>
+          <li><strong>Address marks:</strong> The <code>D5 AA 96</code> prologue (<code>D5 AA B5</code> on a 13-sector disk) and <code>DE AA EB</code> epilogue.</li>
+          <li><strong>Address:</strong> Volume, track, sector and checksum.</li>
+          <li><strong>Data marks:</strong> The <code>D5 AA AD</code> prologue and its epilogue.</li>
+          <li><strong>Data:</strong> The 342 (or 410) bytes of encoded sector data and their checksum.</li>
+          <li><strong>Bad checksum:</strong> An address or data field that did not verify.</li>
+          <li><strong>Non-standard:</strong> Valid disk bytes in no standard field. On a copy-protected disk this is usually where the interesting part is.</li>
+          <li><strong>Noise:</strong> Bytes no disk could hold, such as an unformatted stretch or a gap with no flux.</li>
+        </ul>
+
+        <h4>Timing</h4>
+        <p>In <strong>Timing</strong> mode flux tracks are coloured by how long each bit cell took, compared with the Disk II's own 3.91&micro;s: blue for cells written fast, orange for slow, grey for on time. Some copy protection writes parts of a track at a different speed and times how long they take to read, and this is where you see it. Bit tracks and sector images carry no timing, so they are dimmed.</p>
+
+        <h4>The Track Strip</h4>
+        <p>The strip on the right is the selected track unrolled from its start to its end. Sector numbers (in hex) are marked above it and the selected sector is outlined. On a flux track a line shows the cell timing: above the middle is slow, below it fast. While the head is on this track a yellow line shows where it is.</p>
+        <ul>
+          <li><strong>Scroll</strong> to zoom in around the pointer. Zoomed in far enough, each byte shows its value, and further in each 1 bit appears as a flux pulse.</li>
+          <li><strong>Drag</strong> to pan, and <strong>double-click</strong> to see the whole track again.</li>
+          <li><strong>Hover</strong> for the byte under the pointer: its value, its position in cells, what it is part of, and its timing on a flux track.</li>
+          <li><strong>Click</strong> to select the sector the byte belongs to.</li>
+        </ul>
+
+        <h4>Sectors, Sector Data and Nibbles</h4>
+        <p>The sector buttons list the sectors in the order they pass the head, so the disk's interleave is visible. Green is good, red failed a checksum, and yellow is a 13-sector field (found but not decoded) or an address field with no data after it.</p>
+        <ul>
+          <li><strong>Sector data</strong> shows the selected sector's volume, track and sector, whether its address and data verified, and its 256 decoded bytes as hex and ASCII. A sector whose data checksum failed is still decoded, so you can see what was read.</li>
+          <li><strong>Nibbles</strong> lists every byte on the track as the drive reads it, coloured as the platter is, with the selected sector highlighted and scrolled into view.</li>
+        </ul>
+
+        <div class="info-box tip">
+          <p><strong>Tip:</strong> Turn on <strong>Follow head</strong> and boot a disk to watch the loader seek across it. The display updates as the machine writes, so you can also watch a disk being formatted or saved to.</p>
         </div>
       </section>
 

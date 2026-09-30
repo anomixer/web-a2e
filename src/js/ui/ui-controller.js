@@ -563,6 +563,15 @@ export class UIController {
       });
     }
 
+    const diskInspectorBtn = document.getElementById("btn-disk-inspector");
+    if (diskInspectorBtn) {
+      diskInspectorBtn.addEventListener("click", () => {
+        this.windowManager.toggleWindow("disk-inspector");
+        this.closeAllMenus();
+        this.refocusCanvas();
+      });
+    }
+
     const displayBtn = document.getElementById("btn-display");
     if (displayBtn) {
       displayBtn.addEventListener("click", () => {

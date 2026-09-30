@@ -11,6 +11,28 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "September 30, 2026",
+    features: [
+      {
+        title: "Disk Inspector",
+        description:
+          "View > Disk Inspector shows everything recorded on a floppy, for every image format: a spinning map of every track, each track's sectors and bytes, and both the map and the track zoom down to single flux pulses. Timing mode shows tracks written at an unusual speed.",
+      },
+      {
+        title: "WOZ flux images",
+        description:
+          "WOZ 2.1 flux tracks now play at their recorded timing, so disks whose protection depends on it, such as Sirius's Bandits, boot. Flux is kept when the disk is saved.",
+      },
+    ],
+    fixes: [
+      {
+        title: "A disk link starts with only the linked disks",
+        description:
+          "Opening a link with a disk image no longer also loads the disks and hard drives from your last visit, which could boot ahead of the linked disk. They return on your next plain visit.",
+      },
+    ],
+  },
+  {
     week: "September 29, 2026",
     features: [
       {

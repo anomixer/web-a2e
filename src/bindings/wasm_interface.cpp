@@ -6,6 +6,7 @@
  */
 
 #include "../core/emulator.hpp"
+#include "../core/disk-image/disk_inspection.hpp"
 #include "../core/disassembler/disassembler.hpp"
 #include "../core/disassembler/disassembler65816.hpp"
 #include "../core/disassembler/disasm_align.hpp"
@@ -1728,6 +1729,61 @@ size_t getCurrentNibblePosition(int drive) {
     }
   }
   return 0;
+}
+
+// ---- Disk Inspector ----------------------------------------------------------
+// What is recorded on a drive's disk, read the way the drive reads it, for
+// every format alike. See core/disk-image/disk_inspection.hpp for the layout
+// of both buffers. Each is kept until the next call of the same export.
+
+static std::vector<uint8_t> g_diskOverview;
+
+// Inspecting a track changes nothing on the disk, though a sector image fills
+// its encoding cache on the way, so this does not go through the writable
+// accessor: that counts as a change, and the window would re-read for ever.
+static a2e::DiskImage *inspectableImage(int drive) {
+  return const_cast<a2e::DiskImage *>((*diskController()).getDiskImage(drive));
+}
+
+static std::vector<uint8_t> g_diskTrackDetail;
+
+EMSCRIPTEN_KEEPALIVE
+const uint8_t *getDiskOverview(int drive, int buckets, size_t *size) {
+  *size = 0;
+  REQUIRE_DISK_OR(nullptr);
+  a2e::DiskImage *image = inspectableImage(drive);
+  if (!image) return nullptr;
+  g_diskOverview = a2e::inspect::buildOverview(*image, buckets);
+  *size = g_diskOverview.size();
+  return g_diskOverview.data();
+}
+
+EMSCRIPTEN_KEEPALIVE
+const uint8_t *getDiskTrackDetail(int drive, int quarterTrack,
+                                  int timingBuckets, size_t *size) {
+  *size = 0;
+  REQUIRE_DISK_OR(nullptr);
+  a2e::DiskImage *image = inspectableImage(drive);
+  if (!image) return nullptr;
+  g_diskTrackDetail =
+      a2e::inspect::buildTrackDetail(*image, quarterTrack, timingBuckets);
+  *size = g_diskTrackDetail.size();
+  return g_diskTrackDetail.data();
+}
+
+// Where the disk is under the head, in 65536ths of a revolution
+EMSCRIPTEN_KEEPALIVE
+int getDiskRotation(int drive) {
+  REQUIRE_DISK_OR(0);
+  const a2e::DiskImage *image = (*diskController()).getDiskImage(drive);
+  if (!image) return 0;
+  return static_cast<int>(image->getRotation() * 65536.0) & 0xFFFF;
+}
+
+EMSCRIPTEN_KEEPALIVE
+uint32_t getDiskRevision(int drive) {
+  REQUIRE_DISK_OR(0);
+  return (*diskController()).getRevision(drive);
 }
 
 // ---- Saving in a chosen format ---------------------------------------------

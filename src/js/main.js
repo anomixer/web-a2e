@@ -15,6 +15,7 @@ import "../css/layout.css";
 import "../css/monitor.css";
 import "../css/disk-drives.css";
 import "../css/hard-drive.css";
+import "../css/disk-inspector.css";
 import "../css/controls.css";
 import "../css/modals.css";
 import "../css/debug-base.css";
@@ -68,6 +69,7 @@ import { HardDriveManager } from "./disk-manager/hard-drive-manager.js";
 import { HardDriveWindow } from "./disk-manager/hard-drive-window.js";
 import { readUrlMedia, loadUrlMedia } from "./disk-manager/url-media-loader.js";
 import { hasMediaParams } from "./utils/url-params.js";
+import { DiskInspectorWindow } from "./disk-manager/disk-inspector-window.js";
 import { FileExplorerWindow } from "./file-explorer/index.js";
 import { DisplaySettingsWindow, ScreenWindow } from "./display/index.js";
 import { DocumentationWindow, ReleaseNotesWindow } from "./help/index.js";
@@ -233,6 +235,10 @@ class AppleIIeEmulator {
       this.fileExplorer = new FileExplorerWindow(this.wasmModule);
       this.fileExplorer.create();
       this.windowManager.register(this.fileExplorer);
+
+      const diskInspector = new DiskInspectorWindow(this.wasmModule);
+      diskInspector.create();
+      this.windowManager.register(diskInspector);
 
       // Create disk drives window first so DiskManager can find its DOM elements
       const diskDrivesWindow = new DiskDrivesWindow();

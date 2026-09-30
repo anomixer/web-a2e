@@ -107,7 +107,7 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 - `video/video.cpp` - TEXT/LORES/HIRES/DHIRES per-scanline rendering, split into a **signal stage** and a **decode stage** (see Composite Video below)
 - `video/ntsc.cpp` - NTSC composite demodulation, the ideal/RGB digital decoders, and the calibrated 16-colour palette they all share
 - `audio/audio.cpp` - Speaker emulation from $C030 toggles
-- `disk-image/` - Disk image format support (DSK/DO/PO/NIB/WOZ). `gcr_encoding` holds the one copy of the GCR encode/decode routines and the DOS/ProDOS sector interleave tables that both image classes and the filesystem readers use; plus `disk_converter` — converts a loaded image between save formats (DOS order, ProDOS order, WOZ), including encoding a sector image to a WOZ bit stream
+- `disk-image/` - Disk image format support (DSK/DO/PO/NIB/WOZ). `gcr_encoding` holds the one copy of the GCR encode/decode routines and the DOS/ProDOS sector interleave tables that both image classes and the filesystem readers use; plus `disk_converter` — converts a loaded image between save formats (DOS order, ProDOS order, WOZ), including encoding a sector image to a WOZ bit stream; plus `disk_inspection`, the Disk Inspector's track analyser (see Disk Inspector)
 - `disassembler/` - instruction disassemblers: `disassembler.*` is the 65C02's, `disassembler65816.*` the 65816's. They are separate because a 65816 has no illegal opcodes, 24-bit addresses, modes a 6502 never had, and instruction lengths that depend on the M and X flags — so the processor's state is an input to disassembly. Its table is read off `cpu65816_dispatch.cpp` rather than a datasheet, and `test_disassembler65816.cpp` executes every opcode on the CPU in both widths and both modes and checks the distance the program counter moved against the length reported
 - `assembler/` - Merlin-compatible 65C02 assembler (see Assembler below)
 - `input/keyboard.cpp` - Keyboard input handling
@@ -187,6 +187,55 @@ instead of one bit at phase 4. Three rules follow from it:
 save and the write. `test_emulator_disk.cpp` boots Bandits through a save
 state when `A2E_BANDITS_WOZ` points at the image, which is not in the
 repository, and fails at track 1.5 without the tick-timed sequencer.
+
+### Disk Inspector
+
+**View > Disk Inspector** shows what is recorded on a disk in either drive,
+whatever the image format: a platter with every quarter track a ring,
+coloured by what is on it and turning under the emulated head while the
+motor runs; one track unrolled as a zoomable strip (scroll to zoom down to
+single flux pulses, drag to pan); the sectors in the order they pass the
+head, each one's decoded bytes, and the raw nibbles. **Timing** recolours by
+how long each cell took, which is how a flux track written at more than one
+speed shows itself.
+
+**Every format is inspected in one currency, bit cells.**
+`DiskImage::inspectQuarterTrack` hands over a quarter track as the drive
+would read it: a sector image encodes its track, a WOZ bit track is what it
+is, and a flux track is resolved into cells with the time each took.
+`core/disk-image/disk_inspection.*` then reads those cells the way the
+drive's latch does and names every nibble (sync, address and data fields and
+their marks, checksums, well-formed bytes in no standard field, and noise).
+It reads two revolutions and keeps the second, so the framing has settled
+and a sector across the end of the track reads whole.
+
+**Two buffers, one round trip each**, laid out in `disk_inspection.hpp`:
+`_getDiskOverview` is the whole disk in equal arcs per ring for the platter
+(about 250KB, analysing each stored track once however many quarter tracks
+read it), and `_getDiskTrackDetail` is one quarter track in full.
+`src/js/disk-manager/disk-inspector-data.js` parses both (unit-tested);
+`disk-inspector-window.js` draws them. The window re-reads only when
+`DiskController::getRevision` moves (insert, eject, a write through the
+head, or anything taking the writable image), at most twice a second while
+a disk is being written; the export goes through the *const* image accessor
+for that reason, because the writable one counts as a change.
+
+**The platter is painted once and rotated.** Each pixel of an offscreen
+canvas finds its quarter track from its radius and its arc from its angle;
+a frame is then one `drawImage`. A quarter track with nothing mapped next to
+one that has data is drawn faded, because the head reads a track from the
+quarter track either side, and a disk recorded on half tracks otherwise
+looks nearly empty. `test_disk_inspection.cpp` pins the analyser and both
+buffers.
+
+**Zoomed in, the platter holds still and the head goes round it**, because a
+view at 50x turning five times a second shows nothing. The view is painted
+fresh for each change of zoom or pan, and once few enough rings are in view
+(`MAX_RINGS_IN_FULL`) each is read in full through `_getDiskTrackDetail` and
+drawn cell by cell, with values along the ring and flux transitions across
+it. **Track details are read one at a time** (`_readTrackDetail`): the core
+answers every track into the same buffer, so two reads in flight could each
+copy out the other's track.
 
 ### Interrupts
 
