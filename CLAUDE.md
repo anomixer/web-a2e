@@ -1511,6 +1511,8 @@ fringing from the real signal, so a shader knob for it would only double-count.
 
 `main.js` parses the URL *before* `DiskManager.init()` / `HardDriveManager.init()` and populates `urlOwnedDrives` / `urlOwnedDevices`, which those managers use to skip restoring persisted images into units a link is about to claim — otherwise the two loads race.
 
+**A link that names any image restores no persisted image at all**, floppy or hard drive, not just the units it names (`skipRestore` on both managers, set from `hasMediaParams`). A disk left in drive 2 from the last visit, or a hard drive the machine boots from ahead of the floppy, would change what the link does. The persisted images are not cleared: they come back on the next plain visit. `skipRestore` is deliberately separate from `urlOwnedDrives`, which also stops a drive being persisted, and a drive the link left empty is the visitor's to use.
+
 `?autostart=` (or a bare `?autostart`) powers the machine on at the end of
 `init()` with **no interaction at all** — `main.js:autostart()`. It runs
 immediately because the Worker paces itself while the `AudioContext` is still

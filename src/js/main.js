@@ -67,6 +67,7 @@ import { DiskDrivesWindow } from "./disk-manager/disk-drives-window.js";
 import { HardDriveManager } from "./disk-manager/hard-drive-manager.js";
 import { HardDriveWindow } from "./disk-manager/hard-drive-window.js";
 import { readUrlMedia, loadUrlMedia } from "./disk-manager/url-media-loader.js";
+import { hasMediaParams } from "./utils/url-params.js";
 import { FileExplorerWindow } from "./file-explorer/index.js";
 import { DisplaySettingsWindow, ScreenWindow } from "./display/index.js";
 import { DocumentationWindow, ReleaseNotesWindow } from "./help/index.js";
@@ -239,9 +240,10 @@ class AppleIIeEmulator {
       this.windowManager.register(diskDrivesWindow);
 
       // Read any ?disk=/?hd= parameters before the managers restore their
-      // persisted images, so the units a link claims are left alone rather than
-      // being loaded and then immediately replaced.
+      // persisted images. A link that names any image restores none of them,
+      // floppy or hard drive, so the machine holds only what the link asked for.
       this.urlMedia = readUrlMedia(window.location);
+      const urlNamesMedia = hasMediaParams(this.urlMedia);
 
       // Set up disk manager (must be after disk drives window is created)
       this.diskManager = new DiskManager(this.wasmModule);
@@ -249,6 +251,7 @@ class AppleIIeEmulator {
       this.diskManager.urlOwnedDrives = new Set(
         this.urlMedia.floppies.map((f) => f.unit),
       );
+      this.diskManager.skipRestore = urlNamesMedia;
       this.diskManager.init();
       this.diskManager.onDiskLoaded = () => {
         this.reminderController?.dismissBasicReminder();
@@ -267,6 +270,7 @@ class AppleIIeEmulator {
       this.hardDriveManager.urlOwnedDevices = new Set(
         this.urlMedia.hardDrives.map((h) => h.unit),
       );
+      this.hardDriveManager.skipRestore = urlNamesMedia;
       this.hardDriveManager.init();
 
 

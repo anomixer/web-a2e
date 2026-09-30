@@ -65,6 +65,9 @@ export class HardDriveManager {
 
     /** @type {Set<number>} Devices a URL parameter will fill; skipped on restore */
     this.urlOwnedDevices = new Set();
+
+    /** @type {boolean} The URL names media, so restore nothing at all */
+    this.skipRestore = false;
   }
 
   init() {
@@ -349,6 +352,9 @@ export class HardDriveManager {
   }
 
   async restoreImages() {
+    // See DiskManager.restoreDisks: a link's media replaces all of the last
+    // visit's, not just the units it names
+    if (this.skipRestore) return;
     for (let deviceNum = 0; deviceNum < 2; deviceNum++) {
       // A URL parameter is about to fill this device; see DiskManager.restoreDisks
       if (this.urlOwnedDevices?.has(deviceNum)) continue;

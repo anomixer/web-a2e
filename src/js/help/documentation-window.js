@@ -606,6 +606,7 @@ export class DocumentationWindow extends BaseWindow {
         </ul>
         <p>Example: <code>?disk=https://example.com/demo.dsk</code></p>
         <p>A path on your own machine, such as <code>/Users/you/Downloads/demo.dsk</code>, will not work &mdash; a web page cannot read local files. Use <strong>Insert</strong> or drag the file onto a drive for those.</p>
+        <p>A link that names any image starts the machine with <strong>only</strong> what the link names. The disks and hard drive images you had in the other drives are not loaded, so nothing left over from your last visit changes what the link does, such as a hard drive booting ahead of the linked floppy. They are not deleted either.</p>
         <p>Disks loaded this way are <strong>not</strong> saved to your browser storage or your Recent list, so a link someone sends you never replaces the disks in your own drives &mdash; open the plain address again and everything is back as it was. Autosave pauses for the session for the same reason.</p>
 
         <div class="info-box tip">
