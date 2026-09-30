@@ -158,9 +158,10 @@ export class DiskInspectorWindow extends BaseWindow {
               <span class="dinsp-track-meta"></span>
             </div>
             <div class="dinsp-strip-wrap">
-              <canvas class="dinsp-strip" title="Scroll to zoom, drag to pan, double-click to see the whole track"></canvas>
+              <canvas class="dinsp-strip"></canvas>
               <div class="dinsp-tooltip dinsp-strip-tip" hidden></div>
             </div>
+            <div class="dinsp-hint">Scroll to zoom · drag to pan · double-click for the whole track</div>
             <div class="dinsp-sectors-label">Sectors, in the order they pass the head</div>
             <div class="dinsp-sectors"></div>
             <div class="dinsp-tabs">

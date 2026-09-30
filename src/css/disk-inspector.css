@@ -257,6 +257,20 @@
     text-overflow: ellipsis;
 }
 
+/* How to use the strip, under it, where the info tooltip cannot collide
+   with it (a title attribute on the canvas popped up over the tooltip) */
+.dinsp-hint {
+    margin-top: -4px;
+    text-align: right;
+    flex-shrink: 0;
+    font-size: 10px;
+    color: var(--text-muted);
+    opacity: 0.8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .dinsp-strip-wrap {
     position: relative;
     height: 88px;
