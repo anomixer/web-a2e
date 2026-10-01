@@ -536,12 +536,7 @@ int getGamePortDevice() {
 // switches at once, and this is a fire-and-forget RPC on an input path.
 EMSCRIPTEN_KEEPALIVE
 void setJoyportStick(int stick, int switches) {
-  if (g_host.iigs()) {
-    g_host.iigs()->setJoyportStick(stick, switches);
-    return;
-  }
-  REQUIRE_EMULATOR();
-  g_host.emulator()->setJoyportStick(stick, switches);
+  g_host.setJoyportStick(stick, switches);
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -559,40 +554,27 @@ bool isKeyboardReady() {
 
 EMSCRIPTEN_KEEPALIVE
 void setSpeedMultiplier(int multiplier) {
-  REQUIRE_EMULATOR();
-  g_host.emulator()->setSpeedMultiplier(multiplier);
+  g_host.setSpeedMultiplier(multiplier);
 }
 
 EMSCRIPTEN_KEEPALIVE
 int getSpeedMultiplier() {
-  REQUIRE_EMULATOR_OR(1);
-  return g_host.emulator()->getSpeedMultiplier();
+  return g_host.speedMultiplier();
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool insertDisk(int drive, uint8_t *data, int size, const char *filename) {
-  if (g_host.iigs()) {
-    return g_host.iigs()->insertDisk(drive, data, static_cast<size_t>(size),
-                              filename ? filename : "");
-  }
-  REQUIRE_EMULATOR_OR(false);
-  return g_host.emulator()->insertDisk(drive, data, size, filename);
+  return g_host.insertDisk(drive, data, static_cast<size_t>(size), filename);
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool insertBlankDisk(int drive) {
-  REQUIRE_EMULATOR_OR(false);
-  return g_host.emulator()->insertBlankDisk(drive);
+  return g_host.insertBlankDisk(drive);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void ejectDisk(int drive) {
-  if (g_host.iigs()) {
-    g_host.iigs()->ejectDisk(drive);
-    return;
-  }
-  REQUIRE_EMULATOR();
-  g_host.emulator()->ejectDisk(drive);
+  g_host.ejectDisk(drive);
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -1306,8 +1288,7 @@ bool hasIIgsLoopbackCable() {
 /** Whether anything has written to it since this was last asked. */
 EMSCRIPTEN_KEEPALIVE
 bool batteryRamChanged() {
-  if (!g_host.iigs()) return false;
-  return g_host.iigs()->memory().clock().takeBatteryRamChanged();
+  return g_host.takeBatteryRamChanged();
 }
 
 // The machine's memory banks, so a memory view can offer the ones that exist
@@ -1586,8 +1567,7 @@ int getSelectedDrive() {
 
 EMSCRIPTEN_KEEPALIVE
 bool isDiskInserted(int drive) {
-  REQUIRE_DISK_OR(false);
-  return (*diskController()).hasDisk(drive);
+  return g_host.isDiskInserted(drive);
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -1700,9 +1680,8 @@ static a2e::DiskSaveFormat toSaveFormat(int format) {
 
 EMSCRIPTEN_KEEPALIVE
 const uint8_t *getDiskDataAs(int drive, int format, size_t *size) {
-  if (g_host.iigs()) return g_host.iigs()->exportDiskDataAs(drive, toSaveFormat(format), size);
-  REQUIRE_EMULATOR_OR(nullptr);
-  return g_host.emulator()->exportDiskDataAs(drive, toSaveFormat(format), size);
+  if (!g_host.isBuilt()) return nullptr;
+  return g_host.exportDiskAs(drive, toSaveFormat(format), size);
 }
 
 // Sectors in DOS order for the filesystem parsers, whatever order the image
@@ -1717,35 +1696,22 @@ const uint8_t *getDiskSectorDataDOSOrder(int drive, size_t *size) {
 
 EMSCRIPTEN_KEEPALIVE
 bool canSaveDiskAs(int drive, int format) {
-  if (g_host.iigs()) return g_host.iigs()->canExportDiskAs(drive, toSaveFormat(format));
-  REQUIRE_EMULATOR_OR(false);
-  return g_host.emulator()->canExportDiskAs(drive, toSaveFormat(format));
+  return g_host.canExportDiskAs(drive, toSaveFormat(format));
 }
 
 EMSCRIPTEN_KEEPALIVE
 int getDiskNativeFormat(int drive) {
-  if (g_host.iigs()) return static_cast<int>(g_host.iigs()->getDiskNativeFormat(drive));
-  REQUIRE_EMULATOR_OR(0);
-  return static_cast<int>(g_host.emulator()->getDiskNativeFormat(drive));
+  return static_cast<int>(g_host.diskNativeFormat(drive));
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool isDiskModified(int drive) {
-  REQUIRE_DISK_OR(false);
-  if ((*diskController()).hasDisk(drive)) {
-    const auto *image = (*diskController()).getDiskImage(drive);
-    if (image) {
-      return image->isModified();
-    }
-  }
-  return false;
+  return g_host.isDiskModified(drive);
 }
 
 EMSCRIPTEN_KEEPALIVE
 const char *getDiskFilename(int drive) {
-  if (g_host.iigs()) return g_host.iigs()->getDiskFilename(drive);
-  REQUIRE_EMULATOR_OR(nullptr);
-  return g_host.emulator()->getDiskFilename(drive);
+  return g_host.diskFilename(drive);
 }
 
 // Memory tracking for debugger heat map
@@ -2109,22 +2075,12 @@ int getMockingboardWaveform(int psg, int channel, float* buffer, int count) {
 
 EMSCRIPTEN_KEEPALIVE
 void mouseMove(int dx, int dy) {
-  if (g_host.iigs()) {
-    g_host.iigs()->mouseMove(dx, dy);
-    return;
-  }
-  REQUIRE_EMULATOR();
-  g_host.emulator()->mouseMove(dx, dy);
+  g_host.mouseMove(dx, dy);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void mouseButton(bool pressed) {
-  if (g_host.iigs()) {
-    g_host.iigs()->mouseButton(pressed);
-    return;
-  }
-  REQUIRE_EMULATOR();
-  g_host.emulator()->mouseButton(pressed);
+  g_host.mouseButton(pressed);
 }
 
 // ============================================================================
@@ -2210,24 +2166,14 @@ static a2e::SmartPortCard* smartPortCard() {
 
 EMSCRIPTEN_KEEPALIVE
 bool insertSmartPortImage(int device, uint8_t* data, int size, const char* filename) {
-  // A IIgs decides when its SmartPort's ROM may appear, so it goes through
-  // the machine rather than straight to the card.
-  if (g_host.iigs()) {
-    return g_host.iigs()->insertBlockImage(device, data, static_cast<size_t>(size),
-                                    filename ? filename : "");
-  }
-  auto* card = smartPortCard();
-  if (!card) return false;
-  return card->insertImage(device, data, static_cast<size_t>(size),
-                           filename ? filename : "");
+  return g_host.insertBlockImage(device, data, static_cast<size_t>(size), filename);
 }
 
 // An image is in, but the ROM that boots from it waits for the next reset: a
 // IIgs's SmartPort replaces the machine's own slot 5 firmware only then.
 EMSCRIPTEN_KEEPALIVE
 bool isSmartPortROMPending() {
-  auto* card = smartPortCard();
-  return card && card->isROMPending();
+  return g_host.isSmartPortROMPending();
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -2237,8 +2183,7 @@ void ejectSmartPortImage(int device) {
 
 EMSCRIPTEN_KEEPALIVE
 bool isSmartPortImageInserted(int device) {
-  auto* card = smartPortCard();
-  return card && card->isImageInserted(device);
+  return g_host.isBlockImageInserted(device);
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -2251,8 +2196,7 @@ const char* getSmartPortImageFilename(int device) {
 
 EMSCRIPTEN_KEEPALIVE
 bool isSmartPortImageModified(int device) {
-  auto* card = smartPortCard();
-  return card && card->isImageModified(device);
+  return g_host.isBlockImageModified(device);
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -2403,14 +2347,7 @@ const char* getSlotCard(int slot) {
 
 EMSCRIPTEN_KEEPALIVE
 bool setSlotCard(int slot, const char* cardId) {
-  if (g_host.emulator()) {
-    return g_host.emulator()->setSlotCard(static_cast<uint8_t>(slot), cardId);
-  }
-  if (g_host.iigs()) {
-    return g_host.iigs()->setSlotCard(static_cast<uint8_t>(slot),
-                               cardId ? cardId : "empty");
-  }
-  return false;
+  return g_host.setSlotCard(slot, cardId ? cardId : "empty");
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -3402,14 +3339,12 @@ int loadBasicProgram(const char* source) {
 
 EMSCRIPTEN_KEEPALIVE
 void enableNoSlotClock(bool enable) {
-  REQUIRE_EMULATOR();
-  g_host.emulator()->enableNoSlotClock(enable);
+  g_host.setNoSlotClock(enable);
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool isNoSlotClockEnabled() {
-  REQUIRE_EMULATOR_OR(false);
-  return g_host.emulator()->isNoSlotClockEnabled();
+  return g_host.noSlotClock();
 }
 
 
