@@ -23,6 +23,7 @@
     "tauri": "PATH=\"$HOME/.cargo/bin:$PATH\" tauri",
     "native:build": "cmake -S . -B build-macos -DA2E_BUILD_NATIVE=ON -DCMAKE_BUILD_TYPE=Release && cmake --build build-macos --target ApplEmNative -j",
     "native:run": "npm run native:build && open build-macos/native/ApplEm.app",
+    "native:release": "scripts/build-native-mac.sh",
     "tauri:dev": "PATH=\"$HOME/.cargo/bin:$PATH\" tauri dev",
     "tauri:build": "PATH=\"$HOME/.cargo/bin:$PATH\" tauri build",
     "desktop:mac": "scripts/build-desktop-mac.sh"
