@@ -648,7 +648,9 @@ export class MockingboardWindow extends BaseWindow {
         const fine = results[ri++];
         const coarse = results[ri++];
         const period = fine | ((coarse & 0x0f) << 8);
-        const freq = period > 0 ? Math.round(1023000 / (8 * period)) : 0;
+        // The tone counter toggles every TP ticks of the clock over 8, so a
+        // whole cycle is the clock over 16 TP, as the datasheet has it.
+        const freq = period > 0 ? Math.round(1023000 / (16 * period)) : 0;
 
         const freqKey = `psg${psg}ch${ch}freq`;
         if (this.prevValues[freqKey] !== freq) {
