@@ -63,6 +63,10 @@ the same core. `npm run native:build` builds `build-macos/native/ApplEm.app`;
   and modifiers are read from ImGui's modifier flags. `key_mapper` turns ImGui
   keys into the browser keycodes the core expects; `test_native_input` types
   through it into a real //e.
+- **`native/shaders/crt.metal` is a port of `public/shaders/crt.glsl`** and
+  the two must stay in step: change one, change the other, and run
+  `scripts/compare-crt.mjs` (see `docs/NATIVE.md`), which renders the same
+  frames through both and fails on any real difference.
 
 ## Deployment
 
