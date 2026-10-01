@@ -2372,13 +2372,12 @@ bool isSlotEmpty(int slot) {
 
 EMSCRIPTEN_KEEPALIVE
 bool isSlotInternal(int slot) {
-  if (g_host.iigs()) return g_host.iigs()->isSlotInternal(static_cast<uint8_t>(slot));
-  return true; // every other machine's slots are sockets and nothing else
+  return g_host.isSlotInternal(slot);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void setSlotInternal(int slot, bool internal) {
-  if (g_host.iigs()) g_host.iigs()->setSlotInternal(static_cast<uint8_t>(slot), internal);
+  g_host.setSlotInternal(slot, internal);
 }
 
 // ============================================================================

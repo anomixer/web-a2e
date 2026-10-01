@@ -63,6 +63,12 @@ the same core. `npm run native:build` builds `build-macos/native/ApplEm.app`;
   and modifiers are read from ImGui's modifier flags. `key_mapper` turns ImGui
   keys into the browser keycodes the core expects; `test_native_input` types
   through it into a real //e.
+- **The native host applies the slot layout before the power comes on.**
+  The `Emulator` constructor fits only the drives, the Mockingboard and a
+  //c's ports; the SmartPort and the Thunderclock come from the layout (in
+  the browser, the Expansion Slots window applies it at startup). Startup
+  order is cards, floppies, hard drive images, then power, so the boot scan
+  finds them.
 - **`native/shaders/crt.metal` is a port of `public/shaders/crt.glsl`** and
   the two must stay in step: change one, change the other, and run
   `scripts/compare-crt.mjs` (see `docs/NATIVE.md`), which renders the same
@@ -1152,8 +1158,8 @@ can use, from its profile and the cards fitted, and
 and whenever the Expansion Slots window applies a change. Hidden rather than
 disabled: a greyed "Expansion Slots" on a //c invites the question of how to
 enable it, and the answer is a different computer. What goes: Expansion Slots
-on a //c (no sockets) and on a IIgs (its core does not answer `_setSlotCard`;
-its slots' "card or port" choice is not modelled); CPU Speed on a IIgs (the
+on a //c (no sockets; a IIgs keeps it, with each slot's built-in-or-card
+switch); CPU Speed on a IIgs (the
 multiplier is `Emulator`'s); SmartPort Drives, Serial Port and Printer unless
 something provides them (a IIgs's slot 5 and its two sockets, a //c's ports, or
 a card); the Mockingboard and Mouse Card debug windows unless the card is
