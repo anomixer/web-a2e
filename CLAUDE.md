@@ -43,6 +43,27 @@ are load-bearing:
   always does (`InputHandler.handleKeyDown`, desktop only). The screen otherwise
   swallows every key, and WKWebView, unlike a browser, lets it.
 
+## Native macOS Front End (ImGui + Metal)
+
+`native/` is a second front end, not a wrapper: Dear ImGui's docking branch
+(submodule at `native/third_party/imgui`) over Metal, multi-viewport on, on
+the same core. `npm run native:build` builds `build-macos/native/ApplEm.app`;
+`docs/NATIVE.md` has the detail and the plan. Three things are load-bearing:
+
+- **`src/host/machine_host.*` is shared with the browser build.** It decides
+  which of `Emulator` and `IIgsMachine` is alive and routes what every host
+  asks of a machine; `wasm_interface.cpp` sits on it. Logic both front ends
+  need goes there, never into one front end. `check-core-purity.sh` covers
+  it, and `test_machine_host` boots every machine through it.
+- **Timing is the browser's**: Core Audio's callback wakes the emulation
+  thread below two frames of samples, a refill is one frame, and frames go
+  through a port of `frame-queue.js`. Everything else touches the machine
+  through `Emulation::withMachine`.
+- **ImGui swaps Cmd and Ctrl on a Mac** (`ImGuiKey_LeftCtrl` is physical ⌘),
+  and modifiers are read from ImGui's modifier flags. `key_mapper` turns ImGui
+  keys into the browser keycodes the core expects; `test_native_input` types
+  through it into a real //e.
+
 ## Deployment
 
 `npm run deploy` (production) and `npm run deploy:staging` run `scripts/deploy.sh`, which rsyncs `dist/` to a target taken from the environment: `DEPLOY_TARGET` and `DEPLOY_STAGING_TARGET`. Copy `.env.deploy.example` to `.env.deploy` and fill it in; that file is gitignored, so the server's user, host and paths stay out of a public repository.
