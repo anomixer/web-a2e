@@ -5,9 +5,40 @@
  *  Mike Daley <michael_daley@icloud.com>
  */
 
+// Stack pointer breakpoints are keyed above every address a machine has (24
+// bits), so one on SP $F0 can sit beside an execution breakpoint at $00F0. The
+// entry's `address` is still the value itself; only the map key is moved.
+export const STACK_KEY_BASE = 0x1000000;
+
+/**
+ * Parse "$2000", "2000-20FF" or "START-END" (symbols allowed at either end)
+ * into a range. `resolve` turns one side into a number or null.
+ *
+ * @returns {{start: number, end: number} | null} start <= end
+ */
+export function parseAddressRange(text, resolve) {
+  const trimmed = text.trim();
+  if (!trimmed) return null;
+  const single = resolve(trimmed);
+  if (single !== null && single !== undefined && !Number.isNaN(single)) {
+    return { start: single, end: single };
+  }
+  const dash = trimmed.indexOf("-");
+  if (dash <= 0) return null;
+  const start = resolve(trimmed.slice(0, dash).trim());
+  const end = resolve(trimmed.slice(dash + 1).trim());
+  if (start === null || end === null || start === undefined || end === undefined) return null;
+  if (Number.isNaN(start) || Number.isNaN(end)) return null;
+  return start <= end ? { start, end } : { start: end, end: start };
+}
+
 /**
  * BreakpointManager - Manages all breakpoint types including
  * execution breakpoints, conditional breakpoints, and watchpoints.
+ *
+ * Two kinds are ranges that fire on *entry* rather than on every step inside:
+ * an execution breakpoint whose endAddress is past its address, and a stack
+ * pointer breakpoint (type "stack"), which fires when SP enters its range.
  */
 export class BreakpointManager {
   constructor(wasmModule) {
@@ -36,9 +67,11 @@ export class BreakpointManager {
    * Add an execution breakpoint
    */
   add(address, opts = {}) {
-    if (this.breakpoints.has(address)) return;
+    const key = opts.type === "stack" ? STACK_KEY_BASE + address : address;
+    if (this.breakpoints.has(key)) return;
 
     const entry = {
+      key,
       address,
       endAddress: opts.endAddress ?? address,
       name: opts.name || null,
@@ -48,19 +81,19 @@ export class BreakpointManager {
       hitCount: 0,
       hitTarget: opts.hitTarget || 0,
       isTemp: false,
-      type: opts.type || "exec", // 'exec' | 'read' | 'write' | 'readwrite'
+      type: opts.type || "exec", // 'exec' | 'read' | 'write' | 'readwrite' | 'stack'
     };
 
-    this.breakpoints.set(address, entry);
-
-    if (entry.type === "exec") {
-      this._syncWasmAdd(address, entry.enabled);
-    } else {
-      this._syncWatchpointAdd(entry);
-    }
+    this.breakpoints.set(key, entry);
+    this._syncAdd(entry);
 
     this.save();
     this._notify();
+  }
+
+  /** An execution breakpoint over more than one address. */
+  static isExecRange(entry) {
+    return entry.type === "exec" && entry.endAddress !== entry.address;
   }
 
   /**
@@ -71,12 +104,7 @@ export class BreakpointManager {
     if (!entry) return;
 
     this.breakpoints.delete(address);
-
-    if (entry.type === "exec") {
-      this._syncWasmRemove(address);
-    } else {
-      this._syncWatchpointRemove(address);
-    }
+    this._syncRemove(entry);
 
     this.save();
     this._notify();
@@ -102,12 +130,16 @@ export class BreakpointManager {
 
     entry.enabled = enabled;
 
-    if (entry.type === "exec") {
-      try {
-        this.wasmModule._enableBreakpoint(address, enabled);
-      } catch (e) {
-        /* ignore */
+    try {
+      if (entry.type === "stack") {
+        this.wasmModule._enableStackBreakpoint(entry.address, enabled);
+      } else if (BreakpointManager.isExecRange(entry)) {
+        this.wasmModule._enableBreakpointRange(entry.address, enabled);
+      } else if (entry.type === "exec") {
+        this.wasmModule._enableBreakpoint(entry.address, enabled);
       }
+    } catch (e) {
+      /* ignore */
     }
 
     this.save();
@@ -348,13 +380,35 @@ export class BreakpointManager {
    */
   findByAddress(addr) {
     for (const entry of this.breakpoints.values()) {
-      if (entry.type === "exec") continue;
+      if (entry.type === "exec" || entry.type === "stack") continue;
       const end = entry.endAddress ?? entry.address;
       if (addr >= entry.address && addr <= end) {
         return entry;
       }
     }
     return null;
+  }
+
+  /**
+   * The execution breakpoint that stopped the machine at `pc`: one at that
+   * exact address, or else a range the PC entered. Null if neither is ours.
+   */
+  findExec(pc) {
+    const exact = this.breakpoints.get(pc);
+    if (exact && exact.type === "exec") return exact;
+    for (const entry of this.breakpoints.values()) {
+      if (BreakpointManager.isExecRange(entry) &&
+          pc >= entry.address && pc <= entry.endAddress) {
+        return entry;
+      }
+    }
+    return null;
+  }
+
+  /** The stack pointer breakpoint whose range starts at `low`, or null. */
+  findStack(low) {
+    const entry = this.breakpoints.get(STACK_KEY_BASE + low);
+    return entry && entry.type === "stack" ? entry : null;
   }
 
   /**
@@ -407,6 +461,44 @@ export class BreakpointManager {
 
   // ---- WASM sync helpers ----
 
+  _syncAdd(entry) {
+    if (entry.type === "stack") {
+      try {
+        this.wasmModule._addStackBreakpoint(entry.address, entry.endAddress);
+        if (!entry.enabled) this.wasmModule._enableStackBreakpoint(entry.address, false);
+      } catch (e) {
+        /* ignore */
+      }
+    } else if (BreakpointManager.isExecRange(entry)) {
+      try {
+        this.wasmModule._addBreakpointRange(entry.address, entry.endAddress);
+        if (!entry.enabled) this.wasmModule._enableBreakpointRange(entry.address, false);
+      } catch (e) {
+        /* ignore */
+      }
+    } else if (entry.type === "exec") {
+      this._syncWasmAdd(entry.address, entry.enabled);
+    } else {
+      this._syncWatchpointAdd(entry);
+    }
+  }
+
+  _syncRemove(entry) {
+    try {
+      if (entry.type === "stack") {
+        this.wasmModule._removeStackBreakpoint(entry.address);
+      } else if (BreakpointManager.isExecRange(entry)) {
+        this.wasmModule._removeBreakpointRange(entry.address);
+      } else if (entry.type === "exec") {
+        this._syncWasmRemove(entry.address);
+      } else {
+        this._syncWatchpointRemove(entry.address);
+      }
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
   _syncWasmAdd(address, enabled) {
     try {
       this.wasmModule._addBreakpoint(address);
@@ -457,13 +549,9 @@ export class BreakpointManager {
    * clears all WASM-side breakpoints.
    */
   resyncToWasm() {
-    for (const [address, entry] of this.breakpoints) {
+    for (const entry of this.breakpoints.values()) {
       if (entry.isTemp) continue;
-      if (entry.type === "exec") {
-        this._syncWasmAdd(address, entry.enabled);
-      } else {
-        this._syncWatchpointAdd(entry);
-      }
+      this._syncAdd(entry);
     }
   }
 
@@ -472,11 +560,11 @@ export class BreakpointManager {
   save() {
     try {
       const data = [];
-      for (const [addr, entry] of this.breakpoints) {
+      for (const entry of this.breakpoints.values()) {
         if (entry.isTemp) continue;
         data.push({
-          address: addr,
-          endAddress: entry.endAddress ?? addr,
+          address: entry.address,
+          endAddress: entry.endAddress ?? entry.address,
           name: entry.name || null,
           enabled: entry.enabled,
           condition: entry.condition,

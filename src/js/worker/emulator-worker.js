@@ -32,7 +32,7 @@ const AUDIO_READ_POS_OFFSET = 4;
 const AUDIO_DATA_OFFSET = 8;
 const AUDIO_RING_FLOATS = 16384 * 2;
 
-const CTRL_FRAME_READY = 0;
+const CTRL_FRAMES_WRITTEN = 0;
 const CTRL_IS_PAUSED = 1;
 const CTRL_PC = 2;
 const CTRL_A = 3;
@@ -48,7 +48,9 @@ const CTRL_BP_HIT = 12;
 const CTRL_BP_ADDR = 13;
 const CTRL_TOTAL_CYCLES_LO = 14;
 const CTRL_TOTAL_CYCLES_HI = 15;
-const CTRL_FRAME_INDEX = 16;
+const CTRL_FRAMES_SHOWN = 16;
+// Mirrored from shared-buffers.js, like the offsets above.
+const FB_SLOTS = 4;
 
 let wasmModule = null;
 
@@ -61,7 +63,6 @@ let sharedAudioReadPos = null;
 let sharedFramebuffer = null;
 let sharedFramebufferU8 = null;
 let sharedFramebufferSlotBytes = 0;
-let fbWriteSlot = 0;
 
 let sharedControl = null;
 let sharedControlI32 = null;
@@ -235,17 +236,24 @@ function sendFramebuffer() {
   const fbSize = wasmModule._getFramebufferSize();
 
   if (sharedFramebufferU8) {
-    // Shared path: write into whichever half the renderer is not reading, then
-    // publish it. No allocation and no postMessage — the postMessage path below
+    // Shared path: write into the next free slot of the frame queue, then
+    // publish it. No allocation and no postMessage: the postMessage path below
     // allocated a fresh 860KB array on every single frame, roughly 51MB/s of
     // garbage at 60fps and a reliable source of GC hitching.
-    sharedFramebufferU8.set(
-      new Uint8Array(wasmModule.HEAPU8.buffer, fbPtr, fbSize),
-      fbWriteSlot * sharedFramebufferSlotBytes
-    );
-    Atomics.store(sharedControlI32, CTRL_FRAME_INDEX, fbWriteSlot);
-    Atomics.store(sharedControlI32, CTRL_FRAME_READY, 1);
-    fbWriteSlot = 1 - fbWriteSlot;
+    //
+    // This is frame-queue.js's producer half, which a classic Worker cannot
+    // import. The queue is full only when the renderer has stopped taking
+    // frames (a hidden tab), and then this frame is dropped: the slots left
+    // are the renderer's and the ones it has yet to show.
+    const written = Atomics.load(sharedControlI32, CTRL_FRAMES_WRITTEN);
+    const shown = Atomics.load(sharedControlI32, CTRL_FRAMES_SHOWN);
+    if (((written - shown) | 0) < FB_SLOTS - 1) {
+      sharedFramebufferU8.set(
+        new Uint8Array(wasmModule.HEAPU8.buffer, fbPtr, fbSize),
+        (written & (FB_SLOTS - 1)) * sharedFramebufferSlotBytes
+      );
+      Atomics.add(sharedControlI32, CTRL_FRAMES_WRITTEN, 1);
+    }
     updateControlBlock();
   } else {
     // Fallback: copy and post as Transferable
@@ -463,7 +471,6 @@ self.onmessage = function(event) {
       sharedFramebuffer = msg.sharedFramebuffer;
       sharedFramebufferU8 = new Uint8Array(sharedFramebuffer);
       sharedFramebufferSlotBytes = msg.slotBytes;
-      fbWriteSlot = 0;
       sharedControl = msg.sharedControl;
       sharedControlI32 = new Int32Array(sharedControl);
       break;

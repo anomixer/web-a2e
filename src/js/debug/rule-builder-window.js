@@ -70,7 +70,20 @@ export class RuleBuilderWindow extends BaseWindow {
 
     const label = this.contentElement.querySelector("#rb-target-label");
     if (label) {
-      label.textContent = `Condition for $${this.formatHex(address, 4)}`;
+      // `address` is the breakpoint's key, which is where the condition goes;
+      // the label names what the breakpoint watches, which for a stack
+      // pointer breakpoint or a range is not the key.
+      const hex = (value, digits) => `$${this.formatHex(value, digits)}`;
+      let what = hex(address, 4);
+      if (entry?.type === "stack") {
+        const digits = entry.address > 0xff || entry.endAddress > 0xff ? 4 : 2;
+        what = entry.endAddress !== entry.address
+          ? `SP ${hex(entry.address, digits)}-${hex(entry.endAddress, digits)}`
+          : `SP ${hex(entry.address, digits)}`;
+      } else if (entry && entry.endAddress != null && entry.endAddress !== entry.address) {
+        what = `${hex(entry.address, 4)}-${hex(entry.endAddress, 4)}`;
+      }
+      label.textContent = `Condition for ${what}`;
     }
 
     if (entry && entry.conditionRules) {

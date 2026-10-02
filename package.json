@@ -1,7 +1,7 @@
 {
   "name": "web-a2e",
   "version": "1.0.0",
-  "description": "Apple //e emulator for the browser",
+  "description": "ApplEm, an Apple II emulator for the browser",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -19,12 +19,23 @@
     "preview": "vite preview",
     "clean": "rm -rf build dist public/a2e.js public/a2e.wasm",
     "deploy": "scripts/deploy.sh production",
-    "deploy:staging": "scripts/deploy.sh staging"
+    "deploy:staging": "scripts/deploy.sh staging",
+    "tauri": "PATH=\"$HOME/.cargo/bin:$PATH\" tauri",
+    "tauri:dev": "PATH=\"$HOME/.cargo/bin:$PATH\" tauri dev",
+    "tauri:build": "PATH=\"$HOME/.cargo/bin:$PATH\" tauri build",
+    "desktop:mac": "scripts/build-desktop-mac.sh"
   },
   "devDependencies": {
     "fflate": "^0.8.2",
+    "@tauri-apps/cli": "^2.11.5",
     "vite": "^7.3.1",
     "vitest": "^4.1.10",
     "ws": "^8.19.0"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-dialog": "^2.7.3",
+    "@tauri-apps/plugin-fs": "^2.5.2",
+    "@tauri-apps/plugin-opener": "^2.5.5"
   }
 }

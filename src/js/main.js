@@ -6,11 +6,16 @@
  */
 
 // CSS imports - bundled by Vite with content hashes for cache busting
+import {
+  restoreBatteryRam,
+  watchBatteryRam,
+} from "./machine/iigs-battery-ram.js";
 import "../css/base.css";
 import "../css/layout.css";
 import "../css/monitor.css";
 import "../css/disk-drives.css";
 import "../css/hard-drive.css";
+import "../css/disk-inspector.css";
 import "../css/controls.css";
 import "../css/modals.css";
 import "../css/debug-base.css";
@@ -40,17 +45,23 @@ import { AudioDriver } from "./audio/audio-driver.js";
 import { WasmProxy } from "./worker/wasm-proxy.js";
 import {
   loadMachineProfile,
+  applyMachineAspectToDocument,
+  machineAspect,
   machineDisplay,
   restoreRememberedMachine,
 } from "./machine/machine-profile.js";
+import {
+  applyMemoryKB,
+  loadRememberedMemoryKB,
+} from "./machine/iigs-memory.js";
 import {
   allocateSharedBuffers,
   FB_BYTES,
   FB_WIDTH,
   FB_HEIGHT,
-  CTRL_FRAME_READY,
-  CTRL_FRAME_INDEX,
+  FB_SLOTS,
 } from "./worker/shared-buffers.js";
+import { takeFrame, MAX_FRAME_BACKLOG } from "./worker/frame-queue.js";
 import { InputHandler, TextSelection, JoystickWindow, MouseHandler, GamepadHandler } from "./input/index.js";
 import { DiskManager } from "./disk-manager/index.js";
 import { DiskDrivesWindow } from "./disk-manager/disk-drives-window.js";
@@ -80,6 +91,8 @@ if (originalGetLibraryImageData) {
 }
 import { HardDriveWindow } from "./disk-manager/hard-drive-window.js";
 import { readUrlMedia, loadUrlMedia } from "./disk-manager/url-media-loader.js";
+import { hasMediaParams } from "./utils/url-params.js";
+import { DiskInspectorWindow } from "./disk-manager/disk-inspector-window.js";
 import { FileExplorerWindow } from "./file-explorer/index.js";
 import { DisplaySettingsWindow, ScreenWindow } from "./display/index.js";
 import { DocumentationWindow, ReleaseNotesWindow } from "./help/index.js";
@@ -99,6 +112,8 @@ import { EmulationSpeed, clockLabel } from "./ui/emulation-speed.js";
 import { StateManager } from "./state/state-manager.js";
 import { SaveStatesWindow } from "./state/save-states-window.js";
 import { AgentManager } from "./agent/index.js";
+import { installDesktopHost } from "./platform/desktop-host.js";
+import { initNativeMenu } from "./platform/native-menu.js";
 import { SerialManager } from "./serial/serial-manager.js";
 import { DockManager } from "./docking/index.js";
 import {
@@ -163,6 +178,18 @@ class AppleIIeEmulator {
       // the screenshot canvas, the selection overlay, the printer's screen
       // dump — reads the answer instead of assuming a //e.
       this.machine = await loadMachineProfile(this.wasmModule);
+      // A IIgs's 256 bytes of settings, put back before the machine runs:
+      // the firmware reads them on the way up and rewrites them the moment it
+      // does not trust what it finds.
+      await restoreBatteryRam(this.wasmModule);
+      watchBatteryRam(this.wasmModule);
+
+      // How much memory a IIgs has is the user's choice too, and the core has
+      // to be told before one is built rather than after: RAM cannot grow
+      // underneath a running machine, so setting it afterwards would throw
+      // away the machine we just started. On any other machine this is
+      // remembered and nothing else happens.
+      await applyMemoryKB(this.wasmModule, loadRememberedMemoryKB());
 
       // ...then move to whichever machine the user last chose. This happens
       // before the renderer and the windows exist, so they are built for the
@@ -191,13 +218,16 @@ class AppleIIeEmulator {
       this.setupSharedBuffers();
 
       // Fallback transport, used when SharedArrayBuffer is unavailable (no
-      // COOP/COEP headers). Both paths end up setting _lastFramebuffer.
+      // COOP/COEP headers). Both paths end up setting _lastFramebuffer, and
+      // both queue frames rather than keep only the newest (see frame-queue.js):
+      // frames arrive to audio's timing, not the display's, and two that land
+      // between refreshes must both be shown.
       this.wasmModule.onAudioSamples = (samples) => {
         this.audioDriver.relaySamples(samples);
       };
+      this._postedFrames = [];
       this.wasmModule.onFrameReady = (fbData) => {
-        this._lastFramebuffer = fbData;
-        this.frameReady = true;
+        this._postedFrames.push(fbData);
       };
 
       // Set up input handler
@@ -215,6 +245,11 @@ class AppleIIeEmulator {
       // Set up mouse handler for Apple Mouse Interface Card
       this.mouseHandler = new MouseHandler(this.wasmModule);
       this.mouseHandler.init();
+      // The reminder is advice about a click the visitor has not made yet, so
+      // it goes the moment capture is taken and comes back when it is released,
+      // and it follows a mouse appearing or disappearing with the slots.
+      this.mouseHandler.onLockChanged = () => this.updateMouseReminder();
+      this.mouseHandler.onEnabledChanged = () => this.updateMouseReminder();
 
       // Set up window manager
       this.windowManager = new WindowManager();
@@ -224,15 +259,20 @@ class AppleIIeEmulator {
       this.fileExplorer.create();
       this.windowManager.register(this.fileExplorer);
 
+      const diskInspector = new DiskInspectorWindow(this.wasmModule);
+      diskInspector.create();
+      this.windowManager.register(diskInspector);
+
       // Create disk drives window first so DiskManager can find its DOM elements
       const diskDrivesWindow = new DiskDrivesWindow();
       diskDrivesWindow.create();
       this.windowManager.register(diskDrivesWindow);
 
       // Read any ?disk=/?hd= parameters before the managers restore their
-      // persisted images, so the units a link claims are left alone rather than
-      // being loaded and then immediately replaced.
+      // persisted images. A link that names any image restores none of them,
+      // floppy or hard drive, so the machine holds only what the link asked for.
       this.urlMedia = readUrlMedia(window.location);
+      const urlNamesMedia = hasMediaParams(this.urlMedia);
 
       // Set up disk manager (must be after disk drives window is created)
       this.diskManager = new DiskManager(this.wasmModule);
@@ -240,6 +280,7 @@ class AppleIIeEmulator {
       this.diskManager.urlOwnedDrives = new Set(
         this.urlMedia.floppies.map((f) => f.unit),
       );
+      this.diskManager.skipRestore = urlNamesMedia;
       this.diskManager.init();
       this.diskManager.onDiskLoaded = () => {
         this.reminderController?.dismissBasicReminder();
@@ -258,6 +299,7 @@ class AppleIIeEmulator {
       this.hardDriveManager.urlOwnedDevices = new Set(
         this.urlMedia.hardDrives.map((h) => h.unit),
       );
+      this.hardDriveManager.skipRestore = urlNamesMedia;
       this.hardDriveManager.init();
 
 
@@ -421,6 +463,11 @@ class AppleIIeEmulator {
       // empty slot 4, and leaves mouse capture disabled until the next slot edit.
       await slotConfigWindow.create();
       this.windowManager.register(slotConfigWindow);
+
+      // Hard drive images go in only now, into the SmartPort the saved layout
+      // put wherever it put it. Restored any earlier, an image was inserted
+      // into the default card and lost when the layout was applied.
+      await this.hardDriveManager.restoreImages();
       this.slotConfigWindow = slotConfigWindow;
 
       // Release notes window
@@ -451,7 +498,9 @@ class AppleIIeEmulator {
         }
       });
 
-      // Start with TV static "no signal" since emulator is off
+      // Start with TV static "no signal" since emulator is off. The screen
+      // names the machine to switch on, so it has to know which one it is.
+      this.renderer.setMachine(this.machine);
       this.renderer.setNoSignal(true);
 
       // Set up text selection for copying screen contents
@@ -462,6 +511,7 @@ class AppleIIeEmulator {
 
       // Set up reminder controller
       this.reminderController = new ReminderController();
+      this.reminderController.setMachineName(this.machine?.name);
 
       // Apply display settings
       this.displaySettings.applyAllSettings();
@@ -510,7 +560,12 @@ class AppleIIeEmulator {
       // Sync interface availability from the already-applied slot config, then
       // keep it live as the user changes cards in Expansion Slots.
       printerManager.updateSlots(slotConfigWindow.installedCards());
-      slotConfigWindow.onSlotsApplied = (assignments) => printerManager.updateSlots(assignments);
+      // The menus follow the cards as well: a Mockingboard window is only
+      // worth offering while there is a Mockingboard.
+      slotConfigWindow.onSlotsApplied = (assignments) => {
+        printerManager.updateSlots(assignments);
+        this.uiController?.applyMachineMenus(assignments);
+      };
 
       // Print Browser — manages the pages auto-captured to IndexedDB by the
       // printer window. Reads the store; can also send a stored job back to the
@@ -536,6 +591,9 @@ class AppleIIeEmulator {
         emulationSpeed: this.emulationSpeed,
       });
       this.uiController.init();
+      // What this machine, with these cards, can use. The slot cards were
+      // restored into the core when the slots window was created above.
+      this.uiController.applyMachineMenus(slotConfigWindow.installedCards());
 
       // The header badge names the machine and is how it is changed. Created
       // after the UI controller so the generic header-menu open/close wiring
@@ -544,7 +602,14 @@ class AppleIIeEmulator {
         wasmModule: this.wasmModule,
         onMachineChanged: async (profile) => {
           this.machine = profile;
-          this.renderer.setMachineDisplay(profile.display);
+          // The core has been rebuilt, so its battery RAM is empty again.
+          await restoreBatteryRam(this.wasmModule);
+          watchBatteryRam(this.wasmModule);
+          this.renderer.setMachine(profile);
+          this.reminderController?.setMachineName(profile.name);
+          applyMachineAspectToDocument();
+          this.screenWindow?.setAspect(machineAspect());
+          this.textSelection?.onMachineChanged?.();
           await this.onMachineChanged();
           showToast(`Switched to ${profile.name}`, "info", 4000);
         },
@@ -560,6 +625,9 @@ class AppleIIeEmulator {
         reminderController: this.reminderController,
         cpuDebuggerWindow: cpuWindow,
         basicProgramWindow: this.basicProgramWindow,
+        hardDriveManager: this.hardDriveManager,
+        // A state saved off another machine asks for that machine back.
+        switchMachine: (key) => this.machineMenu.switchTo(key),
       });
       this.stateManager.init();
 
@@ -600,7 +668,10 @@ class AppleIIeEmulator {
       this.reminderController.showPowerReminder(true);
       this.autostart();
 
-      console.log("Apple //e Emulator initialized");
+      // The desktop build's menu bar, read off the header now that it is wired.
+      initNativeMenu();
+
+      console.log("ApplEm initialized");
     } catch (error) {
       console.error("Failed to initialize emulator:", error);
       this.showLoading(false);
@@ -656,22 +727,38 @@ class AppleIIeEmulator {
    */
   async updateMouseHandlerState() {
     if (!this.mouseHandler) return;
+    // The core answers "is there a mouse to capture" for whichever machine is
+    // running: a //e has one when a Mouse card is in a slot, a //c has its
+    // IOU's, and a IIgs always has one because its mouse is the ADB controller
+    // rather than a card. Scanning the slots for a card named "mouse" was the
+    // //e's answer alone, and left a IIgs's Finder with no pointer.
     let mousePresent = false;
-    for (let slot = 1; slot <= 7; slot++) {
-      const ptr = await this.wasmModule._getSlotCard(slot);
-      if (ptr) {
-        const name = await this.wasmModule.UTF8ToString(ptr);
-        if (name === "mouse") {
-          mousePresent = true;
-          break;
-        }
-      }
+    try {
+      mousePresent = !!(await this.wasmModule._isMouseCardInstalled());
+    } catch {
+      mousePresent = false;
     }
     if (mousePresent) {
       this.mouseHandler.enable();
     } else {
       this.mouseHandler.disable();
     }
+    this.updateMouseReminder();
+  }
+
+  /**
+   * Show the mouse capture reminder whenever it has something to say.
+   *
+   * That is: a running machine that has a mouse, with the pointer not already
+   * captured. It is deliberately not a one-off — ⌥-click is not a gesture
+   * anybody arrives knowing — so it returns every session until the visitor
+   * presses its own "Don't show again", which is remembered.
+   */
+  updateMouseReminder() {
+    if (!this.reminderController) return;
+    const wanted =
+      this.running && !!this.mouseHandler?.enabled && !this.mouseHandler?.locked;
+    this.reminderController.showMouseReminder(wanted);
   }
 
   /**
@@ -688,13 +775,16 @@ class AppleIIeEmulator {
   async onMachineChanged() {
     // The picture first, so nothing is drawn with the core's defaults.
     if (this.displaySettings) {
-      this.displaySettings.applyAllSettings();
+      this.displaySettings.onMachineChanged();
     }
     if (this.audioDriver) {
       this.audioDriver.applyVolumeToEmulator?.();
     }
     if (this.emulationSpeed) this.emulationSpeed.apply();
     if (this.uiController) this.uiController.applyCharacterSet?.();
+    // Which host key is Open Apple is the machine's own choice.
+    this.inputHandler?.applyAppleKeys();
+    this.uiController?.applyAppleKeysMenu?.();
     // A rebuilt core is back on the Apple joystick; the game port is the
     // user's choice, not the machine's.
     this.joystickWindow?.applyGamePort();
@@ -704,11 +794,24 @@ class AppleIIeEmulator {
     // card, so the window has to be rebuilt rather than merely refreshed.
     if (this.slotConfigWindow) await this.slotConfigWindow.setMachine();
     // Which buses a printer can be reached over is a property of the machine
-    // as much as of the slots: a //c has a printer port soldered on and a II+
-    // has neither that nor a card until the user fits one.
-    if (this.printerManager && this.slotConfigWindow) {
-      this.printerManager.updateSlots(this.slotConfigWindow.installedCards());
+    // as much as of the slots: a //c has a printer port soldered on, a IIgs has
+    // two sockets on the back of it, and a II+ has neither that nor a card
+    // until the user fits one. The rebuilt core also has to be handed the
+    // callbacks again, because they belonged to the machine that has gone.
+    if (this.printerManager) {
+      await this.printerManager.reattach();
+      if (this.slotConfigWindow) {
+        this.printerManager.updateSlots(this.slotConfigWindow.installedCards());
+      }
     }
+    // And the menus: what a //c or a IIgs has nowhere to fit is not offered.
+    if (this.uiController && this.slotConfigWindow) {
+      this.uiController.applyMachineMenus(this.slotConfigWindow.installedCards());
+    }
+
+    // Every debug view is shaped by the machine it is looking at, so they all
+    // hear about the change rather than each being named here.
+    this.windowManager?.notifyMachineChanged();
 
     await this.updateMouseHandlerState();
     if (this.diskManager) this.diskManager.syncWithEmulatorState?.();
@@ -731,6 +834,7 @@ class AppleIIeEmulator {
     this.running = true;
     this.renderer.setNoSignal(false);
     this.audioDriver.start();
+    this.updateMouseReminder();
     if (this.uiController) {
       this.uiController.updatePowerButton(true);
     }
@@ -742,6 +846,7 @@ class AppleIIeEmulator {
 
     this.running = false;
     this.audioDriver.stop();
+    this.updateMouseReminder();
 
     this.wasmModule._stopDiskMotor();
 
@@ -808,10 +913,10 @@ class AppleIIeEmulator {
 
     this._sharedControl = new Int32Array(buffers.control);
     // One view per slot, created once, so picking up a frame costs no allocation.
-    this._sharedFrameViews = [
-      new Uint8Array(buffers.framebuffer, 0, FB_BYTES),
-      new Uint8Array(buffers.framebuffer, FB_BYTES, FB_BYTES),
-    ];
+    this._sharedFrameViews = Array.from(
+      { length: FB_SLOTS },
+      (_, slot) => new Uint8Array(buffers.framebuffer, slot * FB_BYTES, FB_BYTES),
+    );
 
     this.audioDriver.setSharedAudioBuffer(buffers.audio);
     this.wasmModule.configureSharedAudio(buffers.audio);
@@ -823,14 +928,29 @@ class AppleIIeEmulator {
   }
 
   /**
-   * Pick up a completed frame from the shared framebuffer, if one is waiting.
-   * Clearing the flag with exchange means we never re-upload the same frame.
+   * Take the next frame to show, if one has arrived since the last refresh.
+   *
+   * One frame per refresh, the oldest first, so frames that arrived together
+   * are shown on successive refreshes; past MAX_FRAME_BACKLOG the newest is
+   * taken instead, so a backlog costs a skipped frame rather than growing
+   * delay. The shared path's rules are in frame-queue.js, and the posted
+   * frames of the fallback path follow the same ones.
    */
-  pollSharedFrame() {
-    if (!this._sharedControl) return;
-    if (Atomics.exchange(this._sharedControl, CTRL_FRAME_READY, 0) !== 1) return;
-    const slot = Atomics.load(this._sharedControl, CTRL_FRAME_INDEX);
-    this._lastFramebuffer = this._sharedFrameViews[slot] || this._sharedFrameViews[0];
+  pollFrame() {
+    if (this._sharedControl) {
+      const slot = takeFrame(this._sharedControl);
+      if (slot < 0) return;
+      this._lastFramebuffer = this._sharedFrameViews[slot];
+      this.frameReady = true;
+      return;
+    }
+
+    const posted = this._postedFrames;
+    if (!posted || posted.length === 0) return;
+    this._lastFramebuffer =
+      posted.length > MAX_FRAME_BACKLOG ? posted[posted.length - 1] : posted[0];
+    if (posted.length > MAX_FRAME_BACKLOG) posted.length = 0;
+    else posted.shift();
     this.frameReady = true;
   }
 
@@ -878,7 +998,7 @@ class AppleIIeEmulator {
     const render = () => {
       try {
         this._renderFrameCount++;
-        this.pollSharedFrame();
+        this.pollFrame();
         this.windowManager.updateAll(this.wasmModule);
 
         // Throttle disk LED updates to ~15fps (every 4th frame)
@@ -995,7 +1115,7 @@ class AppleIIeEmulator {
     this.reminderController = null;
     this.uiController = null;
 
-    console.log("Apple //e Emulator destroyed");
+    console.log("ApplEm destroyed");
   }
 }
 
@@ -1048,6 +1168,8 @@ if ("serviceWorker" in navigator && isInstalled) {
 
 // Initialize when DOM is ready
 document.addEventListener("DOMContentLoaded", () => {
+  installDesktopHost();
+
   // Display version in header
   const versionEl = document.getElementById("app-version");
   if (versionEl) {

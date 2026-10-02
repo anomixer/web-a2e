@@ -72,6 +72,9 @@ export class DiskManager {
     /** @type {Set<number>} Drives a URL parameter will fill; skipped on restore */
     this.urlOwnedDrives = new Set();
 
+    /** @type {boolean} The URL names media, so restore nothing at all */
+    this.skipRestore = false;
+
     // Save modal state
     this.pendingEjectDrive = null;
     this.saveModal = null;
@@ -165,6 +168,11 @@ export class DiskManager {
    * Restore disks from IndexedDB that were inserted in a previous session
    */
   async restoreDisks() {
+    // A link that names any image gets a machine holding only what it names:
+    // a disk from the last visit left in the other drive, or a hard drive the
+    // machine boots from first, would change what the link does. They stay
+    // in storage and come back on the next plain visit.
+    if (this.skipRestore) return;
     for (let driveNum = 0; driveNum < 2; driveNum++) {
       // A URL parameter is about to fill this drive; restoring first would just
       // be overwritten, and the two loads would race.

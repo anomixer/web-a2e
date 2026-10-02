@@ -147,6 +147,15 @@ export class DocumentationWindow extends BaseWindow {
             </svg>
             File Explorer
           </button>
+          <button data-section="disk-inspector">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <circle cx="12" cy="12" r="6"/>
+              <circle cx="12" cy="12" r="2"/>
+              <line x1="12" y1="2" x2="12" y2="6"/>
+            </svg>
+            Disk Inspector
+          </button>
           <button data-section="state">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
@@ -213,7 +222,7 @@ export class DocumentationWindow extends BaseWindow {
       <!-- Getting Started Section -->
       <section id="doc-getting-started" class="documentation-section active">
         <h3>Getting Started</h3>
-        <p>Welcome to the Apple //e Emulator! This web-based emulator faithfully recreates the Apple //e Enhanced computer from 1983, allowing you to run classic Apple II software directly in your browser.</p>
+        <p>Welcome to ApplEm! It recreates four Apple II computers and runs their software directly in your browser or as a desktop app.</p>
 
         <h4>Quick Start</h4>
         <ol class="quick-start-list">
@@ -223,20 +232,25 @@ export class DocumentationWindow extends BaseWindow {
           <li>Type <kbd>PR#6</kbd> and press <kbd>Return</kbd> to boot from drive 1</li>
         </ol>
 
-        <h4>What is the Apple //e?</h4>
-        <p>The Apple //e (Enhanced) was Apple's most popular Apple II model, released in 1983. It featured 128KB of RAM with auxiliary memory, 80-column text display, double hi-res graphics (560x192), and ran thousands of educational, productivity, and entertainment programs.</p>
-        <p>It is not the only machine here. The badge in the header names the machine you are running, and clicking it lets you switch to an <strong>Apple II Plus</strong> &mdash; see <strong>Machines</strong> for what differs and what the II+ needs before it will start.</p>
+        <h4>The machines</h4>
+        <ul>
+          <li><strong>Apple II Plus</strong> (1979): a 6502, 48KB plus a 16KB language card, 40 columns and upper case</li>
+          <li><strong>Apple //e Enhanced</strong> (1983): a 65C02, 128KB, 80 columns and double hi-res. The default</li>
+          <li><strong>Apple //c</strong> (1984): a //e in a case, with its disk drive, serial ports and mouse built in</li>
+          <li><strong>Apple IIgs</strong> (1986): a 65C816 at 2.8 MHz, up to 8MB, Super Hi-Res and the Ensoniq synthesiser</li>
+        </ul>
+        <p>The badge in the header names the machine you are running, and clicking it lets you switch. See <strong>Machines</strong> for what each one has and what it needs before it will start.</p>
 
         <h4>Emulated Hardware</h4>
         <ul>
-          <li><strong>CPU:</strong> 65C02 processor at 1.023 MHz (cycle-accurate)</li>
-          <li><strong>Memory:</strong> 128KB RAM (64KB main + 64KB auxiliary)</li>
-          <li><strong>Video:</strong> All Apple //e display modes including Double Hi-Res</li>
+          <li><strong>CPU:</strong> 6502 or 65C02 at 1.023 MHz (cycle-accurate), and the IIgs's 65C816</li>
+          <li><strong>Memory:</strong> 64KB on a II Plus, 128KB on a //e and //c, 256KB to 8MB on a IIgs</li>
+          <li><strong>Video:</strong> Every Apple II display mode, from 40-column text to Double Hi-Res and Super Hi-Res</li>
           <li><strong>Storage:</strong> Two Disk II floppy drives, SmartPort hard drives</li>
           <li><strong>Audio:</strong> Speaker with accurate timing, Mockingboard (dual AY-3-8910)</li>
           <li><strong>Expansion:</strong> Disk II, Mockingboard, Mouse Card, Thunderclock Plus, Super Serial Card, Parallel Card, Microsoft Z-80 SoftCard, SmartPort, and a No-Slot Clock</li>
           <li><strong>Peripherals:</strong> Virtual dot-matrix printer, joystick / paddles or a Sirius Joyport, and physical game controllers</li>
-          <li><strong>ROM:</strong> Apple //e Enhanced ROM set (the Apple II Plus supplies its own &mdash; see Machines)</li>
+          <li><strong>ROM:</strong> Each machine's own ROM set; see Machines for which are built in</li>
         </ul>
 
         <div class="info-box tip">
@@ -252,7 +266,7 @@ export class DocumentationWindow extends BaseWindow {
         <h4>Chrome / Edge (Desktop)</h4>
         <ol class="quick-start-list">
           <li>Click the <strong>install icon</strong> in the address bar (right side)</li>
-          <li>Or click the <strong>three dots menu</strong> (⋮) and select "Install Apple //e Emulator"</li>
+          <li>Or click the <strong>three dots menu</strong> (⋮) and select "Install ApplEm"</li>
           <li>Click <strong>Install</strong> in the dialog</li>
           <li>The app will open in its own window and appear in your applications</li>
         </ol>
@@ -312,12 +326,31 @@ export class DocumentationWindow extends BaseWindow {
           <li><strong>Slot 0 exists</strong> and holds the language card, which is how a 48K machine becomes the 64K one nearly all II+ software expects. Slot 3 is free for anything, since there is no built-in 80-column card to occupy it.</li>
         </ul>
 
-        <div class="info-box warning">
-          <p><strong>The Apple II Plus needs its own ROMs.</strong> They are not distributed with the emulator. Without them the machine is still listed but marked unavailable, rather than quietly failing to reach a prompt. See the project README for which ROM images to supply and where to put them before building.</p>
-        </div>
+        <h4>Apple //c</h4>
+        <p>The 1984 portable: a //e folded into a slab. The same 65C02, the same 128KB, the same timing &mdash; what differs is the back of it.</p>
+        <ul>
+          <li><strong>No expansion sockets at all</strong>, but it decodes all seven slot addresses, because the firmware and everything written for a //e depend on them. Each one answers to a part soldered to the board.</li>
+          <li><strong>Two serial ports</strong> in slots 1 and 2, so <code>PR#1</code> prints and <code>IN#2</code> listens.</li>
+          <li><strong>A disk drive in its case</strong>, hanging off an Integrated Woz Machine rather than a Disk II card.</li>
+          <li><strong>A mouse that is not a card</strong> &mdash; two quadrature lines into the IOU, counted one interrupt per unit of travel. There is nothing to install and nothing to remove.</li>
+        </ul>
+        <p>Because there is nowhere to put a card, the Expansion Slots window is hidden on a //c rather than greyed out.</p>
+
+        <h4>Apple IIgs</h4>
+        <p>The 1986 machine that took the Apple II 16-bit. It boots GS/OS System 6.0.4 to the Finder, with a working mouse and sound.</p>
+        <ul>
+          <li><strong>A 65C816 at 2.8 MHz</strong> on a 24-bit bus, with 16-bit registers and two operating modes. It drops to 1.023 MHz whenever a drive is turning, exactly as the real machine does.</li>
+          <li><strong>256K to 8M of fast RAM</strong>, which you choose from the Machine menu and which is remembered.</li>
+          <li><strong>Super Hi-Res</strong> &mdash; 320 or 640 pixels wide with a palette per scanline &mdash; alongside every mode a //e has, because a IIgs contains a Mega II and a Mega II is a //e.</li>
+          <li><strong>An Ensoniq</strong> with thirty-two oscillators, and a speaker as well.</li>
+          <li><strong>A battery-backed clock</strong> whose Control Panel settings survive a reload.</li>
+          <li><strong>A SmartPort in slot 5</strong>, part of the machine rather than a card you fit, serving hard drive images to GS/OS.</li>
+        </ul>
 
         <h4>Switching machines</h4>
-        <p>Switching rebuilds the machine from scratch, so anything in the drives or in memory is lost &mdash; exactly as it would be on a page reload. The menu warns you before it does it. What does follow you across is everything that was your choice rather than the machine's: display settings, volume, character set and CPU speed. Each machine remembers its own expansion slot layout, so a card fitted to one does not turn up in the other, and the machine you last chose is restored the next time you open the emulator.</p>
+        <p>Switching rebuilds the machine from scratch, so anything in the drives or in memory is lost &mdash; exactly as it would be on a page reload. The menu warns you before it does it. What follows you across is what was your choice rather than the machine's: volume, character set and CPU speed. What is remembered <em>per machine</em> is its expansion slot layout, its display settings, its save states, and whether &#8984; acts as Open Apple &mdash; so returning to a machine brings back the way you had it. The machine you last chose is restored the next time you open the emulator.</p>
+
+        <p>Menu items for hardware the running machine does not have are hidden rather than disabled. A greyed-out &ldquo;Expansion Slots&rdquo; on a //c would only raise the question of how to enable it, and the answer is a different computer.</p>
       </section>
 
       <!-- Keyboard Reference Section -->
@@ -332,10 +365,12 @@ export class DocumentationWindow extends BaseWindow {
           </thead>
           <tbody>
             <tr><td><kbd>Enter</kbd></td><td>Return</td><td>Confirm input, run commands</td></tr>
-            <tr><td><kbd>Backspace</kbd></td><td>Delete</td><td>Delete character left</td></tr>
+            <tr><td><kbd>Backspace</kbd></td><td>Left arrow ($08)</td><td>Deletes to the left in Applesoft</td></tr>
+            <tr><td><kbd>Delete</kbd> (forward delete)</td><td>Delete ($7F)</td><td>The key marked DELETE on a //e, //c and IIgs</td></tr>
             <tr><td><kbd>Esc</kbd></td><td>Escape</td><td>Cancel, exit menus</td></tr>
             <tr><td><kbd>Tab</kbd></td><td>Tab</td><td>Tab character</td></tr>
             <tr><td><kbd>&#8592;</kbd> <kbd>&#8594;</kbd> <kbd>&#8593;</kbd> <kbd>&#8595;</kbd></td><td>Arrow Keys</td><td>Cursor movement, game controls</td></tr>
+            <tr><td>Numeric keypad</td><td>Digits, * + - . / and Return</td><td>As the main keys; a IIgs flags them as keypad keys</td></tr>
           </tbody>
         </table>
 
@@ -345,12 +380,20 @@ export class DocumentationWindow extends BaseWindow {
             <tr><th>Your Keyboard</th><th>Apple //e Key</th><th>Notes</th></tr>
           </thead>
           <tbody>
-            <tr><td><kbd>Alt</kbd> (Left)</td><td>Open Apple (&#63743;)</td><td>Modifier key, joystick button 0</td></tr>
-            <tr><td><kbd>Alt</kbd> (Right)</td><td>Closed Apple</td><td>Modifier key, joystick button 1</td></tr>
-            <tr><td><kbd>Ctrl</kbd></td><td>Control</td><td>Control key modifier</td></tr>
-            <tr><td><kbd>Ctrl</kbd>+<kbd>Pause/Break</kbd></td><td>Reset</td><td>Warm reset (Ctrl+Reset)</td></tr>
+            <tr><td><kbd>Alt</kbd> / <kbd>Option</kbd> (Left)</td><td>Open Apple (&#63743;)</td><td>Modifier key, joystick button 0. A II+ has no Apple keys, so there it is just button 0</td></tr>
+            <tr><td><kbd>Alt</kbd> / <kbd>Option</kbd> (Right)</td><td>Closed Apple</td><td>Modifier key, joystick button 1 (just button 1 on a II+)</td></tr>
+            <tr><td><kbd>&#8984;</kbd></td><td>Open Apple, on a IIgs</td><td>See below. On the other machines &#8984; and the Windows key press nothing</td></tr>
+            <tr><td><kbd>Ctrl</kbd></td><td>Control</td><td>Control characters: Ctrl+A to Ctrl+Z, and Ctrl with @ [ \\ ] ^ _ for $00 and $1B-$1F; Ctrl+2, Ctrl+6 and Ctrl+- are Ctrl+@, Ctrl+^ and Ctrl+_ without Shift, as on a //e</td></tr>
+            <tr><td><kbd>Shift</kbd></td><td>Shift</td><td>On a //c it also pulls PB2 ($C063) low, as the real keyboard does</td></tr>
+            <tr><td><kbd>Caps Lock</kbd></td><td>Caps Lock</td><td>Upper case letters; a IIgs reports it in $C025</td></tr>
+            <tr><td><kbd>Ctrl</kbd>+<kbd>Pause/Break</kbd></td><td>Ctrl+Reset</td><td>Warm reset, on keyboards that have the key; the toolbar button does the same</td></tr>
           </tbody>
         </table>
+
+        <h4>Which key is Open Apple depends on the machine</h4>
+        <p>On the 8-bit machines the two Option keys are the Apple keys &mdash; left Open, right Closed &mdash; and &#8984; is left to the browser. A IIgs's keyboard is a Mac's: &#8984; <em>is</em> its Open Apple and Option its Closed Apple, and GS/OS drives its menus with &#8984;-letter, so on that machine the emulator takes &#8984; while it has the keyboard.</p>
+        <p><strong>View &gt; &#8984; as Open Apple</strong> is the switch. It is remembered per machine and is on by default for the IIgs only. Your browser still keeps &#8984;W, &#8984;Q and a few others for itself, which is why this is a choice rather than a rule.</p>
+        <p><strong>An Apple II Plus types upper case only.</strong> Its keyboard has no lower case and Applesoft on it rejects a lower-case keyword, so letters arrive as capitals whatever Shift or Caps Lock say.</p>
 
         <h4>Control Key Combinations</h4>
         <table class="key-table">
@@ -520,8 +563,11 @@ export class DocumentationWindow extends BaseWindow {
           <div class="format-item"><code>.DO</code><span>DOS order (same as .DSK)</span></div>
           <div class="format-item"><code>.PO</code><span>ProDOS sector order (140KB)</span></div>
           <div class="format-item"><code>.NIB</code><span>Nibble image (raw GCR)</span></div>
-          <div class="format-item"><code>.WOZ</code><span>WOZ format with copy protection</span></div>
+          <div class="format-item"><code>.WOZ</code><span>WOZ 1.0, 2.0 and 2.1, including flux tracks, with copy protection intact</span></div>
         </div>
+
+        <h4>Flux Images</h4>
+        <p>A WOZ 2.1 image can store some tracks as flux timings, recording when each magnetic transition passed the head rather than just the bits. These are played to the drive at their recorded timing, so copy protection that depends on a track being written faster or slower than normal works as it did on the real disk. When you save a flux image, those tracks are saved as flux. If the machine writes to a flux track, that one track becomes an ordinary bit track, just as a real drive records bits.</p>
 
         <h4>Drive Controls</h4>
         <ul>
@@ -572,6 +618,7 @@ export class DocumentationWindow extends BaseWindow {
         </ul>
         <p>Example: <code>?disk=https://example.com/demo.dsk</code></p>
         <p>A path on your own machine, such as <code>/Users/you/Downloads/demo.dsk</code>, will not work &mdash; a web page cannot read local files. Use <strong>Insert</strong> or drag the file onto a drive for those.</p>
+        <p>A link that names any image starts the machine with <strong>only</strong> what the link names. The disks and hard drive images you had in the other drives are not loaded, so nothing left over from your last visit changes what the link does, such as a hard drive booting ahead of the linked floppy. They are not deleted either.</p>
         <p>Disks loaded this way are <strong>not</strong> saved to your browser storage or your Recent list, so a link someone sends you never replaces the disks in your own drives &mdash; open the plain address again and everything is back as it was. Autosave pauses for the session for the same reason.</p>
 
         <div class="info-box tip">
@@ -702,6 +749,73 @@ export class DocumentationWindow extends BaseWindow {
         </div>
       </section>
 
+      <!-- Disk Inspector Section -->
+      <section id="doc-disk-inspector" class="documentation-section">
+        <h3>Disk Inspector</h3>
+        <p>The Disk Inspector shows what is physically recorded on a floppy: every track, every sector, every byte, and on a flux image, how long each bit took to pass the head. It works the same way for every format (<code>.dsk</code>, <code>.do</code>, <code>.po</code> and <code>.woz</code>, flux included) because it reads each track exactly as the drive would. Open it from <strong>View &gt; Disk Inspector</strong>, or from the window switcher (<kbd>Ctrl</kbd>+<kbd>\`</kbd>).</p>
+
+        <h4>Toolbar</h4>
+        <ul>
+          <li><strong>Drive 1 / Drive 2:</strong> Which drive to inspect.</li>
+          <li><strong>Disk summary:</strong> The image's name, then chips for its format (16 sector, 13 sector, both, or non-standard), the number of tracks, how many sectors read correctly, any bad checksums, tracks that hold no standard sectors, and flux tracks.</li>
+          <li><strong>Structure / Timing:</strong> What the colours mean (see below).</li>
+          <li><strong>Follow head:</strong> Keeps the track view on whichever track the drive's head is over, so you can watch a disk load. Clicking a track or using the arrow keys turns it off.</li>
+        </ul>
+
+        <h4>The Platter</h4>
+        <p>The left side is the disk seen from above. Track 0 is at the rim and each ring inward is a quarter track, 160 in all. The disk turns while the drive's motor is running, under a head drawn at the top where the emulated head is (yellow while the drive is active). A black dot marks the index hole.</p>
+        <ul>
+          <li><strong>Hover</strong> anywhere to see the track, what is recorded there, the sector it belongs to, and on a flux track how long its cells are.</li>
+          <li><strong>Click</strong> a ring to show that track on the right. Clicking inside a sector selects that sector too.</li>
+          <li><kbd>&uarr;</kbd> / <kbd>&darr;</kbd> step one quarter track, and <kbd>Page Up</kbd> / <kbd>Page Down</kbd> a whole track, once the platter has focus.</li>
+        </ul>
+        <h4>Zooming the Platter</h4>
+        <ul>
+          <li><strong>Scroll</strong> over the platter to zoom in around the pointer, from the whole disk down to single flux transitions (600&times;). The buttons in its corner do the same, and <kbd>+</kbd>, <kbd>-</kbd> and <kbd>0</kbd> work once the platter has focus.</li>
+          <li><strong>Drag</strong> to move around, and <strong>double-click</strong> or <strong>Fit</strong> to see the whole disk again.</li>
+          <li>While zoomed in the disk holds still and the head moves round it instead, marked by a line and a dot on the track it is reading.</li>
+          <li>Once only a few dozen tracks are in view, each one is read in full, so what you see is drawn cell by cell rather than summarised. From about 100&times; each byte's value is written along its ring, and from about 250&times; every 1 bit appears as a flux transition across it (a larger window gets there sooner). Hovering then names the exact byte under the pointer.</li>
+          <li>In <strong>Timing</strong> mode a moderate zoom shows how a protected disk's fast and slow stretches line up from one track to the next.</li>
+        </ul>
+
+        <p>A quarter track with nothing recorded, next to one that has data, is drawn faded. A real head reads a track from the quarter track either side of it, and disks recorded on half tracks would otherwise look nearly empty. Hovering there says which track the head picks up.</p>
+
+        <h4>Structure Colours</h4>
+        <ul>
+          <li><strong>Sync:</strong> Self-sync <code>FF</code> bytes in the gaps between fields.</li>
+          <li><strong>Address marks:</strong> The <code>D5 AA 96</code> prologue (<code>D5 AA B5</code> on a 13-sector disk) and <code>DE AA EB</code> epilogue.</li>
+          <li><strong>Address:</strong> Volume, track, sector and checksum.</li>
+          <li><strong>Data marks:</strong> The <code>D5 AA AD</code> prologue and its epilogue.</li>
+          <li><strong>Data:</strong> The 342 (or 410) bytes of encoded sector data and their checksum.</li>
+          <li><strong>Bad checksum:</strong> An address or data field that did not verify.</li>
+          <li><strong>Non-standard:</strong> Valid disk bytes in no standard field. On a copy-protected disk this is usually where the interesting part is.</li>
+          <li><strong>Noise:</strong> Bytes no disk could hold, such as an unformatted stretch or a gap with no flux.</li>
+        </ul>
+
+        <h4>Timing</h4>
+        <p>In <strong>Timing</strong> mode flux tracks are coloured by how long each bit cell took, compared with the Disk II's own 3.91&micro;s: blue for cells written fast, orange for slow, grey for on time. Some copy protection writes parts of a track at a different speed and times how long they take to read, and this is where you see it. Bit tracks and sector images carry no timing, so they are dimmed.</p>
+
+        <h4>The Track Strip</h4>
+        <p>The strip on the right is the selected track unrolled from its start to its end. Sector numbers (in hex) are marked above it and the selected sector is outlined. On a flux track a line shows the cell timing: above the middle is slow, below it fast. While the head is on this track a yellow line shows where it is.</p>
+        <ul>
+          <li><strong>Scroll</strong> to zoom in around the pointer. Zoomed in far enough, each byte shows its value, and further in each 1 bit appears as a flux pulse.</li>
+          <li><strong>Drag</strong> to pan, and <strong>double-click</strong> to see the whole track again.</li>
+          <li><strong>Hover</strong> for the byte under the pointer: its value, its position in cells, what it is part of, and its timing on a flux track.</li>
+          <li><strong>Click</strong> to select the sector the byte belongs to.</li>
+        </ul>
+
+        <h4>Sectors, Sector Data and Nibbles</h4>
+        <p>The sector buttons list the sectors in the order they pass the head, so the disk's interleave is visible. Green is good, red failed a checksum, and yellow is a 13-sector field (found but not decoded) or an address field with no data after it.</p>
+        <ul>
+          <li><strong>Sector data</strong> shows the selected sector's volume, track and sector, whether its address and data verified, and its 256 decoded bytes as hex and ASCII. A sector whose data checksum failed is still decoded, so you can see what was read.</li>
+          <li><strong>Nibbles</strong> lists every byte on the track as the drive reads it, coloured as the platter is, with the selected sector highlighted and scrolled into view.</li>
+        </ul>
+
+        <div class="info-box tip">
+          <p><strong>Tip:</strong> Turn on <strong>Follow head</strong> and boot a disk to watch the loader seek across it. The display updates as the machine writes, so you can also watch a disk being formatted or saved to.</p>
+        </div>
+      </section>
+
       <!-- State Management Section -->
       <section id="doc-state" class="documentation-section">
         <h3>State Management</h3>
@@ -710,12 +824,19 @@ export class DocumentationWindow extends BaseWindow {
         <h4>What Gets Saved</h4>
         <ul>
           <li><strong>CPU State:</strong> All registers (A, X, Y, SP, PC) and flags</li>
-          <li><strong>Memory:</strong> Full 128KB RAM (main + auxiliary)</li>
+          <li><strong>Memory:</strong> Full 128KB RAM (main + auxiliary), and a IIgs's fast RAM as well</li>
           <li><strong>Language Card:</strong> 16KB Language Card RAM</li>
           <li><strong>Soft Switches:</strong> All memory banking and display modes</li>
-          <li><strong>Disk Drives:</strong> Complete disk images with modifications</li>
+          <li><strong>Expansion cards:</strong> Every slot, by card, with that card's own state</li>
+          <li><strong>Disk Drives:</strong> Complete disk images with modifications, hard drives included</li>
           <li><strong>Settings:</strong> Display, sound, and window positions</li>
         </ul>
+
+        <div class="info-box">
+          <p><strong>A state knows which machine wrote it.</strong> Every machine begins its state with the same header, so the emulator can tell a //e's from a IIgs's before loading either. Load a state saved on another machine and it offers to switch to that machine first &mdash; a save is a save of a whole computer, and asking for it back is asking for that computer back. Save slots and the autosave are kept per machine for the same reason.</p>
+        </div>
+
+        <p>A state that includes hard drive images can be tens of megabytes, because a SmartPort card's saved state <em>is</em> its images.</p>
 
         <h4>Auto-Save</h4>
         <p>When enabled (default), state is saved every 5 seconds while the emulator is running. Auto-save also triggers when:</p>
@@ -958,6 +1079,8 @@ export class DocumentationWindow extends BaseWindow {
         <ul>
           <li><strong>Type:</strong> Choose from <em>Exec</em> (execution), <em>Read</em> (memory read), <em>Write</em> (memory write), or <em>R/W</em> (read or write)</li>
           <li><strong>Address:</strong> Enter a hex address (e.g., <code>FF69</code>) or a symbol name if symbols are loaded</li>
+          <li><strong>Range:</strong> Enter two addresses with a dash (e.g., <code>$2000-$20FF</code>, or <code>HOME-COUT</code> with symbols). A Read, Write or R/W range watches every address in it. An Exec range stops when execution enters it, not on every instruction inside it, so Run carries on from a stop within the range</li>
+          <li><strong>SP:</strong> Choose <em>SP</em> as the source to stop on the stack pointer. Enter a value (<code>$F0</code>) to stop when SP reaches it, or a range (<code>$00-$3F</code>) to stop when SP enters it, which catches a runaway stack. The machine stops just after the instruction that moved SP. On a IIgs, SP is sixteen bits (<code>$01FF</code> in emulation mode)</li>
           <li><strong>Conditions:</strong> Optionally add a condition expression. Click the condition cell to open the Rule Builder, or type expressions directly:
             <ul>
               <li><code>A==#$FF</code> &mdash; break when accumulator equals $FF</li>

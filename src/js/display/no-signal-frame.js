@@ -89,9 +89,14 @@ const DIM = [0x8c, 0x8c, 0x8c];
  * @param {number} width  framebuffer width in pixels; callers pass the
  *                         machine's, and the //e's size is the default
  * @param {number} height framebuffer height in pixels (384)
+ * @param {string} machine what to switch on, as the machine menu names it
+ *                         but in capitals like the rest of the line — "IIE
+ *                         ENHANCED", "II PLUS", "IIC", "IIGS" — since the
+ *                         message must name the machine that is actually
+ *                         there
  * @returns {Uint8Array} RGBA pixel data, width * height * 4 bytes
  */
-export function buildNoSignalFrame(width = 560, height = 384) {
+export function buildNoSignalFrame(width = 560, height = 384, machine = "IIE") {
   const buf = new Uint8Array(width * height * 4);
 
   // Opaque black — the shader's vignette and bezel do the rest.
@@ -145,7 +150,16 @@ export function buildNoSignalFrame(width = 560, height = 384) {
   const cellRow = (row) => row * CELL_H;
 
   drawTextCentred("NO SIGNAL", cellRow(9), FG, 2);
-  drawTextCentred("SWITCH ON THE APPLE //e TO START", cellRow(14), DIM);
+  // One line if it fits the screen's columns, otherwise the "TO START" drops
+  // to the next: a 40-column picture has room for "IIC" but not "IIE ENHANCED".
+  const columns = Math.floor(width / CELL_W);
+  const message = `SWITCH ON THE APPLE ${machine} TO START`;
+  if (message.length <= columns) {
+    drawTextCentred(message, cellRow(14), DIM);
+  } else {
+    drawTextCentred(`SWITCH ON THE APPLE ${machine}`, cellRow(14), DIM);
+    drawTextCentred("TO START", cellRow(16), DIM);
+  }
 
   return buf;
 }

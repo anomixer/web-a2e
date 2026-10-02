@@ -15,7 +15,10 @@
 #include "disk_image_builder.hpp"
 
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
+#include <fstream>
+#include <iterator>
 #include <string>
 #include <vector>
 
@@ -143,6 +146,65 @@ TEST_CASE("Emulator isSmartPortCardInstalled reflects slot configuration", "[emu
 
     // Either way, no crash
     REQUIRE(true);
+}
+
+TEST_CASE("Refitting a slot with the card it holds keeps that card",
+          "[emulator][disk][smartport]") {
+    // The host applies the saved slot layout at startup, after it may have
+    // restored a hard drive image. Each refit used to build a new, empty
+    // SmartPort, so a //e came back from a reload with no drive in it.
+    Emulator emu;
+    emu.init();
+    REQUIRE(emu.setSlotCard(7, "smartport"));
+    std::vector<uint8_t> hdv(512 * 280, 0x00);
+    REQUIRE(emu.insertSmartPortImage(0, hdv.data(), hdv.size(), "test.hdv"));
+
+    REQUIRE(emu.setSlotCard(7, "smartport"));
+    REQUIRE(emu.isSmartPortImageInserted(0));
+
+    // A different card is still a change, and takes the drive with it.
+    REQUIRE(emu.setSlotCard(7, "thunderclock"));
+    REQUIRE(std::string(emu.getSlotCardName(7)) == "thunderclock");
+    REQUIRE_FALSE(emu.isSmartPortCardInstalled());
+}
+
+TEST_CASE("A //e boots a SmartPort image with a watchpoint armed",
+          "[emulator][disk][smartport][debug]") {
+    // While a watchpoint is armed every read is peeked first, and the peek
+    // used to read the card's ROM: each SmartPort call ran twice and the boot
+    // ended at a BRK in the monitor. ProDOS writes the watched address, so the
+    // loop resumes after each stop the way the debugger's Run button does.
+    FILE* file = fopen("public/disks/ProDOS 2.4.3.po", "rb");
+    if (!file) {
+        WARN("ProDOS image not found; skipping the SmartPort watchpoint test");
+        return;
+    }
+    std::vector<uint8_t> image;
+    for (int c; (c = fgetc(file)) != EOF;) image.push_back(static_cast<uint8_t>(c));
+    fclose(file);
+
+    for (const bool armed : {false, true}) {
+        INFO("watchpoint armed: " << armed);
+        Emulator emu;
+        emu.init();
+        REQUIRE(emu.setSlotCard(7, "smartport"));
+        REQUIRE(emu.insertSmartPortImage(0, image.data(), image.size(), "prodos.po"));
+        if (armed) emu.addWatchpoint(0x03D0, 0x03D0, Emulator::WP_WRITE);
+        emu.reset();
+        int stops = 0;
+        for (int i = 0; i < 60; i++) {
+            emu.runCycles(100000);
+            if (emu.isPaused()) {
+                stops++;
+                emu.setPaused(false);
+            }
+        }
+
+        if (armed) REQUIRE(stops > 0);
+        const std::string screen = emu.readScreenText(0, 0, 23, 79);
+        INFO("screen:\n" << screen);
+        REQUIRE(screen.find("BITSY") != std::string::npos);
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -336,4 +398,57 @@ TEST_CASE("Each machine boots DOS 3.3 from the controller it has",
         }
         bootsToDos(MachineId::AppleIIc);
     }
+}
+
+// ---------------------------------------------------------------------------
+// WOZ 2.1 flux tracks
+// ---------------------------------------------------------------------------
+
+// Sirius's Bandits, as Applesauce captured it with tracks 1.5 to 19.5 in flux:
+// those tracks are written partly at 3.7us a cell and partly at 4.1us, and the
+// loader times its reads to tell which. Read as bits, every one of them fails
+// its checksum and the boot retries track 1.5 for ever. Not in the repository,
+// so this runs only when A2E_BANDITS_WOZ names the image:
+//
+//   A2E_BANDITS_WOZ=~/Downloads/00_Bandits.woz ctest -R test_emulator_disk
+TEST_CASE("Emulator boots a flux WOZ through a timing check", "[emulator][disk][flux]") {
+    const char *path = std::getenv("A2E_BANDITS_WOZ");
+    if (!path) {
+        WARN("A2E_BANDITS_WOZ is not set; skipping the flux boot");
+        return;
+    }
+    std::ifstream file(path, std::ios::binary);
+    REQUIRE(file.good());
+    std::vector<uint8_t> image((std::istreambuf_iterator<char>(file)),
+                               std::istreambuf_iterator<char>());
+
+    auto runUntilHeadReaches = [](Emulator &emu, int quarterTrack, int seconds) {
+        for (int i = 0; i < seconds * 100; i++) {
+            emu.runCycles(10230);
+            if (emu.getDisk().getQuarterTrack() >= quarterTrack) return true;
+        }
+        return false;
+    };
+
+    Emulator emu;
+    emu.init();
+    REQUIRE(emu.insertDisk(0, image.data(), image.size(), "Bandits.woz"));
+    REQUIRE(emu.getDisk().getDiskImage(0)->getFormatName() == "WOZ 2.1 (flux)");
+
+    // Part way through the flux tracks, save the machine: the disk goes into
+    // the state as a WOZ file, and has to come back with its flux intact
+    REQUIRE(runUntilHeadReaches(emu, 30, 10));
+    size_t size = 0;
+    const uint8_t *state = emu.exportState(&size);
+    REQUIRE(state != nullptr);
+    std::vector<uint8_t> saved(state, state + size);
+
+    Emulator restored;
+    restored.init();
+    REQUIRE(restored.importState(saved.data(), saved.size()));
+    REQUIRE(restored.getDisk().getDiskImage(0)->getFormatName() == "WOZ 2.1 (flux)");
+
+    // Quarter track 82 is the first bit track after the flux ones: reaching
+    // it means every flux track read
+    REQUIRE(runUntilHeadReaches(restored, 82, 10));
 }

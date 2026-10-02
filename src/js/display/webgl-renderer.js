@@ -44,6 +44,10 @@ export class WebGLRenderer {
       scanlineWidth: 0.25,
       // How much a bright line's beam spot widens over a dark one's
       beamBloom: 0.6,
+      // Magnification sharpness: 0 is plain bilinear, 1 confines the seam
+      // between two source dots to a single output pixel. See sharpenUV() in
+      // crt.glsl.
+      sharpness: 0.0,
       shadowMask: 0.3,
       // Mask geometry: 0 = aperture grille (stripes), 1 = shadow mask (triad)
       maskType: 0,
@@ -84,9 +88,14 @@ export class WebGLRenderer {
       // Corner radius for rounded screen corners (0.0 to 0.15)
       cornerRadius: 0.02,
 
-      // Screen margin - insets content so rounded corners don't clip it
-      // Should be slightly larger than cornerRadius
-      screenMargin: 0.02,
+      // Screen margin: an inset between the picture and the glass, kept at
+      // zero. It used to be 2%, so that the rounded corners would not clip
+      // the picture — but a CRT's raster runs to the edge of the glass and
+      // its corners clip it, and what the inset actually drew was a black
+      // band around the picture. On a //e the band was invisible against a
+      // black text screen; a IIgs paints its border colour to the edge and
+      // the band sat inside it, plainly.
+      screenMargin: 0,
 
       // Edge highlight intensity (0.0 to 1.0)
       edgeHighlight: 0.3,
@@ -229,6 +238,7 @@ export class WebGLRenderer {
       ),
       scanlineWidth: gl.getUniformLocation(this.program, "u_scanlineWidth"),
       beamBloom: gl.getUniformLocation(this.program, "u_beamBloom"),
+      sharpness: gl.getUniformLocation(this.program, "u_sharpness"),
       shadowMask: gl.getUniformLocation(this.program, "u_shadowMask"),
       maskType: gl.getUniformLocation(this.program, "u_maskType"),
       pixelRatio: gl.getUniformLocation(this.program, "u_pixelRatio"),
@@ -642,6 +652,13 @@ export class WebGLRenderer {
     // pitch depends on it.
     gl.uniform1f(this.uniforms.pixelRatio, window.devicePixelRatio || 1);
 
+    // Rounded corners only when there is a curved or bezelled screen to
+    // round; a flat picture keeps square corners. Declared out here because the
+    // edge-overlay pass below needs it on every frame, not only on the frames
+    // that refresh the cached uniforms.
+    const roundedCorners =
+      this.crtParams.screenInset > 0 || this.crtParams.curvature > 0;
+
     // Static uniforms (only update when CRT parameters change)
     if (this._uniformsDirty !== false) {
       this._uniformsDirty = false;
@@ -653,6 +670,7 @@ export class WebGLRenderer {
       );
       gl.uniform1f(this.uniforms.scanlineWidth, this.crtParams.scanlineWidth);
       gl.uniform1f(this.uniforms.beamBloom, this.crtParams.beamBloom);
+      gl.uniform1f(this.uniforms.sharpness, this.crtParams.sharpness);
       gl.uniform1f(this.uniforms.shadowMask, this.crtParams.shadowMask);
       gl.uniform1i(this.uniforms.maskType, this.crtParams.maskType);
       gl.uniform1f(this.uniforms.glowIntensity, this.crtParams.glowIntensity);
@@ -672,7 +690,7 @@ export class WebGLRenderer {
       gl.uniform1f(this.uniforms.overscan, this.crtParams.overscan);
       gl.uniform1f(this.uniforms.colorBleed, this.crtParams.colorBleed);
       gl.uniform1i(this.uniforms.monochromeMode, this.crtParams.monochromeMode);
-      gl.uniform1f(this.uniforms.cornerRadius, (this.crtParams.screenInset > 0 || this.crtParams.curvature > 0) ? this.crtParams.cornerRadius : 0.0);
+      gl.uniform1f(this.uniforms.cornerRadius, roundedCorners ? this.crtParams.cornerRadius : 0.0);
       gl.uniform1f(this.uniforms.screenMargin, this.crtParams.screenMargin);
       gl.uniform1f(this.uniforms.screenInset, this.crtParams.screenInset);
       gl.uniform3fv(this.uniforms.surroundColor, this.crtParams.surroundColor);
@@ -694,7 +712,7 @@ export class WebGLRenderer {
 
       // Set edge uniforms
       gl.uniform1f(this.edgeUniforms.curvature, this.crtParams.curvature);
-      gl.uniform1f(this.edgeUniforms.cornerRadius, (this.crtParams.screenInset > 0 || this.crtParams.curvature > 0) ? this.crtParams.cornerRadius : 0.0);
+      gl.uniform1f(this.edgeUniforms.cornerRadius, roundedCorners ? this.crtParams.cornerRadius : 0.0);
       gl.uniform1f(
         this.edgeUniforms.edgeHighlight,
         this.crtParams.edgeHighlight,
@@ -813,6 +831,26 @@ export class WebGLRenderer {
    * which is the case for every machine modelled so far — the //e and the II+
    * emit the same 560 dots across the same 192 doubled lines.
    */
+  /**
+   * The machine the picture belongs to: its size, and its name for the
+   * powered-off screen, which says which machine to switch on — in the
+   * words the machine menu uses, so the two agree.
+   */
+  setMachine(profile) {
+    if (!profile) return;
+    // As the machine menu names it, less the make and in the capitals the
+    // rest of the message is set in: "IIE ENHANCED", "II PLUS", "IIC", "IIGS".
+    const name = (profile.name || "Apple IIe")
+      .replace(/^Apple\s+/, "")
+      .toUpperCase();
+    if (name !== this._machineName) {
+      this._machineName = name;
+      this._noSignalFrame = null;
+      if (this._noSignal && this.gl) this.setNoSignal(true);
+    }
+    this.setMachineDisplay(profile.display);
+  }
+
   setMachineDisplay(display) {
     if (!display || !display.width || !display.height) return;
     if (display.width === this.width && display.height === this.height) return;
@@ -835,7 +873,11 @@ export class WebGLRenderer {
     if (!enabled) return;
 
     if (!this._noSignalFrame) {
-      this._noSignalFrame = buildNoSignalFrame(this.width, this.height);
+      this._noSignalFrame = buildNoSignalFrame(
+        this.width,
+        this.height,
+        this._machineName || "IIE",
+      );
     }
     this.updateTexture(this._noSignalFrame);
   }

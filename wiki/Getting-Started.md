@@ -40,9 +40,16 @@ A floating reminder will point to the power button for first-time visitors.
 
 ## Choosing a Machine
 
-The badge beside the Apple logo in the header names the machine you are running, and clicking it lets you change it. An Apple //e is the default; an **Apple II Plus** is also available if its ROMs were supplied when the emulator was built.
+The badge beside the Apple logo in the header names the machine you are running, and clicking it lets you change it. There are four:
 
-Switch before you start work: changing machine rebuilds the emulator, so anything in the drives or in memory is lost, just as it would be on a page reload. Your display settings, volume, character set and speed follow you across. See [[Machines]] for what differs between them.
+| Machine | Notes |
+|---|---|
+| **Apple //e** (Enhanced) | The default |
+| **Apple II Plus** | The machine most Apple II software was written on |
+| **Apple //c** | No expansion sockets; a drive and two serial ports built in |
+| **Apple IIgs** | 16-bit, Super Hi-Res, an Ensoniq, and GS/OS |
+
+Switch before you start work: changing machine rebuilds the emulator, so anything in the drives or in memory is lost, just as it would be on a page reload. Your volume, character set and speed follow you across; your display settings, slot layout and save states are remembered per machine and come back when you return to it. Menu items for hardware the machine does not have are hidden rather than greyed out. See [[Machines]] for what differs between them, and [[Apple-IIgs]] for the one that is a different computer rather than a different set of numbers.
 
 ## Powering On
 
@@ -84,7 +91,8 @@ Click the emulator screen to give it keyboard focus. Once focused, key presses a
 Key points:
 
 - **Arrow keys** work as expected in software that supports them (the Apple //e has native arrow key support).
-- **Backspace** sends the Apple II left-arrow (delete) key.
+- **Backspace** sends the Apple II left-arrow key, which is how Applesoft deletes; **Delete** (forward delete) sends the DELETE key ($7F).
+- **On a II Plus** letters are always upper case, because its keyboard has no lower case.
 - **Tab** is captured by the emulator and not passed to the browser.
 - **Escape** sends the Apple II ESC key.
 - **Ctrl+key** combinations pass through to the emulator (e.g., Ctrl+C, Ctrl+D for DOS commands).

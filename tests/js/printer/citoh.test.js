@@ -15,6 +15,7 @@ import { AppleDMP } from "../../../src/js/printer/apple-dmp.js";
 import { ImageWriterI } from "../../../src/js/printer/imagewriter-i.js";
 import { ImageWriterII } from "../../../src/js/printer/imagewriter-ii.js";
 import { bytes, capture, summarise, CR, LF, FF, ESC } from "./harness.js";
+import { scrollPagesNeeded } from "../../../src/js/printer/printer-window.js";
 
 const MODELS = [
   ["AppleDMP", () => new AppleDMP()],
@@ -130,5 +131,92 @@ describe("ImageWriter II — colour ribbon", () => {
     // A black cart overrides the selection — colour data still prints black.
     expect(colorOf("bw", "1")).toEqual(["black"]);
     expect(colorOf("color", "1")).not.toEqual(["black"]);
+  });
+});
+
+describe("graphics bands from the GS/OS ImageWriter driver", () => {
+  // The driver rasterises a page into 8-dot bands and writes, per band:
+  //
+  //     CR, ESC T 16, LF, (ESC F <col>, ESC G <n> <data>)...
+  //
+  // 16/144" is exactly eight dots at the head's 1/72" pitch, so the bands abut
+  // and the page comes out solid. The escape between the CR and the LF is what
+  // makes this worth a test: with the Automatic Line Feed switch on — the
+  // default, and what plain Apple II text needs — the CR feeds a line, and if
+  // that also broke the CR+LF pairing the LF fed a second one. Every line of a
+  // real GS/OS print came out sliced in half by a 1/8" white stripe.
+  //
+  // Measured against the real thing: the byte stream this uses was captured
+  // from System 6.0.4 printing a document through ImageWriter/Printer v4.2.
+  const band = (col) => [CR, ESC, "T16", LF, ESC, "F", " 282", ESC, "G", "0002", col, col];
+
+  const bandTops = (autoLF) => {
+    const printer = new ImageWriterII();
+    printer.setAutoLineFeed(autoLF);
+    const tops = [];
+    printer.setEventSink((e) => {
+      if (e.name === "printDots" && tops.at(-1) !== e.data.yDot) tops.push(e.data.yDot);
+    });
+    for (const byte of bytes(band(0xff), band(0xff), band(0xff))) {
+      printer.receiveByte(byte);
+    }
+    printer.flushLine();
+    return tops;
+  };
+
+  const bandHeight = 8 * (new ImageWriterII().dpi / 72); // eight dots at 1/72"
+
+  it("steps exactly one band per line with automatic line feed on", () => {
+    const tops = bandTops(true);
+    expect(tops).toHaveLength(3);
+    expect(tops[1] - tops[0]).toBeCloseTo(bandHeight, 4);
+    expect(tops[2] - tops[1]).toBeCloseTo(bandHeight, 4);
+  });
+
+  it("steps exactly one band per line with automatic line feed off", () => {
+    const tops = bandTops(false);
+    expect(tops).toHaveLength(3);
+    expect(tops[1] - tops[0]).toBeCloseTo(bandHeight, 4);
+    expect(tops[2] - tops[1]).toBeCloseTo(bandHeight, 4);
+  });
+
+  it("still feeds when ink lands between the CR and the LF", () => {
+    // Only a non-printing escape keeps the pairing armed. A CR, then something
+    // printed, then an LF is two line endings and has to feed.
+    const printer = new ImageWriterII();
+    printer.setAutoLineFeed(true);
+    let feeds = 0;
+    printer.on("newline", () => feeds++);
+    printer.on("linefeed", () => feeds++);
+    for (const byte of bytes(CR, "A", LF)) printer.receiveByte(byte);
+    expect(feeds).toBe(2);
+  });
+});
+
+describe("the live paper window", () => {
+  // A canvas cannot hold an arbitrarily long print, so the paper scrolls through
+  // a window a few pages wide and what leaves is kept in the page store. This is
+  // the arithmetic that decides when to scroll and by how much; the rest of the
+  // path needs a canvas, and is checked in a browser.
+  const PAGE = 1320; // logical px for an 11" form at 120 px/inch
+
+  it("does not scroll while the ink is inside the window", () => {
+    expect(scrollPagesNeeded(0, 3, PAGE)).toBe(0);
+    expect(scrollPagesNeeded(PAGE * 2 + 10, 3, PAGE)).toBe(0);
+  });
+
+  it("scrolls by whole pages once the ink would land past the window", () => {
+    expect(scrollPagesNeeded(PAGE * 3, 3, PAGE)).toBe(1);
+    expect(scrollPagesNeeded(PAGE * 4 + 5, 3, PAGE)).toBe(2);
+    // A one-page window is the constrained case: every new page scrolls.
+    expect(scrollPagesNeeded(PAGE, 1, PAGE)).toBe(1);
+    expect(scrollPagesNeeded(PAGE * 9, 1, PAGE)).toBe(9);
+  });
+
+  it("answers zero rather than NaN for nonsense", () => {
+    expect(scrollPagesNeeded(NaN, 3, PAGE)).toBe(0);
+    expect(scrollPagesNeeded(Infinity, 3, PAGE)).toBe(0);
+    expect(scrollPagesNeeded(PAGE * 5, 3, 0)).toBe(0);
+    expect(scrollPagesNeeded(-100, 3, PAGE)).toBe(0);
   });
 });
