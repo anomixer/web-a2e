@@ -109,9 +109,6 @@ export class DiskManager {
     // Set up drive 2
     this.setupDrive(1, "disk2");
 
-    // Set up drag and drop on the display
-    this.setupDragDrop();
-
     // Set up save modal
     this.setupSaveModal();
 
@@ -326,39 +323,6 @@ export class DiskManager {
         this.refocusCanvas();
       });
     }
-  }
-
-  setupDragDrop() {
-    const displayContainer = document.getElementById("monitor-frame");
-    if (!displayContainer) return;
-
-    displayContainer.addEventListener("dragover", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      displayContainer.classList.add("drag-over");
-    });
-
-    displayContainer.addEventListener("dragleave", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      displayContainer.classList.remove("drag-over");
-    });
-
-    displayContainer.addEventListener("drop", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      displayContainer.classList.remove("drag-over");
-
-      if (e.dataTransfer.files.length > 0) {
-        // Load into first empty drive, or drive 1 if both full
-        const driveNum = !this.drives[0].filename
-          ? 0
-          : !this.drives[1].filename
-            ? 1
-            : 0;
-        this.loadDisk(driveNum, e.dataTransfer.files[0]);
-      }
-    });
   }
 
   setupSaveModal() {

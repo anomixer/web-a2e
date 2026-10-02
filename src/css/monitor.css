@@ -134,6 +134,23 @@ body.full-page-mode #screen {
     display: block;
 }
 
+/* A disk image dragged over the screen: an outline drawn over the canvas,
+   which would otherwise hide one drawn on the container. */
+#monitor-frame.drag-over,
+.screen-window-content.drag-over {
+    position: relative;
+}
+
+#monitor-frame.drag-over::after,
+.screen-window-content.drag-over::after {
+    content: "";
+    position: absolute;
+    inset: 6px;
+    border: 2px dashed var(--accent-blue);
+    border-radius: 6px;
+    pointer-events: none;
+}
+
 /* Maximize / chromeless toggle button */
 .screen-window-lock {
     position: absolute;

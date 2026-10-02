@@ -98,7 +98,8 @@ rather than passed as a JavaScript string), the game port device (that an
 edited storage value falls back to the Apple joystick, and that an opposing
 pair of Joyport directions is dropped rather than sent), which menu items each
 machine is offered (`machine-availability`), the save-state header the
-host reads to tell which machine wrote a state (`state-header`), and the
+host reads to tell which machine wrote a state (`state-header`), which drive
+a disk image dropped on the screen goes into (`media-kind`), and the
 frame queue between the Worker and the renderer (`frame-queue`), including
 that the Worker never writes into the slot the renderer is holding.
 
@@ -174,7 +175,7 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 - `worker/` - Web Worker infrastructure for WASM isolation (see Worker Architecture below)
 - `audio/` - Web Audio API driver and AudioWorklet
 - `display/` - WebGL renderer, CRT shader effects, display settings, screen window, no-signal screen
-- `disk-manager/` - Disk drive UI, SmartPort hard drives, persistence, surface rendering, drive sounds, URL-parameter media loading
+- `disk-manager/` - Disk drive UI, SmartPort hard drives, persistence, surface rendering, drive sounds, URL-parameter media loading, and images dropped on the screen (`screen-drop.js`, routed to a floppy drive or the SmartPort by `media-kind.js`, the native app's rule)
 - `file-explorer/` - DOS 3.3 and ProDOS disk browser with disassembler
 - `debug/` - Debug window implementations (see Debugging section)
 - `help/` - Documentation and release notes windows

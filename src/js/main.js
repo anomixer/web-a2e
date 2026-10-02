@@ -66,6 +66,7 @@ import { InputHandler, TextSelection, JoystickWindow, MouseHandler, GamepadHandl
 import { DiskManager } from "./disk-manager/index.js";
 import { DiskDrivesWindow } from "./disk-manager/disk-drives-window.js";
 import { HardDriveManager } from "./disk-manager/hard-drive-manager.js";
+import { setupScreenDrop } from "./disk-manager/screen-drop.js";
 import { HardDriveWindow } from "./disk-manager/hard-drive-window.js";
 import { readUrlMedia, loadUrlMedia } from "./disk-manager/url-media-loader.js";
 import { hasMediaParams } from "./utils/url-params.js";
@@ -278,6 +279,14 @@ class AppleIIeEmulator {
       );
       this.hardDriveManager.skipRestore = urlNamesMedia;
       this.hardDriveManager.init();
+
+      // A disk image dropped on the screen goes into a floppy drive or the
+      // SmartPort, whichever it is for.
+      setupScreenDrop({
+        diskManager: this.diskManager,
+        hardDriveManager: this.hardDriveManager,
+        refocus: () => this.diskManager.refocusCanvas(),
+      });
 
 
       const cpuWindow = new CPUDebuggerWindow(this.wasmModule, () => this.isRunning());
