@@ -27,9 +27,10 @@
 const APPLE_IIE_FALLBACK = Object.freeze({
   id: 0,
   key: "apple2e",
-  name: "Apple //e Enhanced",
-  shortName: "//e",
+  name: "Apple IIe Enhanced",
+  shortName: "IIe",
   logotype: "//e",
+  released: 1983,
   cpu: "65C02",
   timing: Object.freeze({
     cpuClockHz: 1023000,
@@ -47,12 +48,28 @@ const APPLE_IIE_FALLBACK = Object.freeze({
     romSize: 16384,
     charRomSize: 8192,
   }),
+  // What the processor has to show. A //e's is an 8-bit CPU with 16-bit
+  // addresses and no banks, which is the fallback because it is the only
+  // machine that existed when this module was written.
+  processor: Object.freeze({
+    addressBits: 16,
+    registerBits: 8,
+    hasBanks: false,
+    hasDirectPage: false,
+    hasModes: false,
+    flags: "NV-BDIZC",
+    nativeFlags: "",
+  }),
   display: Object.freeze({
     dotsPerLine: 560,
     width: 560,
     height: 384,
     lineDoubling: 2,
     framebufferSize: 560 * 384 * 4,
+    // Where the text screen lands in the frame; a //e's fills it.
+    text: Object.freeze({ left: 0, top: 0, width: 560, height: 384 }),
+    // The shape the frame is shown at, which is the frame's own on a //e.
+    aspect: Object.freeze({ width: 560, height: 384 }),
   }),
   caps: Object.freeze({
     hasAuxRam: true,
@@ -124,6 +141,8 @@ async function callWithString(wasmModule, fn, text) {
   }
 }
 
+const FALLBACK_PROCESSOR = APPLE_IIE_FALLBACK.processor;
+
 /** The machine currently being emulated. Never null. */
 export function getMachineProfile() {
   return current;
@@ -132,6 +151,79 @@ export function getMachineProfile() {
 /** Shorthand for the framebuffer geometry, which is what most callers want. */
 export function machineDisplay() {
   return current.display;
+}
+
+/**
+ * The rectangle of the frame the text screen occupies. A //e's is the whole
+ * frame; a IIgs's sits inside a border. A profile without one (an older core)
+ * is taken to fill the frame.
+ */
+/**
+ * The shape the frame is shown at, width over height. A //e's frame is shown
+ * at its own ratio; a IIgs's raster, border and all, at a monitor's 4:3. A
+ * profile without one (an older core) is shown at the frame's ratio.
+ */
+export function machineAspect() {
+  const d = current.display;
+  return d.aspect ? d.aspect.width / d.aspect.height : d.width / d.height;
+}
+
+/**
+ * Tell the stylesheet, for the layouts that size the screen in CSS.
+ */
+export function applyMachineAspectToDocument() {
+  const d = current.display;
+  const a = d.aspect || { width: d.width, height: d.height };
+  document.documentElement.style.setProperty("--screen-aspect", `${a.width} / ${a.height}`);
+}
+
+export function machineTextArea() {
+  const d = current.display;
+  return d.text || { left: 0, top: 0, width: d.width, height: d.height };
+}
+
+/**
+ * What the machine's processor has to show: how wide an address is, how wide
+ * a register is, whether there are banks, a direct page and a second mode,
+ * and what its status flags are called.
+ *
+ * A debug view reads this rather than assuming a 6502. A profile from an
+ * older core that does not describe its processor is taken to be a //e's,
+ * which is what it would have been.
+ */
+export function machineProcessor() {
+  return current.processor || FALLBACK_PROCESSOR;
+}
+
+/** How many hex digits an address needs: four, or six where there are banks. */
+export function machineAddressDigits() {
+  return machineProcessor().addressBits > 16 ? 6 : 4;
+}
+
+/**
+ * An address as this machine writes one.
+ *
+ * A //e's is four hex digits. A machine with banks gets the bank, a slash and
+ * the offset — "00/FF69" — which is how its own monitor and its diagnostics
+ * write one, and is the form the core's disassembler emits.
+ */
+export function formatMachineAddress(address) {
+  const value = address >>> 0;
+  if (machineProcessor().addressBits <= 16) {
+    return (value & 0xffff).toString(16).toUpperCase().padStart(4, "0");
+  }
+  const bank = (value >>> 16) & 0xff;
+  const offset = value & 0xffff;
+  return (
+    bank.toString(16).toUpperCase().padStart(2, "0") +
+    "/" +
+    offset.toString(16).toUpperCase().padStart(4, "0")
+  );
+}
+
+/** The highest address the machine has, for validating what a user typed. */
+export function machineAddressMask() {
+  return machineProcessor().addressBits > 16 ? 0xffffff : 0xffff;
 }
 
 /** Shorthand for the machine's cycle timing. */
@@ -159,6 +251,7 @@ export async function loadMachineProfile(wasmModule) {
     if (!parsed || !parsed.display || !parsed.display.width) return current;
 
     current = Object.freeze(parsed);
+    if (typeof document !== "undefined") applyMachineAspectToDocument();
   } catch (err) {
     console.warn("Could not read the machine profile from the core:", err);
   }

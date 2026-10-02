@@ -139,10 +139,36 @@ public:
     DiskImage* getMutableDiskImage(int drive);
 
     /**
+     * A number that changes whenever what is on a drive's disk may have:
+     * insert, eject, the head writing, or a host path taking the image to
+     * change it. The Disk Inspector compares it rather than re-reading a
+     * whole disk to find out nothing moved.
+     */
+    uint32_t getRevision(int drive) const {
+        return (drive >= 0 && drive < 2) ? revision_[drive] : 0;
+    }
+
+    /**
      * Check if motor is currently on
      * @return true if motor is running
      */
     bool isMotorOn() const;
+
+    /**
+     * The drive ENABLE line, as the CPU last set it.
+     *
+     * This is not `isMotorOn()`. That one answers "is the disk still turning",
+     * and it stays true for about a second after the CPU switches the drive
+     * off, because a motor takes that long to stop — which is the whole point
+     * of it, and why a read a moment after $C0E8 still finds data. ENABLE is
+     * the wire, and it goes low the instant the CPU touches that address.
+     *
+     * The difference matters wherever the electronics, rather than the
+     * mechanism, is what is being asked about: nothing is written to a disk
+     * whose drive is not enabled, however long the platter takes to stop, and
+     * an IWM's mode register is writable exactly while ENABLE is low.
+     */
+    bool isDriveEnabled() const { return motorOn_ && motorOffCycle_ == 0; }
 
     /**
      * Stop the motor immediately (for warm reset)
@@ -268,6 +294,7 @@ protected:
 
     // Disk images for each drive
     std::unique_ptr<DiskImage> diskImages_[2];
+    uint32_t revision_[2] = {0, 0};
 
     // Cycle callback
     CycleCallback cycleCallback_;

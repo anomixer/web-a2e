@@ -1,0 +1,522 @@
+/**
+ * Disk Inspector Window Styles
+ *
+ * Window chrome comes from BaseWindow's debug-window classes; this is the
+ * content. The segmented controls match the File Explorer's.
+ */
+
+#disk-inspector > .debug-window-content {
+    padding: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+.dinsp {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    font-family: var(--font-sans);
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+/* ---- Toolbar ---- */
+
+.dinsp-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 12px;
+    background: var(--glass-border);
+    border-bottom: 1px solid var(--glass-border-subtle);
+    flex-shrink: 0;
+}
+
+.dinsp-seg {
+    display: flex;
+    gap: 2px;
+    background: var(--input-bg-deeper);
+    border-radius: var(--radius-sm);
+    padding: 2px;
+    flex-shrink: 0;
+}
+
+.dinsp-seg button {
+    padding: 2px 8px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    transition:
+        background 0.15s,
+        color 0.15s;
+}
+
+.dinsp-seg button:hover {
+    color: var(--text-primary);
+    background: var(--bg-light);
+}
+
+.dinsp-seg button.active {
+    background: var(--accent-blue);
+    color: white;
+}
+
+.dinsp-disk {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+}
+
+.dinsp-filename {
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 40px;
+    flex-shrink: 1;
+}
+
+.dinsp-chips {
+    display: flex;
+    gap: 4px;
+    flex-wrap: nowrap;
+    overflow: hidden;
+}
+
+.dinsp-chip {
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    font-size: 10px;
+    white-space: nowrap;
+    background: var(--overlay-subtle);
+    border: 1px solid var(--glass-border-subtle);
+    color: var(--text-secondary);
+}
+
+.dinsp-chip.ok {
+    background: var(--accent-green-bg);
+    border-color: var(--accent-green-border);
+    color: var(--accent-green);
+}
+
+.dinsp-chip.warn,
+.dinsp-chip.bad {
+    background: var(--accent-red-bg);
+    border-color: var(--accent-red-border);
+    color: var(--accent-red);
+}
+
+.dinsp-chip.odd {
+    background: var(--accent-purple-bg);
+    color: var(--accent-purple);
+}
+
+.dinsp-chip.flux {
+    background: var(--accent-cyan-bg);
+    border-color: var(--accent-cyan-border);
+    color: var(--accent-cyan);
+}
+
+.dinsp-check {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+/* ---- Body ---- */
+
+.dinsp-body {
+    display: grid;
+    grid-template-columns: minmax(240px, 1fr) minmax(320px, 1.15fr);
+    gap: 12px;
+    padding: 12px;
+    flex: 1;
+    min-height: 0;
+}
+
+.dinsp-platter-panel {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+    gap: 8px;
+}
+
+.dinsp-platter-wrap {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--input-bg-dark);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+}
+
+.dinsp-platter {
+    display: block;
+    cursor: crosshair;
+    outline: none;
+}
+
+.dinsp-empty {
+    position: absolute;
+    color: var(--text-muted);
+    font-size: 12px;
+    pointer-events: none;
+}
+
+.dinsp-tooltip {
+    position: absolute;
+    z-index: 2;
+    padding: 5px 8px;
+    background: var(--menu-bg-opaque);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-md);
+    color: var(--text-secondary);
+    font-size: 11px;
+    line-height: 1.45;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.dinsp-tooltip b {
+    color: var(--text-primary);
+    font-family: var(--font-mono);
+}
+
+.dinsp-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.dinsp-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.dinsp-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    display: inline-block;
+}
+
+.dinsp-legend-note {
+    font-style: italic;
+}
+
+/* ---- Track detail ---- */
+
+.dinsp-detail {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    min-width: 0;
+    gap: 8px;
+}
+
+.dinsp-track-head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    min-width: 0;
+}
+
+.dinsp-track-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+}
+
+.dinsp-track-meta {
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* How to use the strip, under it, where the info tooltip cannot collide
+   with it (a title attribute on the canvas popped up over the tooltip) */
+.dinsp-hint {
+    margin-top: -4px;
+    text-align: right;
+    flex-shrink: 0;
+    font-size: 10px;
+    color: var(--text-muted);
+    opacity: 0.8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dinsp-strip-wrap {
+    position: relative;
+    height: 88px;
+    flex-shrink: 0;
+    background: var(--input-bg-dark);
+    border-radius: var(--radius-sm);
+}
+
+.dinsp-strip {
+    display: block;
+    cursor: crosshair;
+}
+
+.dinsp-sectors-label {
+    font-size: 9px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--accent-blue);
+}
+
+.dinsp-sectors {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.dinsp-sector {
+    width: 24px;
+    height: 22px;
+    padding: 0;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--control-border);
+    background: var(--glass-bg-header);
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.dinsp-sector.ok {
+    border-color: var(--accent-green-border);
+    color: var(--accent-green);
+}
+
+.dinsp-sector.bad {
+    border-color: var(--accent-red-border);
+    background: var(--accent-red-bg);
+    color: var(--accent-red);
+}
+
+.dinsp-sector.unverified,
+.dinsp-sector.nodata {
+    border-color: var(--accent-yellow-border);
+    color: var(--accent-yellow);
+}
+
+.dinsp-sector:hover {
+    background: var(--control-bg-hover);
+}
+
+.dinsp-sector.active {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
+    color: white;
+}
+
+.dinsp-tabs {
+    display: flex;
+    gap: 2px;
+    border-bottom: 1px solid var(--glass-border-subtle);
+    flex-shrink: 0;
+}
+
+.dinsp-tabs button {
+    padding: 4px 10px;
+    border: none;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--text-muted);
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.dinsp-tabs button:hover {
+    color: var(--text-primary);
+}
+
+.dinsp-tabs button.active {
+    color: var(--text-primary);
+    border-bottom-color: var(--accent-blue);
+}
+
+.dinsp-tab-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.dinsp-sector-view,
+.dinsp-nibble-view {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    line-height: 1.5;
+}
+
+.dinsp-sector-view[hidden],
+.dinsp-nibble-view[hidden] {
+    display: none;
+}
+
+.dinsp-sector-head {
+    font-family: var(--font-sans);
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+}
+
+.dinsp-good {
+    color: var(--accent-green);
+}
+
+.dinsp-bad {
+    color: var(--accent-red);
+}
+
+.dinsp-none {
+    font-family: var(--font-sans);
+    color: var(--text-muted);
+    padding: 4px 0;
+}
+
+.dinsp-hex {
+    white-space: pre;
+    color: var(--mem-byte);
+}
+
+.dinsp-hex .a,
+.dinsp-nibble-view .a {
+    color: var(--mem-addr);
+    margin-right: 8px;
+}
+
+.dinsp-hex .z {
+    color: var(--mem-zero);
+}
+
+.dinsp-hex .h {
+    color: var(--mem-highbit);
+}
+
+.dinsp-hex .t {
+    color: var(--mem-ascii);
+    margin-left: 6px;
+}
+
+/* Nibbles, coloured as the platter colours them */
+.dinsp-nibble-view > div {
+    white-space: nowrap;
+}
+
+.dinsp-nibble-view span:not(.a) {
+    margin-right: 4px;
+    padding: 0 1px;
+    border-radius: 2px;
+}
+
+.dinsp-nibble-view .k1 {
+    color: var(--text-muted);
+    opacity: 0.6;
+}
+.dinsp-nibble-view .k2,
+.dinsp-nibble-view .k4 {
+    color: var(--accent-yellow);
+}
+.dinsp-nibble-view .k3 {
+    color: var(--accent-blue);
+}
+.dinsp-nibble-view .k5,
+.dinsp-nibble-view .k7 {
+    color: var(--accent-orange);
+}
+.dinsp-nibble-view .k6 {
+    color: var(--accent-green);
+}
+.dinsp-nibble-view .k8 {
+    color: var(--accent-purple);
+}
+.dinsp-nibble-view .k9 {
+    color: var(--text-muted);
+    text-decoration: line-through;
+}
+.dinsp-nibble-view .bad {
+    color: var(--accent-red);
+}
+.dinsp-nibble-view .sel {
+    background: var(--accent-blue-bg-strong);
+}
+
+/* Zoom controls, over the platter's corner */
+.dinsp-zoom {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px;
+    background: var(--glass-bg-solid);
+    border: 1px solid var(--glass-border-subtle);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-sm);
+}
+
+.dinsp-zoom[hidden] {
+    display: none;
+}
+
+.dinsp-zoom button {
+    min-width: 22px;
+    padding: 2px 6px;
+    border: none;
+    background: transparent;
+    color: var(--text-muted);
+    font-family: var(--font-sans);
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+}
+
+.dinsp-zoom button:hover {
+    color: var(--text-primary);
+    background: var(--bg-light);
+}
+
+.dinsp-zoom-level {
+    min-width: 40px;
+    text-align: center;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-secondary);
+}

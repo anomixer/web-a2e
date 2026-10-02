@@ -42,6 +42,13 @@ async function insertImageToWasm(wasmModule, deviceNum, data, filename) {
   await wasmModule._free(dataPtr);
   await wasmModule._free(filenamePtr);
 
+  // A IIgs's SmartPort takes over from the machine's own slot 5 firmware at
+  // the next reset, not while that firmware may be running. Say so, or an
+  // image inserted at "Check startup device!" looks as if it was ignored.
+  if (success && (await wasmModule._isSmartPortROMPending())) {
+    showToast("Image inserted. Press Ctrl+Reset or Reboot to start from it.", "info");
+  }
+
   return success;
 }
 
@@ -58,6 +65,9 @@ export class HardDriveManager {
 
     /** @type {Set<number>} Devices a URL parameter will fill; skipped on restore */
     this.urlOwnedDevices = new Set();
+
+    /** @type {boolean} The URL names media, so restore nothing at all */
+    this.skipRestore = false;
   }
 
   init() {
@@ -72,8 +82,9 @@ export class HardDriveManager {
         this.closeRecentDropdown();
       }
     });
-
-    this.restoreImages();
+    // Saved images are restored by main.js once the saved slot layout is in
+    // the machine, not here: fitting that layout builds the SmartPort afresh
+    // when it moves, and an image restored before then went with the old card.
   }
 
   setupDevice(deviceNum) {
@@ -341,13 +352,16 @@ export class HardDriveManager {
   }
 
   async restoreImages() {
+    // See DiskManager.restoreDisks: a link's media replaces all of the last
+    // visit's, not just the units it names
+    if (this.skipRestore) return;
     for (let deviceNum = 0; deviceNum < 2; deviceNum++) {
       // A URL parameter is about to fill this device; see DiskManager.restoreDisks
       if (this.urlOwnedDevices?.has(deviceNum)) continue;
       try {
         const imageData = await loadImageFromStorage(deviceNum);
         if (imageData) {
-          this.loadImageFromData(deviceNum, imageData.filename, imageData.data);
+          await this.loadImageFromData(deviceNum, imageData.filename, imageData.data);
         }
       } catch (error) {
         console.error(`Error restoring HD image for device ${deviceNum + 1}:`, error);

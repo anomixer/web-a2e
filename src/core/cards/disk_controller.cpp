@@ -260,6 +260,7 @@ bool DiskController::insertDisk(int drive, const uint8_t* data, size_t size,
     }
 
     diskImages_[drive] = std::move(image);
+    revision_[drive]++;
 
     // Reset LSS timing for this drive
     if (drive == selectedDrive_) {
@@ -278,6 +279,7 @@ bool DiskController::insertBlankDisk(int drive) {
     image->createBlank();
 
     diskImages_[drive] = std::move(image);
+    revision_[drive]++;
     return true;
 }
 
@@ -292,6 +294,7 @@ void DiskController::ejectDisk(int drive) {
     }
 
     diskImages_[drive].reset();
+    revision_[drive]++;
 }
 
 bool DiskController::hasDisk(int drive) const {
@@ -328,6 +331,8 @@ DiskImage* DiskController::getMutableDiskImage(int drive) {
     if (drive < 0 || drive > 1) {
         return nullptr;
     }
+    // Whoever asks for a writable image may be about to change it
+    revision_[drive]++;
     return diskImages_[drive].get();
 }
 
@@ -380,8 +385,15 @@ void DiskController::clockLSS() {
     // On all other phases, pulse is 0 (inverted -> 1 in address).
     // When Q7=1 (write mode), pulse never affects P6 ROM output,
     // so we skip the read and let writeBit handle head advance.
+    //
+    // A flux track is the exception: it says when each transition arrives,
+    // not which cell it belongs to, so the head moves on every tick and a
+    // pulse lands on whichever tick it falls in. That is what the real
+    // sequencer sees, and what a track written at more than one speed needs.
     uint8_t readPulse = 0;
-    if (lssClock_ == 4 && !q7_) {
+    if (!q7_ && trackHasData && disk->isTickTimed()) {
+        readPulse = disk->readTick();
+    } else if (lssClock_ == 4 && !q7_) {
         readPulse = trackHasData ? disk->readBit()  // reads and advances head
                                  : nextWeakBit();    // empty track -> noise
     }
@@ -420,10 +432,19 @@ void DiskController::clockLSS() {
     // The P6 ROM state bit 3 is the write amplifier LEVEL (magnetic polarity).
     // Disk formats (WOZ/DSK) store flux TRANSITIONS (1 = polarity change).
     // Convert level to transition via XOR with previous level.
-    if (lssClock_ == 4 && q7_) {
+    //
+    // ENABLE, not the motor, is what gates the write head: the drive is still
+    // turning for a second after the CPU switches it off, and nothing is laid
+    // down on the disk during it. A //e never notices the difference, because
+    // its firmware raises Q7 only when it means to write. A IIgs does: its
+    // firmware switches the drive off and immediately writes the IWM's mode
+    // register, which is an access to $C0EF and so raises Q7 as a side effect,
+    // and without this the machine erases the disk it was about to boot.
+    if (lssClock_ == 4 && q7_ && isDriveEnabled()) {
         uint8_t level = (nextState >> 3) & 1;
         disk->writeBit(level ^ writeLevel_);
         writeLevel_ = level;
+        revision_[selectedDrive_]++;
     }
 
     sequencerState_ = nextState;

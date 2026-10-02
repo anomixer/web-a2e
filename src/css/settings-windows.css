@@ -74,6 +74,16 @@
     opacity: 0.8;
 }
 
+/* A machine register's live value, next to its name. These are bytes rather
+   than one-bit switches, so they are shown as a number. */
+.switch-value {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--accent-green);
+    min-width: 26px;
+}
+
 .switch-item.read-only {
     opacity: 0.7;
 }
@@ -1423,6 +1433,30 @@
     text-align: right;
 }
 
+/* A IIgs's rows carry the Control Panel's per-slot setting as well as a note,
+   so they need the room for it. */
+.mb-slot-note:has(.mb-slot-setting) {
+    width: 118px;
+}
+
+.mb-slot-setting {
+    display: block;
+    width: 100%;
+    margin-top: 3px;
+    padding: 2px 4px;
+    font-family: inherit;
+    font-size: 9px;
+    color: var(--text-primary);
+    background: var(--input-bg, var(--glass-bg-solid));
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+}
+
+.mb-slot-setting:hover {
+    border-color: var(--accent-blue-border, var(--border-color));
+}
+
 /* Compatibility highlights during drag */
 .mb-slot-compat {
     border-color: var(--accent-green-border);
@@ -1615,6 +1649,20 @@
 .serial-status-text {
     font-size: 11px;
     color: var(--text-secondary);
+}
+
+.serial-loopback-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.serial-loopback-row input {
+    margin: 0;
+    accent-color: var(--accent-blue);
 }
 
 .serial-connect-btn {

@@ -2,7 +2,13 @@
 
 The Display Settings window controls every visual effect applied to the emulator screen. Open it from **View > Display**.
 
-The window leads with a **Monitor** preset, which sets the whole picture in one choice. Below that are the image adjustments you are most likely to touch, and everything else folds away behind **Advanced**. All settings are saved to `localStorage` under `a2e-display-settings` and restored on reload. **Reset to Defaults** at the bottom returns everything to its initial state.
+The window leads with a **Monitor** preset, which sets the whole picture in one choice. Below that are the image adjustments you are most likely to touch, and everything else folds away behind **Advanced**. **Reset to Defaults** at the bottom returns everything to its initial state.
+
+**Display settings are remembered per machine.** A //e's soft composite look, which is exactly right for games, has no business on a IIgs's RGB desktop — so each machine has its own `localStorage` key and its own settings, and switching machines brings that machine's picture back rather than carrying the last one across. The key from before there was more than one machine is read once as the //e's.
+
+Each machine's defaults differ in exactly one value, the **Screen Border**: 35% on the 8-bit machines, whose picture fills the frame, and 0 on a IIgs, which draws a border of its own as part of the raster.
+
+Saved display profiles stay **global** — they are named snapshots any machine may pick.
 
 ---
 
@@ -28,6 +34,7 @@ Each preset names something a real //e was plugged into, and its values follow f
 | Preset | What it imitates |
 |--------|------------------|
 | **Pixel Exact** | No CRT simulation at all -- sharp square pixels, nearest-neighbour filtering. The default. |
+| **Solid Colour** | The same flat picture, but the colours are not decoded from the machine's signal at all: every lo-res cell, hi-res colour group and double hi-res pixel is painted the colour its value names, edge to edge. No fringing, because there is nothing to fringe -- a hi-res colour field comes out as the flat colour it was drawn as rather than as colour on black, and a lone hi-res pixel comes out white, because artifact colour is something a monitor makes and this is not a monitor. Not what any monitor shows -- what the program drew. |
 | **Composite Color** | A colour television or composite monitor: dot triad mask, NTSC fringing, heavy chroma bleed, softened image. |
 | **RGB Monitor** | Separate colour signals: sharp, aperture grille, no fringing and almost no bleed, because there is no encoded signal to decode. |
 | **Monochrome Green** | A P1 phosphor tube: long persistence, generous glow, and **no mask** -- a shadow mask exists only to keep three beams apart, and a monochrome tube has one. |

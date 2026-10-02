@@ -13,6 +13,14 @@ const AUDIO_DATA_OFFSET = 8;
 // Refill threshold, in stereo frames.
 const LOW_WATER_FRAMES = 1600;
 
+// How much one refill asks for: one video frame's worth at 48kHz. Every
+// request runs the machine through that much time and the Worker publishes one
+// picture afterwards, so a request covering two frames drew both into the same
+// framebuffer and showed only the second, and the screen got 30 pictures a
+// second from a machine making 60. The low-water mark stays at two frames, so
+// the buffer is as deep as it was; it is refilled a frame at a time.
+const REFILL_FRAMES = 800;
+
 // How many render quanta (128 frames each, ~2.7ms at 48kHz) a shared-mode
 // refill request may go unanswered before we assume it will never be and ask
 // again. ~86ms, comfortably longer than any normal Worker turnaround.
@@ -116,11 +124,11 @@ class AppleAudioProcessor extends AudioWorkletProcessor {
     const remainingFrames = this.ringCount / 2;
 
     // Request more samples if buffer is getting low and no request pending
-    if (remainingFrames < 1600 && !this.pendingRequest) {
+    if (remainingFrames < LOW_WATER_FRAMES && !this.pendingRequest) {
       this.pendingRequest = true;
       this.port.postMessage({
         type: "requestSamples",
-        count: 1600, // Number of sample frames (stereo pairs)
+        count: REFILL_FRAMES, // Number of sample frames (stereo pairs)
       });
     }
 
@@ -190,7 +198,7 @@ class AppleAudioProcessor extends AudioWorkletProcessor {
       this.pendingRequest = true;
       this.requestedAtWritePos = writePos;
       this.requestQuanta = 0;
-      this.port.postMessage({ type: "requestSamples", count: LOW_WATER_FRAMES });
+      this.port.postMessage({ type: "requestSamples", count: REFILL_FRAMES });
     }
 
     return true;

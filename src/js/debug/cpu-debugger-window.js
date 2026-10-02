@@ -7,8 +7,14 @@
 
 import { BaseWindow } from "../windows/base-window.js";
 import { getSymbolInfo, getCategoryClass, ALL_SYMBOLS } from "./symbols.js";
-import { BreakpointManager } from "./breakpoint-manager.js";
+import { BreakpointManager, parseAddressRange } from "./breakpoint-manager.js";
 import { LabelManager } from "./label-manager.js";
+import {
+  machineProcessor,
+  machineTiming,
+  formatMachineAddress,
+  machineAddressMask,
+} from "../machine/machine-profile.js";
 
 // How often the 64K profiling table is re-read for the disassembly heat
 // overlay. See updateProfileData().
@@ -51,6 +57,11 @@ export class CPUDebuggerWindow extends BaseWindow {
     this.beamBreakpoints = []; // Array of { id, scanline, hPos, enabled, mode }
     this.loadBeamBreakpoints();
     this.activeTab = "breakpoints"; // Active tab panel (breakpoints, watch, beam)
+    // The tab panel under the disassembly: how tall the user dragged it, in
+    // pixels, or null for the stylesheet's default; and whether it is folded
+    // down to its tab bar so the disassembly can have the room.
+    this.tabsHeight = null;
+    this.tabsCollapsed = false;
     this._hitBpAddr = -1; // Address of the breakpoint/watchpoint that triggered a pause
     this._lastHitBpAddr = -2; // Previous value for change detection
 
@@ -91,6 +102,11 @@ export class CPUDebuggerWindow extends BaseWindow {
             <div class="cpu-dbg-reg"><span class="reg-label">Y</span><span class="reg-value" id="reg-y">00</span></div>
             <div class="cpu-dbg-reg"><span class="reg-label">SP</span><span class="reg-value" id="reg-sp">FF</span></div>
             <div class="cpu-dbg-reg reg-wide"><span class="reg-label">PC</span><span class="reg-value" id="reg-pc">0000</span></div>
+            <!-- A 65816's own registers. Hidden on a machine that has none;
+                 see applyProcessor(). -->
+            <div class="cpu-dbg-reg" id="reg-row-pbr" hidden><span class="reg-label">PB</span><span class="reg-value" id="reg-pbr">00</span></div>
+            <div class="cpu-dbg-reg" id="reg-row-dbr" hidden><span class="reg-label">DB</span><span class="reg-value" id="reg-dbr">00</span></div>
+            <div class="cpu-dbg-reg reg-wide" id="reg-row-dp" hidden><span class="reg-label">D</span><span class="reg-value" id="reg-dp">0000</span></div>
           </div>
         </div>
 
@@ -99,7 +115,11 @@ export class CPUDebuggerWindow extends BaseWindow {
           <div class="cpu-flags" id="flags">
             <span class="flag" id="flag-n" title="Negative">N</span>
             <span class="flag" id="flag-v" title="Overflow">V</span>
-            <span class="flag separator">-</span>
+            <!-- Bits 5 and 4 are the unused bit and Break on a 6502, and the
+                 accumulator and index widths on a 65816 in native mode. The
+                 labels follow the processor and its mode; see applyProcessor()
+                 and updateFlags(). -->
+            <span class="flag separator" id="flag-m">-</span>
             <span class="flag" id="flag-b" title="Break">B</span>
             <span class="flag" id="flag-d" title="Decimal">D</span>
             <span class="flag" id="flag-i" title="Interrupt Disable">I</span>
@@ -140,16 +160,19 @@ export class CPUDebuggerWindow extends BaseWindow {
         </div>
 
         <div class="cpu-dbg-tabs">
+          <div class="cpu-dbg-splitter" title="Drag to resize"></div>
           <div class="cpu-dbg-tab-bar">
             <button class="cpu-dbg-tab active" data-tab="breakpoints">Breakpoints <span class="cpu-dbg-tab-count" id="bp-tab-count">0</span></button>
             <button class="cpu-dbg-tab" data-tab="watch">Watch <span class="cpu-dbg-tab-count" id="watch-tab-count">0</span></button>
             <button class="cpu-dbg-tab" data-tab="beam">Beam <span class="cpu-dbg-tab-count" id="beam-tab-count">0</span></button>
+            <button class="cpu-dbg-tab-collapse" id="dbg-tabs-collapse" title="Collapse panel" aria-label="Collapse panel"></button>
           </div>
           <div class="cpu-dbg-tab-content active" data-tab="breakpoints">
             <div class="cpu-dbg-tab-toolbar">
               <select id="bp-source-select" title="Breakpoint source">
                 <option value="addr">Addr</option>
                 <option value="switch">Switch</option>
+                <option value="stack">SP</option>
               </select>
               <select id="bp-type-select" title="Breakpoint type">
                 <option value="exec">Exec</option>
@@ -157,7 +180,7 @@ export class CPUDebuggerWindow extends BaseWindow {
                 <option value="write">Write</option>
                 <option value="readwrite">R/W</option>
               </select>
-              <input type="text" id="breakpoint-input" placeholder="$XXXX" spellcheck="false">
+              <input type="text" id="breakpoint-input" placeholder="$XXXX or $XXXX-$YYYY" title="An address, or a range: $2000-$20FF" spellcheck="false">
               <select id="bp-switch-select" title="Soft switch" style="display:none"></select>
               <button class="cpu-dbg-add-btn" id="breakpoint-add-btn" title="Add breakpoint">+</button>
             </div>
@@ -357,9 +380,19 @@ export class CPUDebuggerWindow extends BaseWindow {
 
       bpSourceSelect.addEventListener("change", () => {
         const isSwitch = bpSourceSelect.value === "switch";
+        const isStack = bpSourceSelect.value === "stack";
         const bpInput = this.contentElement.querySelector("#breakpoint-input");
-        if (bpInput) bpInput.style.display = isSwitch ? "none" : "";
+        if (bpInput) {
+          bpInput.style.display = isSwitch ? "none" : "";
+          // A stack breakpoint is a value of SP or a range of them, and fires
+          // when SP enters it. Read, write and exec mean nothing for it.
+          bpInput.placeholder = isStack ? "SP $XX or $XX-$YY" : "$XXXX or $XXXX-$YYYY";
+          bpInput.title = isStack
+            ? "Stops when the stack pointer enters this value or range: $00-$3F catches a runaway stack"
+            : "An address, or a range: $2000-$20FF";
+        }
         bpSwitchSelect.style.display = isSwitch ? "" : "none";
+        if (bpTypeSelect) bpTypeSelect.style.display = isStack ? "none" : "";
 
         if (isSwitch) {
           // Hide Exec option, auto-select R/W
@@ -500,9 +533,12 @@ export class CPUDebuggerWindow extends BaseWindow {
             c.classList.toggle("active", c.dataset.tab === tabName);
           });
         this.activeTab = tabName;
+        // Picking a tab on a folded panel is asking to see it.
+        if (this.tabsCollapsed) this.setTabsCollapsed(false);
         if (this.onStateChange) this.onStateChange();
       });
     }
+    this.setupTabsPanel();
 
     // Watch list event delegation (survives DOM rebuilds from updateWatchList)
     const watchList = this.contentElement.querySelector("#watch-list");
@@ -529,6 +565,10 @@ export class CPUDebuggerWindow extends BaseWindow {
    */
   create() {
     super.create();
+    // Which processor this machine has decides what the panels show, so it is
+    // applied before anything is wired to them.
+    this.applyProcessor();
+    this.applyBeamLimits();
     this.setupContentEventListeners();
     this.setupKeyboardShortcuts();
     this.setupRegisterEditing();
@@ -607,16 +647,32 @@ export class CPUDebuggerWindow extends BaseWindow {
           name,
         });
       }
+    } else if (sourceSelect && sourceSelect.value === "stack") {
+      // Stack pointer mode: a value of SP or a range of them, as wide as the
+      // processor's SP register (8 bits on a 6502, 16 on a 65816).
+      const input = this.contentElement.querySelector("#breakpoint-input");
+      if (!input) return;
+      const spMax = machineProcessor().registerBits > 8 ? 0xffff : 0xff;
+      const range = parseAddressRange(input.value, (part) => {
+        const m = part.match(/^\$?(?:0x)?([0-9A-Fa-f]{1,4})$/);
+        if (!m) return null;
+        const value = parseInt(m[1], 16);
+        return value <= spMax ? value : null;
+      });
+      if (range) {
+        this.bpManager.add(range.start, { type: "stack", endAddress: range.end });
+        input.value = "";
+      }
     } else {
-      // Address mode: parse the text input
+      // Address mode: an address or a range, symbols allowed at either end.
+      // A range is watched as a whole, and an exec range stops when the PC
+      // enters it.
       const input = this.contentElement.querySelector("#breakpoint-input");
       if (!input) return;
 
-      const text = input.value.trim();
-      const addr = this.resolveAddress(text) ?? parseInt(text, 16);
-
-      if (!isNaN(addr) && addr >= 0 && addr <= 0xffff) {
-        this.bpManager.add(addr, { type });
+      const range = parseAddressRange(input.value, (part) => this.resolveAddress(part));
+      if (range && range.start >= 0 && range.end <= machineAddressMask()) {
+        this.bpManager.add(range.start, { type, endAddress: range.end });
         input.value = "";
       }
     }
@@ -643,7 +699,7 @@ export class CPUDebuggerWindow extends BaseWindow {
       if (!text) return;
       const addr = this.resolveAddress(text);
       if (addr === null) return;
-      const hexAddr = "$" + this.formatHex(addr, 4);
+      const hexAddr = "$" + formatMachineAddress(addr);
       expr = source === "byte" ? `PEEK(${hexAddr})` : `DEEK(${hexAddr})`;
       addrInput.value = "";
     }
@@ -660,10 +716,19 @@ export class CPUDebuggerWindow extends BaseWindow {
    * @returns {number|null} Address or null if invalid
    */
   resolveAddress(text) {
-    // Try hex: $XXXX, 0xXXXX, or plain hex
-    const hexMatch = text.match(/^\$?(?:0x)?([0-9A-Fa-f]{1,4})$/);
+    // A bank, a slash and an offset: "E1/2000", which is how this machine's
+    // own monitor writes an address and how the panels above write one back.
+    const banked = text.match(/^\$?([0-9A-Fa-f]{1,2})\/([0-9A-Fa-f]{1,4})$/);
+    if (banked) {
+      return (parseInt(banked[1], 16) << 16) | parseInt(banked[2], 16);
+    }
+
+    // Try hex: $XXXX, 0xXXXX, or plain hex — up to six digits on a machine
+    // whose addresses are that wide.
+    const hexMatch = text.match(/^\$?(?:0x)?([0-9A-Fa-f]{1,6})$/);
     if (hexMatch) {
-      return parseInt(hexMatch[1], 16);
+      const value = parseInt(hexMatch[1], 16);
+      return value <= machineAddressMask() ? value : null;
     }
 
     // Try label manager first (user labels + imported symbols)
@@ -717,8 +782,8 @@ export class CPUDebuggerWindow extends BaseWindow {
     const menu = document.createElement("div");
     menu.className = "cpu-disasm-context-menu";
     menu.innerHTML = `
-      <div class="ctx-item" data-action="run-to">Run to $${this.formatHex(addr, 4)}</div>
-      <div class="ctx-item" data-action="goto">Go to $${this.formatHex(addr, 4)}</div>
+      <div class="ctx-item" data-action="run-to">Run to $${formatMachineAddress(addr)}</div>
+      <div class="ctx-item" data-action="goto">Go to $${formatMachineAddress(addr)}</div>
       <div class="ctx-item" data-action="toggle-bp">${this.bpManager.has(addr) ? "Remove" : "Set"} Breakpoint</div>
     `;
     menu.style.cssText = `
@@ -839,6 +904,15 @@ export class CPUDebuggerWindow extends BaseWindow {
       ['_getBeamColumn'],
       ['_isInVBL'],
       ['_isInHBLANK'],
+      // The registers and the widths only a 65816 has. Asked for
+      // unconditionally because they are trivial getters inside a message
+      // already being sent, and they read zero on a machine without them.
+      ['_getPBR'],
+      ['_getDBR'],
+      ['_getDirectPage'],
+      ['_getCpuWidths'],
+      ['_isStackBreakpointHit'],
+      ['_getStackBreakpointHitLow'],
       // Negative centre address means "use the current PC" — see the
       // _disassembleRange export. Passing pc explicitly is impossible here
       // because we do not have it until this very batch returns.
@@ -888,7 +962,7 @@ export class CPUDebuggerWindow extends BaseWindow {
           this.wasmModule._setPaused(false);
           return;
         }
-        this._hitBpAddr = entry.address;
+        this._hitBpAddr = entry.key;
       } else if (!await this.bpManager.shouldBreak(wpAddr)) {
         // Fallback for direct-address match
         this.wasmModule._setPaused(false);
@@ -907,13 +981,26 @@ export class CPUDebuggerWindow extends BaseWindow {
       // covers every later update that re-examines the same still-set hit.
       if (tempHit || this.bpManager.isTempStop(bpAddr)) {
         this._hitBpAddr = bpAddr;
-      } else if (!await this.bpManager.shouldBreak(bpAddr)) {
-        // Condition not met - resume execution
+      } else {
+        // The breakpoint at this address, or a range the PC entered.
+        const entry = this.bpManager.findExec(bpAddr);
+        if (!entry || !await this.bpManager.shouldBreakEntry(entry)) {
+          // Condition not met - resume execution
+          this.wasmModule._setPaused(false);
+          return;
+        }
+        this._hitBpAddr = entry.key;
+      }
+    }
+
+    // A stack pointer breakpoint reports on its own, by the start of its range.
+    if (isPaused && results[S.STACK_BP_HIT]) {
+      const entry = this.bpManager.findStack(results[S.STACK_BP_LOW]);
+      if (!entry || !await this.bpManager.shouldBreakEntry(entry)) {
         this.wasmModule._setPaused(false);
         return;
-      } else {
-        this._hitBpAddr = bpAddr;
       }
+      this._hitBpAddr = entry.key;
     }
 
     // Clear hit address when running
@@ -930,7 +1017,7 @@ export class CPUDebuggerWindow extends BaseWindow {
     // Resolves without a round-trip when handed batch results; awaited only so
     // a throw surfaces rather than becoming an unhandled rejection.
     await this.updateRegisters(results);
-    this.updateFlags(results[S.P]);
+    this.updateFlags(results[S.P], results[S.CPU_WIDTHS]);
     this.updateIRQState([
       results[S.IRQ_PENDING],
       results[S.NMI_PENDING],
@@ -985,20 +1072,76 @@ export class CPUDebuggerWindow extends BaseWindow {
     BEAM_COLUMN: 21,
     IN_VBL: 22,
     IN_HBLANK: 23,
-    DISASM: 24,
+    PBR: 24,
+    DBR: 25,
+    DP: 26,
+    CPU_WIDTHS: 27,
+    STACK_BP_HIT: 28,
+    STACK_BP_LOW: 29,
+    DISASM: 30,
   };
 
   /**
    * Register definitions for display and editing
    */
+  // The registers to show, and how wide each is. `digits` is a default for a
+  // //e; applyProcessor() widens them on a machine whose registers are wider
+  // and reveals the ones only that machine has. `needs` names the capability
+  // a register depends on, so a processor without it is not asked about one
+  // it does not have.
   static REGISTER_DEFS = [
-    { id: "reg-a", fn: "_getA", setFn: "_setRegA", digits: 2 },
-    { id: "reg-x", fn: "_getX", setFn: "_setRegX", digits: 2 },
-    { id: "reg-y", fn: "_getY", setFn: "_setRegY", digits: 2 },
-    { id: "reg-sp", fn: "_getSP", setFn: "_setRegSP", digits: 2 },
-    { id: "reg-pc", fn: "_getPC", setFn: "_setRegPC", digits: 4 },
+    { id: "reg-a", fn: "_getA", setFn: "_setRegA", digits: 2, wide: true },
+    { id: "reg-x", fn: "_getX", setFn: "_setRegX", digits: 2, wide: true },
+    { id: "reg-y", fn: "_getY", setFn: "_setRegY", digits: 2, wide: true },
+    { id: "reg-sp", fn: "_getSP", setFn: "_setRegSP", digits: 2, wide: true },
+    { id: "reg-pc", fn: "_getPC", setFn: "_setRegPC", digits: 4, address: true },
+    {
+      id: "reg-pbr",
+      fn: "_getPBR",
+      setFn: "_setRegPBR",
+      digits: 2,
+      needs: "hasBanks",
+      row: "reg-row-pbr",
+    },
+    {
+      id: "reg-dbr",
+      fn: "_getDBR",
+      setFn: "_setRegDBR",
+      digits: 2,
+      needs: "hasBanks",
+      row: "reg-row-dbr",
+    },
+    {
+      id: "reg-dp",
+      fn: "_getDirectPage",
+      setFn: "_setRegDirectPage",
+      digits: 4,
+      needs: "hasDirectPage",
+      row: "reg-row-dp",
+    },
     { id: "cycle-count", fn: "_getTotalCycles", setFn: null, digits: 0 },
   ];
+
+  /**
+   * Which of those registers this machine actually has, at this machine's
+   * widths. The program counter is an address, so it follows the address
+   * width rather than the register width: a 65816's is 24 bits even though
+   * its registers are 16.
+   */
+  static registersFor(processor) {
+    const registerDigits = processor.registerBits > 8 ? 4 : 2;
+    const addressDigits = processor.addressBits > 16 ? 6 : 4;
+    return CPUDebuggerWindow.REGISTER_DEFS.filter(
+      (def) => !def.needs || processor[def.needs],
+    ).map((def) => ({
+      ...def,
+      digits: def.wide
+        ? registerDigits
+        : def.address
+          ? addressDigits
+          : def.digits,
+    }));
+  }
 
   /**
    * Update CPU register display.
@@ -1010,16 +1153,20 @@ export class CPUDebuggerWindow extends BaseWindow {
    */
   async updateRegisters(batchResults) {
     const S = CPUDebuggerWindow.UPDATE_BATCH;
-    const defs = CPUDebuggerWindow.REGISTER_DEFS;
+    const defs = this.registers || CPUDebuggerWindow.registersFor(machineProcessor());
+    const BATCH_SLOT = {
+      "reg-a": S.A,
+      "reg-x": S.X,
+      "reg-y": S.Y,
+      "reg-sp": S.SP,
+      "reg-pc": S.PC,
+      "reg-pbr": S.PBR,
+      "reg-dbr": S.DBR,
+      "reg-dp": S.DP,
+      "cycle-count": S.TOTAL_CYCLES,
+    };
     const values = batchResults
-      ? [
-          batchResults[S.A],
-          batchResults[S.X],
-          batchResults[S.Y],
-          batchResults[S.SP],
-          batchResults[S.PC],
-          batchResults[S.TOTAL_CYCLES],
-        ]
+      ? defs.map(({ id }) => batchResults[BATCH_SLOT[id]])
       : await this.wasmModule.batch(defs.map(({ fn }) => [fn]));
 
     defs.forEach(({ id, digits }, i) => {
@@ -1028,8 +1175,14 @@ export class CPUDebuggerWindow extends BaseWindow {
       // Don't update if we're currently editing this register
       if (elem.dataset.editing === "true") return;
       const value = values[i];
+      // The program counter is an address, and on a machine with banks an
+      // address is written with one: "00/FF69" rather than "00FF69".
       const text =
-        digits > 0 ? this.formatHex(value, digits) : value.toString();
+        digits === 0
+          ? value.toString()
+          : id === "reg-pc"
+            ? formatMachineAddress(value)
+            : this.formatHex(value, digits);
 
       // Nothing changed — skip the DOM entirely rather than rewriting the same
       // string and dirtying layout for six elements every frame.
@@ -1053,7 +1206,9 @@ export class CPUDebuggerWindow extends BaseWindow {
    * Set up register editing - click a register value to edit it
    */
   setupRegisterEditing() {
-    CPUDebuggerWindow.REGISTER_DEFS.forEach(({ id, setFn, digits }) => {
+    const editable =
+      this.registers || CPUDebuggerWindow.registersFor(machineProcessor());
+    editable.forEach(({ id, setFn, digits }) => {
       if (!setFn) return; // Skip non-editable registers like cycle count
       const elem = this.contentElement.querySelector(`#${id}`);
       if (!elem) return;
@@ -1072,7 +1227,8 @@ export class CPUDebuggerWindow extends BaseWindow {
         const input = document.createElement("input");
         input.type = "text";
         input.value = currentValue;
-        input.maxLength = digits;
+        // One more than the digits, for the slash in a banked address.
+        input.maxLength = digits + 1;
         input.className = "cpu-reg-edit-input";
         input.style.cssText = `
           width: ${digits * 8 + 8}px;
@@ -1094,8 +1250,12 @@ export class CPUDebuggerWindow extends BaseWindow {
         input.select();
 
         const commit = () => {
-          const val = parseInt(input.value, 16);
-          const maxVal = digits === 4 ? 0xffff : 0xff;
+          // A bank and a slash is how this machine writes an address, so it
+          // has to be accepted back: "E1/2000" is the program counter the
+          // panel just showed.
+          const typed = input.value.replace("/", "");
+          const val = parseInt(typed, 16);
+          const maxVal = Math.pow(16, digits) - 1;
           if (!isNaN(val) && val >= 0 && val <= maxVal) {
             this.wasmModule[setFn](val);
           }
@@ -1205,7 +1365,8 @@ export class CPUDebuggerWindow extends BaseWindow {
 
     switch (mode) {
       case "vbl":
-        scanline = 192;
+        // Where vertical blanking starts is the machine's, not 192 everywhere.
+        scanline = machineTiming().visibleScanlines;
         hPos = 0;
         break;
       case "hblank":
@@ -1214,24 +1375,28 @@ export class CPUDebuggerWindow extends BaseWindow {
         break;
       case "scanline": {
         const n = parseInt(scanInput?.value, 10);
-        if (isNaN(n) || n < 0 || n > 261) return;
+        if (isNaN(n) || n < 0 || n >= machineTiming().scanlinesPerFrame) return;
         scanline = n;
         hPos = -1;
         break;
       }
       case "column": {
         const c = parseInt(colInput?.value, 10);
-        if (isNaN(c) || c < 0 || c > 39) return;
+        if (isNaN(c) || c < 0 || c >= machineTiming().visibleColumns) return;
         scanline = -1;
-        hPos = c + 25;
+        // A scanline starts in blanking and the visible columns follow it, so
+        // a column is an offset past the blanking rather than a position.
+        hPos = c + machineTiming().hblankCycles;
         break;
       }
       case "scancol": {
         const n = parseInt(scanInput?.value, 10);
         const c = parseInt(colInput?.value, 10);
-        if (isNaN(n) || n < 0 || n > 261 || isNaN(c) || c < 0 || c > 39) return;
+        const timing = machineTiming();
+        if (isNaN(n) || n < 0 || n >= timing.scanlinesPerFrame) return;
+        if (isNaN(c) || c < 0 || c >= timing.visibleColumns) return;
         scanline = n;
-        hPos = c + 25;
+        hPos = c + timing.hblankCycles;
         break;
       }
     }
@@ -1434,16 +1599,118 @@ export class CPUDebuggerWindow extends BaseWindow {
   /**
    * @param {number} p - status register, already fetched by update()
    */
-  updateFlags(p) {
+  /**
+   * Shape the panels to the machine's processor.
+   *
+   * A 65816 has a program bank, a data bank and a direct page that a 6502
+   * does not, so those rows are revealed; the machine's register width
+   * decides how many digits each value gets. Called again when the machine
+   * changes, because switching machines can change the processor.
+   */
+  applyProcessor() {
+    const processor = machineProcessor();
+    this.registers = CPUDebuggerWindow.registersFor(processor);
+
+    // Reveal the rows this processor has, and hide the ones it has not.
+    for (const def of CPUDebuggerWindow.REGISTER_DEFS) {
+      if (!def.row) continue;
+      const row = this.contentElement?.querySelector(`#${def.row}`);
+      if (row) row.hidden = !(def.needs && processor[def.needs]);
+    }
+    // The disassembly's address and byte columns are wider on a machine whose
+    // addresses carry a bank and whose instructions run to four bytes.
+    const banked = processor.addressBits > 16;
+    const root = this.element ?? this.contentElement;
+    if (root) {
+      root.style.setProperty("--disasm-addr-width", banked ? "58px" : "36px");
+      root.style.setProperty("--disasm-bytes-width", banked ? "88px" : "68px");
+    }
+
+    // The panel is rebuilt, so the last values no longer describe it.
+    this.previousRegisters = {};
+    this.applyFlagLabels(false);
+  }
+
+  /**
+   * The two flag bits whose name depends on the mode.
+   *
+   * A 6502's bit 5 is unused and bit 4 is Break. A 65816 in native mode
+   * calls them M and X — the accumulator and index widths — and in emulation
+   * mode it is the 6502 again.
+   */
+  /**
+   * The beam readouts' and inputs' limits, which belong to the machine.
+   *
+   * A scanline count, a blanking width and a column count are all in the
+   * machine profile, and were written into the markup as a //e's.
+   */
+  applyBeamLimits() {
+    const timing = machineTiming();
+    const hint = (selector, text) => {
+      const el = this.contentElement?.querySelector(selector);
+      if (el) el.title = text;
+    };
+    hint("#scan-line", `Current scanline (0-${timing.scanlinesPerFrame - 1})`);
+    hint(
+      "#scan-hpos",
+      `Horizontal position within scanline (0-${timing.cyclesPerScanline - 1}), ` +
+        `includes visible and blanking portions`,
+    );
+    hint(
+      "#scan-col",
+      `Visible screen column (0-${timing.visibleColumns - 1}), only valid ` +
+        `during the visible portion of the scanline`,
+    );
+    const scanInput = this.contentElement?.querySelector("#beam-scan-input");
+    if (scanInput) {
+      scanInput.title = `0-${timing.scanlinesPerFrame - 1}`;
+    }
+    const colInput = this.contentElement?.querySelector("#beam-col-input");
+    if (colInput) {
+      colInput.title = `0-${timing.visibleColumns - 1}`;
+    }
+  }
+
+  applyFlagLabels(native) {
+    const m = this.contentElement?.querySelector("#flag-m");
+    const b = this.contentElement?.querySelector("#flag-b");
+    if (m) {
+      m.textContent = native ? "M" : "-";
+      m.title = native ? "Accumulator is 8-bit" : "Unused";
+      m.classList.toggle("separator", !native);
+    }
+    if (b) {
+      b.textContent = native ? "X" : "B";
+      b.title = native ? "Index registers are 8-bit" : "Break";
+    }
+  }
+
+  /** The machine changed, and with it the processor the panels describe. */
+  onMachineChanged() {
+    this.applyProcessor();
+    this.applyBeamLimits();
+    this.updateRegisters();
+  }
+
+  updateFlags(p, widths) {
+    // Bits 5 and 4 are the unused bit and Break on a 6502. On a 65816 in
+    // native mode they are the accumulator and index widths, and getting them
+    // wrong is not cosmetic: they are what says how long an immediate is.
+    const processor = machineProcessor();
+    const native =
+      processor.hasModes && widths !== undefined && (widths & 0x01) === 0;
+    this.applyFlagLabels(native);
+
     const flags = [
       { id: "flag-n", bit: 0x80 },
       { id: "flag-v", bit: 0x40 },
+      { id: "flag-m", bit: 0x20, only: native },
       { id: "flag-b", bit: 0x10 },
       { id: "flag-d", bit: 0x08 },
       { id: "flag-i", bit: 0x04 },
       { id: "flag-z", bit: 0x02 },
       { id: "flag-c", bit: 0x01 },
-    ];
+    ].filter(({ only }) => only !== false);
 
     flags.forEach(({ id, bit }) => {
       const elem = this.contentElement.querySelector(`#${id}`);
@@ -1640,8 +1907,14 @@ export class CPUDebuggerWindow extends BaseWindow {
     let pcLineElement = null;
 
     for (const disasm of disasmLines) {
-      // "AAAA: BB BB BB  MNEM OPERAND" — the address is the first four chars.
-      const addr = parseInt(disasm.substring(0, 4), 16);
+      // Three tab-separated fields: the address in hex, the bytes in hex, and
+      // the text. It used to be one fixed-width string sliced by column,
+      // which could not survive a six-digit address or a four-byte
+      // instruction — and would have read the wrong columns rather than
+      // failing, so the view would have looked plausible and been wrong.
+      const fields = disasm.split("\t");
+      if (fields.length < 3) continue;
+      const addr = parseInt(fields[0], 16);
       if (Number.isNaN(addr)) continue;
 
       // Check for label at this address - show on its own line
@@ -1688,10 +1961,9 @@ export class CPUDebuggerWindow extends BaseWindow {
         gutterSpan.innerHTML = '<span class="bm-star">★</span>';
       }
 
-      // Parse: "AAAA: BB BB BB  MMM OPERAND"
-      const addrPart = disasm.substring(0, 4);
-      const bytesPart = disasm.substring(6, 14).trim();
-      const instrPart = disasm.substring(16);
+      const addrPart = formatMachineAddress(addr);
+      const bytesPart = fields[1];
+      const instrPart = fields[2];
 
       const addrSpan = document.createElement("span");
       addrSpan.className = "cpu-disasm-addr";
@@ -1787,6 +2059,7 @@ export class CPUDebuggerWindow extends BaseWindow {
     read: "R",
     write: "W",
     readwrite: "RW",
+    stack: "SP",
   };
 
   static BP_TYPE_TITLES = {
@@ -1794,6 +2067,7 @@ export class CPUDebuggerWindow extends BaseWindow {
     read: "Read watchpoint",
     write: "Write watchpoint",
     readwrite: "Read/Write watchpoint",
+    stack: "Stack pointer breakpoint: stops when SP enters this value or range",
   };
 
   static SOFT_SWITCH_GROUPS = [
@@ -1997,9 +2271,13 @@ export class CPUDebuggerWindow extends BaseWindow {
       if (addr === this._hitBpAddr) item.classList.add("hit");
 
       const typeIcon = CPUDebuggerWindow.BP_TYPE_ICONS[entry.type] || "●";
-      const typeTitle = CPUDebuggerWindow.BP_TYPE_TITLES[entry.type] || "";
+      let typeTitle = CPUDebuggerWindow.BP_TYPE_TITLES[entry.type] || "";
+      if (entry.type === "exec" && entry.endAddress !== entry.address) {
+        typeTitle = "Execution range: stops when the PC enters it";
+      }
       const typeClass =
-        entry.type === "exec" ? "bp-type-exec" : "bp-type-watch";
+        entry.type === "exec" ? "bp-type-exec"
+          : entry.type === "stack" ? "bp-type-stack" : "bp-type-watch";
 
       // Check if this is a named soft switch breakpoint with a range
       const isRange =
@@ -2014,11 +2292,19 @@ export class CPUDebuggerWindow extends BaseWindow {
       `;
 
       if (hasName) {
-        const startHex = this.formatHex(entry.address, 4);
-        const endHex = this.formatHex(entry.endAddress, 4);
+        const startHex = formatMachineAddress(entry.address);
+        const endHex = formatMachineAddress(entry.endAddress);
         const rangeStr = isRange ? `$${startHex}-${endHex}` : `$${startHex}`;
         html += `<span class="bp-name" title="${rangeStr}">${entry.name}</span>`;
         html += `<span class="bp-range">${rangeStr}</span>`;
+      } else if (entry.type === "stack") {
+        const digits = machineProcessor().registerBits > 8 ? 4 : 2;
+        const hex = (v) => "$" + v.toString(16).toUpperCase().padStart(digits, "0");
+        const value = isRange ? `${hex(entry.address)}-${hex(entry.endAddress)}` : hex(entry.address);
+        html += `<span class="bp-addr bp-stack">SP ${value}</span>`;
+      } else if (isRange) {
+        const rangeStr = `${this.formatAddr(entry.address)}-${this.formatAddr(entry.endAddress)}`;
+        html += `<span class="bp-addr">${rangeStr}</span>`;
       } else {
         html += `<span class="bp-addr">${this.formatAddr(addr)}</span>`;
         // Symbol name for address
@@ -2083,7 +2369,7 @@ export class CPUDebuggerWindow extends BaseWindow {
     } else {
       // Fallback to prompt if Rule Builder not wired
       const condition = prompt(
-        `Condition for breakpoint at $${this.formatHex(addr, 4)}:\n` +
+        `Condition for breakpoint at $${formatMachineAddress(entry.address)}:\n` +
           `Examples: A==#$FF, PEEK($00)==#$42, C==1 && X>=#$10`,
         entry.condition || "",
       );
@@ -2125,7 +2411,7 @@ export class CPUDebuggerWindow extends BaseWindow {
     const currentComment = labelInfo ? labelInfo.comment : "";
 
     const comment = prompt(
-      `Comment for $${this.formatHex(addr, 4)}:`,
+      `Comment for $${formatMachineAddress(addr)}:`,
       currentComment,
     );
 
@@ -2141,6 +2427,9 @@ export class CPUDebuggerWindow extends BaseWindow {
   }
 
   // ---- Watch Expressions ----
+
+  /** The tab panel cannot be dragged shorter than its bar and a few rows. */
+  static TABS_MIN_HEIGHT = 90;
 
   static WATCH_STORAGE_KEY = "a2e-watch-expressions";
 
@@ -2489,9 +2778,93 @@ export class CPUDebuggerWindow extends BaseWindow {
     return 1;
   }
 
+  /**
+   * The tab panel's size and whether it is open.
+   *
+   * The splitter on its top edge drags its height, taken from the
+   * disassembly above; the button at the end of the tab bar folds it to the
+   * bar alone. Both survive in the window state. A drag stops short of
+   * squeezing the disassembly below a few lines, and of the panel's own
+   * minimum, because either would leave a control that cannot be read.
+   */
+  setupTabsPanel() {
+    const tabs = this.contentElement.querySelector(".cpu-dbg-tabs");
+    const splitter = this.contentElement.querySelector(".cpu-dbg-splitter");
+    const collapse = this.contentElement.querySelector("#dbg-tabs-collapse");
+    if (!tabs || !splitter || !collapse) return;
+
+    this.applyTabsPanel();
+
+    collapse.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.setTabsCollapsed(!this.tabsCollapsed);
+    });
+
+    splitter.addEventListener("pointerdown", (e) => {
+      if (this.tabsCollapsed || e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const startY = e.clientY;
+      const startHeight = tabs.getBoundingClientRect().height;
+      const container = tabs.parentElement;
+      const disasm = container.querySelector(".cpu-dbg-disasm");
+      // What the panel may grow to: everything the disassembly has beyond
+      // its own floor.
+      const disasmMin = 160;
+      const maxHeight = Math.max(
+        CPUDebuggerWindow.TABS_MIN_HEIGHT,
+        startHeight + disasm.getBoundingClientRect().height - disasmMin,
+      );
+      splitter.setPointerCapture(e.pointerId);
+      splitter.classList.add("dragging");
+
+      const onMove = (ev) => {
+        const height = Math.min(
+          maxHeight,
+          Math.max(CPUDebuggerWindow.TABS_MIN_HEIGHT, startHeight - (ev.clientY - startY)),
+        );
+        this.tabsHeight = Math.round(height);
+        this.applyTabsPanel();
+      };
+      const onUp = () => {
+        splitter.classList.remove("dragging");
+        splitter.removeEventListener("pointermove", onMove);
+        splitter.removeEventListener("pointerup", onUp);
+        splitter.removeEventListener("pointercancel", onUp);
+        if (this.onStateChange) this.onStateChange();
+      };
+      splitter.addEventListener("pointermove", onMove);
+      splitter.addEventListener("pointerup", onUp);
+      splitter.addEventListener("pointercancel", onUp);
+    });
+  }
+
+  setTabsCollapsed(collapsed) {
+    this.tabsCollapsed = !!collapsed;
+    this.applyTabsPanel();
+    if (this.onStateChange) this.onStateChange();
+  }
+
+  /** Put the remembered size and fold onto the panel. */
+  applyTabsPanel() {
+    const tabs = this.contentElement?.querySelector(".cpu-dbg-tabs");
+    const collapse = this.contentElement?.querySelector("#dbg-tabs-collapse");
+    if (!tabs) return;
+    tabs.classList.toggle("collapsed", this.tabsCollapsed);
+    tabs.style.height =
+      !this.tabsCollapsed && this.tabsHeight ? `${this.tabsHeight}px` : "";
+    if (collapse) {
+      collapse.title = this.tabsCollapsed ? "Expand panel" : "Collapse panel";
+      collapse.setAttribute("aria-label", collapse.title);
+      collapse.setAttribute("aria-expanded", String(!this.tabsCollapsed));
+    }
+  }
+
   getState() {
     const base = super.getState();
     base.activeTab = this.activeTab;
+    base.tabsHeight = this.tabsHeight;
+    base.tabsCollapsed = this.tabsCollapsed;
     return base;
   }
 
@@ -2499,7 +2872,12 @@ export class CPUDebuggerWindow extends BaseWindow {
     if (state.activeTab) {
       this.activeTab = state.activeTab;
     }
+    if (Number.isFinite(state.tabsHeight) && state.tabsHeight > 0) {
+      this.tabsHeight = state.tabsHeight;
+    }
+    this.tabsCollapsed = !!state.tabsCollapsed;
     super.restoreState(state);
+    this.applyTabsPanel();
     // Apply tab selection to DOM after restoreState calls show()
     if (this.contentElement && this.activeTab) {
       const tabBar = this.contentElement.querySelector(".cpu-dbg-tab-bar");
@@ -2516,23 +2894,4 @@ export class CPUDebuggerWindow extends BaseWindow {
     }
   }
 
-  /**
-   * Get instruction length for a given opcode
-   */
-  getInstructionLength(opcode) {
-    const lengths = [
-      1, 2, 1, 1, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3, 2, 2, 2, 1, 2, 2, 2, 2, 1,
-      3, 1, 1, 3, 3, 3, 3, 3, 2, 1, 1, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3, 2, 2,
-      2, 1, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 3, 1, 2, 1, 1, 1, 2, 2, 2, 1, 2, 1,
-      1, 3, 3, 3, 3, 2, 2, 2, 1, 1, 2, 2, 2, 1, 3, 1, 1, 1, 3, 3, 3, 1, 2, 1, 1,
-      2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3, 2, 2, 2, 1, 2, 2, 2, 2, 1, 3, 1, 1, 3,
-      3, 3, 3, 2, 2, 1, 1, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3, 2, 2, 2, 1, 2, 2,
-      2, 2, 1, 3, 1, 1, 3, 3, 3, 3, 2, 2, 2, 1, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3,
-      3, 2, 2, 2, 1, 2, 2, 2, 2, 1, 3, 1, 1, 3, 3, 3, 3, 2, 2, 1, 1, 2, 2, 2, 2,
-      1, 2, 1, 1, 3, 3, 3, 3, 2, 2, 2, 1, 1, 2, 2, 2, 1, 3, 1, 1, 1, 3, 3, 3, 2,
-      2, 1, 1, 2, 2, 2, 2, 1, 2, 1, 1, 3, 3, 3, 3, 2, 2, 2, 1, 1, 2, 2, 2, 1, 3,
-      1, 1, 1, 3, 3, 3,
-    ];
-    return lengths[opcode] || 1;
-  }
 }
