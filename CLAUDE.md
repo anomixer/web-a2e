@@ -98,7 +98,8 @@ rather than passed as a JavaScript string), the game port device (that an
 edited storage value falls back to the Apple joystick, and that an opposing
 pair of Joyport directions is dropped rather than sent), which menu items each
 machine is offered (`machine-availability`), the save-state header the
-host reads to tell which machine wrote a state (`state-header`), which drive
+host reads to tell which machine wrote a state (`state-header`), NTSC or PAL
+remembered per machine (`video-standard`), which drive
 a disk image dropped on the screen goes into (`media-kind`), and the
 frame queue between the Worker and the renderer (`frame-queue`), including
 that the Worker never writes into the slot the renderer is holding.
@@ -1121,6 +1122,32 @@ Two things about it are load-bearing:
   writes `$C048` when it is done. A read that cleared would send every X
   movement down the Y path. The firmware is the authority, not the table.
 
+#### NTSC and PAL
+
+**The 8-bit machines come in both standards, and the switch retimes the
+running machine rather than rebuilding it.** A PAL Apple II is the same design
+on a 14.25045MHz crystal: 312 lines a frame at 50Hz, the same 192 drawn, a
+clock of the crystal over 14 (about 1.0179MHz). Software timed against the
+beam is written for one standard; French Touch's DigiDream, made for a PAL
+//e, flips double hi-res on and off at lines it counts to from the vertical
+blank, and on a 262-line frame those land somewhere different every frame.
+`palVariant()` derives each PAL profile from its NTSC twin and changes the
+timing alone (`VideoStandard` lives in `MachineTiming`), so everything
+already reading the profile follows: the frame length, `$C019`, the floating
+bus (whose vertical counter starts at `$0C8` rather than `$0FA`, which
+`getVideoScannerAddress` derives from the line count), the speaker's and the
+Mockingboard's cycles per sample. `Emulator::setVideoStandard` swaps the
+profile in `MMU`, `Video`, `Audio` and every card (`retime`) and starts the
+frame in progress where the cycle count says it is, so memory, cards and
+disks stay as they were; software that measured the frame at startup wants a
+reboot, and the hosts say so. The standard is a host preference held by
+`MachineHost` and remembered per machine (`a2e-video-standard:<key>` in
+`src/js/machine/video-standard.js`, `PAL.<key>` in the native settings), not
+written into a save state. The IIgs has no PAL variant yet: its timing is
+also in `iigs_spec.hpp`. `test_machine_profile` pins the numbers, the
+vertical blank and the scanner; `test_machine_host` the switch, the frame
+rate and the IIgs staying NTSC.
+
 #### Choosing a machine
 
 **The header badge names the machine and is how it is changed.** It used to be
@@ -1670,7 +1697,9 @@ request spanning two frames drew both into the same framebuffer and the screen
 got 30 pictures a second (`REFILL_FRAMES` in `audio-worklet.js`). Frames
 still arrive with a few milliseconds of jitter against the display's refresh,
 which the frame queue absorbs: measured, 60 published and 60 shown, on both
-transports.
+transports. **A picture is published when the video finishes a frame**, not
+per 800 samples: `consumeFrameSamples` counts the frames the core completed,
+which is what lets a PAL machine publish 50 a second rather than 60.
 
 ### Free-Run Clock
 

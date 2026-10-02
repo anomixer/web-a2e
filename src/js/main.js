@@ -48,6 +48,7 @@ import {
   applyMachineAspectToDocument,
   machineAspect,
   machineDisplay,
+  machineTiming,
   restoreRememberedMachine,
 } from "./machine/machine-profile.js";
 import {
@@ -67,6 +68,11 @@ import { DiskManager } from "./disk-manager/index.js";
 import { DiskDrivesWindow } from "./disk-manager/disk-drives-window.js";
 import { HardDriveManager } from "./disk-manager/hard-drive-manager.js";
 import { setupScreenDrop } from "./disk-manager/screen-drop.js";
+import {
+  applyStandard,
+  loadRememberedStandard,
+  profileStandard,
+} from "./machine/video-standard.js";
 import { HardDriveWindow } from "./disk-manager/hard-drive-window.js";
 import { readUrlMedia, loadUrlMedia } from "./disk-manager/url-media-loader.js";
 import { hasMediaParams } from "./utils/url-params.js";
@@ -173,6 +179,11 @@ class AppleIIeEmulator {
       // before the renderer and the windows exist, so they are built for the
       // right machine rather than being rebuilt for it a moment later.
       this.machine = await restoreRememberedMachine(this.wasmModule);
+      // NTSC or PAL is chosen per machine too. The timing is part of the
+      // profile, so the profile is read again once the core has it.
+      if (await applyStandard(this.wasmModule, loadRememberedStandard(this.machine.key))) {
+        this.machine = await loadMachineProfile(this.wasmModule);
+      }
 
       // Set up renderer
       const canvas = document.getElementById("screen");
@@ -384,7 +395,7 @@ class AppleIIeEmulator {
 
       // Show accelerated speeds in the monitor title bar
       this.emulationSpeed.onChange((multiplier) => {
-        this.screenWindow.setSpeedState(multiplier, clockLabel(multiplier));
+        this.screenWindow.setSpeedState(multiplier, clockLabel(multiplier, machineTiming().cpuClockHz / 1e6));
       });
 
       // Wire monitor header toggle to joystick cursor keys
@@ -587,6 +598,10 @@ class AppleIIeEmulator {
       this.machineMenu = new MachineMenu({
         wasmModule: this.wasmModule,
         onMachineChanged: async (profile) => {
+          // A machine built afresh is NTSC until told otherwise.
+          if (await applyStandard(this.wasmModule, loadRememberedStandard(profile.key))) {
+            profile = await loadMachineProfile(this.wasmModule);
+          }
           this.machine = profile;
           // The core has been rebuilt, so its battery RAM is empty again.
           await restoreBatteryRam(this.wasmModule);
@@ -598,6 +613,20 @@ class AppleIIeEmulator {
           this.textSelection?.onMachineChanged?.();
           await this.onMachineChanged();
           showToast(`Switched to ${profile.name}`, "info", 4000);
+        },
+        // NTSC or PAL: the same machine retimed, nothing rebuilt, so only
+        // what reads the timing needs to hear of it.
+        onStandardChanged: (profile) => {
+          this.machine = profile;
+          this.emulationSpeed?.apply();
+          this.windowManager?.notifyMachineChanged();
+          const pal = profileStandard(profile) === "pal";
+          showToast(
+            `${profile.name} timed for ${pal ? "PAL, 50Hz" : "NTSC, 60Hz"}. ` +
+              "Reboot to start a program afresh at the new rate.",
+            "info",
+            5000,
+          );
         },
       });
       await this.machineMenu.init();

@@ -9,6 +9,7 @@ import { showConfirm } from "../ui/confirm.js";
 import {
   getMachineProfile,
   listMachineProfiles,
+  loadMachineProfile,
   switchMachine,
 } from "./machine-profile.js";
 import {
@@ -17,6 +18,12 @@ import {
   formatMemorySize,
   readMemoryKB,
 } from "./iigs-memory.js";
+import {
+  VIDEO_STANDARDS,
+  applyStandard,
+  profileStandard,
+  rememberStandard,
+} from "./video-standard.js";
 
 /** Bytes as the machine's own marketing would have said it. */
 function formatK(bytes) {
@@ -48,9 +55,10 @@ function specLine(m, iigsMemoryKB) {
  * toggle alongside the view options.
  */
 export class MachineMenu {
-  constructor({ wasmModule, onMachineChanged }) {
+  constructor({ wasmModule, onMachineChanged, onStandardChanged }) {
     this.wasmModule = wasmModule;
     this.onMachineChanged = onMachineChanged;
+    this.onStandardChanged = onStandardChanged;
     this.machines = [];
     this.switching = false;
     this.iigsMemoryKB = null;
@@ -116,12 +124,58 @@ export class MachineMenu {
       });
     }
 
-    for (const chip of this.menuEl.querySelectorAll(".machine-menu-ram-chip")) {
+    for (const chip of this.menuEl.querySelectorAll(".machine-menu-ram-chip[data-kb]")) {
       chip.addEventListener("click", (e) => {
         e.stopPropagation();
         this.chooseMemory(parseInt(chip.dataset.kb, 10));
       });
     }
+
+    for (const chip of this.menuEl.querySelectorAll(".machine-menu-ram-chip[data-standard]")) {
+      chip.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.chooseStandard(chip.dataset.standard);
+      });
+    }
+  }
+
+  /**
+   * NTSC or PAL, under the machine in use when it was made in both. Shaped
+   * like the memory row, but changing it rebuilds nothing, so it is not asked
+   * about first.
+   */
+  standardRowHTML(m, isCurrent) {
+    if (!isCurrent || !m.hasPal) return "";
+    const current = profileStandard(getMachineProfile());
+    const chips = VIDEO_STANDARDS.map((s) => {
+      const on = s.id === current;
+      return `<button class="machine-menu-ram-chip${on ? " on" : ""}"
+                      type="button" data-standard="${s.id}" title="${s.note}"
+                      ${on ? 'aria-pressed="true"' : ""}>${s.label}</button>`;
+    }).join("");
+    return `
+      <div class="machine-menu-ram">
+        <span class="machine-menu-ram-label">Video</span>
+        <span class="machine-menu-ram-chips">${chips}</span>
+      </div>`;
+  }
+
+  /** Time the running machine for NTSC or PAL, and remember it. */
+  async chooseStandard(standard) {
+    const machine = getMachineProfile();
+    if (this.switching || standard === profileStandard(machine)) {
+      this.close();
+      return;
+    }
+    this.close();
+    if (!(await applyStandard(this.wasmModule, standard))) {
+      console.warn(`The core would not time the ${machine.name} for ${standard}.`);
+      return;
+    }
+    rememberStandard(machine.key, standard);
+    const profile = await loadMachineProfile(this.wasmModule);
+    if (this.onStandardChanged) await this.onStandardChanged(profile);
+    await this.refresh();
   }
 
   /**
@@ -174,10 +228,12 @@ export class MachineMenu {
               ${unavailable ? 'title="Its ROM images are not built in"' : ""}>
         <span class="machine-menu-text">
           <span class="machine-menu-name">${m.name}</span>
-          <span class="machine-menu-spec">${specLine(m, this.iigsMemoryKB)}</span>
+          <span class="machine-menu-spec">${specLine(m, this.iigsMemoryKB)}${
+            isCurrent && profileStandard(getMachineProfile()) === "pal" ? " · PAL" : ""
+          }</span>
         </span>
         ${mark}
-      </button>${this.memoryRowHTML(m, isCurrent)}`;
+      </button>${this.memoryRowHTML(m, isCurrent)}${this.standardRowHTML(m, isCurrent)}`;
   }
 
   /**

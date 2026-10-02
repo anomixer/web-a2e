@@ -234,7 +234,12 @@ std::string machineProfileToJSON(const a2e::MachineProfile &m) {
   json += ",\"mixedModeTextScanline\":" +
           std::to_string(m.timing.mixedModeTextScanline);
   json += ",\"cyclesPerFrame\":" + std::to_string(m.timing.cyclesPerFrame());
+  json += ",\"standard\":\"" +
+          std::string(m.timing.standard == a2e::VideoStandard::PAL ? "pal" : "ntsc") + "\"";
   json += "}";
+  // Whether the machine is made in PAL as well, so a host offers the switch.
+  json += std::string(",\"hasPal\":") +
+          (a2e::machineHasStandard(m.id, a2e::VideoStandard::PAL) ? "true" : "false");
 
   json += ",\"memory\":{";
   json += "\"mainRamSize\":" + std::to_string(m.memory.mainRamSize);
@@ -328,9 +333,8 @@ const char *getMachineName() {
 EMSCRIPTEN_KEEPALIVE
 const char *getMachineProfileJSON() {
   static std::string buffer;
-  const auto &m =
-      a2e::machineProfile(g_host.machineId());
-  buffer = machineProfileToJSON(m);
+  // The host's profile, which is timed for the standard chosen.
+  buffer = machineProfileToJSON(g_host.profile());
   return buffer.c_str();
 }
 
@@ -386,6 +390,18 @@ bool setMachine(const char *key) {
 EMSCRIPTEN_KEEPALIVE
 int getIIgsMemoryKB() {
   return static_cast<int>(g_host.iigsFastRam() / 1024);
+}
+
+// NTSC (0) or PAL (1). Switching times the running machine afresh and keeps
+// everything else; a machine not made in PAL stays NTSC and answers false.
+EMSCRIPTEN_KEEPALIVE
+int getVideoStandard() {
+  return static_cast<int>(g_host.videoStandard());
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool setVideoStandard(int standard) {
+  return g_host.setVideoStandard(standard == 1 ? a2e::VideoStandard::PAL : a2e::VideoStandard::NTSC);
 }
 
 EMSCRIPTEN_KEEPALIVE

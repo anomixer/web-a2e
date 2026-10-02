@@ -63,6 +63,9 @@ describe("labels", () => {
     expect(speedLabel(4)).toBe("4x");
     expect(clockLabel(1)).toBe(`${BASE_CLOCK_MHZ.toFixed(2)} MHz`);
     expect(clockLabel(8)).toBe("8.18 MHz");
+    // A PAL machine's clock is the PAL crystal over 14.
+    expect(clockLabel(1, 14.25045 / 14)).toBe("1.02 MHz");
+    expect(clockLabel(8, 14.25045 / 14)).toBe("8.14 MHz");
   });
 });
 
