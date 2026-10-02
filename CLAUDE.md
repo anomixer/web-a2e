@@ -122,7 +122,7 @@ All C++ tests use the Catch2 framework and are built/run via CMake's native buil
 ```bash
 mkdir -p build-native && cd build-native
 cmake ..
-make -j$(sysctl -n hw.ncpu)
+make -j 4
 ctest --verbose
 ```
 
@@ -647,6 +647,15 @@ card fitted before boot was ignored from the first reset onwards.
 having its own `$Cn00` read; `$CFFF` hands it back, as INTC8ROM does on a //e.
 Without it a card with more firmware than 256 bytes — a Super Serial Card, a
 Thunderclock, a parallel card — has nowhere to put the rest of it.
+
+**A card in a socket runs on the slot bus's clock, not the 65816's.**
+`IIgsMachine::step` hands every fitted card the slow-clock time the
+instruction covered, the same span the Ensoniq and the SCC advance by,
+because a slot's phi2 is the Mega II's 1.023MHz at any speed. Handed the
+processor's cycles, a Mockingboard's VIA timers ran its music about two and
+a half times too fast at 2.8MHz, and it made samples faster than the mixer
+took them, so the backlog grew for as long as the machine ran.
+`test_iigs_boot.cpp` times a card's timer at full speed.
 
 **A card's samples are added after the `$C03C` amplifier, not through it.** A
 Mockingboard in a socket has its own output on the real machine, so scaling it
@@ -1871,6 +1880,22 @@ class ExpansionCard {
 
 - `Disk2Card` (`cards/disk2/`) - Wraps Disk2Controller (slot 6)
 - `MockingboardCard` (`cards/mockingboard/`) - Dual AY-3-8910 + VIA 6522, stereo output (slot 4)
+
+**The Mockingboard is measured against the datasheets, and four rules in it
+are load-bearing.** An AY-3-8910 envelope ramp is 16 steps in `256 × EP`
+clocks, so a step is 2 EP ticks of the clock over 8; one step every EP ticks
+is the YM2149's 32-step rate, and played every envelope twice as fast. The
+PSGs run at the machine's own clock (`AY8910::setClock`, from the profile in
+`setMachine`), so a PAL machine's notes are lower, as on the card. The
+output is taken from the chip's tick stream through a windowed-sinc low pass
+(`FILTER_TAPS`, cut off at 20kHz), not by averaging the ticks in each
+sample, which folded ultrasonic tones (period 1 or 2) back into the audible
+band. And the VIA drives the AY's BC1, BDIR and RESET as levels: a write or
+latch follows the bus while it is held, LATCH straight to WRITE is a write,
+and RESET low holds the chip reset. Reset clears every AY register, the mixer
+included. The two chips play independently, one per side; nothing
+substitutes one for the other when their registers match.
+`test_ay8910.cpp`, `test_via6522.cpp` and `test_mockingboard.cpp` pin each.
 - `MouseCard` (`cards/mouse/`) - Apple Mouse Interface Card via MC6821 PIA command protocol (slot 4)
 - `ParallelCard` (`cards/parallel/`) - Centronics parallel port; drives Epson FX-80 and Apple DMP virtual printers (slots 1–2)
 - `SmartPortCard` (`cards/smartport/`) - SmartPort hard drive controller, 2 block devices, self-built ROM (user-configurable slot)
