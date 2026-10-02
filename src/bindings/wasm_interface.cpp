@@ -57,6 +57,15 @@ static a2e::MachineView machineView() { return g_host.view(); }
 #define REQUIRE_DISK() do { if (!diskController()) return; } while(0)
 #define REQUIRE_DISK_OR(default_val) do { if (!diskController()) return (default_val); } while(0)
 
+namespace {
+
+// One instruction as a monitor writes it after the address and the bytes.
+std::string instructionText(const a2e::host::Instruction &in) {
+  return in.operand.empty() ? in.mnemonic : in.mnemonic + " " + in.operand;
+}
+
+} // namespace
+
 extern "C" {
 
 EMSCRIPTEN_KEEPALIVE
@@ -1340,42 +1349,24 @@ const char *getMemoryBanksJSON() {
 // stream correctly.
 // ===========================================================================
 
-namespace {
-
-// One instruction as text, on whichever machine is running. The IIgs's lines
-// carry the bank, because on that machine an address without one is ambiguous.
-std::string disassembleOneAt(uint32_t address, uint8_t *lengthOut) {
-  if (g_host.iigs()) {
-    const a2e::CPU65816 &cpu = g_host.iigs()->cpu();
-    uint8_t bytes[4] = {0, 0, 0, 0};
-    for (int i = 0; i < 4; i++) {
-      const uint32_t at =
-          (address & 0xFF0000) | static_cast<uint16_t>((address & 0xFFFF) + i);
-      bytes[i] = g_host.iigs()->memory().peek(at);
-    }
-    const a2e::Disasm816Instruction in = a2e::disassemble816(
-        bytes, 4, address, cpu.accumulator8(), cpu.index8());
-    if (lengthOut) *lengthOut = in.length;
-    return a2e::formatDisasm816(in);
-  }
-  if (!g_host.emulator()) {
-    if (lengthOut) *lengthOut = 1;
-    return "";
-  }
-  const uint16_t at = static_cast<uint16_t>(address & 0xFFFF);
-  if (lengthOut) {
-    *lengthOut =
-        static_cast<uint8_t>(a2e::getInstructionLength(g_host.emulator()->peekMemory(at)));
-  }
-  return g_host.emulator()->disassembleAt(at);
-}
-
-} // namespace
 
 EMSCRIPTEN_KEEPALIVE
 const char *disassembleAt(uint32_t address) {
+  // The whole line as the machine's own monitor writes it, which the Stack
+  // Viewer reads the mnemonic out of.
   static std::string buffer;
-  buffer = disassembleOneAt(address & 0xFFFFFF, nullptr);
+  buffer.clear();
+  if (g_host.iigs()) {
+    const a2e::CPU65816 &cpu = g_host.iigs()->cpu();
+    uint8_t bytes[4];
+    for (int i = 0; i < 4; i++) {
+      bytes[i] = g_host.peek((address & 0xFF0000) | static_cast<uint16_t>((address & 0xFFFF) + i));
+    }
+    buffer = a2e::formatDisasm816(
+        a2e::disassemble816(bytes, 4, address & 0xFFFFFF, cpu.accumulator8(), cpu.index8()));
+  } else if (g_host.emulator()) {
+    buffer = g_host.emulator()->disassembleAt(static_cast<uint16_t>(address & 0xFFFF));
+  }
   return buffer.c_str();
 }
 
@@ -1414,50 +1405,21 @@ const char *disassembleRange(int32_t centerAddrOrPC, int instructionsBefore,
 
   const uint32_t centre =
       centerAddrOrPC < 0 ? getPC() : (static_cast<uint32_t>(centerAddrOrPC) & 0xFFFFFF);
-  // A bank is a wall: walking off the end of one does not carry into the next,
-  // so the scan and the listing both stay inside the bank they started in.
-  const uint32_t bank = centre & 0xFF0000;
-  const uint16_t centreOffset = static_cast<uint16_t>(centre & 0xFFFF);
-
-  // Where to begin is an alignment search: the centre is a program counter
-  // (or was typed in as one) and must appear as an instruction, whatever the
-  // bytes above it decode to. See disasm_align.hpp for why a fixed lookback
-  // does not do that.
-  const int longestInstruction = g_host.iigs() ? 4 : 3;
-  int at = a2e::alignedDisassemblyStart(
-      centreOffset, instructionsBefore, longestInstruction,
-      [bank](uint16_t offset) {
-        uint8_t length = 1;
-        disassembleOneAt(bank | offset, &length);
-        return length;
-      });
-
-  for (int i = 0; i < count && at <= 0xFFFF; i++) {
+  const std::vector<a2e::host::Instruction> lines =
+      g_host.disassembleRange(centre, instructionsBefore, count);
+  for (size_t i = 0; i < lines.size(); i++) {
+    const a2e::host::Instruction &in = lines[i];
     if (i > 0) buffer.push_back('\n');
-    uint8_t length = 1;
-    const uint32_t address = bank | static_cast<uint16_t>(at);
-    const std::string line = disassembleOneAt(address, &length);
-
     char head[16];
-    snprintf(head, sizeof head, "%06X\t", address);
+    snprintf(head, sizeof head, "%06X\t", in.address);
     buffer += head;
-    for (int b = 0; b < length; b++) {
+    for (int b = 0; b < in.length; b++) {
       char byteText[8];
-      const uint32_t byteAt =
-          bank | static_cast<uint16_t>(at + b);
-      snprintf(byteText, sizeof byteText, b == 0 ? "%02X" : " %02X",
-               g_host.iigs() ? g_host.iigs()->memory().peek(byteAt)
-                      : g_host.emulator()->peekMemory(static_cast<uint16_t>(byteAt)));
+      snprintf(byteText, sizeof byteText, b == 0 ? "%02X" : " %02X", in.bytes[b]);
       buffer += byteText;
     }
     buffer.push_back('\t');
-    // The text after the bytes, which both formatters put after a double
-    // space: everything from the mnemonic on.
-    const size_t mnemonic = line.find("  ");
-    buffer += mnemonic == std::string::npos
-                  ? line
-                  : line.substr(line.find_first_not_of(' ', mnemonic));
-    at += length > 0 ? length : 1;
+    buffer += instructionText(in);
   }
 
   return buffer.c_str();
@@ -2498,14 +2460,6 @@ EMSCRIPTEN_KEEPALIVE
 const char *formatTraceRange(uint32_t startIndex, uint32_t count) {
   static std::string buffer;
   buffer.clear();
-  a2e::MachineDebug *dbg = machineDebug();
-  if (!dbg) return buffer.c_str();
-
-  const size_t total = dbg->traceCount();
-  const size_t capacity = dbg->traceCapacity();
-  if (total == 0 || capacity == 0) return buffer.c_str();
-  const a2e::MachineDebug::TraceEntry *entries = dbg->traceBuffer();
-  const size_t head = dbg->traceHead();
   const bool wide = g_host.iigs() != nullptr;
   const int registerDigits = wide ? 4 : 2;
 
@@ -2515,59 +2469,34 @@ const char *formatTraceRange(uint32_t startIndex, uint32_t count) {
     return std::string(text);
   };
 
-  for (uint32_t i = 0; i < count; i++) {
-    const size_t index = startIndex + i;
-    if (index >= total) break;
-    // The ring has not wrapped until it is full; after that the oldest entry
-    // is wherever the write position now points.
-    const size_t ring = total < capacity ? index : (head + index) % capacity;
-    const a2e::MachineDebug::TraceEntry &e = entries[ring];
-
+  const std::vector<a2e::host::TraceLine> lines = g_host.traceLines(startIndex, count);
+  for (size_t i = 0; i < lines.size(); i++) {
+    const a2e::host::TraceLine &line = lines[i];
+    const a2e::host::Instruction &in = line.instruction;
     if (i > 0) buffer.push_back('\n');
-    buffer += std::to_string(e.cycle);
+    buffer += std::to_string(line.cycle);
     buffer.push_back('\t');
-
-    // The address, and the instruction as the machine's own disassembler
-    // writes it.
-    std::string text;
-    if (wide) {
-      buffer += hex((e.pc >> 16) & 0xFF, 2) + "/" + hex(e.pc & 0xFFFF, 4);
-      const uint8_t bytes[4] = {e.opcode, e.operand1, e.operand2, e.operand3};
-      const a2e::Disasm816Instruction in = a2e::disassemble816(
-          bytes, 4, e.pc, (e.widths & a2e::MachineDebug::WIDTH_A8) != 0,
-          (e.widths & a2e::MachineDebug::WIDTH_INDEX8) != 0);
-      text = std::string(in.mnemonic);
-      const std::string operand = a2e::formatOperand816(in);
-      if (!operand.empty()) text += " " + operand;
-    } else {
-      buffer += hex(e.pc & 0xFFFF, 4);
-      const uint8_t bytes[3] = {e.opcode, e.operand1, e.operand2};
-      const a2e::DisasmInstruction in = a2e::disassembleInstruction(
-          bytes, 3, static_cast<uint16_t>(e.pc & 0xFFFF));
-      text = std::string(in.mnemonic);
-      const std::string operand = a2e::formatOperand(in);
-      if (!operand.empty()) text += " " + operand;
-    }
+    buffer += wide ? hex((in.address >> 16) & 0xFF, 2) + "/" + hex(in.address & 0xFFFF, 4)
+                   : hex(in.address & 0xFFFF, 4);
     buffer.push_back('\t');
-
-    for (int b = 0; b < e.instrLen && b < 4; b++) {
+    for (int b = 0; b < in.length && b < 4; b++) {
       if (b > 0) buffer.push_back(' ');
-      buffer += hex(b == 0 ? e.opcode : (&e.operand1)[b - 1], 2);
+      buffer += hex(in.bytes[b], 2);
     }
     buffer.push_back('\t');
-    buffer += text;
+    buffer += instructionText(in);
     buffer.push_back('\t');
-    buffer += hex(e.a, registerDigits);
+    buffer += hex(line.a, registerDigits);
     buffer.push_back('\t');
-    buffer += hex(e.x, registerDigits);
+    buffer += hex(line.x, registerDigits);
     buffer.push_back('\t');
-    buffer += hex(e.y, registerDigits);
+    buffer += hex(line.y, registerDigits);
     buffer.push_back('\t');
-    buffer += hex(e.sp, registerDigits);
+    buffer += hex(line.sp, registerDigits);
     buffer.push_back('\t');
-    buffer += hex(e.p, 2);
+    buffer += hex(line.p, 2);
     buffer.push_back('\t');
-    buffer += hex(e.widths, 2);
+    buffer += hex(line.widths, 2);
   }
   return buffer.c_str();
 }

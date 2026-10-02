@@ -2006,7 +2006,10 @@ step.
   their own profile's timing. The //e's older 16-bit methods forward to it.
 - **Two things are deliberately not shared.** Cycle profiling is a counter per
   address — 256KB for a 6502 and 64MB for a 65816 — so it stays //e-only and
-  the host's heat overlay simply switches itself off. The call-stack summary is
+  the host's heat overlay simply switches itself off. A IIgs records
+  *coverage* instead, a bit per address (2MB) held only while it is on
+  (`IIgsMachine::setCoverageEnabled`), and `MachineHost::setProfiling` /
+  `wasExecuted` answer for either machine. The call-stack summary is
   built by the //e's run loop as it executes JSRs and the IIgs machine keeps no
   such list, so it reports none rather than showing a //e's.
 - **A watchpoint on a IIgs is checked on the processor's bus, not inside the
@@ -2048,6 +2051,13 @@ step.
   and one operand formatter per processor rather than one per place that wants
   one. `_getTraceEntrySize` is asked for rather than assumed, because the entry
   grew when it had to hold a 65816's registers.
+- **An instruction's cost is the core's own arithmetic.**
+  `MachineHost::cycleCost` starts from `CPU6502::baseCycles` or
+  `CPU65816::baseCycles` (the tables the CPUs charge from) and adds what each
+  core adds where it adds it; at the PC the registers settle page crossings
+  and branches, elsewhere they are a range. `test_machine_host` checks every
+  opcode's cost at the PC against the cycles the core then charged, on both
+  processors. Change how a CPU charges a cycle and that test says so.
 - **What only covers part of a IIgs says so.** The heat map tracks the Mega
   II's MMU — the side where the video, the firmware's workspace and Applesoft
   live — and its titles name the banks and note that fast RAM is not covered,
