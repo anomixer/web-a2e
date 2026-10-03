@@ -972,6 +972,9 @@ void getBasicLineBytes(uint8_t* buffer, int* lineStart, int* colonCount) {
   while (addr < 0xC000) {
     uint16_t nextPtr = mmu.readRAM(addr, false) | (mmu.readRAM(addr + 1, false) << 8);
     if (nextPtr == 0) break;
+    // Links only move forward; one that does not is not a BASIC program,
+    // and following it would never end (Emulator::findCurrentLineStart).
+    if (nextPtr <= addr) break;
 
     uint16_t lineNum = mmu.readRAM(addr + 2, false) | (mmu.readRAM(addr + 3, false) << 8);
     if (lineNum == curlin) {
