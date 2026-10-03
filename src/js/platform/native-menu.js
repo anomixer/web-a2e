@@ -193,6 +193,7 @@ function readSoundMenu() {
   const slider = document.getElementById("volume-slider");
   const drive = document.getElementById("drive-sounds-toggle");
   const printer = document.getElementById("printer-sounds-toggle");
+  const phaseLock = document.getElementById("mockingboard-phase-lock-toggle");
 
   const setVolume = (percent) => {
     if (!slider) return;
@@ -216,6 +217,7 @@ function readSoundMenu() {
   }
   items.push(separator());
   if (drive) items.push(check("Drive Sounds", drive.checked, () => clickEl(drive)));
+  if (phaseLock) items.push(check("Mockingboard Phase Lock", phaseLock.checked, () => clickEl(phaseLock)));
   if (printer) items.push(check("Printer Sounds", printer.checked, () => clickEl(printer)));
   return tidySeparators(items);
 }

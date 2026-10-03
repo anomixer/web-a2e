@@ -1226,6 +1226,21 @@ export class UIController {
       });
     }
 
+    // Mockingboard Phase Lock: a song that mirrors its notes to both chips
+    // can leave them half a cycle apart, and on speakers close together the
+    // two sides then cancel. On by default; off plays the chips apart, as a
+    // real card does. The core keeps it for every Mockingboard on every
+    // machine.
+    const phaseLockToggle = document.getElementById("mockingboard-phase-lock-toggle");
+    if (phaseLockToggle) {
+      phaseLockToggle.checked = localStorage.getItem("a2e-mockingboard-phase-lock") !== "false";
+      this.wasmModule._setMockingboardPhaseLock(phaseLockToggle.checked);
+      phaseLockToggle.addEventListener("change", (e) => {
+        localStorage.setItem("a2e-mockingboard-phase-lock", e.target.checked);
+        this.wasmModule._setMockingboardPhaseLock(e.target.checked);
+      });
+    }
+
     // Printer sounds toggle. PrinterSound reads a2e-printer-sounds live from
     // localStorage (same pattern as the main volume/mute keys), so this toggle
     // only has to persist the flag — no object to plumb through.

@@ -1901,6 +1901,20 @@ and RESET low holds the chip reset. Reset clears every AY register, the mixer
 included. The two chips play independently, one per side; nothing
 substitutes one for the other when their registers match.
 `test_ay8910.cpp`, `test_via6522.cpp` and `test_mockingboard.cpp` pin each.
+
+**A register write lands on the chip at the cycle it was made.** The card
+reads the machine's cycle through its cycle callback and runs both chips up
+to it before a write reaches a VIA (`MockingboardCard::syncToCycle`); the
+chips advance tick by tick between samples (`AY8910::advance`), and a sample
+reads the filter wherever they are. The chips used to catch up only at each
+48kHz sample, so two chips written eight cycles apart (a song mirroring its
+notes to both) came out in step or inverted according to whether a sample
+boundary fell between the writes, and on speakers close together the two
+sides cancelled. **Mockingboard Phase Lock** in the sound menu
+(`MockingboardCard::setPhaseLock`, a host preference, on by default, not in
+a save state) plays the left chip on both sides while the two hold the same
+registers, so a mirrored song cannot cancel itself. A real card plays its
+chips apart; turning the lock off is how to hear exactly that.
 - `MouseCard` (`cards/mouse/`) - Apple Mouse Interface Card via MC6821 PIA command protocol (slot 4)
 - `ParallelCard` (`cards/parallel/`) - Centronics parallel port; drives Epson FX-80 and Apple DMP virtual printers (slots 1–2)
 - `SmartPortCard` (`cards/smartport/`) - SmartPort hard drive controller, 2 block devices, self-built ROM (user-configurable slot)

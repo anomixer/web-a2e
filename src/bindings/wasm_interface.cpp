@@ -2008,6 +2008,14 @@ void setMockingboardChannelMute(int psg, int channel, bool muted) {
   psgChip.setChannelMute(channel, muted);
 }
 
+// Play the left chip on both sides while the two hold the same registers, so
+// a song mirrored to both chips cannot cancel itself on speakers close
+// together. A host preference for every Mockingboard, any machine.
+EMSCRIPTEN_KEEPALIVE
+void setMockingboardPhaseLock(bool on) {
+  a2e::MockingboardCard::setPhaseLock(on);
+}
+
 // Check if a channel is muted
 EMSCRIPTEN_KEEPALIVE
 bool getMockingboardChannelMute(int psg, int channel) {
