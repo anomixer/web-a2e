@@ -981,11 +981,16 @@ path. Get it wrong and every character on screen is drawn mirrored, which is
 exactly what the II+ did before this existed.
 
 **It has only one character set, and asking for a second blanks the screen.**
-The UK set is a second bank inside the //e's larger ROM, reached by adding
-0x1000 to the glyph offset. A II+ has nothing there, so every glyph reads back
-blank and the display shows nothing but the cursor — which survives because it
-is the inverse of a blank and so still solid. `caps.hasUkCharSet` gates the
-offset, and the host hides the toggle on a machine that has no second set.
+The UK set is the other half of the //e's 8KB ROM (342-0273), and the profile
+says where each set begins (`MachineCharRom::usSetOffset`/`ukSetOffset`): the
+UK set is the *lower* half and the US set the upper, so a US machine reads
+from 0x1000. Reading the lower half as the US set made the //e's switch work
+backwards and put a pound sign for every # on a IIgs, which reads the same
+part with no switch. A II+ has nothing past its one set, so every glyph would
+read back blank and the display show nothing but the cursor, which survives
+because it is the inverse of a blank. `caps.hasUkCharSet` gates the switch,
+which only the //e has, and the host hides the toggle elsewhere.
+`test_machine_profile` pins the # and the pound sign on every machine.
 
 **The II+ ROMs are optional and are not in the repository.** A II+ motherboard
 carries six 2KB ROMs in sockets D0 to F8 covering `$D000-$FFFF`: five of
