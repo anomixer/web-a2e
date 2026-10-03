@@ -2019,6 +2019,12 @@ void setMockingboardPhaseLock(bool on) {
   a2e::MockingboardCard::setPhaseLock(on);
 }
 
+// Mix the two chips and play the mix on both sides, for every Mockingboard.
+EMSCRIPTEN_KEEPALIVE
+void setMockingboardMono(bool on) {
+  a2e::MockingboardCard::setMono(on);
+}
+
 // Check if a channel is muted
 EMSCRIPTEN_KEEPALIVE
 bool getMockingboardChannelMute(int psg, int channel) {

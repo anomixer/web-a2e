@@ -1914,7 +1914,12 @@ sides cancelled. **Mockingboard Phase Lock** in the sound menu
 (`MockingboardCard::setPhaseLock`, a host preference, on by default, not in
 a save state) plays the left chip on both sides while the two hold the same
 registers, so a mirrored song cannot cancel itself. A real card plays its
-chips apart; turning the lock off is how to hear exactly that.
+chips apart; turning the lock off is how to hear exactly that. **Mockingboard
+Mono** (`MockingboardCard::setMono`, also on by default and not in a save
+state) mixes the two chips, half each, and plays the mix on both sides;
+off, PSG 1 is the left and PSG 2 the right, as on the card. Mono is applied
+after phase lock, so with the lock off a pair half a cycle apart cancels, as
+two real outputs wired together would.
 - `MouseCard` (`cards/mouse/`) - Apple Mouse Interface Card via MC6821 PIA command protocol (slot 4)
 - `ParallelCard` (`cards/parallel/`) - Centronics parallel port; drives Epson FX-80 and Apple DMP virtual printers (slots 1–2)
 - `SmartPortCard` (`cards/smartport/`) - SmartPort hard drive controller, 2 block devices, self-built ROM (user-configurable slot)

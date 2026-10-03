@@ -1241,6 +1241,18 @@ export class UIController {
       });
     }
 
+    // Mockingboard Mono: both chips mixed and played on both sides. On by
+    // default; the core keeps it for every Mockingboard on every machine.
+    const mbMonoToggle = document.getElementById("mockingboard-mono-toggle");
+    if (mbMonoToggle) {
+      mbMonoToggle.checked = localStorage.getItem("a2e-mockingboard-mono") !== "false";
+      this.wasmModule._setMockingboardMono(mbMonoToggle.checked);
+      mbMonoToggle.addEventListener("change", (e) => {
+        localStorage.setItem("a2e-mockingboard-mono", e.target.checked);
+        this.wasmModule._setMockingboardMono(e.target.checked);
+      });
+    }
+
     // Printer sounds toggle. PrinterSound reads a2e-printer-sounds live from
     // localStorage (same pattern as the main volume/mute keys), so this toggle
     // only has to persist the flag — no object to plumb through.
