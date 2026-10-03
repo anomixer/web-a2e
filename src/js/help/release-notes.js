@@ -36,6 +36,11 @@ export const RELEASE_NOTES = [
     ],
     fixes: [
       {
+        title: "Only the window in front answers the mouse",
+        description:
+          "In the Mac app a window behind shows no tooltips and ignores the wheel, and a click in it only brings it to the front.",
+      },
+      {
         title: "No more torn pictures",
         description:
           "The //e and the IIgs showed half of one frame and half of the next, with a line that crept down the screen. Only finished frames are shown now.",
