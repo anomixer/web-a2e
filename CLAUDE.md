@@ -2033,6 +2033,14 @@ because "this machine has none" is the answer. The alternative was a second
 set of exports and a second set of windows, and two of everything to keep in
 step.
 
+- **A memory view asks for a `MemorySpace`, not an address.**
+  `MachineHost::memorySpaces()` lists what there is to browse: a //e's
+  processor view, its main and auxiliary RAM and its ROM whatever the
+  switches say (each RAM half laid out as a IIgs bank, language card bank 1
+  at `$C000`), or a IIgs's banks. `pokeSpace` writes where `peekSpace` reads,
+  through `MMU::poke` and `IIgsMemory::poke`, which touch no switch, ignore
+  the card's write protect and charge no clock. The native Memory Viewer is
+  built on it; `test_machine_host` pins it.
 - **A peek must never read a card.** While a watchpoint is armed,
   `MMU::read` peeks every address first so the callback has a value, so
   `MMU::peek` asks a slot card for `peekROM`, not `readROM`. A SmartPort's
