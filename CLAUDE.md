@@ -2046,6 +2046,14 @@ step.
   through `MMU::poke` and `IIgsMemory::poke`, which touch no switch, ignore
   the card's write protect and charge no clock. The native Memory Viewer is
   built on it; `test_machine_host` pins it.
+- **A display page can be looked at without being shown.**
+  `Video::renderPage` runs the picture's own emitters and decoders over
+  page 1 or 2 of any mode, whatever the switches say, saving and restoring
+  the line in progress so the frame being drawn is untouched; a IIgs's
+  `IIgsVideo::renderSuperHiResPicture` does the same into a frame of its
+  own. `MachineHost::renderDisplayPage` routes to either and says which
+  pages a machine has. The decode is `Video::decodeLine`, which
+  `endScanline` uses too, so there is one. `test_machine_host` pins it.
 - **A peek must never read a card.** While a watchpoint is armed,
   `MMU::read` peeks every address first so the callback has a value, so
   `MMU::peek` asks a slot card for `peekROM`, not `readROM`. A SmartPort's
