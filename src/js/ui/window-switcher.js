@@ -10,7 +10,8 @@ const WINDOW_CATEGORIES = [
     label: "System",
     windows: [
       { id: "screen-window", title: "Screen" },
-      { id: "disk-drives", title: "Disk Drives" },
+      { id: "disk-drives", title: "5.25\" Drives" },
+      { id: "disk35-drives", title: "3.5\" Drives" },
       { id: "hard-drives", title: "SmartPort Drives" },
       { id: "file-explorer-window", title: "File Explorer" },
       { id: "disk-inspector", title: "Disk Inspector" },

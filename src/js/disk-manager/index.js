@@ -5,6 +5,7 @@
  *  Mike Daley <michael_daley@icloud.com>
  */
 
+import { mediaKind } from "./media-kind.js";
 import { DriveSounds } from "./drive-sounds.js";
 import { showToast } from "../ui/toast.js";
 import { DiskSurfaceRenderer } from "./disk-surface-renderer.js";
@@ -489,6 +490,18 @@ export class DiskManager {
   // Disk operations - delegate to disk-operations module
 
   async loadDisk(driveNum, file) {
+    // An 800K disk on a IIgs is for a 3.5" drive, not this one.
+    const disk35 = this.disk35Manager;
+    if (disk35 && (await disk35.hasDrives())) {
+      const header = new Uint8Array(await file.slice(0, 32).arrayBuffer());
+      if (mediaKind(file.name, file.size, { disk35: true, header }) === "disk35") {
+        await disk35.loadImage(driveNum, file);
+        if (disk35.drives[driveNum].filename === file.name) {
+          showToast(`${file.name} is a 3.5" disk, so it went into 3.5" drive ${driveNum + 1}.`, "info", 4000);
+        }
+        return;
+      }
+    }
     const drive = this.drives[driveNum];
     await loadDisk({
       wasmModule: this.wasmModule,

@@ -151,7 +151,7 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 - `cards/` - Pluggable expansion card system (ExpansionCard interface)
 - `cards/disk_controller.*` - The 5.25" drive mechanism both machines share: two drives, the stepper, the motor and Woz's Logic State Sequencer clocked from the P6 ROM
 - `cards/disk2/` - Disk II controller card: the shared controller plus its P5A boot ROM
-- `cards/iwm/` - Integrated Woz Machine, a //c's controller: the shared controller plus the status/handshake/mode registers, and no ROM
+- `cards/iwm/` - Integrated Woz Machine, a //c's and a IIgs's controller: the shared controller plus the status/handshake/mode registers, and no ROM; `sony_drive.*` is the Apple 3.5" drive a IIgs's IWM also drives
 - `cards/mockingboard/` - AY-3-8910 sound chip + VIA 6522 timer + Mockingboard card
 - `cards/mouse/` - Apple Mouse Interface Card
 - `cards/parallel/` - Centronics parallel card (drives Epson FX-80 and Apple DMP)
@@ -478,6 +478,22 @@ always, and the IIgs raster at 4:3. `machineAspect()` drives the screen window
 and a `--screen-aspect` CSS variable drives the full-page layout. The shared
 framebuffer slot is sized 848x480, which holds it. `test_iigs_video.cpp` pins
 the raster and `test_machine_profile.cpp` the profile.
+
+**The picture is drawn as the beam passes, and only a finished frame is
+shown.** `IIgsVideo::drawLinesTo` draws each of the frame's 262 lines as the
+beam leaves it, from the machine as it is then: the border colour, then that
+line of Super Hi-Res (its control byte and palette at that moment) or of the
+Mega II's picture, whichever `$C029` says. So a palette or a border changed
+part way down the screen shows where it changed. It draws into one buffer and
+`finishFrame` swaps it to the one `frame()` returns, and `consumeFrameSamples`
+counts frames the beam finished. The picture used to be composed whole when
+the host asked for it, every 800 samples: a refill is about twenty cycles
+longer than a frame, so the Mega II's half-drawn frame was shown with a split
+that crept down the screen, and Super Hi-Res took whatever palette was there
+at that instant for every line. `render()` still composes the whole screen
+at once, for a paused machine (`forceRenderFrame`) and a restored state.
+`test_iigs_video.cpp` pins both: no published picture is two frames, and a
+palette changed at line 100 colours lines 100 to 199 only.
 
 **The SCC is a real Z8530 with nothing plugged into it.** `IIgsSCC`
 (`core/iigs/iigs_scc.*`) at `$C038-$C03B` is the register file behind the
@@ -835,6 +851,56 @@ must not write flux when it is. The IIgs firmware exercises both in one
 instruction — it switches the drive off and writes the mode register at
 `$C0EF`, which is also Q7 — so a machine that asks about the mechanism instead
 of the wire spins for a second and erases track zero while it does it.
+
+**A IIgs's IWM has a 3.5" port, and an 800K disk goes in a real drive on
+it.** Bit 6 of `$C031` points the chip at that port and bit 7 is the port's
+SEL line (`IWM::setDiskRegister`; `$C031` is held in `IIgsMemory` only so it
+reads back). With the port selected the four phase lines are not a stepper:
+CA0-CA2 and SEL are a 3.5" drive's sixteen-way selector and LSTRB its strobe.
+`SonyDrive` (`cards/iwm/sony_drive.*`) answers the status bits on SENSE and
+performs the controls on the strobe — step direction, step, spindle on and
+off, eject, clear disk-switched — from Neil Parker's table of the firmware's
+SEL35/STAT35/CONT35. ENABLE only selects a drive; the spindle is its own
+control and stops half a second after the drive is deselected. The data path
+is the chip's own, not the P6 sequencer: a bit every 2us (two slow cycles),
+in latch mode a byte held until it is read and then cleared, and in
+asynchronous mode a write buffer the IWM empties itself, with the handshake
+register's ready bit and its underrun, which is how the firmware knows its
+last byte reached the disk. The 5.25" sequencer stands still meanwhile
+(`DiskController::fiveInchSelected`), and a 5.25" drive's light and `$C036`'s
+slot 6 motor detect ask `isFiveInchMotorOn`, so a 3.5" read runs at 2.8MHz.
+
+**The disk is held as a 3.5" WOZ, whatever it came in as.** A WOZ is kept;
+an 800K or 400K block image (or a 2MG holding one) is encoded track by track
+by `disk-image/gcr35.*` — five zones of 12 down to 8 sectors, 2:1
+interleave, 524-byte sectors (12 tag bytes) in the three-way checksummed
+6-and-2 CiderPress2 documents, **699 data nibbles and 4 of checksum, 703 in
+all** — and decoded back on save, a sector that no longer reads keeping its
+old block, so what is saved is the format that went in. A disk the machine
+ejects (GS/OS does) is kept by the drive until the host has put it in Recent
+(`has35Ejected`/`export35Ejected`/`clear35Ejected`). The mechanism is the
+IWM's card state; the disks follow at the end of a IIgs state (version 3).
+`test_disk35.cpp` pins the encoding, the table and the IWM's registers;
+`test_iigs_boot.cpp` boots ProDOS from a 3.5" disk through the machine's own
+slot 5 firmware and writes and reads a block back through it. System 6.0.4's
+installer and System 2.0 boot from one. The hosts have a 3.5" Drives window on
+a IIgs only (`disk35-manager.js`, `native/src/disk35_drives.*`), beside the
+5.25" Drives window, and an 800K image dropped or inserted on a IIgs goes there
+(`media-kind.js: isDisk35`). Each shows the disk turning under its head as the
+5.25" window does: the browser's `DiskSurfaceRenderer` takes a geometry
+(`THREE_AND_A_HALF`: 80 tracks, 12 sectors), and the native card paints the
+side under the head from `inspect::buildOverview35`, which spreads the 80
+tracks over the platter's 160 rings and reads their fields the 3.5" way
+(`analyzeTrack(..., Recording::ThreeAndAHalf)`); read as 5.25" fields, every
+3.5" sector is a failed checksum. The native 5.25" window keeps the ImGui id
+"Disk Drives" (`DiskDrives::WINDOW_NAME`), so saved layouts still find it.
+**The two native windows are built from the same parts**: one card
+(`native/src/drive_ui.hpp`: the turning thumbnail, the label, and a track
+bar the head slides along, 35 tracks or 80 with the zones marked) and one
+inspector (`native/src/disk_inspector.*`), which knows nothing about drives:
+each window hands it an `InspectedDisk` every frame and a `RingReader` that
+reads a ring in full, a quarter track on a 5.25" disk, half a track on the
+side under the head of a 3.5" one.
 
 **Two devices had to exist before the machine would draw anything**, which is
 earlier than the plan expected: the firmware's power-on diagnostics sync and
@@ -1714,6 +1780,14 @@ which the frame queue absorbs: measured, 60 published and 60 shown, on both
 transports. **A picture is published when the video finishes a frame**, not
 per 800 samples: `consumeFrameSamples` counts the frames the core completed,
 which is what lets a PAL machine publish 50 a second rather than 60.
+**And what is published is the finished frame, never the one being drawn.**
+`Video` draws into one buffer and `renderFrame` copies it to the one
+`getFramebuffer()` returns; a refill ends wherever in a frame it happens to,
+so a single buffer published two frames split at the beam, and the split
+drifted down the screen. A run stopped early by a breakpoint shows the frame
+in progress instead (`showFrameInProgress`), so the screen of a stopped
+machine is where its beam is, and a IIgs reads the Mega II's lines from
+`frameInProgress()` as they are drawn. `test_emulator.cpp` pins it.
 
 ### Free-Run Clock
 

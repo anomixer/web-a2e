@@ -11,7 +11,7 @@ export class DiskDrivesWindow extends BaseWindow {
   constructor() {
     super({
       id: "disk-drives",
-      title: "Disk Drives",
+      title: "5.25\" Drives",
       minWidth: 600,
       minHeight: 100,
       maxWidth: 600,

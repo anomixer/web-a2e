@@ -120,7 +120,7 @@ export class DocumentationWindow extends BaseWindow {
               <rect x="5" y="9" width="10" height="1.5" rx="0.5"/>
               <circle cx="18" cy="12" r="1.5"/>
             </svg>
-            Disk Drives
+            5.25" Drives
           </button>
           <button data-section="smartport">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -554,8 +554,8 @@ export class DocumentationWindow extends BaseWindow {
 
       <!-- Disk Drives Section -->
       <section id="doc-disks" class="documentation-section">
-        <h3>Disk Drives</h3>
-        <p>The emulator includes two Disk II floppy drives, just like a real Apple //e system. Open from <strong>View &gt; Disk Drives</strong>.</p>
+        <h3>5.25" Drives</h3>
+        <p>The emulator includes two Disk II floppy drives, just like a real Apple //e system. Open from <strong>View &gt; 5.25" Drives</strong>. A IIgs also has two 3.5" drives, in <strong>View &gt; 3.5" Drives</strong>: an 800K or 400K disk image, a 2MG holding one, or a 3.5" WOZ goes in one, and an 800K disk dropped on the screen goes there by itself.</p>
 
         <h4>Supported Formats</h4>
         <div class="format-list">

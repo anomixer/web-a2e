@@ -11,6 +11,43 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "October 3, 2026",
+    features: [
+      {
+        title: "3.5 inch drives on the IIgs",
+        description:
+          "View > 3.5\" Drives takes 800K and 400K disks, 2MG images and 3.5\" WOZ files. The IIgs boots and writes them through its own firmware and GS/OS, and an 800K disk dropped on the screen goes there by itself.",
+      },
+      {
+        title: "NTSC or PAL",
+        description:
+          "The 8-bit machines can run at PAL timing, 50 frames a second, remembered per machine. Demos timed for a European //e now play as written.",
+      },
+      {
+        title: "Drop a disk on the screen",
+        description:
+          "A disk image dropped on the screen goes into the first empty drive that suits it: a floppy, a 3.5\" drive or the SmartPort.",
+      },
+      {
+        title: "Mockingboard sound",
+        description:
+          "The sound chips' envelopes, noise and timing now match the datasheets, and the sound menu gains Mono and Phase Lock so a song written to both chips no longer cancels itself.",
+      },
+    ],
+    fixes: [
+      {
+        title: "No more torn pictures",
+        description:
+          "The //e and the IIgs showed half of one frame and half of the next, with a line that crept down the screen. Only finished frames are shown now.",
+      },
+      {
+        title: "Unknown disk formats are not called damaged",
+        description:
+          "The Disk Inspector marks a track in a loader's or a copy protection's own format as Unknown, instead of a track full of bad checksums.",
+      },
+    ],
+  },
+  {
     week: "September 30, 2026",
     features: [
       {

@@ -55,7 +55,7 @@ const KIND_NAMES = [
   "Data prologue",
   "Data field",
   "Data epilogue",
-  "Non-standard",
+  "Unknown",
   "Noise",
 ];
 
@@ -265,7 +265,7 @@ export function summarizeDisk(overview) {
   if (summary.tracks === 0) {
     summary.format = "Empty";
   } else if (summary.sectors === 0) {
-    summary.format = "Non-standard";
+    summary.format = "Unknown format";
   } else if (summary.thirteenSector && summary.sixteenSector) {
     summary.format = "13 and 16 sector";
   } else if (summary.thirteenSector) {

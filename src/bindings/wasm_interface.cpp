@@ -1511,7 +1511,7 @@ EMSCRIPTEN_KEEPALIVE
 bool getDiskMotorOn(int drive) {
   REQUIRE_DISK_OR(false);
   (void)drive; // Motor state is controller-wide
-  return (*diskController()).isMotorOn();
+  return (*diskController()).isFiveInchMotorOn();
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -2179,6 +2179,77 @@ void ejectSmartPortImage(int device) {
 EMSCRIPTEN_KEEPALIVE
 bool isSmartPortImageInserted(int device) {
   return g_host.isBlockImageInserted(device);
+}
+
+// ============================================================================
+// 3.5" drives (a IIgs's IWM port)
+// ============================================================================
+
+EMSCRIPTEN_KEEPALIVE
+bool has35Drives() {
+  return g_host.has35Drives();
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool insert35Disk(int drive, uint8_t *data, int size, const char *filename) {
+  return g_host.insert35Disk(drive, data, static_cast<size_t>(size), filename);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void eject35Disk(int drive) {
+  g_host.eject35Disk(drive);
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool is35DiskInserted(int drive) {
+  return g_host.is35DiskInserted(drive);
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool is35DiskModified(int drive) {
+  return g_host.is35DiskModified(drive);
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char *get35DiskFilename(int drive) {
+  static std::string name;
+  name = g_host.disk35Filename(drive);
+  return name.empty() ? nullptr : name.c_str();
+}
+
+EMSCRIPTEN_KEEPALIVE
+const uint8_t *export35Disk(int drive, size_t *size) {
+  return g_host.export35Disk(drive, size);
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool is35MotorOn(int drive) {
+  return g_host.is35MotorOn(drive);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int get35DiskTrack(int drive) {
+  return g_host.disk35Track(drive);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int get35DiskSide(int drive) {
+  return g_host.disk35Side(drive);
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool has35Ejected(int drive) {
+  return g_host.has35Ejected(drive);
+}
+
+EMSCRIPTEN_KEEPALIVE
+const uint8_t *export35Ejected(int drive, size_t *size) {
+  return g_host.export35Ejected(drive, size);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void clear35Ejected(int drive) {
+  g_host.clear35Ejected(drive);
 }
 
 EMSCRIPTEN_KEEPALIVE

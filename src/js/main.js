@@ -74,6 +74,8 @@ import {
   profileStandard,
 } from "./machine/video-standard.js";
 import { HardDriveWindow } from "./disk-manager/hard-drive-window.js";
+import { Disk35Window } from "./disk-manager/disk35-window.js";
+import { Disk35Manager } from "./disk-manager/disk35-manager.js";
 import { readUrlMedia, loadUrlMedia } from "./disk-manager/url-media-loader.js";
 import { hasMediaParams } from "./utils/url-params.js";
 import { DiskInspectorWindow } from "./disk-manager/disk-inspector-window.js";
@@ -125,6 +127,7 @@ class AppleIIeEmulator {
     this.inputHandler = null;
     this.diskManager = null;
     this.hardDriveManager = null;
+    this.disk35Manager = null;
     this.fileExplorer = null;
     this.windowManager = null;
     this.displaySettings = null;
@@ -291,11 +294,22 @@ class AppleIIeEmulator {
       this.hardDriveManager.skipRestore = urlNamesMedia;
       this.hardDriveManager.init();
 
+      // A IIgs's 3.5" drives, on its IWM.
+      const disk35Window = new Disk35Window();
+      disk35Window.create();
+      this.windowManager.register(disk35Window);
+      this.disk35Manager = new Disk35Manager(this.wasmModule);
+      this.disk35Manager.isRunningCallback = () => this.running;
+      this.disk35Manager.skipRestore = urlNamesMedia;
+      this.disk35Manager.init();
+      this.diskManager.disk35Manager = this.disk35Manager;
+
       // A disk image dropped on the screen goes into a floppy drive or the
       // SmartPort, whichever it is for.
       setupScreenDrop({
         diskManager: this.diskManager,
         hardDriveManager: this.hardDriveManager,
+        disk35Manager: this.disk35Manager,
         refocus: () => this.diskManager.refocusCanvas(),
       });
 
@@ -465,6 +479,7 @@ class AppleIIeEmulator {
       // put wherever it put it. Restored any earlier, an image was inserted
       // into the default card and lost when the layout was applied.
       await this.hardDriveManager.restoreImages();
+      await this.disk35Manager.restoreImages();
       this.slotConfigWindow = slotConfigWindow;
 
       // Release notes window
@@ -641,6 +656,7 @@ class AppleIIeEmulator {
         cpuDebuggerWindow: cpuWindow,
         basicProgramWindow: this.basicProgramWindow,
         hardDriveManager: this.hardDriveManager,
+        disk35Manager: this.disk35Manager,
         // A state saved off another machine asks for that machine back.
         switchMachine: (key) => this.machineMenu.switchTo(key),
       });
@@ -831,6 +847,11 @@ class AppleIIeEmulator {
     await this.updateMouseHandlerState();
     if (this.diskManager) this.diskManager.syncWithEmulatorState?.();
     if (this.hardDriveManager) this.hardDriveManager.syncWithEmulatorState();
+    // A IIgs gets back the 3.5" disks it had; any other machine has no drives.
+    if (this.disk35Manager) {
+      await this.disk35Manager.restoreImages();
+      await this.disk35Manager.syncWithEmulatorState();
+    }
   }
 
   /**
@@ -1023,6 +1044,10 @@ class AppleIIeEmulator {
           if (this.hardDriveManager) {
             this.hardDriveManager.updateLEDs();
           }
+          if (this.disk35Manager) {
+            this.disk35Manager.windowVisible = this.windowManager.isWindowVisible("disk35-drives");
+            this.disk35Manager.updateLEDs();
+          }
         }
 
         const isPaused = this.running && this.wasmModule.isPaused;
@@ -1122,6 +1147,7 @@ class AppleIIeEmulator {
     this.renderer = null;
     this.diskManager = null;
     this.hardDriveManager = null;
+    this.disk35Manager = null;
     if (this.fileExplorer) {
       this.fileExplorer.destroy();
       this.fileExplorer = null;

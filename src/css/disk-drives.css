@@ -3,12 +3,14 @@
 */
 
 /* Allow recent dropdown to render outside the window bounds */
-#disk-drives.debug-window {
+#disk-drives.debug-window,
+#disk35-drives.debug-window {
     overflow: visible;
 }
 
 /* Content area: don't shrink or clip — window height follows content */
-#disk-drives.debug-window .debug-window-content {
+#disk-drives.debug-window .debug-window-content,
+#disk35-drives.debug-window .debug-window-content {
     overflow: visible;
     flex-shrink: 0;
 }

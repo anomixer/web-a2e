@@ -21,6 +21,7 @@ Four machines are modelled: the **Apple IIe Enhanced**, the **Apple II Plus**, t
 - **Web Worker architecture** — WASM emulation runs in a dedicated Worker thread, eliminating main-thread blocking
 - **Audio-driven timing** — Web Audio API AudioWorklet drives frame timing at 48kHz via Worker RPC
 - **Disk II controller** — DSK, DO, PO, and WOZ format support with write capability
+- **3.5" drives on the IIgs**: two Apple 3.5" drives on the IWM, read and written by the IIgs's own firmware and GS/OS: 800K and 400K images, 2MG and 3.5" WOZ, saved back in the format they came in
 - **Expansion cards** — Mockingboard sound card, Thunderclock Plus, Apple Mouse Interface Card, SmartPort hard drive, Super Serial Card, Parallel Card (Centronics), Microsoft Z-80 SoftCard, No-Slot Clock (DS1215). A //c has no sockets but decodes every slot address to a soldered-in part; a IIgs carries its SmartPort in slot 5
 - **Virtual dot-matrix printer** — ImageWriter II (colour), ImageWriter I, Epson FX-80, and Apple DMP with period-correct fonts, sounds, and PNG/PDF export, plus a standalone font editor at `/printers/rom-editor.html`
 - **File explorer** — Browse DOS 3.3 and ProDOS disk contents with BASIC detokenizer and disassembler
@@ -234,6 +235,8 @@ Each drive supports:
 - **Eject** — Remove disk (offers to save only if its contents actually changed)
 
 Drag and drop disk files directly onto drives. Drive seek and motor sounds can be toggled on or off.
+
+A IIgs also has two 3.5" drives, in **View > 3.5" Drives**, with the same Insert, Recent and Eject. They take 800K and 400K disk images, a 2MG holding one, or a 3.5" WOZ, and save a disk back in the format it came in. An 800K image dropped on the screen of a IIgs goes into a 3.5" drive; on any other machine it is a SmartPort volume.
 
 ### Sharing a Link
 

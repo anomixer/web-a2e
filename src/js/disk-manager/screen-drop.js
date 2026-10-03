@@ -14,7 +14,9 @@ import { showToast } from "../ui/toast.js";
  * page mode, and the canvas moves between them, so the listeners go on the
  * document and a drop counts if it lands on either. A floppy goes into the
  * first empty drive, a hard disk image into the first empty SmartPort device,
- * and either replaces unit 1 when every unit is full (see media-kind.js for
+ * an 800K disk into a IIgs's first empty 3.5" drive (on any other machine it
+ * is a SmartPort volume), and any of them replaces unit 1 when every unit is
+ * full (see media-kind.js for
  * which is which, the same rule as the native app's).
  */
 const SCREEN_SELECTOR = "#monitor-frame, .screen-window-content";
@@ -27,8 +29,18 @@ function carriesFiles(event) {
   return event.dataTransfer && Array.from(event.dataTransfer.types).includes("Files");
 }
 
-async function insert(file, { diskManager, hardDriveManager }) {
-  const kind = mediaKind(file.name, file.size);
+async function insert(file, { diskManager, hardDriveManager, disk35Manager }) {
+  const disk35 = !!(disk35Manager && (await disk35Manager.hasDrives()));
+  const header = disk35 ? new Uint8Array(await file.slice(0, 32).arrayBuffer()) : null;
+  const kind = mediaKind(file.name, file.size, { disk35, header });
+  if (kind === "disk35") {
+    const drive = dropUnit(disk35Manager.drives);
+    await disk35Manager.loadImage(drive, file);
+    if (disk35Manager.drives[drive].filename === file.name) {
+      showToast(`${file.name} inserted in 3.5" drive ${drive + 1}`, "info", 3000);
+    }
+    return true;
+  }
   if (kind === "floppy") {
     const drive = dropUnit(diskManager.drives);
     await diskManager.loadDisk(drive, file);
@@ -56,7 +68,8 @@ async function insert(file, { diskManager, hardDriveManager }) {
 }
 
 /**
- * @param {{diskManager: object, hardDriveManager: object, refocus?: Function}} managers
+ * @param {{diskManager: object, hardDriveManager: object, disk35Manager?: object,
+ *          refocus?: Function}} managers
  */
 export function setupScreenDrop(managers) {
   let highlighted = null;
