@@ -106,6 +106,7 @@ import {
   WindowManager,
   CPUDebuggerWindow,
   SoftSwitchWindow,
+  SwitchBreakpointManager,
   MemoryBrowserWindow,
   MemoryHeatMapWindow,
   MemoryMapWindow,
@@ -347,9 +348,13 @@ class AppleIIeEmulator {
         }
       };
 
-      const switchWindow = new SoftSwitchWindow(this.wasmModule);
+      // Breakpoints on soft switches belong to the machine rather than to
+      // the window, so they are armed whether or not it is open.
+      this.switchBreakpoints = new SwitchBreakpointManager(this.wasmModule);
+      const switchWindow = new SoftSwitchWindow(this.wasmModule, this.switchBreakpoints);
       switchWindow.create();
       this.windowManager.register(switchWindow);
+      await this.switchBreakpoints.loadCatalog();
 
       // Set up display settings window (pass renderer for shader control, wasmModule for video settings)
       this.displaySettings = new DisplaySettingsWindow(
@@ -654,6 +659,7 @@ class AppleIIeEmulator {
         diskManager: this.diskManager,
         reminderController: this.reminderController,
         cpuDebuggerWindow: cpuWindow,
+        switchBreakpoints: this.switchBreakpoints,
         basicProgramWindow: this.basicProgramWindow,
         hardDriveManager: this.hardDriveManager,
         disk35Manager: this.disk35Manager,

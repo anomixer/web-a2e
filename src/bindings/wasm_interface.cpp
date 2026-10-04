@@ -278,6 +278,7 @@ std::string machineProfileToJSON(const a2e::MachineProfile &m) {
   json += std::string(",\"hasIOUDisable\":") + boolean(m.caps.hasIOUDisable);
   json += std::string(",\"inhibitsBurstInText\":") +
           boolean(m.caps.inhibitsBurstInText);
+  json += std::string(",\"hasCassette\":") + boolean(m.caps.hasCassette);
   json += "}";
 
   json += ",\"firstSlot\":" + std::to_string(m.firstSlot);
@@ -1445,17 +1446,20 @@ const char *disassembleRange(int32_t centerAddrOrPC, int instructionsBefore,
 }
 
 namespace {
-// A IIgs's //e switches are its Mega II's, and the pushbuttons and the
-// keyboard it reports them alongside come from the ADB rather than from a
-// game connector — which is the only part of the answer that differs.
+// Each machine packs its own word: a IIgs's switches are its Mega II's, and
+// the pushbuttons and the keyboard come from the ADB rather than a game
+// connector.
 uint64_t softSwitchState() {
-  if (g_host.iigs()) {
-    return a2e::packSoftSwitchState(
-        g_host.iigs()->memory().megaII().getSoftSwitches(), false, false, false,
-        (g_host.iigs()->memory().adb().keyboardLatch() & 0x80) != 0);
+  return g_host.softSwitchValue(a2e::MachineDebug::SWITCH_FLAGS);
+}
+
+void appendJSONString(std::string &out, const char *text) {
+  out += '"';
+  for (const char *c = text; *c; c++) {
+    if (*c == '"' || *c == '\\') out += '\\';
+    out += *c;
   }
-  if (!g_host.emulator()) return 0;
-  return g_host.emulator()->getSoftSwitchState();
+  out += '"';
 }
 } // namespace
 
@@ -1467,6 +1471,89 @@ uint32_t getSoftSwitchState() {
 EMSCRIPTEN_KEEPALIVE
 uint32_t getSoftSwitchStateHigh() {
   return static_cast<uint32_t>(softSwitchState() >> 32);
+}
+
+// The switches and registers the running machine has (soft_switch_catalog),
+// as a JSON array in one round trip.
+EMSCRIPTEN_KEEPALIVE
+const char *getSoftSwitchCatalogJSON() {
+  static std::string buffer;
+  buffer = "[";
+  bool first = true;
+  for (const a2e::SoftSwitchInfo &s : g_host.softSwitches()) {
+    if (!first) buffer += ',';
+    first = false;
+    buffer += "{\"key\":";
+    appendJSONString(buffer, s.key);
+    buffer += ",\"name\":";
+    appendJSONString(buffer, s.name);
+    buffer += ",\"group\":";
+    appendJSONString(buffer, s.group);
+    buffer += ",\"address\":";
+    appendJSONString(buffer, s.address);
+    buffer += ",\"desc\":";
+    appendJSONString(buffer, s.description);
+    buffer += ",\"source\":" + std::to_string(s.source);
+    buffer += ",\"bit\":" + std::to_string(s.bit);
+    buffer += std::string(",\"readOnly\":") + (s.readOnly ? "true" : "false");
+    buffer += "}";
+  }
+  buffer += "]";
+  return buffer.c_str();
+}
+
+// A register's byte, or the low half of the switch word for source 0.
+EMSCRIPTEN_KEEPALIVE
+uint32_t getSoftSwitchValue(uint32_t source) {
+  return static_cast<uint32_t>(g_host.softSwitchValue(source));
+}
+
+// Soft switch breakpoints (MachineDebug). Every switch in the word sits in
+// its low 32 bits, so a mask and a value of 32 bits reach all of them.
+EMSCRIPTEN_KEEPALIVE
+int32_t addSwitchBreakpoint(uint32_t source, uint32_t mask, int condition,
+                            uint32_t value) {
+  REQUIRE_DEBUG_OR(-1);
+  return machineDebug()->addSwitchBreakpoint(
+      source, mask, static_cast<a2e::MachineDebug::SwitchCondition>(condition),
+      value);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void removeSwitchBreakpoint(int32_t id) {
+  REQUIRE_DEBUG();
+  machineDebug()->removeSwitchBreakpoint(id);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void enableSwitchBreakpoint(int32_t id, bool enabled) {
+  REQUIRE_DEBUG();
+  machineDebug()->enableSwitchBreakpoint(id, enabled);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void clearSwitchBreakpoints() {
+  REQUIRE_DEBUG();
+  machineDebug()->clearSwitchBreakpoints();
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool isSwitchBreakpointHit() {
+  REQUIRE_DEBUG_OR(false);
+  return machineDebug()->isSwitchBreakpointHit();
+}
+
+EMSCRIPTEN_KEEPALIVE
+int32_t getSwitchBreakpointHitId() {
+  REQUIRE_DEBUG_OR(-1);
+  return machineDebug()->switchBreakpointHitId();
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char *getSwitchHitText() {
+  static std::string buffer;
+  buffer = g_host.switchHitText();
+  return buffer.c_str();
 }
 
 // Screen text extraction

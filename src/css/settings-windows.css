@@ -161,6 +161,138 @@
     flex: 1;
 }
 
+/* Breakpoints on switches. The dot starts every row: hollow with none set,
+   filled red with one armed, as the CPU debugger's gutter marks a line. */
+.switch-bp-dot {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    padding: 0;
+    border: 1px solid var(--text-muted);
+    border-radius: 50%;
+    background: transparent;
+    cursor: pointer;
+    opacity: 0.5;
+}
+
+.switch-bp-dot:hover {
+    opacity: 1;
+    border-color: var(--accent-red);
+}
+
+.switch-bp-dot.armed {
+    background: var(--accent-red);
+    border-color: var(--accent-red);
+    opacity: 1;
+}
+
+/* The switch a breakpoint stopped the machine on, while it stays stopped. */
+.switch-item.hit {
+    outline: 1px solid var(--accent-red-border);
+    background: var(--accent-red-bg);
+}
+
+.switch-hit {
+    padding: 6px 8px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--accent-red-border);
+    background: var(--accent-red-bg);
+    color: var(--accent-red);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+}
+
+.switch-hit.hidden,
+.switch-bp-group.hidden {
+    display: none;
+}
+
+.switch-bp-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.switch-bp-clear,
+.switch-bp-remove {
+    padding: 0 4px;
+    border: none;
+    background: none;
+    color: var(--text-muted);
+    font-size: 10px;
+    cursor: pointer;
+}
+
+.switch-bp-clear:hover,
+.switch-bp-remove:hover {
+    color: var(--accent-red);
+}
+
+.switch-bp-row input[type="checkbox"] {
+    margin: 0;
+}
+
+.switch-bp-desc {
+    flex: 1;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--text-primary);
+}
+
+.switch-bp-hits {
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--text-muted);
+}
+
+/* Kept on a machine without the switch, and greyed until it comes back. */
+.switch-bp-row.absent .switch-bp-desc {
+    color: var(--text-muted);
+    text-decoration: line-through;
+}
+
+.switch-bp-menu {
+    min-width: 200px;
+}
+
+.switch-bp-form {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-top: 1px solid var(--border-default);
+    font-size: 11px;
+    color: var(--text-secondary);
+}
+
+.switch-bp-input {
+    width: 36px;
+    margin-left: 4px;
+    padding: 2px 4px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    background: var(--input-bg-dark);
+    border: 1px solid var(--border-default);
+    border-radius: 3px;
+    color: var(--text-primary);
+}
+
+.switch-bp-input.invalid {
+    border-color: var(--accent-red);
+}
+
+.switch-bp-add {
+    margin-left: auto;
+    padding: 2px 8px;
+    font-size: 11px;
+    background: var(--accent-blue-bg);
+    border: 1px solid var(--accent-blue-border);
+    border-radius: 3px;
+    color: var(--accent-blue);
+    cursor: pointer;
+}
+
 /* ============================================
    DISPLAY SETTINGS WINDOW
    ============================================ */
