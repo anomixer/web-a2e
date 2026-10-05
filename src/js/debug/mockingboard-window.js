@@ -7,6 +7,7 @@
  */
 
 import { BaseWindow } from "../windows/base-window.js";
+import { machineTiming } from "../machine/machine-profile.js";
 
 // Note names for frequency-to-note conversion
 const NOTE_NAMES = [
@@ -638,6 +639,8 @@ export class MockingboardWindow extends BaseWindow {
     }
     const results = await wasmModule.batch(batchCalls);
 
+    // The chips run at the machine's clock, which is slower on a PAL machine.
+    const clock = machineTiming().cpuClockHz;
     let ri = 0; // result index
     for (let psg = 0; psg < 2; psg++) {
       const psgEl = this.elements.psg[psg];
@@ -649,8 +652,10 @@ export class MockingboardWindow extends BaseWindow {
         const coarse = results[ri++];
         const period = fine | ((coarse & 0x0f) << 8);
         // The tone counter toggles every TP ticks of the clock over 8, so a
-        // whole cycle is the clock over 16 TP, as the datasheet has it.
-        const freq = period > 0 ? Math.round(1023000 / (16 * period)) : 0;
+        // whole cycle is the clock over 16 TP, as the datasheet has it. The
+        // note is named from the exact frequency: rounded to a whole Hz
+        // first, a low note near a semitone's edge took its neighbour's name.
+        const freq = period > 0 ? clock / (16 * period) : 0;
 
         const freqKey = `psg${psg}ch${ch}freq`;
         if (this.prevValues[freqKey] !== freq) {
@@ -659,7 +664,8 @@ export class MockingboardWindow extends BaseWindow {
           if (freqEl) {
             if (freq > 0) {
               const note = frequencyToNote(freq);
-              freqEl.textContent = note ? `${note} ${freq}Hz` : `${freq}Hz`;
+              const hz = Math.round(freq);
+              freqEl.textContent = note ? `${note} ${hz}Hz` : `${hz}Hz`;
             } else {
               freqEl.textContent = "--";
             }
@@ -723,7 +729,7 @@ export class MockingboardWindow extends BaseWindow {
       const envCoarse = results[ri++];
       const envPeriod = envFine | (envCoarse << 8);
       const envFreq =
-        envPeriod > 0 ? (1023000 / (256 * envPeriod)).toFixed(1) : 0;
+        envPeriod > 0 ? (clock / (256 * envPeriod)).toFixed(1) : 0;
       const envFreqKey = `psg${psg}envFreq`;
       if (this.prevValues[envFreqKey] !== envFreq) {
         this.prevValues[envFreqKey] = envFreq;
@@ -735,7 +741,7 @@ export class MockingboardWindow extends BaseWindow {
       // Noise frequency
       const noisePeriod = results[ri++];
       const noiseFreq =
-        noisePeriod > 0 ? (1023000 / (16 * noisePeriod)).toFixed(1) : 0;
+        noisePeriod > 0 ? (clock / (16 * noisePeriod)).toFixed(1) : 0;
       const noiseFreqKey = `psg${psg}noiseFreq`;
       if (this.prevValues[noiseFreqKey] !== noiseFreq) {
         this.prevValues[noiseFreqKey] = noiseFreq;
