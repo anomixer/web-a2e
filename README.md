@@ -134,16 +134,15 @@ npm run dev           # Start dev server at localhost:3000 (hot-reload for JS on
 
 Open http://localhost:3000 in your browser.
 
-### Desktop App
+### Native macOS App
 
-The same emulator also builds as a native desktop app with Tauri v2. Every
-menu the web app has is in the native menu bar instead, so the window is all
-screen. It needs Rust (`rustup`) as well; see `docs/TAURI.md`.
+The same core also builds as a native macOS app, with its own Dear ImGui and
+Metal front end rather than the web page in a window; see `docs/NATIVE.md`.
 
 ```bash
-npm run tauri:dev     # Run it around the dev server
-npm run tauri:build   # Build ApplEm.app / .dmg into src-tauri/target/release/bundle
-npm run desktop:mac   # The same, signed with Developer ID and notarised (docs/TAURI.md)
+npm run native:build    # Build build-macos/native/ApplEm.app
+npm run native:run      # Build it and open it
+npm run native:release  # Signed with Developer ID, notarised and stapled
 ```
 
 ### Other Commands

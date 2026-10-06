@@ -48,7 +48,7 @@ export class ReminderController {
 
     const targetRect = targetEl.getBoundingClientRect();
 
-    // No target on screen (the desktop build has no header): the reminder
+    // No target on screen (the header is hidden): the reminder
     // goes at the top of the window, centred, with nothing to point at.
     if (targetRect.width === 0 && targetRect.height === 0) {
       reminder.style.left = `${Math.max(16, (window.innerWidth - reminder.offsetWidth) / 2)}px`;

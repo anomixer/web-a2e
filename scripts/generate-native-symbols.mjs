@@ -22,7 +22,7 @@ import { dirname, resolve } from "node:path";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const SOURCE = resolve(ROOT, "src/js/debug/symbols.js");
-const OUTPUT = resolve(ROOT, "native/src/apple2_symbols.inc");
+const OUTPUT = resolve(ROOT, "native/src/debugger/apple2_symbols.inc");
 
 const { ALL_SYMBOLS } = await import(pathToFileURL(SOURCE).href);
 
@@ -49,7 +49,7 @@ if (process.argv.includes("--check")) {
   const current = existsSync(OUTPUT) ? readFileSync(OUTPUT, "utf8") : "";
   if (current !== text) {
     console.error(
-      "native/src/apple2_symbols.inc is out of date with src/js/debug/symbols.js.\n" +
+      "native/src/debugger/apple2_symbols.inc is out of date with src/js/debug/symbols.js.\n" +
         "Run: npm run generate:native-symbols",
     );
     process.exit(1);
@@ -57,5 +57,5 @@ if (process.argv.includes("--check")) {
   console.log(`native symbols are current (${rows.length} entries)`);
 } else {
   writeFileSync(OUTPUT, text);
-  console.log(`wrote ${rows.length} symbols to native/src/apple2_symbols.inc`);
+  console.log(`wrote ${rows.length} symbols to native/src/debugger/apple2_symbols.inc`);
 }

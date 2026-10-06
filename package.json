@@ -22,24 +22,13 @@
     "clean": "rm -rf build dist public/a2e.js public/a2e.wasm",
     "deploy": "scripts/deploy.sh production",
     "deploy:staging": "scripts/deploy.sh staging",
-    "tauri": "PATH=\"$HOME/.cargo/bin:$PATH\" tauri",
     "native:build": "cmake -S . -B build-macos -DA2E_BUILD_NATIVE=ON -DCMAKE_BUILD_TYPE=Release && cmake --build build-macos --target ApplEmNative -j 4",
     "native:run": "npm run native:build && open build-macos/native/ApplEm.app",
-    "native:release": "scripts/build-native-mac.sh",
-    "tauri:dev": "PATH=\"$HOME/.cargo/bin:$PATH\" tauri dev",
-    "tauri:build": "PATH=\"$HOME/.cargo/bin:$PATH\" tauri build",
-    "desktop:mac": "scripts/build-desktop-mac.sh"
+    "native:release": "scripts/build-native-mac.sh"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.11.5",
     "vite": "^7.3.1",
     "vitest": "^4.1.10",
     "ws": "^8.19.0"
-  },
-  "dependencies": {
-    "@tauri-apps/api": "^2.11.1",
-    "@tauri-apps/plugin-dialog": "^2.7.3",
-    "@tauri-apps/plugin-fs": "^2.5.2",
-    "@tauri-apps/plugin-opener": "^2.5.5"
   }
 }

@@ -18,30 +18,7 @@ npm run deploy        # Deploy to the configured rsync target (see .env.deploy.e
 npm test              # JavaScript tests (Vitest)
 npm run check         # check:exports + check:core-purity + check:basic-tokens + npm test
 npm run generate:basic-tokens  # Regenerate src/js/utils/basic-tokens.js from C++
-npm run tauri:dev     # Desktop app (Tauri v2) around the Vite dev server
-npm run tauri:build   # Desktop app bundle (.app/.dmg) in src-tauri/target/release/bundle
-npm run desktop:mac   # Desktop app signed with Developer ID, notarised and stapled
 ```
-
-## Desktop Build (Tauri)
-
-`src-tauri/` wraps the same frontend and WASM core in a native window, as
-web-spec's desktop build does; `docs/TAURI.md` has the detail. Three things
-are load-bearing:
-
-- **The packaged app serves itself on `http://localhost:47123`**
-  (`tauri-plugin-localhost`, COOP/COEP added in `src-tauri/src/lib.rs`).
-  WKWebView leaves `SharedArrayBuffer` undefined on Tauri's `tauri://` scheme
-  even when the page is cross-origin isolated. The port is fixed because it is
-  the origin every setting and save state is stored under. Only one copy runs
-  (`tauri-plugin-single-instance`), because a second would claim the same port.
-- **There is no header; the native menu bar is it.** `src/js/platform/native-menu.js`
-  reads the hidden header into a model and each native item clicks the control
-  it stands for, so no menu logic is duplicated. It rebuilds only when the model
-  changes, and always after a menu action (macOS flips a check item's tick itself).
-- **⌘ combinations the machine does not want go to the menu bar**, and ⌘Q
-  always does (`InputHandler.handleKeyDown`, desktop only). The screen otherwise
-  swallows every key, and WKWebView, unlike a browser, lets it.
 
 ## Native macOS Front End (ImGui + Metal)
 
@@ -187,7 +164,6 @@ Test suites cover CPU (6502/65C02), memory (MMU, slots), video, audio, disk imag
 - `help/` - Documentation and release notes windows
 - `input/` - Keyboard input, text selection, joystick, mouse
 - `ui/` - Menu wiring, reminders, slot configuration, custom confirm dialogs
-- `platform/` - Desktop (Tauri) host: `runtime.js` (`isTauri()`), `desktop-host.js`, `native-menu.js`
 - `state/` - State serialization and persistence (autosave + 5 manual slots)
 - `config/` - App version
 - `utils/` - Shared utilities (storage, string, BASIC)

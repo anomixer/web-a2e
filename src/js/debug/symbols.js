@@ -320,20 +320,19 @@ export const ROM_SYMBOLS = {
 
 // Applesoft BASIC ROM routines
 export const BASIC_SYMBOLS = {
-  0xD365: sym("NEWSTT", "Execute next BASIC statement", SYMBOL_CATEGORY.BASIC),
   0xD39E: sym("GONE", "Execute BASIC token", SYMBOL_CATEGORY.BASIC),
   0xD4F2: sym("CHRGOT", "Get current character", SYMBOL_CATEGORY.BASIC),
   0xD559: sym("FNDLIN", "Find BASIC line number", SYMBOL_CATEGORY.BASIC),
   0xD61A: sym("CHKCOM", "Require comma, syntax error if not", SYMBOL_CATEGORY.BASIC),
   0xD665: sym("FRMNUM", "Evaluate numeric expression", SYMBOL_CATEGORY.BASIC),
-  0xD7D2: sym("PTRGET", "Get pointer to variable", SYMBOL_CATEGORY.BASIC),
+  0xD7D2: sym("NEWSTT", "Execute next BASIC statement", SYMBOL_CATEGORY.BASIC),
   0xDB3A: sym("CHRGET", "Get next character, skip spaces", SYMBOL_CATEGORY.BASIC),
   0xDD67: sym("FPWR", "Floating-point power function", SYMBOL_CATEGORY.BASIC),
   0xDDCD: sym("NEGOP", "Negate floating-point number", SYMBOL_CATEGORY.BASIC),
   0xDDCF: sym("LOG", "Natural logarithm function", SYMBOL_CATEGORY.BASIC),
   0xDE5E: sym("FMULT", "Floating-point multiply", SYMBOL_CATEGORY.BASIC),
   0xDF7E: sym("CONUPK", "Unpack constant to FAC", SYMBOL_CATEGORY.BASIC),
-  0xDFE3: sym("FINLOG", "Finish LOG calculation", SYMBOL_CATEGORY.BASIC),
+  0xDFE3: sym("PTRGET", "Get pointer to variable", SYMBOL_CATEGORY.BASIC),
   0xE07A: sym("FSUB", "Floating-point subtract", SYMBOL_CATEGORY.BASIC),
   0xE082: sym("FADD", "Floating-point add", SYMBOL_CATEGORY.BASIC),
   0xE0F6: sym("OVERR", "Overflow error handler", SYMBOL_CATEGORY.BASIC),
