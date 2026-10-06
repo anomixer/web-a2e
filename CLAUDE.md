@@ -69,6 +69,11 @@ the same core. `npm run native:build` builds `build-macos/native/ApplEm.app`;
   the browser, the Expansion Slots window applies it at startup). Startup
   order is cards, floppies, hard drive images, then power, so the boot scan
   finds them.
+- **A disk from a file writes back to that file**, unlike the browser's
+  copies: on idle, eject, replace, machine change and quit, exported and
+  marked saved (`MachineHost::markDiskSaved` and twins) under one hold of
+  the machine. A disk with no file, or a state's, asks instead; quitting
+  asks only when something would be lost. `docs/NATIVE.md` has the rules.
 - **`native/shaders/crt.metal` is a port of `public/shaders/crt.glsl`** and
   the two must stay in step: change one, change the other, and run
   `scripts/compare-crt.mjs` (see `docs/NATIVE.md`), which renders the same
