@@ -889,7 +889,7 @@ IWM's card state; the disks follow at the end of a IIgs state (version 3).
 `test_iigs_boot.cpp` boots ProDOS from a 3.5" disk through the machine's own
 slot 5 firmware and writes and reads a block back through it. System 6.0.4's
 installer and System 2.0 boot from one. The hosts have a 3.5" Drives window on
-a IIgs only (`disk35-manager.js`, `native/src/disk35_drives.*`), beside the
+a IIgs only (`disk35-manager.js`, `native/src/drives/disk35_drives.*`), beside the
 5.25" Drives window, and an 800K image dropped or inserted on a IIgs goes there
 (`media-kind.js: isDisk35`). Each shows the disk turning under its head as the
 5.25" window does: the browser's `DiskSurfaceRenderer` takes a geometry
@@ -900,9 +900,9 @@ tracks over the platter's 160 rings and reads their fields the 3.5" way
 3.5" sector is a failed checksum. The native 5.25" window keeps the ImGui id
 "Disk Drives" (`DiskDrives::WINDOW_NAME`), so saved layouts still find it.
 **The two native windows are built from the same parts**: one card
-(`native/src/drive_ui.hpp`: the turning thumbnail, the label, and a track
+(`native/src/drives/drive_ui.hpp`: the turning thumbnail, the label, and a track
 bar the head slides along, 35 tracks or 80 with the zones marked) and one
-inspector (`native/src/disk_inspector.*`), which knows nothing about drives:
+inspector (`native/src/drives/disk_inspector.*`), which knows nothing about drives:
 each window hands it an `InspectedDisk` every frame and a `RingReader` that
 reads a ring in full, a quarter track on a 5.25" disk, half a track on the
 side under the head of a 3.5" one.
