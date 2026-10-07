@@ -4,6 +4,8 @@ An Apple II emulator for the browser and the desktop.
 
 A cycle-accurate Apple II emulator running in the browser using WebAssembly and WebGL. No JavaScript frameworks — vanilla ES6 modules with Vite for bundling. Having built native emulators in the past, this is my first attempt at a browser-based emulator, hopefully making it easier to allow cross platform users from making use of it :)
 
+The same core also builds as a native macOS app, with its own Dear ImGui and Metal front end. See [Native macOS App](#native-macos-app).
+
 Four machines are modelled: the **Apple IIe Enhanced**, the **Apple II Plus**, the **Apple IIc** and the **Apple IIgs**. See [Machines](#machines).
 
 **[Run it →](https://web-a2e.retrotech71.co.uk/)**  ·  **[Documentation wiki →](https://github.com/mikedaley/web-a2e/wiki)**
@@ -31,6 +33,7 @@ Four machines are modelled: the **Apple IIe Enhanced**, the **Apple II Plus**, t
 - **Light/Dark/System themes** — Switchable colour scheme with Apple rainbow logo accent palette
 - **AI Agent integration** — Full programmatic control via MCP and AG-UI event protocol for AI-assisted development
 - **PWA support** — Install as a standalone app with offline functionality
+- **Native macOS app**: the same core with a Dear ImGui and Metal front end, whose windows dock or float free as windows of their own, plus a ca65 Build and Run workflow and a profiler
 
 ### Machines
 
@@ -137,13 +140,32 @@ Open http://localhost:3000 in your browser.
 ### Native macOS App
 
 The same core also builds as a native macOS app, with its own Dear ImGui and
-Metal front end rather than the web page in a window; see `docs/NATIVE.md`.
+Metal front end rather than the web page in a window. It shares the C++ core
+and the host layer (`src/host/`) with the browser build, and no JavaScript.
+It runs on macOS 15 and later.
 
 ```bash
+git submodule update --init native/third_party/imgui   # once
 npm run native:build    # Build build-macos/native/ApplEm.app
 npm run native:run      # Build it and open it
 npm run native:release  # Signed with Developer ID, notarised and stapled
 ```
+
+What it adds to the browser build:
+
+- **Windows of their own.** Any window can dock into the main one or be
+  dragged out into a separate Mac window, and each has a Mac title bar.
+- **Develop with ca65.** A project is a small `.applem` file beside a
+  Makefile. Build and Run (Command-B) runs the build and starts what it made,
+  from memory or from a ProDOS disk made for it, with the build's symbols
+  loaded into the debugger. Build errors are a list that opens the file.
+- **Profiler** (Debug > Profiler). Records where a program spends its time,
+  counted in the machine's own clock: a timeline of each frame, routines,
+  call tree, flame graph and hot lines, named by the debugger's symbols.
+  `examples/profiler-demo` is a ca65 project to try it on.
+- **Disks write back to their files** when idle, on eject and on quit.
+
+`docs/NATIVE.md` covers the app in full.
 
 ### Other Commands
 
@@ -478,6 +500,8 @@ All debug windows are accessible from the **Debug** menu.
 | **Mouse Card** | PIA registers, position, mode, interrupt state |
 | **Rule Builder** | Complex conditional breakpoints with C-style expressions |
 
+The native app adds a **Profiler** (Debug > Profiler); see [Native macOS App](#native-macos-app).
+
 The CPU debugger supports breakpoints (conditional with expression evaluation) on an address, an address range or the stack pointer, watchpoints over an address or a range, beam breakpoints (video position with wildcard-scanline support), execution tracing, and a call stack viewer. Labels and symbols are supported for both system routines and user-defined addresses. Debugger state (breakpoints, watches, settings) persists across save/load.
 
 ## Dev Tools
@@ -523,7 +547,7 @@ ignored. `MX` and a second `XC` ask for the 65816, which a //e cannot run.
 
 The emulator exposes an AI agent interface via the [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) and AG-UI event protocol, allowing AI agents (including Claude Code) to fully control the emulator programmatically.
 
-- **MCP Server** (`mcp/appleii-agent/`) — provides tools over stdio + HTTP/SSE on port 3033
+- **MCP Server**: the separate [appleii-agent](https://github.com/mikedaley/appleii-agent) project (`@retrotech71/appleii-agent`, run with `bunx -y @retrotech71/appleii-agent`), which provides tools over stdio and HTTP/SSE on port 3033
 - **Frontend Agent Manager** (`src/js/agent/`) — browser-side client that executes tool calls against the emulator
 
 Agent capabilities include: emulator power/reset, BASIC program editing and execution, 65C02 assembly, disk and hard drive management, file exploration, window management, and expansion slot configuration.
@@ -534,45 +558,45 @@ See the [Agent Integration wiki page](https://github.com/mikedaley/web-a2e/wiki/
 
 ### JavaScript Tests
 
-Vitest, covering the printer emulation, the Applesoft listing parser, and input
-mapping:
+Vitest, over `tests/js/`: pure logic from the browser host (the worker's
+frame queue, display settings, input mapping, the printer, save states and
+more), run in plain Node:
 
 ```bash
 npm test              # single run
 npm run test:watch    # re-run on change
+npm run check         # the consistency checks above, then the tests
 ```
 
-### CPU Compliance Tests
+### C++ Tests
 
-Klaus Dormann's 6502/65C02 functional test suites:
+Catch2, built with the core:
 
 ```bash
 mkdir -p build-native && cd build-native
-cmake ..
-make -j$(sysctl -n hw.ncpu)
-ctest --verbose
+cmake .. && make -j 4 && ctest --verbose
 ```
 
-Test executables: `klaus_6502_test` (NMOS 6502), `klaus_65c02_test` (65C02 extended opcodes).
+- `tests/unit/`: the CPUs, memory, video, audio, disk formats, filesystems,
+  cards, the assembler, BASIC and the debugger, each on its own.
+- `tests/integration/`: whole machines, including a IIgs booting its own
+  ROM, save states, and both front ends' host layer (`test_machine_host`).
+- `tests/conformance/`: the 65816 against the SingleStepTests vectors
+  recorded from real silicon. They are 3GB, so the test skips unless
+  `A2E_65816_VECTORS` points at them. `A2E_BANDITS_WOZ` likewise turns on
+  the tests that need the Bandits flux disk.
 
-### Thunderclock Tests
+Keep the build at `-j 4`.
 
-Native C++ tests for Thunderclock card emulation, including MMU integration:
+### Native App Tests
+
+The native front end's own tests (input mapping, the debugger and profiler
+model, the console, media, display, the BASIC editor, the equaliser, ca65
+projects and the window chrome) build with the app:
 
 ```bash
-# Built and run via the same native CMake build above
-```
-
-### GCR Encoding Tests
-
-Native C++ tests for Group Code Recording disk encoding logic.
-
-### Integration Tests
-
-JavaScript tests for disk boot, memory, and debugging:
-
-```bash
-node tests/integration/disk-boot-test.js
+cmake --build build-macos -j 4
+cd build-macos && ctest -R test_native
 ```
 
 ## Project Structure
@@ -618,6 +642,8 @@ web-a2e/
 │   │   ├── emulator.cpp     # Core coordinator
 │   │   ├── emulator.hpp     # Emulator class declaration
 │   │   └── types.hpp        # Shared constants
+│   ├── host/                # machine_host: which machine is alive, shared
+│   │                        #   by the browser and native front ends
 │   ├── bindings/            # wasm_interface.cpp (WASM exports)
 │   └── js/                  # ES6 modules
 │       ├── main.js          # AppleIIeEmulator entry point
@@ -637,18 +663,29 @@ web-a2e/
 │       ├── ui/              # Menu wiring, reminders, slot configuration
 │       ├── utils/           # Storage, string, BASIC utilities
 │       └── windows/         # Base window class and window manager
+├── native/                  # The native macOS app (Dear ImGui over Metal)
+│   ├── src/                 # App, debugger, drives, display, develop, sound...
+│   ├── shaders/             # crt.metal, the port of the CRT shader
+│   ├── tests/               # The native front end's tests
+│   └── third_party/imgui/   # Dear ImGui, docking branch (submodule)
 ├── public/                  # Static assets, built WASM, shaders
 │   ├── css/                 # Stylesheets
 │   ├── shaders/             # CRT vertex/fragment shaders
 │   ├── assets/              # Images and sounds
 │   └── index.html           # Main HTML entry point
-├── roms/                    # ROM files (not included)
+├── roms/                    # ROM files
 ├── tests/
-│   ├── klaus/               # Klaus Dormann CPU compliance tests
-│   ├── thunderclock/        # Thunderclock card tests
-│   ├── integration/         # JS integration tests
-│   └── gcr/                 # GCR encoding tests
-├── scripts/                 # Build scripts (generate_roms.sh)
+│   ├── unit/                # C++ unit tests (Catch2)
+│   ├── integration/         # Whole machines and the host layer
+│   ├── conformance/         # The 65816 against recorded silicon
+│   ├── common/              # Builders for disks and BASIC programs
+│   └── js/                  # JavaScript tests (Vitest)
+├── docs/
+│   ├── design/              # Design notes, one per subsystem
+│   └── NATIVE.md            # The native app
+├── examples/                # BASIC, Merlin and ca65 programs to try
+├── wiki/                    # Mirror of the published GitHub wiki
+├── scripts/                 # Build, check and deploy scripts
 ├── CMakeLists.txt           # C++ build configuration
 ├── vite.config.js           # Vite bundler configuration
 └── package.json
@@ -677,7 +714,7 @@ Requires WebAssembly, WebGL 2.0, Web Audio API (AudioWorklet), IndexedDB, and Se
 
 ### Development Tools
 - **Source-level debugging** — Step through assembly source with symbol mapping from assembler
-- **Profiler** — Cycle-accurate performance profiling with per-routine breakdown and heat maps
+- **Profiler in the browser**: the native app has one (Debug > Profiler)
 - **I/O trace log** — Record and replay soft switch and card I/O activity
 
 ### Audio
@@ -693,7 +730,6 @@ Requires WebAssembly, WebGL 2.0, Web Audio API (AudioWorklet), IndexedDB, and Se
 
 ### Platform
 - **Disk image library** — Browse and load from a curated online software archive
-- **URL disk loading** — Load disk images directly from a URL parameter
 - **Mobile touch controls** — On-screen keyboard and virtual joystick optimized for touch devices
 
 ## License
