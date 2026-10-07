@@ -2,7 +2,7 @@
 /*
  * generate-basic-tokens.mjs - Generate the JS Applesoft token table from C++
  *
- * src/core/basic/basic_tokens.hpp is the authority: the detokenizer, the
+ * core/src/core/basic/basic_tokens.hpp is the authority: the detokenizer, the
  * tokenizer and the assembler all read it. The JS copy existed alongside it as
  * a hand-maintained duplicate, so the two could disagree with nothing to catch
  * it.
@@ -25,7 +25,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const HEADER = resolve(ROOT, "src/core/basic/basic_tokens.hpp");
+const HEADER = resolve(ROOT, "core/src/core/basic/basic_tokens.hpp");
 const OUTPUT = resolve(ROOT, "src/js/utils/basic-tokens.js");
 
 /**
@@ -65,7 +65,7 @@ function render(tokens) {
  * basic-tokens.js - Applesoft BASIC token definitions
  *
  * GENERATED FILE - DO NOT EDIT.
- * Source: src/core/basic/basic_tokens.hpp
+ * Source: core/src/core/basic/basic_tokens.hpp
  * Regenerate with: npm run generate:basic-tokens
  *
  * Written by
@@ -94,7 +94,7 @@ if (process.argv.includes("--check")) {
   if (current !== generated) {
     console.error(
       "generate-basic-tokens: src/js/utils/basic-tokens.js is out of date with\n" +
-      "  src/core/basic/basic_tokens.hpp — run npm run generate:basic-tokens"
+      "  core/src/core/basic/basic_tokens.hpp: run npm run generate:basic-tokens"
     );
     process.exit(1);
   }

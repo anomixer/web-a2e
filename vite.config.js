@@ -54,22 +54,13 @@ const copyWorkerFiles = () => ({
   },
 });
 
-// Tauri sets TAURI_ENV_* when it runs the dev server for the desktop build. It
-// loads the page itself from devUrl in tauri.conf.json, so the port must not
-// drift and no browser tab should open.
-const underTauri = !!process.env.TAURI_ENV_PLATFORM;
-
 export default defineConfig({
   root: "public",
   publicDir: "../public",
 
-  // Tauri pipes the dev server's output through its own console.
-  clearScreen: !underTauri,
-
   server: {
     port: 3000,
-    strictPort: underTauri,
-    open: !underTauri,
+    open: true,
     headers: {
       // Required for SharedArrayBuffer (if needed for AudioWorklet)
       "Cross-Origin-Opener-Policy": "same-origin",

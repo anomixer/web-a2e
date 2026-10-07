@@ -8,34 +8,23 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check:exports": "scripts/check-exports.sh",
-    "check:core-purity": "scripts/check-core-purity.sh",
+    "check:core-purity": "core/scripts/check-core-purity.sh",
     "check:basic-tokens": "node scripts/generate-basic-tokens.mjs --check",
     "check:rom-defaults": "node scripts/generate-rom-defaults.mjs --check",
     "generate:basic-tokens": "node scripts/generate-basic-tokens.mjs",
     "generate:rom-defaults": "node scripts/generate-rom-defaults.mjs",
     "check": "npm run check:exports && npm run check:core-purity && npm run check:basic-tokens && npm run check:rom-defaults && npm test",
     "build": "npm run build:wasm && vite build",
-    "build:wasm": "mkdir -p build && cd build && emcmake cmake .. && emmake make -j$(nproc 2>/dev/null || sysctl -n hw.ncpu)",
+    "build:wasm": "git submodule update --init && mkdir -p build && cd build && emcmake cmake .. && emmake make -j 4",
     "preview": "vite preview",
     "clean": "rm -rf build dist public/a2e.js public/a2e.wasm",
     "deploy": "scripts/deploy.sh production",
-    "deploy:staging": "scripts/deploy.sh staging",
-    "tauri": "PATH=\"$HOME/.cargo/bin:$PATH\" tauri",
-    "tauri:dev": "PATH=\"$HOME/.cargo/bin:$PATH\" tauri dev",
-    "tauri:build": "PATH=\"$HOME/.cargo/bin:$PATH\" tauri build",
-    "desktop:mac": "scripts/build-desktop-mac.sh"
+    "deploy:staging": "scripts/deploy.sh staging"
   },
   "devDependencies": {
     "fflate": "^0.8.2",
-    "@tauri-apps/cli": "^2.11.5",
     "vite": "^7.3.1",
     "vitest": "^4.1.10",
     "ws": "^8.19.0"
-  },
-  "dependencies": {
-    "@tauri-apps/api": "^2.11.1",
-    "@tauri-apps/plugin-dialog": "^2.7.3",
-    "@tauri-apps/plugin-fs": "^2.5.2",
-    "@tauri-apps/plugin-opener": "^2.5.5"
   }
 }

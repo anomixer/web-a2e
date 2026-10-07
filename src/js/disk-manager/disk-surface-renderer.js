@@ -15,17 +15,26 @@ const HUB_RING_INNER = 28;       // white reinforcement ring starts at hole edge
 const HUB_RING_OUTER = 34;       // ring is ~6px wide
 const TRACK_OUTER = OUTER_RADIUS - 3;   // outermost track position
 const TRACK_INNER = HUB_RING_OUTER + 4; // innermost track position (just outside hub ring)
-const NUM_TRACKS = 35;
-const NUM_SECTORS = 16;
 const TRACK_RANGE = TRACK_OUTER - TRACK_INNER;
 const INDEX_HOLE_RADIUS = 4;
 const INDEX_HOLE_DIST = (HUB_RING_INNER + HUB_RING_OUTER) / 2; // centered in hub ring
-const RPM_RAD_PER_MS = Math.PI / 100; // 300 RPM
 const PX_RATIO = 2; // backing store scale for sharper rendering
 
+/*
+ * A 5.25" disk by default: 35 tracks of 16 sectors at 300rpm, the head's
+ * place given in quarter tracks. A 3.5" disk is 80 tracks, 12 sectors at the
+ * outside, turning faster, its head's place given in whole tracks.
+ */
+export const FIVE_INCH = { tracks: 35, sectors: 16, positionsPerTrack: 4, rpm: 300 };
+export const THREE_AND_A_HALF = { tracks: 80, sectors: 12, positionsPerTrack: 1, rpm: 500 };
+
 export class DiskSurfaceRenderer {
-  constructor(canvas) {
+  constructor(canvas, geometry = FIVE_INCH) {
     this.canvas = canvas;
+    this.tracks = geometry.tracks;
+    this.sectors = geometry.sectors;
+    this.positionsPerTrack = geometry.positionsPerTrack;
+    this.radPerMs = (geometry.rpm * 2 * Math.PI) / 60000;
 
     // Set high-res backing store; CSS sizes the element
     canvas.width = CANVAS_W * PX_RATIO;
@@ -90,7 +99,7 @@ export class DiskSurfaceRenderer {
     if (isActive && hasDisk) {
       this.motorOn = true;
       this.spinning = true;
-      this.angularVelocity = RPM_RAD_PER_MS;
+      this.angularVelocity = this.radPerMs;
     } else if (this.motorOn) {
       this.motorOn = false;
       this._prev = {};
@@ -99,7 +108,7 @@ export class DiskSurfaceRenderer {
     if (this.spinning && dt > 0) {
       if (!this.motorOn) {
         this.angularVelocity *= Math.pow(0.5, dt / 600);
-        if (this.angularVelocity < RPM_RAD_PER_MS * 0.005) {
+        if (this.angularVelocity < this.radPerMs * 0.005) {
           this.angularVelocity = 0;
           this.spinning = false;
         }
@@ -168,8 +177,8 @@ export class DiskSurfaceRenderer {
     const TWO_PI = Math.PI * 2;
     ctx.save();
     ctx.translate(CENTER_X, CENTER_Y);
-    for (let s = 0; s < NUM_SECTORS; s++) {
-      const a = (s / NUM_SECTORS) * TWO_PI;
+    for (let s = 0; s < this.sectors; s++) {
+      const a = (s / this.sectors) * TWO_PI;
       ctx.strokeStyle = c.ghostSector;
       ctx.lineWidth = 0.5;
       ctx.beginPath();
@@ -249,13 +258,13 @@ export class DiskSurfaceRenderer {
 
     const logMax = Math.log(maxAccessCount + 1);
 
-    for (let t = 0; t < NUM_TRACKS; t++) {
+    for (let t = 0; t < this.tracks; t++) {
       const count = trackAccessCounts[t];
       if (count === 0) continue;
 
       // Track 0 = outermost, track 34 = innermost
-      const outerR = TRACK_OUTER - (t * TRACK_RANGE / NUM_TRACKS);
-      const innerR = TRACK_OUTER - ((t + 1) * TRACK_RANGE / NUM_TRACKS);
+      const outerR = TRACK_OUTER - (t * TRACK_RANGE / this.tracks);
+      const innerR = TRACK_OUTER - ((t + 1) * TRACK_RANGE / this.tracks);
 
       const intensity = Math.log(count + 1) / logMax;
       const r = Math.round(40 + 215 * intensity);
@@ -276,8 +285,8 @@ export class DiskSurfaceRenderer {
 
     ctx.strokeStyle = this._colors.sectorLine;
     ctx.lineWidth = 0.5;
-    for (let s = 0; s < NUM_SECTORS; s++) {
-      const a = (s / NUM_SECTORS) * TWO_PI;
+    for (let s = 0; s < this.sectors; s++) {
+      const a = (s / this.sectors) * TWO_PI;
       ctx.beginPath();
       ctx.moveTo(Math.cos(a) * TRACK_INNER, Math.sin(a) * TRACK_INNER);
       ctx.lineTo(Math.cos(a) * TRACK_OUTER, Math.sin(a) * TRACK_OUTER);
@@ -313,8 +322,8 @@ export class DiskSurfaceRenderer {
   }
 
   _drawHeadArm(ctx, quarterTrack, isActive, isWriteMode) {
-    const trackPos = quarterTrack / 4;
-    const headR = TRACK_OUTER - ((trackPos + 0.5) * TRACK_RANGE / NUM_TRACKS);
+    const trackPos = quarterTrack / this.positionsPerTrack;
+    const headR = TRACK_OUTER - ((trackPos + 0.5) * TRACK_RANGE / this.tracks);
 
     // Head color: green when reading, red when writing, grey when idle
     if (isActive) {
@@ -328,8 +337,8 @@ export class DiskSurfaceRenderer {
   }
 
   _drawHeadGlow(ctx, quarterTrack, isWriteMode) {
-    const trackPos = quarterTrack / 4;
-    const headR = TRACK_OUTER - ((trackPos + 0.5) * TRACK_RANGE / NUM_TRACKS);
+    const trackPos = quarterTrack / this.positionsPerTrack;
+    const headR = TRACK_OUTER - ((trackPos + 0.5) * TRACK_RANGE / this.tracks);
 
     ctx.fillStyle = isWriteMode
       ? 'rgba(220,40,40,0.4)'

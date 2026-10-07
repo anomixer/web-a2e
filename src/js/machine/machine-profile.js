@@ -6,7 +6,7 @@
  */
 
 /*
- * The core describes the machine it is modelling (src/core/machine/machine_profile.hpp)
+ * The core describes the machine it is modelling (core/src/core/machine/machine_profile.hpp)
  * and this module is where the host reads that description.
  *
  * Before this existed the host simply knew: 560x384 appeared as a literal in

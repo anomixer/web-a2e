@@ -39,6 +39,7 @@ const FIRE_AND_FORGET = new Set([
   '_enableMemoryHeatMap', '_clearMemoryHeatMap',
   '_setMockingboardChannelMute',
   '_enableBeamBreakpoint', '_clearAllBeamBreakpoints',
+  '_removeSwitchBreakpoint', '_enableSwitchBreakpoint', '_clearSwitchBreakpoints',
   '_writeMemory',
   '_setRegPC', '_setRegA', '_setRegX', '_setRegY', '_setRegSP',
   '_forceRenderFrame',

@@ -12,7 +12,6 @@
 const PASTE_POLL_MS = 60;
 
 import { commandKeyIsOpenApple } from "./apple-keys.js";
-import { isTauri } from "../platform/runtime.js";
 
 // Right Alt reports location 2; left reports 1, and 0 means the browser did not
 // say, which we treat as left. Both sides share keyCode 18, so this is the only
@@ -25,7 +24,6 @@ const LOCATION_RIGHT = 2;
 // The Pause/Break key, and what Chrome reports for Ctrl+Pause.
 const KEY_PAUSE = 19;
 const KEY_CANCEL = 3;
-const KEY_Q = 81;
 
 export class InputHandler {
   constructor(wasmModule) {
@@ -187,23 +185,6 @@ export class InputHandler {
       event.preventDefault();
       this.cancelPaste();
       this.wasmModule._warmReset();
-      return;
-    }
-
-    // The desktop build's menu bar is where ⌘ shortcuts go, and unlike a
-    // browser it only sees the ones the page lets through: the screen
-    // swallowing every key below would leave ⌘Q, ⌘H and ⌘M dead whenever the
-    // machine had the keyboard. So a ⌘ combination the machine has no use
-    // for is let go. ⌘Q always is, because a browser keeps it whatever the
-    // page does, so the browser build has never been able to give it to a
-    // IIgs either.
-    if (
-      isTauri() &&
-      event.metaKey &&
-      rawKeyCode !== KEY_META_LEFT &&
-      rawKeyCode !== KEY_META_RIGHT &&
-      (!this.commandIsOpenApple || rawKeyCode === KEY_Q)
-    ) {
       return;
     }
 

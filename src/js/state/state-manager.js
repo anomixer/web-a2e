@@ -40,6 +40,7 @@ const THUMBNAIL_HEIGHT = 96;
  * @property {Object} reminderController - Reminder controller
  * @property {Object} [cpuDebuggerWindow] - CPU debugger window (for resync after import)
  * @property {Object} [hardDriveManager] - Hard drive manager, told when a state put images back
+ * @property {Object} [disk35Manager] - 3.5" drive manager, told the same
  * @property {function(string): Promise<boolean>} [switchMachine] - Puts a different machine in
  *   the core, for a state that was saved off one
  */
@@ -55,8 +56,10 @@ export class StateManager {
     this.diskManager = deps.diskManager;
     this.reminderController = deps.reminderController;
     this.cpuDebuggerWindow = deps.cpuDebuggerWindow || null;
+    this.switchBreakpoints = deps.switchBreakpoints || null;
     this.basicProgramWindow = deps.basicProgramWindow || null;
     this.hardDriveManager = deps.hardDriveManager || null;
+    this.disk35Manager = deps.disk35Manager || null;
     this.switchMachine = deps.switchMachine || null;
     this.machines = null;
 
@@ -276,12 +279,15 @@ export class StateManager {
       if (this.hardDriveManager) {
         this.hardDriveManager.syncWithEmulatorState();
       }
+      // And a IIgs's 3.5" disks.
+      this.disk35Manager?.syncWithEmulatorState();
       // Re-push JS-side breakpoints/watchpoints/beam breakpoints to C++
       // since importState() calls reset() which clears them on the WASM side
       if (this.cpuDebuggerWindow) {
         this.cpuDebuggerWindow.bpManager.resyncToWasm();
         this.cpuDebuggerWindow.resyncBeamToWasm();
       }
+      this.switchBreakpoints?.apply();
       // Re-sync BASIC breakpoints
       if (this.basicProgramWindow) {
         this.basicProgramWindow.getBreakpointManager().resyncToWasm();

@@ -6,304 +6,42 @@
  */
 
 import { BaseWindow } from "../windows/base-window.js";
-import { machineProcessor } from "../machine/machine-profile.js";
+import { escapeHtml } from "../utils/string-utils.js";
+import {
+  CONDITION_CHANGES,
+  CONDITION_EQUALS,
+  describe,
+  isRegister,
+  parseByte,
+} from "./switch-breakpoints.js";
 
-// The registers a IIgs has and no other Apple II does.
-//
-// They are bytes rather than one-bit switches, so they cannot join the packed
-// switch word: each is read by peeking its address, which a debugger may do
-// without disturbing the machine, and shown as a value. Between them they are
-// most of what makes a IIgs a IIgs rather than a fast //e.
-const IIGS_REGISTERS = [
-  { addr: 0xc029, name: "NEWVIDEO", desc: "Super Hi-Res on (bit 7), linear video memory" },
-  { addr: 0xc022, name: "TCOLOR", desc: "Text foreground and background colour" },
-  { addr: 0xc034, name: "BORDER", desc: "Border colour, low nibble (the clock has the high)" },
-  { addr: 0xc035, name: "SHADOW", desc: "Shadowing off per region — a set bit is off" },
-  { addr: 0xc036, name: "CYAREG", desc: "Fast speed (bit 7), slot motor detect (bits 0-3)" },
-  { addr: 0xc068, name: "STATEREG", desc: "Eight of the //e's memory switches in one byte" },
-  { addr: 0xc02d, name: "SLOTREG", desc: "Slots answering with a card rather than the firmware" },
-  { addr: 0xc023, name: "VGCINT", desc: "VGC interrupt enables and flags" },
-  { addr: 0xc041, name: "INTEN", desc: "Mega II interrupt enables" },
-  { addr: 0xc046, name: "INTFLAG", desc: "Mega II interrupt flags" },
-  { addr: 0xc02e, name: "VERTCNT", desc: "Vertical counter, as the VGC reports it" },
-  { addr: 0xc02f, name: "HORIZCNT", desc: "Horizontal counter" },
-];
-
+/**
+ * The machine's soft switches, live, with breakpoints on them.
+ *
+ * What is listed comes from the core (soft_switch_catalog.cpp), so each
+ * machine shows the switches it has: a II+ has no 80COL, and only a IIgs has
+ * NEWVIDEO and the registers beside it. A one-bit switch is a badge, lit when
+ * on; a register is a byte. The dot at the start of a row sets a breakpoint
+ * on it: on any change, or on a value, which for a register is a byte under a
+ * mask. The core checks them after every instruction, so a stop names the
+ * instruction that moved the switch, whatever moved it.
+ */
 export class SoftSwitchWindow extends BaseWindow {
-  constructor(wasmModule) {
+  constructor(wasmModule, switchBreakpoints) {
     super({
       id: "soft-switches",
       title: "Soft Switches",
-      minWidth: 325,
+      minWidth: 345,
       minHeight: 200,
-      maxWidth: 325,
+      maxWidth: 345,
       maxHeight: Infinity,
-      defaultWidth: 325,
+      defaultWidth: 345,
       defaultHeight: 500,
     });
 
     this.wasmModule = wasmModule;
-
-    // Define all soft switches with their bit positions, addresses, and descriptions
-    // Bit positions match the 64-bit state returned by getSoftSwitchState/getSoftSwitchStateHigh
-    this.switchGroups = [
-      {
-        title: "Display Mode",
-        switches: [
-          {
-            id: "text",
-            bit: 0,
-            name: "TEXT",
-            addr: "$C050/51",
-            desc: "Text mode",
-          },
-          {
-            id: "mixed",
-            bit: 1,
-            name: "MIXED",
-            addr: "$C052/53",
-            desc: "Mixed text+graphics",
-          },
-          {
-            id: "page2",
-            bit: 2,
-            name: "PAGE2",
-            addr: "$C054/55",
-            desc: "Display page 2",
-          },
-          {
-            id: "hires",
-            bit: 3,
-            name: "HIRES",
-            addr: "$C056/57",
-            desc: "Hi-res graphics",
-          },
-          {
-            id: "col80",
-            bit: 4,
-            name: "80COL",
-            addr: "$C00C/0D",
-            desc: "80 column mode",
-          },
-          {
-            id: "altchar",
-            bit: 5,
-            name: "ALTCHAR",
-            addr: "$C00E/0F",
-            desc: "Alt charset (MouseText)",
-          },
-          {
-            id: "dhires",
-            bit: 28,
-            name: "DHIRES",
-            addr: "computed",
-            desc: "Double hi-res active",
-          },
-        ],
-      },
-      {
-        title: "Memory Banking",
-        switches: [
-          {
-            id: "store80",
-            bit: 6,
-            name: "80STORE",
-            addr: "$C000/01",
-            desc: "PAGE2 selects aux mem",
-          },
-          {
-            id: "ramrd",
-            bit: 7,
-            name: "RAMRD",
-            addr: "$C002/03",
-            desc: "Read from aux RAM",
-          },
-          {
-            id: "ramwrt",
-            bit: 8,
-            name: "RAMWRT",
-            addr: "$C004/05",
-            desc: "Write to aux RAM",
-          },
-          {
-            id: "intcxrom",
-            bit: 9,
-            name: "INTCXROM",
-            addr: "$C006/07",
-            desc: "Internal $Cxxx ROM",
-          },
-          {
-            id: "altzp",
-            bit: 10,
-            name: "ALTZP",
-            addr: "$C008/09",
-            desc: "Aux zero page/stack",
-          },
-          {
-            id: "slotc3rom",
-            bit: 11,
-            name: "SLOTC3ROM",
-            addr: "$C00A/0B",
-            desc: "Slot 3 ROM enabled",
-          },
-          {
-            id: "intc8rom",
-            bit: 12,
-            name: "INTC8ROM",
-            addr: "internal",
-            desc: "Internal $C800 ROM",
-          },
-        ],
-      },
-      {
-        title: "Language Card",
-        switches: [
-          {
-            id: "lcram",
-            bit: 13,
-            name: "LCRAM",
-            addr: "$C080-8F",
-            desc: "LC RAM read enabled",
-          },
-          {
-            id: "lcbank2",
-            bit: 14,
-            name: "LCBANK2",
-            addr: "$C080-8F",
-            desc: "LC bank 2 selected",
-          },
-          {
-            id: "lcwrite",
-            bit: 15,
-            name: "LCWRITE",
-            addr: "$C080-8F",
-            desc: "LC RAM write enabled",
-          },
-          {
-            id: "lcprewrite",
-            bit: 16,
-            name: "LCPREWRT",
-            addr: "$C080-8F",
-            desc: "LC pre-write state",
-          },
-        ],
-      },
-      {
-        title: "Annunciators",
-        switches: [
-          {
-            id: "an0",
-            bit: 17,
-            name: "AN0",
-            addr: "$C058/59",
-            desc: "Annunciator 0",
-          },
-          {
-            id: "an1",
-            bit: 18,
-            name: "AN1",
-            addr: "$C05A/5B",
-            desc: "Annunciator 1",
-          },
-          {
-            id: "an2",
-            bit: 19,
-            name: "AN2",
-            addr: "$C05C/5D",
-            desc: "Annunciator 2",
-          },
-          {
-            id: "an3",
-            bit: 20,
-            name: "AN3",
-            addr: "$C05E/5F",
-            desc: "Annunciator 3 / DHIRES",
-          },
-        ],
-      },
-      {
-        title: "I/O Status",
-        switches: [
-          {
-            id: "vblbar",
-            bit: 21,
-            name: "VBLBAR",
-            addr: "$C019",
-            desc: "Vertical blank",
-            readOnly: true,
-          },
-          {
-            id: "cassout",
-            bit: 22,
-            name: "CASSOUT",
-            addr: "$C020",
-            desc: "Cassette output",
-          },
-          {
-            id: "cassin",
-            bit: 23,
-            name: "CASSIN",
-            addr: "$C060",
-            desc: "Cassette input",
-            readOnly: true,
-          },
-        ],
-      },
-      {
-        title: "Buttons",
-        switches: [
-          {
-            id: "btn0",
-            bit: 24,
-            name: "BTN0",
-            addr: "$C061",
-            desc: "Open Apple / Button 0",
-            readOnly: true,
-          },
-          {
-            id: "btn1",
-            bit: 25,
-            name: "BTN1",
-            addr: "$C062",
-            desc: "Closed Apple / Button 1",
-            readOnly: true,
-          },
-          {
-            id: "btn2",
-            bit: 26,
-            name: "BTN2",
-            addr: "$C063",
-            desc: "Button 2 / Shift",
-            readOnly: true,
-          },
-        ],
-      },
-      {
-        title: "Keyboard",
-        switches: [
-          {
-            id: "keyavail",
-            bit: 27,
-            name: "KEYAVAIL",
-            addr: "$C000",
-            desc: "Key available (bit 7)",
-            readOnly: true,
-          },
-        ],
-      },
-      {
-        title: "Other",
-        switches: [
-          {
-            id: "ioudis",
-            bit: 29,
-            name: "IOUDIS",
-            addr: "$C07E/7F",
-            desc: "IOU disable (IIc)",
-          },
-        ],
-      },
-    ];
+    this.bps = switchBreakpoints;
+    this.bps.onChange(() => this.onBreakpointsChanged());
 
     // Reference addresses (read-only status registers)
     this.statusRegisters = [
@@ -346,67 +84,24 @@ export class SoftSwitchWindow extends BaseWindow {
       { range: "$C0E0-EF", slot: 6, desc: "Slot 6 I/O (Disk II)" },
       { range: "$C0F0-FF", slot: 7, desc: "Slot 7 I/O" },
     ];
-  }
 
-  /** The machine's own registers, if it has any beyond the //e's switches. */
-  machineRegisters() {
-    return machineProcessor().hasBanks ? IIGS_REGISTERS : [];
+    this._hitKey = null;
+    this._hitCoreId = -1;
   }
 
   renderContent() {
     let html = '<div class="softswitch-content">';
-
-    // The machine's own registers first: on a IIgs they decide what the //e
-    // switches below even mean — whether a write is shadowed, which side of
-    // the machine a bank is on, and how fast the processor is going.
-    const registers = this.machineRegisters();
-    if (registers.length) {
-      html += `
-        <div class="switch-group">
-          <div class="switch-group-title">Machine Registers</div>
-          <div class="switch-list">
-      `;
-      for (const reg of registers) {
-        const hex = reg.addr.toString(16).toUpperCase();
-        html += `
-          <div class="switch-item read-only">
-            <span class="switch-addr">$${hex}</span>
-            <span class="switch-badge active" id="reg-${hex}">${reg.name}</span>
-            <span class="switch-value" id="regval-${hex}">--</span>
-            <span class="switch-desc">${reg.desc}</span>
-          </div>
-        `;
-      }
-      html += `
-          </div>
+    html += '<div class="switch-hit hidden" id="sw-hit"></div>';
+    html += `
+      <div class="switch-group switch-bp-group hidden" id="sw-bp-group">
+        <div class="switch-group-title switch-bp-title">
+          <span>Breakpoints</span>
+          <button class="switch-bp-clear" id="sw-bp-clear" title="Remove every switch breakpoint">Clear</button>
         </div>
-      `;
-    }
-
-    // Render switch groups
-    for (const group of this.switchGroups) {
-      html += `
-        <div class="switch-group">
-          <div class="switch-group-title">${group.title}</div>
-          <div class="switch-list">
-      `;
-
-      for (const sw of group.switches) {
-        const readOnlyClass = sw.readOnly ? " read-only" : "";
-        html += `
-          <div class="switch-item${readOnlyClass}" id="sw-item-${sw.id}">
-            <span class="switch-addr">${sw.addr}</span>
-            <span class="switch-badge" id="sw-${sw.id}">${sw.name}</span>
-            <span class="switch-desc">${sw.desc}</span>
-          </div>
-        `;
-      }
-
-      html += `
-          </div>
-        </div>
-      `;
-    }
+        <div class="switch-list" id="sw-bp-list"></div>
+      </div>
+      <div id="sw-groups"></div>
+    `;
 
     // Add collapsible reference section
     html += `
@@ -417,7 +112,6 @@ export class SoftSwitchWindow extends BaseWindow {
         <div class="switch-list reference-list hidden" id="ref-content">
     `;
 
-    // Status registers
     html += '<div class="ref-subtitle">Status Registers ($C011-$C01F)</div>';
     for (const reg of this.statusRegisters) {
       html += `
@@ -429,7 +123,6 @@ export class SoftSwitchWindow extends BaseWindow {
       `;
     }
 
-    // Other I/O
     html += '<div class="ref-subtitle">Other I/O</div>';
     for (const io of this.ioAddresses) {
       html += `
@@ -441,7 +134,6 @@ export class SoftSwitchWindow extends BaseWindow {
       `;
     }
 
-    // Slot I/O
     html += '<div class="ref-subtitle">Slot I/O</div>';
     for (const slot of this.slotRanges) {
       html += `
@@ -462,14 +154,50 @@ export class SoftSwitchWindow extends BaseWindow {
     return html;
   }
 
-  /**
-   * Called after content is rendered
-   */
+  /** The switches, grouped as the catalog groups them. */
+  renderSwitches() {
+    const groups = new Map();
+    for (const sw of this.bps.catalog) {
+      if (!groups.has(sw.group)) groups.set(sw.group, []);
+      groups.get(sw.group).push(sw);
+    }
+
+    let html = "";
+    for (const [title, switches] of groups) {
+      html += `
+        <div class="switch-group">
+          <div class="switch-group-title">${escapeHtml(title)}</div>
+          <div class="switch-list">
+      `;
+      for (const sw of switches) {
+        const readOnlyClass = sw.readOnly ? " read-only" : "";
+        const value = isRegister(sw)
+          ? `<span class="switch-value" data-value="${sw.key}">--</span>`
+          : "";
+        // A register's name is always lit: its value is what changes.
+        const badgeClass = isRegister(sw) ? " active" : "";
+        html += `
+          <div class="switch-item${readOnlyClass}" data-key="${sw.key}">
+            <button class="switch-bp-dot" data-key="${sw.key}"
+                    title="Breakpoint on ${escapeHtml(sw.name)}"></button>
+            <span class="switch-addr">${escapeHtml(sw.address)}</span>
+            <span class="switch-badge${badgeClass}" data-badge="${sw.key}">${escapeHtml(sw.name)}</span>
+            ${value}
+            <span class="switch-desc">${escapeHtml(sw.desc)}</span>
+          </div>
+        `;
+      }
+      html += `
+          </div>
+        </div>
+      `;
+    }
+    return html;
+  }
+
   onContentRendered() {
-    // Set up collapsible reference section
     const toggle = this.contentElement.querySelector("#ref-toggle");
     const content = this.contentElement.querySelector("#ref-content");
-
     if (toggle && content) {
       toggle.addEventListener("click", () => {
         content.classList.toggle("hidden");
@@ -479,48 +207,224 @@ export class SoftSwitchWindow extends BaseWindow {
       });
     }
 
-    // Cache badge elements once. update() runs ~15x/second, so resolving 35
-    // querySelectors per tick — and touching classList on badges that have not
-    // changed — was invalidating style/paint for the whole window every tick.
-    this.badges = [];
-    for (const group of this.switchGroups) {
-      for (const sw of group.switches) {
-        const el = this.contentElement.querySelector(`#sw-${sw.id}`);
-        if (el) this.badges.push({ bit: sw.bit, el });
+    this.contentElement.querySelector("#sw-groups").addEventListener("click", (e) => {
+      const dot = e.target.closest(".switch-bp-dot");
+      if (dot) this.showBreakpointMenu(dot);
+    });
+
+    this.contentElement.querySelector("#sw-bp-clear").addEventListener("click", () => {
+      for (const bp of [...this.bps.breakpoints]) this.bps.remove(bp);
+    });
+
+    const list = this.contentElement.querySelector("#sw-bp-list");
+    list.addEventListener("change", (e) => {
+      const index = Number(e.target.dataset.enable);
+      if (!Number.isNaN(index)) this.bps.setEnabled(this.bps.breakpoints[index], e.target.checked);
+    });
+    list.addEventListener("click", (e) => {
+      const remove = e.target.closest("[data-remove]");
+      if (remove) this.bps.remove(this.bps.breakpoints[Number(remove.dataset.remove)]);
+    });
+
+    this.onBreakpointsChanged();
+  }
+
+  /** The catalog or the breakpoints changed: redraw what depends on them. */
+  onBreakpointsChanged() {
+    if (!this.contentElement) return;
+    const groups = this.contentElement.querySelector("#sw-groups");
+    const catalogKey = this.bps.catalog.map((sw) => sw.key).join(",");
+    if (groups && catalogKey !== this._renderedCatalog) {
+      this._renderedCatalog = catalogKey;
+      groups.innerHTML = this.renderSwitches();
+      this.cacheCells();
+    }
+    this.renderBreakpointList();
+    this.markArmedRows();
+  }
+
+  // update() runs ~15x a second, so the cells are found once and only the
+  // ones whose value moved are touched; restyling every badge every tick
+  // repainted the whole window.
+  cacheCells() {
+    this.flagCells = [];
+    this.registerCells = [];
+    for (const sw of this.bps.catalog) {
+      if (isRegister(sw)) {
+        const el = this.contentElement.querySelector(`[data-value="${sw.key}"]`);
+        if (el) this.registerCells.push({ source: sw.source, el, last: null });
+      } else {
+        const el = this.contentElement.querySelector(`[data-badge="${sw.key}"]`);
+        if (el) this.flagCells.push({ bit: sw.bit, el });
       }
     }
     this.lastStateLow = null;
-    this.lastStateHigh = null;
-
-    // The machine's own registers, and where their values are shown.
-    this.registerCells = this.machineRegisters()
-      .map((reg) => ({
-        addr: reg.addr,
-        el: this.contentElement.querySelector(
-          `#regval-${reg.addr.toString(16).toUpperCase()}`,
-        ),
-      }))
-      .filter((cell) => cell.el);
-    this.lastRegisterValues = [];
+    this._hitKey = null;
   }
 
-  /** The machine changed, so the registers it has did too. */
-  onMachineChanged() {
-    // The list is part of the markup, so the window is rebuilt from scratch.
-    this.badges = null;
-    this.registerCells = [];
-    if (this.contentElement) {
-      this.contentElement.innerHTML = this.renderContent();
-      this.onContentRendered?.();
+  renderBreakpointList() {
+    const group = this.contentElement.querySelector("#sw-bp-group");
+    const list = this.contentElement.querySelector("#sw-bp-list");
+    if (!group || !list) return;
+    group.classList.toggle("hidden", this.bps.breakpoints.length === 0);
+
+    list.innerHTML = this.bps.breakpoints
+      .map((bp, i) => {
+        const sw = this.bps.switchFor(bp.key);
+        const absent = !sw;
+        const title = absent ? "Not on this machine" : "";
+        const hits = bp.hits ? `<span class="switch-bp-hits">${bp.hits}</span>` : "";
+        return `
+          <div class="switch-item switch-bp-row${absent ? " absent" : ""}" title="${title}">
+            <input type="checkbox" data-enable="${i}" ${bp.enabled ? "checked" : ""}
+                   ${absent ? "disabled" : ""}>
+            <span class="switch-bp-desc">${escapeHtml(describe(bp, sw))}</span>
+            ${hits}
+            <button class="switch-bp-remove" data-remove="${i}" title="Remove">×</button>
+          </div>
+        `;
+      })
+      .join("");
+  }
+
+  /** A filled dot on each switch with an enabled breakpoint. */
+  markArmedRows() {
+    for (const dot of this.contentElement.querySelectorAll(".switch-bp-dot")) {
+      const armed = this.bps.forKey(dot.dataset.key).some((bp) => bp.enabled);
+      dot.classList.toggle("armed", armed);
     }
   }
 
-  /**
-   * Update all soft switch states
-   */
+  // ---- The breakpoint menu on a switch ----
+
+  showBreakpointMenu(dot) {
+    this.hideBreakpointMenu();
+    const sw = this.bps.switchFor(dot.dataset.key);
+    if (!sw) return;
+    const has = (spec) =>
+      this.bps.forKey(sw.key).some(
+        (bp) =>
+          bp.condition === spec.condition &&
+          (spec.condition === CONDITION_CHANGES || bp.value === spec.value),
+      );
+    const tick = (on) => `<span class="shortcut">${on ? "✓" : ""}</span>`;
+
+    const menu = document.createElement("div");
+    menu.className = "text-select-context-menu switch-bp-menu";
+    let html = `
+      <button class="context-menu-item" data-condition="${CONDITION_CHANGES}">
+        Break when ${escapeHtml(sw.name)} changes ${tick(has({ condition: CONDITION_CHANGES }))}
+      </button>
+    `;
+    if (isRegister(sw)) {
+      // A value under a mask: NEWVIDEO & $80 = $80 is Super Hi-Res coming on,
+      // whatever the other bits are doing.
+      html += `
+        <div class="switch-bp-form">
+          <label>Value <input type="text" class="switch-bp-input" data-field="value"
+                 maxlength="3" placeholder="$00" spellcheck="false"></label>
+          <label>Mask <input type="text" class="switch-bp-input" data-field="mask"
+                 maxlength="3" value="$FF" spellcheck="false"></label>
+          <button class="switch-bp-add">Add</button>
+        </div>
+      `;
+    } else {
+      for (const on of [1, 0]) {
+        html += `
+          <button class="context-menu-item" data-condition="${CONDITION_EQUALS}" data-on="${on}">
+            Break when it turns ${on ? "on" : "off"}
+            ${tick(has({ condition: CONDITION_EQUALS, value: on }))}
+          </button>
+        `;
+      }
+    }
+    menu.innerHTML = html;
+
+    const rect = dot.getBoundingClientRect();
+    menu.style.position = "fixed";
+    menu.style.left = `${rect.right + 4}px`;
+    menu.style.top = `${rect.top}px`;
+    menu.style.zIndex = "10000";
+
+    menu.addEventListener("click", (e) => {
+      const item = e.target.closest("[data-condition]");
+      if (item) {
+        this.bps.toggle({
+          key: sw.key,
+          condition: item.dataset.condition,
+          value: Number(item.dataset.on ?? 0),
+        });
+        this.hideBreakpointMenu();
+        return;
+      }
+      if (e.target.closest(".switch-bp-add")) this.addRegisterBreakpoint(menu, sw);
+    });
+    menu.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") this.addRegisterBreakpoint(menu, sw);
+      // The screen takes keys it is not meant to; these are the form's.
+      e.stopPropagation();
+    });
+
+    document.body.appendChild(menu);
+    // Keep it on the screen.
+    const box = menu.getBoundingClientRect();
+    if (box.right > window.innerWidth - 8) {
+      menu.style.left = `${Math.max(8, rect.left - box.width - 4)}px`;
+    }
+    if (box.bottom > window.innerHeight - 8) {
+      menu.style.top = `${Math.max(8, window.innerHeight - box.height - 8)}px`;
+    }
+    this._menu = menu;
+    menu.querySelector('[data-field="value"]')?.focus();
+
+    this._menuClose = (e) => {
+      if (e.type === "keydown" && e.key !== "Escape") return;
+      if (e.type === "mousedown" && menu.contains(e.target)) return;
+      this.hideBreakpointMenu();
+    };
+    setTimeout(() => {
+      document.addEventListener("mousedown", this._menuClose);
+      document.addEventListener("keydown", this._menuClose, true);
+    }, 0);
+  }
+
+  addRegisterBreakpoint(menu, sw) {
+    const valueInput = menu.querySelector('[data-field="value"]');
+    const maskInput = menu.querySelector('[data-field="mask"]');
+    const value = parseByte(valueInput.value);
+    const mask = parseByte(maskInput.value);
+    valueInput.classList.toggle("invalid", value === null);
+    maskInput.classList.toggle("invalid", mask === null || mask === 0);
+    if (value === null || mask === null || mask === 0) return;
+    this.bps.add({ key: sw.key, condition: CONDITION_EQUALS, value: value & mask, mask });
+    this.hideBreakpointMenu();
+  }
+
+  hideBreakpointMenu() {
+    this._menu?.remove();
+    this._menu = null;
+    if (this._menuClose) {
+      document.removeEventListener("mousedown", this._menuClose);
+      document.removeEventListener("keydown", this._menuClose, true);
+      this._menuClose = null;
+    }
+  }
+
+  hide() {
+    this.hideBreakpointMenu();
+    super.hide();
+  }
+
+  /** The machine changed, and with it the switches it has. */
+  onMachineChanged() {
+    this.bps.loadCatalog();
+  }
+
+  // ---- Live state ----
+
   async update(wasmModule) {
     this.wasmModule = wasmModule;
-    if (!this.badges) return;
+    if (!this.flagCells) return;
 
     // One RPC in flight at a time: update() is fired from the render loop
     // without being awaited, so a slow round-trip would otherwise let requests
@@ -528,47 +432,87 @@ export class SoftSwitchWindow extends BaseWindow {
     if (this._updatePending) return;
     this._updatePending = true;
 
-    let stateLow, stateHigh, registerValues = [];
+    const S = SoftSwitchWindow.UPDATE_BATCH;
+    let results;
+    const registers = this.registerCells;
     try {
-      // The packed switch word and the machine's own registers in one batch:
-      // the registers are peeks, which do not disturb the machine.
-      const cells = this.registerCells ?? [];
-      const results = await wasmModule.batch([
-        ['_getSoftSwitchState'],
-        ['_getSoftSwitchStateHigh'],
-        ...cells.map((cell) => ['_peekMemory', cell.addr]),
+      // The switch word, the registers (peeks, which disturb nothing) and
+      // whether a switch breakpoint stopped the machine, in one batch.
+      results = await wasmModule.batch([
+        ["_isPaused"],
+        ["_isSwitchBreakpointHit"],
+        ["_getSwitchBreakpointHitId"],
+        ["__callString", "_getSwitchHitText"],
+        ["_getSoftSwitchState"],
+        ...registers.map((cell) => ["_getSoftSwitchValue", cell.source]),
       ]);
-      [stateLow, stateHigh] = results;
-      registerValues = results.slice(2);
     } finally {
       this._updatePending = false;
     }
+    // The machine may have changed while the batch was out.
+    if (registers !== this.registerCells) return;
 
-    for (let i = 0; i < registerValues.length; i++) {
-      if (registerValues[i] === this.lastRegisterValues[i]) continue;
-      this.lastRegisterValues[i] = registerValues[i];
-      this.registerCells[i].el.textContent =
-        "$" + this.formatHex(registerValues[i], 2);
+    this.showHit(results[S.PAUSED] && results[S.HIT], results[S.HIT_ID], results[S.HIT_TEXT]);
+
+    for (let i = 0; i < registers.length; i++) {
+      const value = results[S.REGISTERS + i];
+      const cell = registers[i];
+      if (value === cell.last) continue;
+      cell.last = value;
+      cell.el.textContent = "$" + this.formatHex(value, 2);
     }
 
-    // Nothing changed — skip the DOM entirely. Without this, re-toggling the
-    // same classes repaints the window (and its backdrop-filter) every tick.
-    if (stateLow === this.lastStateLow && stateHigh === this.lastStateHigh) {
-      return;
-    }
-
-    const changedLow = this.lastStateLow === null ? ~0 : stateLow ^ this.lastStateLow;
-    const changedHigh = this.lastStateHigh === null ? ~0 : stateHigh ^ this.lastStateHigh;
-    this.lastStateLow = stateLow;
-    this.lastStateHigh = stateHigh;
-
-    for (const { bit, el } of this.badges) {
-      const [state, changed, mask] =
-        bit < 32
-          ? [stateLow, changedLow, 1 << bit]
-          : [stateHigh, changedHigh, 1 << (bit - 32)];
+    // Nothing changed: skip the DOM entirely.
+    const state = results[S.STATE];
+    if (state === this.lastStateLow) return;
+    const changed = this.lastStateLow === null ? ~0 : state ^ this.lastStateLow;
+    this.lastStateLow = state;
+    for (const { bit, el } of this.flagCells) {
+      const mask = 1 << bit;
       if ((changed & mask) === 0) continue;
       el.classList.toggle("active", (state & mask) !== 0);
+    }
+  }
+
+  static UPDATE_BATCH = {
+    PAUSED: 0,
+    HIT: 1,
+    HIT_ID: 2,
+    HIT_TEXT: 3,
+    STATE: 4,
+    REGISTERS: 5,
+  };
+
+  /** Say why the machine stopped, and on which switch, while it stays stopped. */
+  showHit(hit, coreId, text) {
+    const banner = this.contentElement.querySelector("#sw-hit");
+    const bp = hit ? this.bps.findByCoreId(coreId) : null;
+    const key = bp?.key ?? null;
+
+    if (hit && coreId !== this._hitCoreId) {
+      // A new stop, counted once however many times it is looked at.
+      if (bp) {
+        bp.hits = (bp.hits || 0) + 1;
+        this.renderBreakpointList();
+      }
+    }
+    this._hitCoreId = hit ? coreId : -1;
+
+    if (banner) {
+      banner.classList.toggle("hidden", !hit);
+      if (hit) banner.textContent = `Stopped: ${text}`;
+    }
+    if (key === this._hitKey) return;
+    if (this._hitKey) {
+      this.contentElement
+        .querySelector(`.switch-item[data-key="${this._hitKey}"]`)
+        ?.classList.remove("hit");
+    }
+    this._hitKey = key;
+    if (key) {
+      const row = this.contentElement.querySelector(`.switch-item[data-key="${key}"]`);
+      row?.classList.add("hit");
+      row?.scrollIntoView({ block: "nearest" });
     }
   }
 }

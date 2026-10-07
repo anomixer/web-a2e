@@ -34,7 +34,7 @@ import {
  * manufactured by the receiver. The first four are four receivers; SOLID is
  * no receiver at all, and paints each lo-res cell, hi-res colour group and
  * double hi-res pixel in the colour its value names. They must stay in step with VideoColorMode in
- * src/core/types.hpp.
+ * core/src/core/types.hpp.
  */
 export const COLOR_MODE = {
   MONOCHROME: 0,

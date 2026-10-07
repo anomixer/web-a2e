@@ -19,7 +19,7 @@ import {
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = readFileSync(
-  join(here, "../../../src/core/assembler/assembler.cpp"),
+  join(here, "../../../core/src/core/assembler/assembler.cpp"),
   "utf8",
 );
 

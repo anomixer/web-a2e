@@ -16,6 +16,7 @@ describe("menuAvailability", () => {
     expect(a.speed).toBe(true);
     expect(a.mockingboard).toBe(true);
     expect(a.hardDrives).toBe(false);
+    expect(a.drives35).toBe(false);
     expect(a.serialPort).toBe(false);
     expect(a.printer).toBe(false);
     expect(a.mouseCard).toBe(false);
@@ -49,6 +50,8 @@ describe("menuAvailability", () => {
     expect(a.mouseCard).toBe(false);
     expect(a.mockingboard).toBe(false);
     expect(a.hardDrives).toBe(false);
+    // A //c's IWM has a 3.5" port only on the //c Plus, which is not here.
+    expect(a.drives35).toBe(false);
   });
 
   it("gives a IIgs its built-in SmartPort and ports, a slots window, no speed", () => {
@@ -59,6 +62,8 @@ describe("menuAvailability", () => {
     expect(a.slots).toBe(true);
     expect(a.speed).toBe(false);
     expect(a.hardDrives).toBe(true);
+    // And its IWM has a 3.5" port.
+    expect(a.drives35).toBe(true);
     expect(a.serialPort).toBe(true);
     expect(a.printer).toBe(true);
     expect(a.mockingboard).toBe(false);

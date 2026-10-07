@@ -176,10 +176,21 @@ export class UIController {
         this.reminderController.showBasicReminder(false);
       } else {
         this.emulator.start();
-        this.reminderController.showBasicReminder(true);
+        // "No disk?" is the wrong advice while a disk boots.
+        this.reminderController.showBasicReminder(!this.anyMediaInserted());
       }
       this.refocusCanvas();
     });
+  }
+
+  /** Whether any drive holds anything: a floppy, a 3.5" disk or a SmartPort image. */
+  anyMediaInserted() {
+    const units = [
+      ...(this.emulator.diskManager?.drives ?? []),
+      ...(this.emulator.disk35Manager?.drives ?? []),
+      ...(this.emulator.hardDriveManager?.devices ?? []),
+    ];
+    return units.some((unit) => unit.filename);
   }
 
   /**
@@ -544,6 +555,15 @@ export class UIController {
       });
     }
 
+    const disk35Btn = document.getElementById("btn-disk35-drives");
+    if (disk35Btn) {
+      disk35Btn.addEventListener("click", () => {
+        this.windowManager.toggleWindow("disk35-drives");
+        this.closeAllMenus();
+        this.refocusCanvas();
+      });
+    }
+
     const hardDrivesBtn = document.getElementById("btn-hard-drives");
     if (hardDrivesBtn) {
       hardDrivesBtn.addEventListener("click", () => {
@@ -678,6 +698,7 @@ export class UIController {
     };
     show(document.getElementById("btn-slots"), can.slots);
     show(document.querySelector(".speed-selector-row"), can.speed);
+    show(document.getElementById("btn-disk35-drives"), can.drives35);
     show(document.getElementById("btn-hard-drives"), can.hardDrives);
     show(document.getElementById("btn-serial-port"), can.serialPort);
     show(document.getElementById("btn-printer"), can.printer);
@@ -1223,6 +1244,33 @@ export class UIController {
         this.diskManager.setSeekSoundEnabled(enabled);
         this.diskManager.setMotorSoundEnabled(enabled);
         localStorage.setItem("a2e-drive-sounds", enabled);
+      });
+    }
+
+    // Mockingboard Phase Lock: a song that mirrors its notes to both chips
+    // can leave them half a cycle apart, and on speakers close together the
+    // two sides then cancel. On by default; off plays the chips apart, as a
+    // real card does. The core keeps it for every Mockingboard on every
+    // machine.
+    const phaseLockToggle = document.getElementById("mockingboard-phase-lock-toggle");
+    if (phaseLockToggle) {
+      phaseLockToggle.checked = localStorage.getItem("a2e-mockingboard-phase-lock") !== "false";
+      this.wasmModule._setMockingboardPhaseLock(phaseLockToggle.checked);
+      phaseLockToggle.addEventListener("change", (e) => {
+        localStorage.setItem("a2e-mockingboard-phase-lock", e.target.checked);
+        this.wasmModule._setMockingboardPhaseLock(e.target.checked);
+      });
+    }
+
+    // Mockingboard Mono: both chips mixed and played on both sides. On by
+    // default; the core keeps it for every Mockingboard on every machine.
+    const mbMonoToggle = document.getElementById("mockingboard-mono-toggle");
+    if (mbMonoToggle) {
+      mbMonoToggle.checked = localStorage.getItem("a2e-mockingboard-mono") !== "false";
+      this.wasmModule._setMockingboardMono(mbMonoToggle.checked);
+      mbMonoToggle.addEventListener("change", (e) => {
+        localStorage.setItem("a2e-mockingboard-mono", e.target.checked);
+        this.wasmModule._setMockingboardMono(e.target.checked);
       });
     }
 

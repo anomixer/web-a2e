@@ -1,5 +1,0 @@
-# Rust / Tauri build artifacts
-/target/
-
-# Tauri-generated schemas & platform projects
-/gen/

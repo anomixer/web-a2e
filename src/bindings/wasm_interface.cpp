@@ -5,23 +5,24 @@
  *  Mike Daley <michael_daley@icloud.com>
  */
 
-#include "../core/emulator.hpp"
-#include "../core/disk-image/disk_inspection.hpp"
-#include "../core/disassembler/disassembler.hpp"
-#include "../core/disassembler/disassembler65816.hpp"
-#include "../core/disassembler/disasm_align.hpp"
-#include "../core/assembler/assembler.hpp"
-#include "../core/debug/condition_evaluator.hpp"
-#include "../core/filesystem/dos33.hpp"
-#include "../core/filesystem/prodos.hpp"
-#include "../core/filesystem/pascal.hpp"
-#include "../core/basic/basic_detokenizer.hpp"
-#include "../core/basic/applesoft_vars.hpp"
-#include "../core/basic/basic_tokenizer.hpp"
-#include "../core/debug/debug_log.hpp"
-#include "../core/cards/disk_controller.hpp"
-#include "../core/cards/smartport/smartport_card.hpp"
-#include "../core/input/keyboard.hpp"
+#include "core/emulator.hpp"
+#include "host/machine_host.hpp"
+#include "core/disk-image/disk_inspection.hpp"
+#include "core/disassembler/disassembler.hpp"
+#include "core/disassembler/disassembler65816.hpp"
+#include "core/disassembler/disasm_align.hpp"
+#include "core/assembler/assembler.hpp"
+#include "core/debug/condition_evaluator.hpp"
+#include "core/filesystem/dos33.hpp"
+#include "core/filesystem/prodos.hpp"
+#include "core/filesystem/pascal.hpp"
+#include "core/basic/basic_detokenizer.hpp"
+#include "core/basic/applesoft_vars.hpp"
+#include "core/basic/basic_tokenizer.hpp"
+#include "core/debug/debug_log.hpp"
+#include "core/cards/disk_controller.hpp"
+#include "core/cards/smartport/smartport_card.hpp"
+#include "core/input/keyboard.hpp"
 #include <cstdlib>
 #include <cstring>
 #include <string>
@@ -31,75 +32,23 @@
 #include "iigs/iigs_machine.hpp"
 #include "cpu/65816/cpu65816.hpp"
 
-// Global emulator instance
-static a2e::Emulator *g_emulator = nullptr;
-
-// ...and the other kind of machine.
-//
-// Emulator coordinates the Apple II family. A IIgs is not built from those
-// parts, so it has its own coordinator, and exactly one of these two is alive
-// at a time. Everything the host needs in order to *run and show* a machine is
-// routed to whichever it is; everything else — disks, printers, cards, the
-// debugger — still asks for g_emulator and answers nothing while a IIgs is
-// running, because none of it has been taught about that machine yet.
-static a2e::iigs::IIgsMachine *g_iigs = nullptr;
-
-// Which machine init() will build. Changing it takes effect on the next
-// construction, which is what setMachine() forces.
-static a2e::MachineId g_machineId = a2e::MachineId::AppleIIe;
-
-// How much fast RAM the next IIgs is built with. A ROM 01 shipped with 256K on
-// the board and a memory expansion card took it further, which is what most of
-// them had; anything bigger than ProDOS 8 expects to find one. Like the
-// machine, it takes effect at the next construction.
-static size_t g_iigsFastRam = a2e::iigs::FAST_RAM_SIZE_ROM01;
+// The one machine this module runs, whichever kind it is. Which of the
+// Apple II family's `Emulator` and a IIgs's `IIgsMachine` is alive, and how a
+// question about a drive, the speaker or the debugger reaches it, is decided by
+// MachineHost, which the native front end shares. Everything here that only a
+// //e answers still asks for the emulator and answers nothing while a IIgs is
+// running.
+static a2e::host::MachineHost g_host;
 
 // Helper macros to reduce repetitive null checks
-#define REQUIRE_EMULATOR() do { if (!g_emulator) return; } while(0)
-#define REQUIRE_EMULATOR_OR(default_val) do { if (!g_emulator) return (default_val); } while(0)
-#define REQUIRE_MOCKINGBOARD() do { if (!g_emulator || !g_emulator->getMockingboardPtr()) return; } while(0)
-#define REQUIRE_MOCKINGBOARD_OR(default_val) do { if (!g_emulator || !g_emulator->getMockingboardPtr()) return (default_val); } while(0)
+#define REQUIRE_EMULATOR() do { if (!g_host.emulator()) return; } while(0)
+#define REQUIRE_EMULATOR_OR(default_val) do { if (!g_host.emulator()) return (default_val); } while(0)
+#define REQUIRE_MOCKINGBOARD() do { if (!g_host.emulator() || !g_host.emulator()->getMockingboardPtr()) return; } while(0)
+#define REQUIRE_MOCKINGBOARD_OR(default_val) do { if (!g_host.emulator() || !g_host.emulator()->getMockingboardPtr()) return (default_val); } while(0)
 
-// The 5.25" controller of whichever machine is running: the card in a //e's
-// slot 6, the chip on a //c's board, or the one a IIgs has where a slot would
-// be. Everything the host asks about a drive — which track, is the motor on,
-// where is the head — is the same question whichever machine it is, and the
-// class that answers it is the same class, so these do not need to know.
-static a2e::DiskController *diskController() {
-  if (g_emulator) return g_emulator->getDiskPtr();
-  if (g_iigs) return &g_iigs->disk();
-  return nullptr;
-}
-
-// The debug facilities are one object on either machine, for the same reason
-// the disk controller is: a breakpoint is a breakpoint, and a machine with
-// banks and one without both answer at 24 bits.
-static a2e::MachineDebug *machineDebug() {
-  if (g_emulator) return &g_emulator->debug();
-  if (g_iigs) return &g_iigs->debug();
-  return nullptr;
-}
-
-// What a breakpoint condition can ask about whichever machine is running.
-// Without this a condition could only be asked of a //e, so a conditional
-// breakpoint on a IIgs silently never fired.
-static a2e::MachineView machineView() {
-  if (g_emulator) return a2e::ConditionEvaluator::viewOf(*g_emulator);
-  if (g_iigs) {
-    a2e::MachineView view;
-    view.peek = [](uint32_t address) {
-      return g_iigs->memory().peek(address & 0xFFFFFF);
-    };
-    view.pc = g_iigs->cpu().getPCFull();
-    view.a = g_iigs->cpu().getA();
-    view.x = g_iigs->cpu().getX();
-    view.y = g_iigs->cpu().getY();
-    view.sp = g_iigs->cpu().getSP();
-    view.p = g_iigs->cpu().getP();
-    return view;
-  }
-  return {};
-}
+static a2e::DiskController *diskController() { return g_host.diskController(); }
+static a2e::MachineDebug *machineDebug() { return g_host.debug(); }
+static a2e::MachineView machineView() { return g_host.view(); }
 
 #define REQUIRE_DEBUG() do { if (!machineDebug()) return; } while(0)
 #define REQUIRE_DEBUG_OR(default_val) \
@@ -107,6 +56,15 @@ static a2e::MachineView machineView() {
 
 #define REQUIRE_DISK() do { if (!diskController()) return; } while(0)
 #define REQUIRE_DISK_OR(default_val) do { if (!diskController()) return (default_val); } while(0)
+
+namespace {
+
+// One instruction as a monitor writes it after the address and the bytes.
+std::string instructionText(const a2e::host::Instruction &in) {
+  return in.operand.empty() ? in.mnemonic : in.mnemonic + " " + in.operand;
+}
+
+} // namespace
 
 extern "C" {
 
@@ -119,92 +77,68 @@ void init() {
     EM_ASM({ console.log(UTF8ToString($0)); }, message);
   });
 
-  // A IIgs is a different machine built from different parts, so it is a
-  // different object. Which one exists is decided here and nowhere else.
-  if (a2e::machineProfile(g_machineId).family == a2e::MachineFamily::AppleIIgs) {
-    if (g_iigs) return;
-    delete g_emulator;
-    g_emulator = nullptr;
-    size_t romSize = 0;
-    size_t characterSize = 0;
-    const uint8_t *rom = a2e::Emulator::systemROMFor(g_machineId, romSize);
-    const uint8_t *characters =
-        a2e::Emulator::characterROMFor(g_machineId, characterSize);
-    g_iigs = new a2e::iigs::IIgsMachine(g_iigsFastRam);
-    g_iigs->init(rom, romSize, characters, characterSize);
-    return;
-  }
-
-  delete g_iigs;
-  g_iigs = nullptr;
-
-  if (!g_emulator) {
-    g_emulator = new a2e::Emulator(g_machineId);
-    g_emulator->init();
-    // Install the parallel (Centronics) printer tx callback at construction so
-    // EVERY ParallelCard created later (when the saved slot config is applied)
-    // inherits it via Emulator::setSlotCard's `if (parallelTxCallback_)` apply.
-    // This removes the dependence on the JS-side _setParallelTxCallback() RPC
-    // landing at exactly the right boot moment — a fire-and-forget call whose
-    // failure was silent and left the parallel bus permanently unregistered.
-    // SSC/serial registration is deliberately left to its existing JS path.
-    g_emulator->setParallelTxCallback([](uint8_t byte) {
+  // Install the parallel (Centronics) printer tx callback at construction so
+  // EVERY ParallelCard created later (when the saved slot config is applied)
+  // inherits it via Emulator::setSlotCard's `if (parallelTxCallback_)` apply.
+  // This removes the dependence on the JS-side _setParallelTxCallback() RPC
+  // landing at exactly the right boot moment — a fire-and-forget call whose
+  // failure was silent and left the parallel bus permanently unregistered.
+  // SSC/serial registration is deliberately left to its existing JS path.
+  g_host.setEmulatorBuiltCallback([](a2e::Emulator &emulator) {
+    emulator.setParallelTxCallback([](uint8_t byte) {
       EM_ASM({
         if (self.emulator && self.emulator.printer) {
           self.emulator.printer.receiveByte($0);
         }
       }, byte);
     });
-  }
+  });
+  g_host.build();
 }
 
 EMSCRIPTEN_KEEPALIVE
 void reset() {
-  if (g_iigs) {
-    g_iigs->reset();
+  if (g_host.iigs()) {
+    g_host.iigs()->reset();
     return;
   }
   REQUIRE_EMULATOR();
-  g_emulator->reset();
+  g_host.emulator()->reset();
 }
 
 EMSCRIPTEN_KEEPALIVE
 void warmReset() {
-  if (g_iigs) {
-    g_iigs->warmReset();
+  if (g_host.iigs()) {
+    g_host.iigs()->warmReset();
     return;
   }
   REQUIRE_EMULATOR();
-  g_emulator->warmReset();
+  g_host.emulator()->warmReset();
 }
 
 EMSCRIPTEN_KEEPALIVE
 void runCycles(int cycles) {
-  if (g_iigs) {
-    g_iigs->runCycles(cycles);
+  if (g_host.iigs()) {
+    g_host.iigs()->runCycles(cycles);
     return;
   }
   REQUIRE_EMULATOR();
-  g_emulator->runCycles(cycles);
+  g_host.emulator()->runCycles(cycles);
 }
 
 EMSCRIPTEN_KEEPALIVE
 int generateStereoAudioSamples(float *buffer, int sampleCount) {
   // This is what paces the emulation: the worker asks for samples and the time
   // they represent is the time the machine gets to run.
-  if (g_iigs) return g_iigs->generateStereoAudioSamples(buffer, sampleCount);
+  if (g_host.iigs()) return g_host.iigs()->generateStereoAudioSamples(buffer, sampleCount);
   REQUIRE_EMULATOR_OR(0);
-  return g_emulator->generateStereoAudioSamples(buffer, sampleCount);
+  return g_host.emulator()->generateStereoAudioSamples(buffer, sampleCount);
 }
 
 // The speaker of whichever machine is running. A IIgs has one too — $C030 is
 // a Mega II address — so the volume slider and the mute button mean the same
 // thing to it as to every other machine here.
-static a2e::Audio *speaker() {
-  if (g_emulator) return &g_emulator->getAudio();
-  if (g_iigs) return &g_iigs->audio();
-  return nullptr;
-}
+static a2e::Audio *speaker() { return g_host.speaker(); }
 
 EMSCRIPTEN_KEEPALIVE
 void setAudioVolume(float volume) {
@@ -218,24 +152,24 @@ void setAudioMuted(bool muted) {
 
 EMSCRIPTEN_KEEPALIVE
 int consumeFrameSamples() {
-  if (g_iigs) return g_iigs->consumeFrameSamples();
+  if (g_host.iigs()) return g_host.iigs()->consumeFrameSamples();
   REQUIRE_EMULATOR_OR(0);
-  return g_emulator->consumeFrameSamples();
+  return g_host.emulator()->consumeFrameSamples();
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint8_t *getFramebuffer() {
-  if (g_iigs) return const_cast<uint8_t *>(g_iigs->framebuffer());
+  if (g_host.iigs()) return const_cast<uint8_t *>(g_host.iigs()->framebuffer());
   REQUIRE_EMULATOR_OR(nullptr);
-  return const_cast<uint8_t *>(g_emulator->getFramebuffer());
+  return const_cast<uint8_t *>(g_host.emulator()->getFramebuffer());
 }
 
 EMSCRIPTEN_KEEPALIVE
 int getFramebufferSize() {
-  if (g_iigs) return static_cast<int>(g_iigs->framebufferSize());
+  if (g_host.iigs()) return static_cast<int>(g_host.iigs()->framebufferSize());
   REQUIRE_EMULATOR_OR(static_cast<int>(a2e::defaultMachineProfile()
                                            .display.framebufferSize()));
-  return static_cast<int>(g_emulator->getFramebufferSize());
+  return static_cast<int>(g_host.emulator()->getFramebufferSize());
 }
 
 // ============================================================================
@@ -300,7 +234,12 @@ std::string machineProfileToJSON(const a2e::MachineProfile &m) {
   json += ",\"mixedModeTextScanline\":" +
           std::to_string(m.timing.mixedModeTextScanline);
   json += ",\"cyclesPerFrame\":" + std::to_string(m.timing.cyclesPerFrame());
+  json += ",\"standard\":\"" +
+          std::string(m.timing.standard == a2e::VideoStandard::PAL ? "pal" : "ntsc") + "\"";
   json += "}";
+  // Whether the machine is made in PAL as well, so a host offers the switch.
+  json += std::string(",\"hasPal\":") +
+          (a2e::machineHasStandard(m.id, a2e::VideoStandard::PAL) ? "true" : "false");
 
   json += ",\"memory\":{";
   json += "\"mainRamSize\":" + std::to_string(m.memory.mainRamSize);
@@ -339,6 +278,7 @@ std::string machineProfileToJSON(const a2e::MachineProfile &m) {
   json += std::string(",\"hasIOUDisable\":") + boolean(m.caps.hasIOUDisable);
   json += std::string(",\"inhibitsBurstInText\":") +
           boolean(m.caps.inhibitsBurstInText);
+  json += std::string(",\"hasCassette\":") + boolean(m.caps.hasCassette);
   json += "}";
 
   json += ",\"firstSlot\":" + std::to_string(m.firstSlot);
@@ -377,16 +317,16 @@ const char *getMachineKeyAt(int index) {
 
 EMSCRIPTEN_KEEPALIVE
 const char *getMachineKey() {
-  // g_machineId, not the emulator: it is the one answer that is right whichever
+  // g_host.machineId(), not the emulator: it is the one answer that is right whichever
   // kind of machine is running, and a IIgs has no Emulator to ask. Answering
   // with the //e's key while a IIgs ran would have the host size its renderer
   // for the wrong picture.
-  return a2e::machineProfile(g_machineId).key;
+  return a2e::machineProfile(g_host.machineId()).key;
 }
 
 EMSCRIPTEN_KEEPALIVE
 const char *getMachineName() {
-  return a2e::machineProfile(g_machineId).name;
+  return a2e::machineProfile(g_host.machineId()).name;
 }
 
 // Whole profile in one round trip: the host needs most of it at once, and the
@@ -394,9 +334,8 @@ const char *getMachineName() {
 EMSCRIPTEN_KEEPALIVE
 const char *getMachineProfileJSON() {
   static std::string buffer;
-  const auto &m =
-      a2e::machineProfile(g_machineId);
-  buffer = machineProfileToJSON(m);
+  // The host's profile, which is timed for the standard chosen.
+  buffer = machineProfileToJSON(g_host.profile());
   return buffer.c_str();
 }
 
@@ -416,7 +355,7 @@ const char *getMachineProfileJSONAt(int index) {
 EMSCRIPTEN_KEEPALIVE
 bool hasSystemROM() {
   REQUIRE_EMULATOR_OR(false);
-  return g_emulator->hasSystemROM();
+  return g_host.emulator()->hasSystemROM();
 }
 
 // Whether a machine could actually be started, without switching to it.
@@ -439,20 +378,7 @@ bool setMachine(const char *key) {
   const auto *profile = a2e::findMachineProfile(key);
   if (!profile) return false;
 
-  if (g_emulator && profile->id == g_emulator->getMachine().id) {
-    return true; // Already this machine
-  }
-  if (g_iigs && profile->id == a2e::MachineId::AppleIIgs) {
-    return true;
-  }
-
-  g_machineId = profile->id;
-  delete g_emulator;
-  g_emulator = nullptr;
-  delete g_iigs;
-  g_iigs = nullptr;
-  init();
-  return g_emulator != nullptr || g_iigs != nullptr;
+  return g_host.setMachine(profile->id);
 }
 
 // How much fast RAM a IIgs has, in kilobytes.
@@ -464,112 +390,113 @@ bool setMachine(const char *key) {
 // built, and is otherwise untouched.
 EMSCRIPTEN_KEEPALIVE
 int getIIgsMemoryKB() {
-  const size_t bytes = g_iigs ? g_iigs->memory().fastRamSize() : g_iigsFastRam;
-  return static_cast<int>(bytes / 1024);
+  return static_cast<int>(g_host.iigsFastRam() / 1024);
+}
+
+// NTSC (0) or PAL (1). Switching times the running machine afresh and keeps
+// everything else; a machine not made in PAL stays NTSC and answers false.
+EMSCRIPTEN_KEEPALIVE
+int getVideoStandard() {
+  return static_cast<int>(g_host.videoStandard());
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool setVideoStandard(int standard) {
+  return g_host.setVideoStandard(standard == 1 ? a2e::VideoStandard::PAL : a2e::VideoStandard::NTSC);
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool setIIgsMemoryKB(int kilobytes) {
   if (kilobytes <= 0) return false;
-  const size_t requested =
-      a2e::iigs::clampFastRamSize(static_cast<size_t>(kilobytes) * 1024);
-  if (requested == g_iigsFastRam && g_iigs) return true;
-
-  g_iigsFastRam = requested;
-  if (!g_iigs) return true; // Remembered for when a IIgs is built
-
-  delete g_iigs;
-  g_iigs = nullptr;
-  init();
-  return g_iigs != nullptr;
+  return g_host.setIIgsFastRam(static_cast<size_t>(kilobytes) * 1024);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void forceRenderFrame() {
-  if (g_iigs) {
-    g_iigs->video().forceRenderFrame();
+  if (g_host.iigs()) {
+    g_host.iigs()->video().forceRenderFrame();
     return;
   }
   REQUIRE_EMULATOR();
-  g_emulator->getVideo().forceRenderFrame();
+  g_host.emulator()->getVideo().forceRenderFrame();
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool isFrameReady() {
-  if (g_iigs) {
-    const bool ready = g_iigs->isFrameReady();
-    if (ready) g_iigs->clearFrameReady();
+  if (g_host.iigs()) {
+    const bool ready = g_host.iigs()->isFrameReady();
+    if (ready) g_host.iigs()->clearFrameReady();
     return ready;
   }
   REQUIRE_EMULATOR_OR(false);
-  bool ready = g_emulator->isFrameReady();
+  bool ready = g_host.emulator()->isFrameReady();
   if (ready) {
-    g_emulator->clearFrameReady();
+    g_host.emulator()->clearFrameReady();
   }
   return ready;
 }
 
 EMSCRIPTEN_KEEPALIVE
 void keyDown(int keycode) {
-  if (g_iigs) {
-    g_iigs->keyDown(keycode);
+  if (g_host.iigs()) {
+    g_host.iigs()->keyDown(keycode);
     return;
   }
   REQUIRE_EMULATOR();
-  g_emulator->keyDown(keycode);
+  g_host.emulator()->keyDown(keycode);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void keyUp(int keycode) {
   REQUIRE_EMULATOR();
-  g_emulator->keyUp(keycode);
+  g_host.emulator()->keyUp(keycode);
 }
 
 EMSCRIPTEN_KEEPALIVE
 int handleRawKeyDown(int browserKeycode, bool shift, bool ctrl, bool alt,
                      bool meta, bool capsLock, int keyLocation) {
-  if (g_iigs) {
-    return g_iigs->handleRawKeyDown(browserKeycode, shift, ctrl, alt, meta,
+  if (g_host.iigs()) {
+    return g_host.iigs()->handleRawKeyDown(browserKeycode, shift, ctrl, alt, meta,
                                     capsLock, keyLocation);
   }
   REQUIRE_EMULATOR_OR(-1);
-  return g_emulator->handleRawKeyDown(browserKeycode, shift, ctrl, alt, meta,
+  return g_host.emulator()->handleRawKeyDown(browserKeycode, shift, ctrl, alt, meta,
                                       capsLock, keyLocation);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void handleRawKeyUp(int browserKeycode, bool shift, bool ctrl, bool alt,
                     bool meta, int keyLocation) {
-  if (g_iigs) {
-    g_iigs->handleRawKeyUp(browserKeycode, shift, ctrl, alt, meta, keyLocation);
+  if (g_host.iigs()) {
+    g_host.iigs()->handleRawKeyUp(browserKeycode, shift, ctrl, alt, meta, keyLocation);
     return;
   }
   REQUIRE_EMULATOR();
-  g_emulator->handleRawKeyUp(browserKeycode, shift, ctrl, alt, meta, keyLocation);
+  g_host.emulator()->handleRawKeyUp(browserKeycode, shift, ctrl, alt, meta, keyLocation);
 }
 
 EMSCRIPTEN_KEEPALIVE
 int pasteText(const char *text) {
   REQUIRE_EMULATOR_OR(0);
-  return static_cast<int>(g_emulator->pasteText(text));
+  return static_cast<int>(g_host.emulator()->pasteText(text));
 }
 
 EMSCRIPTEN_KEEPALIVE
 void pasteKey(int appleKey) {
   REQUIRE_EMULATOR();
-  g_emulator->pasteKey(appleKey);
+  g_host.emulator()->pasteKey(appleKey);
 }
 
 EMSCRIPTEN_KEEPALIVE
 int pastePending() {
   REQUIRE_EMULATOR_OR(0);
-  return static_cast<int>(g_emulator->pastePending());
+  return static_cast<int>(g_host.emulator()->pastePending());
 }
 
 EMSCRIPTEN_KEEPALIVE
 void clearPasteBuffer() {
   REQUIRE_EMULATOR();
-  g_emulator->clearPasteBuffer();
+  g_host.emulator()->clearPasteBuffer();
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -579,33 +506,33 @@ int charToAppleKey(int charCode) {
 
 // The game port is on the back of every machine here, a IIgs included: its
 // paddle timers are the Mega II's and its buttons share $C061/$C062 with the
-// Apple keys. Routing these to g_emulator alone left a IIgs with a joystick
+// Apple keys. Routing these to g_host.emulator() alone left a IIgs with a joystick
 // and cursor keys that moved nothing.
 EMSCRIPTEN_KEEPALIVE
 void setButton(int button, bool pressed) {
-  if (g_iigs) {
-    g_iigs->setButton(button, pressed);
+  if (g_host.iigs()) {
+    g_host.iigs()->setButton(button, pressed);
     return;
   }
   REQUIRE_EMULATOR();
-  g_emulator->setButton(button, pressed);
+  g_host.emulator()->setButton(button, pressed);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void setPaddleValue(int paddle, int value) {
-  if (g_iigs) {
-    g_iigs->setPaddleValue(paddle, value);
+  if (g_host.iigs()) {
+    g_host.iigs()->setPaddleValue(paddle, value);
     return;
   }
   REQUIRE_EMULATOR();
-  g_emulator->setPaddleValue(paddle, value);
+  g_host.emulator()->setPaddleValue(paddle, value);
 }
 
 EMSCRIPTEN_KEEPALIVE
 int getPaddleValue(int paddle) {
-  if (g_iigs) return g_iigs->getPaddleValue(paddle);
+  if (g_host.iigs()) return g_host.iigs()->getPaddleValue(paddle);
   REQUIRE_EMULATOR_OR(128);
-  return g_emulator->getPaddleValue(paddle);
+  return g_host.emulator()->getPaddleValue(paddle);
 }
 
 // Game I/O connector device: 0 = Apple resistive joystick, 1 = Sirius Joyport.
@@ -616,103 +543,85 @@ void setGamePortDevice(int device) {
   const a2e::GamePortDevice chosen = device == 1
                                          ? a2e::GamePortDevice::SiriusJoyport
                                          : a2e::GamePortDevice::AppleJoystick;
-  if (g_iigs) {
-    g_iigs->setGamePortDevice(chosen);
+  if (g_host.iigs()) {
+    g_host.iigs()->setGamePortDevice(chosen);
     return;
   }
   REQUIRE_EMULATOR();
-  g_emulator->setGamePortDevice(chosen);
+  g_host.emulator()->setGamePortDevice(chosen);
 }
 
 EMSCRIPTEN_KEEPALIVE
 int getGamePortDevice() {
-  if (g_iigs) return static_cast<int>(g_iigs->gamePortDevice());
+  if (g_host.iigs()) return static_cast<int>(g_host.iigs()->gamePortDevice());
   REQUIRE_EMULATOR_OR(0);
-  return static_cast<int>(g_emulator->gamePortDevice());
+  return static_cast<int>(g_host.emulator()->gamePortDevice());
 }
 
 // One call per stick rather than one per switch: the host knows all five
 // switches at once, and this is a fire-and-forget RPC on an input path.
 EMSCRIPTEN_KEEPALIVE
 void setJoyportStick(int stick, int switches) {
-  if (g_iigs) {
-    g_iigs->setJoyportStick(stick, switches);
-    return;
-  }
-  REQUIRE_EMULATOR();
-  g_emulator->setJoyportStick(stick, switches);
+  g_host.setJoyportStick(stick, switches);
 }
 
 EMSCRIPTEN_KEEPALIVE
 int getJoyportStick(int stick) {
-  if (g_iigs) return g_iigs->getJoyportStick(stick);
+  if (g_host.iigs()) return g_host.iigs()->getJoyportStick(stick);
   REQUIRE_EMULATOR_OR(0);
-  return g_emulator->getJoyportStick(stick);
+  return g_host.emulator()->getJoyportStick(stick);
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool isKeyboardReady() {
   REQUIRE_EMULATOR_OR(true);
-  return g_emulator->isKeyboardReady();
+  return g_host.emulator()->isKeyboardReady();
 }
 
 EMSCRIPTEN_KEEPALIVE
 void setSpeedMultiplier(int multiplier) {
-  REQUIRE_EMULATOR();
-  g_emulator->setSpeedMultiplier(multiplier);
+  g_host.setSpeedMultiplier(multiplier);
 }
 
 EMSCRIPTEN_KEEPALIVE
 int getSpeedMultiplier() {
-  REQUIRE_EMULATOR_OR(1);
-  return g_emulator->getSpeedMultiplier();
+  return g_host.speedMultiplier();
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool insertDisk(int drive, uint8_t *data, int size, const char *filename) {
-  if (g_iigs) {
-    return g_iigs->insertDisk(drive, data, static_cast<size_t>(size),
-                              filename ? filename : "");
-  }
-  REQUIRE_EMULATOR_OR(false);
-  return g_emulator->insertDisk(drive, data, size, filename);
+  return g_host.insertDisk(drive, data, static_cast<size_t>(size), filename);
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool insertBlankDisk(int drive) {
-  REQUIRE_EMULATOR_OR(false);
-  return g_emulator->insertBlankDisk(drive);
+  return g_host.insertBlankDisk(drive);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void ejectDisk(int drive) {
-  if (g_iigs) {
-    g_iigs->ejectDisk(drive);
-    return;
-  }
-  REQUIRE_EMULATOR();
-  g_emulator->ejectDisk(drive);
+  g_host.ejectDisk(drive);
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint8_t *getDiskData(int drive, size_t *size) {
-  if (!g_emulator) { *size = 0; return nullptr; }
-  return const_cast<uint8_t *>(g_emulator->exportDiskData(drive, size));
+  if (!g_host.emulator()) { *size = 0; return nullptr; }
+  return const_cast<uint8_t *>(g_host.emulator()->exportDiskData(drive, size));
 }
 
 EMSCRIPTEN_KEEPALIVE
 const uint8_t *getDiskSectorData(int drive, size_t *size) {
-  if (!g_emulator) { *size = 0; return nullptr; }
-  return g_emulator->getDiskData(drive, size);
+  if (!g_host.emulator()) { *size = 0; return nullptr; }
+  return g_host.emulator()->getDiskData(drive, size);
 }
 
 namespace {
 // Where the beam is on whichever machine is running.
 a2e::BeamPosition machineBeam() {
-  if (g_iigs) return g_iigs->beam();
-  if (!g_emulator) return {};
-  return a2e::beamPosition(g_emulator->getTotalCycles(),
-                           g_emulator->getMachine().timing);
+  if (g_host.iigs()) return g_host.iigs()->beam();
+  if (!g_host.emulator()) return {};
+  return a2e::beamPosition(g_host.emulator()->getTotalCycles(),
+                           g_host.emulator()->getMachine().timing);
 }
 } // namespace
 
@@ -726,12 +635,12 @@ a2e::BeamPosition machineBeam() {
 
 EMSCRIPTEN_KEEPALIVE
 int getFrameCycle() {
-  if (g_iigs) {
+  if (g_host.iigs()) {
     const auto &timing = a2e::machineProfile(a2e::MachineId::AppleIIgs).timing;
-    return static_cast<int>(g_iigs->slowCycles() % timing.cyclesPerFrame());
+    return static_cast<int>(g_host.iigs()->slowCycles() % timing.cyclesPerFrame());
   }
   REQUIRE_EMULATOR_OR(0);
-  return g_emulator->getFrameCycle();
+  return g_host.emulator()->getFrameCycle();
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -767,16 +676,16 @@ bool isInHBLANK() {
 // in it, or 0 if the machine single-stepped instead.
 EMSCRIPTEN_KEEPALIVE
 uint32_t stepOver() {
-  if (g_iigs) return g_iigs->stepOver();
+  if (g_host.iigs()) return g_host.iigs()->stepOver();
   REQUIRE_EMULATOR_OR(0);
-  return g_emulator->stepOver();
+  return g_host.emulator()->stepOver();
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint32_t stepOut() {
-  if (g_iigs) return g_iigs->stepOut();
+  if (g_host.iigs()) return g_host.iigs()->stepOut();
   REQUIRE_EMULATOR_OR(0);
-  return g_emulator->stepOut();
+  return g_host.emulator()->stepOut();
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -887,135 +796,135 @@ uint32_t getStackBreakpointHitLow() {
 EMSCRIPTEN_KEEPALIVE
 void addBasicBreakpoint(uint16_t lineNumber, int statementIndex) {
   REQUIRE_EMULATOR();
-  g_emulator->addBasicBreakpoint(lineNumber, statementIndex);
+  g_host.emulator()->addBasicBreakpoint(lineNumber, statementIndex);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void removeBasicBreakpoint(uint16_t lineNumber, int statementIndex) {
   REQUIRE_EMULATOR();
-  g_emulator->removeBasicBreakpoint(lineNumber, statementIndex);
+  g_host.emulator()->removeBasicBreakpoint(lineNumber, statementIndex);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void clearBasicBreakpoints() {
   REQUIRE_EMULATOR();
-  g_emulator->clearBasicBreakpoints();
+  g_host.emulator()->clearBasicBreakpoints();
 }
 
 EMSCRIPTEN_KEEPALIVE
 void clearBasicBreakpointHit() {
   REQUIRE_EMULATOR();
-  g_emulator->clearBasicBreakpointHit();
+  g_host.emulator()->clearBasicBreakpointHit();
 }
 
 EMSCRIPTEN_KEEPALIVE
 void addBasicConditionRule(int id, const char* expression) {
   REQUIRE_EMULATOR();
-  g_emulator->addBasicConditionRule(id, expression);
+  g_host.emulator()->addBasicConditionRule(id, expression);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void removeBasicConditionRule(int id) {
   REQUIRE_EMULATOR();
-  g_emulator->removeBasicConditionRule(id);
+  g_host.emulator()->removeBasicConditionRule(id);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void clearBasicConditionRules() {
   REQUIRE_EMULATOR();
-  g_emulator->clearBasicConditionRules();
+  g_host.emulator()->clearBasicConditionRules();
 }
 
 EMSCRIPTEN_KEEPALIVE
 int getBasicConditionRuleHitId() {
   REQUIRE_EMULATOR_OR(-1);
-  return g_emulator->getBasicConditionRuleHitId();
+  return g_host.emulator()->getBasicConditionRuleHitId();
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool hasBasicBreakpoints() {
   REQUIRE_EMULATOR_OR(false);
-  return g_emulator->hasBasicBreakpoints();
+  return g_host.emulator()->hasBasicBreakpoints();
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool isBasicBreakpointHit() {
   REQUIRE_EMULATOR_OR(false);
-  return g_emulator->isBasicBreakpointHit();
+  return g_host.emulator()->isBasicBreakpointHit();
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint16_t getBasicBreakLine() {
   REQUIRE_EMULATOR_OR(0);
-  return g_emulator->getBasicBreakLine();
+  return g_host.emulator()->getBasicBreakLine();
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool isBasicProgramRunning() {
   REQUIRE_EMULATOR_OR(false);
-  return g_emulator->isBasicProgramRunning();
+  return g_host.emulator()->isBasicProgramRunning();
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool isBasicErrorHit() {
   REQUIRE_EMULATOR_OR(false);
-  return g_emulator->isBasicErrorHit();
+  return g_host.emulator()->isBasicErrorHit();
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint16_t getBasicErrorLine() {
   REQUIRE_EMULATOR_OR(0);
-  return g_emulator->getBasicErrorLine();
+  return g_host.emulator()->getBasicErrorLine();
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint16_t getBasicErrorTxtptr() {
   REQUIRE_EMULATOR_OR(0);
-  return g_emulator->getBasicErrorTxtptr();
+  return g_host.emulator()->getBasicErrorTxtptr();
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint8_t getBasicErrorCode() {
   REQUIRE_EMULATOR_OR(0);
-  return g_emulator->getBasicErrorCode();
+  return g_host.emulator()->getBasicErrorCode();
 }
 
 EMSCRIPTEN_KEEPALIVE
 void clearBasicError() {
   REQUIRE_EMULATOR();
-  g_emulator->clearBasicError();
+  g_host.emulator()->clearBasicError();
 }
 
 EMSCRIPTEN_KEEPALIVE
 void stepBasicLine() {
   REQUIRE_EMULATOR();
-  g_emulator->stepBasicLine();
+  g_host.emulator()->stepBasicLine();
 }
 
 EMSCRIPTEN_KEEPALIVE
 void stepBasicStatement() {
   REQUIRE_EMULATOR();
-  g_emulator->stepBasicStatement();
+  g_host.emulator()->stepBasicStatement();
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint16_t getBasicTxtptr() {
   REQUIRE_EMULATOR_OR(0);
-  return g_emulator->getBasicTxtptr();
+  return g_host.emulator()->getBasicTxtptr();
 }
 
 EMSCRIPTEN_KEEPALIVE
 int getBasicStatementIndex() {
   REQUIRE_EMULATOR_OR(0);
-  return g_emulator->getBasicStatementIndex();
+  return g_host.emulator()->getBasicStatementIndex();
 }
 
 // Debug function to get BASIC memory state with detailed line info
 // Uses readRAM to bypass ALTZP - BASIC always uses main RAM for zero page
 EMSCRIPTEN_KEEPALIVE
 void getBasicDebugInfo(uint16_t* txttab, uint16_t* vartab, uint16_t* curlin, uint16_t* txtptr) {
-  if (!g_emulator) return;
-  auto& mmu = g_emulator->getMMU();
+  if (!g_host.emulator()) return;
+  auto& mmu = g_host.emulator()->getMMU();
   *txttab = mmu.readRAM(0x67, false) | (mmu.readRAM(0x68, false) << 8);
   *vartab = mmu.readRAM(0x69, false) | (mmu.readRAM(0x6A, false) << 8);
   *curlin = mmu.readRAM(0x75, false) | (mmu.readRAM(0x76, false) << 8);
@@ -1026,32 +935,32 @@ void getBasicDebugInfo(uint16_t* txttab, uint16_t* vartab, uint16_t* curlin, uin
 EMSCRIPTEN_KEEPALIVE
 void setBasicHeatMapEnabled(bool enabled) {
   REQUIRE_EMULATOR();
-  g_emulator->setBasicHeatMapEnabled(enabled);
+  g_host.emulator()->setBasicHeatMapEnabled(enabled);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void clearBasicHeatMap() {
   REQUIRE_EMULATOR();
-  g_emulator->clearBasicHeatMap();
+  g_host.emulator()->clearBasicHeatMap();
 }
 
 EMSCRIPTEN_KEEPALIVE
 int getBasicHeatMapSize() {
   REQUIRE_EMULATOR_OR(0);
-  return g_emulator->getBasicHeatMapSize();
+  return g_host.emulator()->getBasicHeatMapSize();
 }
 
 EMSCRIPTEN_KEEPALIVE
 int getBasicHeatMapData(uint16_t* lines, uint32_t* counts, int maxEntries) {
   REQUIRE_EMULATOR_OR(0);
-  return g_emulator->getBasicHeatMapData(lines, counts, maxEntries);
+  return g_host.emulator()->getBasicHeatMapData(lines, counts, maxEntries);
 }
 
 // Debug function to dump bytes around TXTPTR to see what's there
 EMSCRIPTEN_KEEPALIVE
 void getBasicLineBytes(uint8_t* buffer, int* lineStart, int* colonCount) {
-  if (!g_emulator) return;
-  auto& mmu = g_emulator->getMMU();
+  if (!g_host.emulator()) return;
+  auto& mmu = g_host.emulator()->getMMU();
 
   uint16_t txttab = mmu.readRAM(0x67, false) | (mmu.readRAM(0x68, false) << 8);
   uint16_t curlin = mmu.readRAM(0x75, false) | (mmu.readRAM(0x76, false) << 8);
@@ -1064,6 +973,9 @@ void getBasicLineBytes(uint8_t* buffer, int* lineStart, int* colonCount) {
   while (addr < 0xC000) {
     uint16_t nextPtr = mmu.readRAM(addr, false) | (mmu.readRAM(addr + 1, false) << 8);
     if (nextPtr == 0) break;
+    // Links only move forward; one that does not is not a BASIC program,
+    // and following it would never end (Emulator::findCurrentLineStart).
+    if (nextPtr <= addr) break;
 
     uint16_t lineNum = mmu.readRAM(addr + 2, false) | (mmu.readRAM(addr + 3, false) << 8);
     if (lineNum == curlin) {
@@ -1105,64 +1017,64 @@ void getBasicLineBytes(uint8_t* buffer, int* lineStart, int* colonCount) {
 
 EMSCRIPTEN_KEEPALIVE
 uint32_t getPC() {
-  if (g_iigs) return g_iigs->cpu().getPCFull();
+  if (g_host.iigs()) return g_host.iigs()->cpu().getPCFull();
   REQUIRE_EMULATOR_OR(0);
-  return g_emulator->getPC();
+  return g_host.emulator()->getPC();
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint16_t getA() {
-  if (g_iigs) return g_iigs->cpu().getA();
+  if (g_host.iigs()) return g_host.iigs()->cpu().getA();
   REQUIRE_EMULATOR_OR(0);
-  return g_emulator->getA();
+  return g_host.emulator()->getA();
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint16_t getX() {
-  if (g_iigs) return g_iigs->cpu().getX();
+  if (g_host.iigs()) return g_host.iigs()->cpu().getX();
   REQUIRE_EMULATOR_OR(0);
-  return g_emulator->getX();
+  return g_host.emulator()->getX();
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint16_t getY() {
-  if (g_iigs) return g_iigs->cpu().getY();
+  if (g_host.iigs()) return g_host.iigs()->cpu().getY();
   REQUIRE_EMULATOR_OR(0);
-  return g_emulator->getY();
+  return g_host.emulator()->getY();
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint16_t getSP() {
-  if (g_iigs) return g_iigs->cpu().getSP();
+  if (g_host.iigs()) return g_host.iigs()->cpu().getSP();
   REQUIRE_EMULATOR_OR(0);
-  return g_emulator->getSP();
+  return g_host.emulator()->getSP();
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint8_t getP() {
-  if (g_iigs) return g_iigs->cpu().getP();
+  if (g_host.iigs()) return g_host.iigs()->cpu().getP();
   REQUIRE_EMULATOR_OR(0);
-  return g_emulator->getP();
+  return g_host.emulator()->getP();
 }
 
 /** The program bank: which of the 65816's 256 banks the code is in. */
 EMSCRIPTEN_KEEPALIVE
 uint8_t getPBR() {
-  if (g_iigs) return g_iigs->cpu().getPBR();
+  if (g_host.iigs()) return g_host.iigs()->cpu().getPBR();
   return 0;
 }
 
 /** The data bank, which an instruction's operands are read through. */
 EMSCRIPTEN_KEEPALIVE
 uint8_t getDBR() {
-  if (g_iigs) return g_iigs->cpu().getDBR();
+  if (g_host.iigs()) return g_host.iigs()->cpu().getDBR();
   return 0;
 }
 
 /** The direct page register: where the 65816's zero page has been moved to. */
 EMSCRIPTEN_KEEPALIVE
 uint16_t getDirectPage() {
-  if (g_iigs) return g_iigs->cpu().getD();
+  if (g_host.iigs()) return g_host.iigs()->cpu().getD();
   return 0;
 }
 
@@ -1172,8 +1084,8 @@ uint16_t getDirectPage() {
 // because that is exactly the state it is permanently in.
 EMSCRIPTEN_KEEPALIVE
 uint8_t getCpuWidths() {
-  if (g_iigs) {
-    const a2e::CPU65816 &cpu = g_iigs->cpu();
+  if (g_host.iigs()) {
+    const a2e::CPU65816 &cpu = g_host.iigs()->cpu();
     return static_cast<uint8_t>(
         (cpu.getEmulation() ? a2e::MachineDebug::WIDTH_EMULATION : 0) |
         (cpu.accumulator8() ? a2e::MachineDebug::WIDTH_A8 : 0) |
@@ -1189,61 +1101,61 @@ uint64_t getTotalCycles() {
   // The machine's own clock, which is what the beam and the drive are counted
   // in. On a IIgs that is the Mega II's slow side rather than the 65816's
   // cycles, because the processor's clock changes speed under it.
-  if (g_iigs) return g_iigs->slowCycles();
+  if (g_host.iigs()) return g_host.iigs()->slowCycles();
   REQUIRE_EMULATOR_OR(0);
-  return g_emulator->getTotalCycles();
+  return g_host.emulator()->getTotalCycles();
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool isIRQPending() {
-  if (g_iigs) return g_iigs->cpu().isIRQPending();
+  if (g_host.iigs()) return g_host.iigs()->cpu().isIRQPending();
   REQUIRE_EMULATOR_OR(false);
-  return g_emulator->isIRQPending();
+  return g_host.emulator()->isIRQPending();
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool isNMIPending() {
-  if (g_iigs) return g_iigs->cpu().isNMIPending();
+  if (g_host.iigs()) return g_host.iigs()->cpu().isNMIPending();
   REQUIRE_EMULATOR_OR(false);
-  return g_emulator->isNMIPending();
+  return g_host.emulator()->isNMIPending();
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool isNMIEdge() {
   // The 6502 core distinguishes the edge from the level; the 65816 core
   // latches and reports one thing, so there is no separate edge to report.
-  if (g_iigs) return false;
+  if (g_host.iigs()) return false;
   REQUIRE_EMULATOR_OR(false);
-  return g_emulator->isNMIEdge();
+  return g_host.emulator()->isNMIEdge();
 }
 
 // CPU register setters (for debugger editing)
 EMSCRIPTEN_KEEPALIVE
 void setRegA(uint16_t value) {
-  if (g_iigs) { g_iigs->cpu().setA(value); return; }
+  if (g_host.iigs()) { g_host.iigs()->cpu().setA(value); return; }
   REQUIRE_EMULATOR();
-  g_emulator->setA(static_cast<uint8_t>(value));
+  g_host.emulator()->setA(static_cast<uint8_t>(value));
 }
 
 EMSCRIPTEN_KEEPALIVE
 void setRegX(uint16_t value) {
-  if (g_iigs) { g_iigs->cpu().setX(value); return; }
+  if (g_host.iigs()) { g_host.iigs()->cpu().setX(value); return; }
   REQUIRE_EMULATOR();
-  g_emulator->setX(static_cast<uint8_t>(value));
+  g_host.emulator()->setX(static_cast<uint8_t>(value));
 }
 
 EMSCRIPTEN_KEEPALIVE
 void setRegY(uint16_t value) {
-  if (g_iigs) { g_iigs->cpu().setY(value); return; }
+  if (g_host.iigs()) { g_host.iigs()->cpu().setY(value); return; }
   REQUIRE_EMULATOR();
-  g_emulator->setY(static_cast<uint8_t>(value));
+  g_host.emulator()->setY(static_cast<uint8_t>(value));
 }
 
 EMSCRIPTEN_KEEPALIVE
 void setRegSP(uint16_t value) {
-  if (g_iigs) { g_iigs->cpu().setSP(value); return; }
+  if (g_host.iigs()) { g_host.iigs()->cpu().setSP(value); return; }
   REQUIRE_EMULATOR();
-  g_emulator->setSP(static_cast<uint8_t>(value));
+  g_host.emulator()->setSP(static_cast<uint8_t>(value));
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -1251,35 +1163,35 @@ void setRegPC(uint32_t value) {
   // The bank travels with the address, so editing the program counter in a
   // debugger can send the processor into another bank — which is the only way
   // to get there by hand.
-  if (g_iigs) {
-    g_iigs->cpu().setPBR(static_cast<uint8_t>((value >> 16) & 0xFF));
-    g_iigs->cpu().setPC(static_cast<uint16_t>(value & 0xFFFF));
+  if (g_host.iigs()) {
+    g_host.iigs()->cpu().setPBR(static_cast<uint8_t>((value >> 16) & 0xFF));
+    g_host.iigs()->cpu().setPC(static_cast<uint16_t>(value & 0xFFFF));
     return;
   }
   REQUIRE_EMULATOR();
-  g_emulator->setPC(static_cast<uint16_t>(value & 0xFFFF));
+  g_host.emulator()->setPC(static_cast<uint16_t>(value & 0xFFFF));
 }
 
 EMSCRIPTEN_KEEPALIVE
 void setRegP(uint8_t value) {
-  if (g_iigs) { g_iigs->cpu().setP(value); return; }
+  if (g_host.iigs()) { g_host.iigs()->cpu().setP(value); return; }
   REQUIRE_EMULATOR();
-  g_emulator->setP(value);
+  g_host.emulator()->setP(value);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void setRegPBR(uint8_t value) {
-  if (g_iigs) g_iigs->cpu().setPBR(value);
+  if (g_host.iigs()) g_host.iigs()->cpu().setPBR(value);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void setRegDBR(uint8_t value) {
-  if (g_iigs) g_iigs->cpu().setDBR(value);
+  if (g_host.iigs()) g_host.iigs()->cpu().setDBR(value);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void setRegDirectPage(uint16_t value) {
-  if (g_iigs) g_iigs->cpu().setD(value);
+  if (g_host.iigs()) g_host.iigs()->cpu().setD(value);
 }
 
 // ===========================================================================
@@ -1288,23 +1200,23 @@ void setRegDirectPage(uint16_t value) {
 
 EMSCRIPTEN_KEEPALIVE
 bool isPaused() {
-  if (g_iigs) return g_iigs->isPaused();
+  if (g_host.iigs()) return g_host.iigs()->isPaused();
   REQUIRE_EMULATOR_OR(false);
-  return g_emulator->isPaused();
+  return g_host.emulator()->isPaused();
 }
 
 EMSCRIPTEN_KEEPALIVE
 void setPaused(bool paused) {
-  if (g_iigs) { g_iigs->setPaused(paused); return; }
+  if (g_host.iigs()) { g_host.iigs()->setPaused(paused); return; }
   REQUIRE_EMULATOR();
-  g_emulator->setPaused(paused);
+  g_host.emulator()->setPaused(paused);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void stepInstruction() {
-  if (g_iigs) { g_iigs->stepInstruction(); return; }
+  if (g_host.iigs()) { g_host.iigs()->stepInstruction(); return; }
   REQUIRE_EMULATOR();
-  g_emulator->stepInstruction();
+  g_host.emulator()->stepInstruction();
 }
 
 // ===========================================================================
@@ -1316,16 +1228,16 @@ void stepInstruction() {
 
 EMSCRIPTEN_KEEPALIVE
 uint8_t readMemory(uint32_t address) {
-  if (g_iigs) return g_iigs->memory().read(address & 0xFFFFFF);
+  if (g_host.iigs()) return g_host.iigs()->memory().read(address & 0xFFFFFF);
   REQUIRE_EMULATOR_OR(0);
-  return g_emulator->readMemory(static_cast<uint16_t>(address & 0xFFFF));
+  return g_host.emulator()->readMemory(static_cast<uint16_t>(address & 0xFFFF));
 }
 
 EMSCRIPTEN_KEEPALIVE
 uint8_t peekMemory(uint32_t address) {
-  if (g_iigs) return g_iigs->memory().peek(address & 0xFFFFFF);
+  if (g_host.iigs()) return g_host.iigs()->memory().peek(address & 0xFFFFFF);
   REQUIRE_EMULATOR_OR(0);
-  return g_emulator->peekMemory(static_cast<uint16_t>(address & 0xFFFF));
+  return g_host.emulator()->peekMemory(static_cast<uint16_t>(address & 0xFFFF));
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -1333,20 +1245,20 @@ uint8_t readMainRAM(uint32_t address) {
   // Main RAM whatever the switches say, which is where Applesoft keeps its
   // zero page. On a IIgs that is the Mega II's main bank — bank $E0 — because
   // that is the //e whose ROM the interpreter is running from.
-  if (g_iigs) {
-    return g_iigs->memory().megaII().readRAM(
+  if (g_host.iigs()) {
+    return g_host.iigs()->memory().megaII().readRAM(
         static_cast<uint16_t>(address & 0xFFFF), false);
   }
   REQUIRE_EMULATOR_OR(0);
-  return g_emulator->getMMU().readRAM(static_cast<uint16_t>(address & 0xFFFF),
+  return g_host.emulator()->getMMU().readRAM(static_cast<uint16_t>(address & 0xFFFF),
                                       false);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void writeMemory(uint32_t address, uint8_t value) {
-  if (g_iigs) { g_iigs->memory().write(address & 0xFFFFFF, value); return; }
+  if (g_host.iigs()) { g_host.iigs()->memory().write(address & 0xFFFFFF, value); return; }
   REQUIRE_EMULATOR();
-  g_emulator->writeMemory(static_cast<uint16_t>(address & 0xFFFF), value);
+  g_host.emulator()->writeMemory(static_cast<uint16_t>(address & 0xFFFF), value);
 }
 
 // ===========================================================================
@@ -1365,19 +1277,19 @@ void writeMemory(uint32_t address, uint8_t value) {
 
 EMSCRIPTEN_KEEPALIVE
 const uint8_t *getBatteryRam() {
-  if (!g_iigs) return nullptr;
-  return g_iigs->memory().clock().batteryRamBytes();
+  if (!g_host.iigs()) return nullptr;
+  return g_host.iigs()->memory().clock().batteryRamBytes();
 }
 
 EMSCRIPTEN_KEEPALIVE
 int getBatteryRamSize() {
-  return g_iigs ? static_cast<int>(a2e::iigs::IIgsClock::batteryRamSize()) : 0;
+  return g_host.iigs() ? static_cast<int>(a2e::iigs::IIgsClock::batteryRamSize()) : 0;
 }
 
 EMSCRIPTEN_KEEPALIVE
 void setBatteryRam(const uint8_t *bytes, int size) {
-  if (!g_iigs || !bytes || size <= 0) return;
-  g_iigs->memory().clock().loadBatteryRam(bytes, static_cast<size_t>(size));
+  if (!g_host.iigs() || !bytes || size <= 0) return;
+  g_host.iigs()->memory().clock().loadBatteryRam(bytes, static_cast<size_t>(size));
 }
 
 // ===========================================================================
@@ -1393,20 +1305,19 @@ void setBatteryRam(const uint8_t *bytes, int size) {
 
 EMSCRIPTEN_KEEPALIVE
 void setIIgsLoopbackCable(bool fitted) {
-  if (!g_iigs) return;
-  g_iigs->memory().scc().setLoopbackCable(fitted);
+  if (!g_host.iigs()) return;
+  g_host.iigs()->memory().scc().setLoopbackCable(fitted);
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool hasIIgsLoopbackCable() {
-  return g_iigs && g_iigs->memory().scc().hasLoopbackCable();
+  return g_host.iigs() && g_host.iigs()->memory().scc().hasLoopbackCable();
 }
 
 /** Whether anything has written to it since this was last asked. */
 EMSCRIPTEN_KEEPALIVE
 bool batteryRamChanged() {
-  if (!g_iigs) return false;
-  return g_iigs->memory().clock().takeBatteryRamChanged();
+  return g_host.takeBatteryRamChanged();
 }
 
 // The machine's memory banks, so a memory view can offer the ones that exist
@@ -1423,10 +1334,10 @@ const char *getMemoryBanksJSON() {
             std::string(name) + "\"}";
   };
 
-  if (g_iigs) {
+  if (g_host.iigs()) {
     // Fast RAM, in whole 64K banks from $00 up: how many there are is what
     // the user chose in the Machine menu.
-    const size_t banks = g_iigs->memory().fastRamSize() / 0x10000;
+    const size_t banks = g_host.iigs()->memory().fastRamSize() / 0x10000;
     for (size_t i = 0; i < banks; i++) {
       const std::string name = "Fast RAM";
       entry(static_cast<int>(i), name.c_str());
@@ -1436,7 +1347,7 @@ const char *getMemoryBanksJSON() {
     // The ROM fills the top of the address space: a 128KB ROM 01 is two
     // banks, a 256KB ROM 3 is four.
     size_t romSize = 0;
-    a2e::Emulator::systemROMFor(g_machineId, romSize);
+    a2e::Emulator::systemROMFor(g_host.machineId(), romSize);
     const size_t romBanks = romSize / 0x10000;
     for (size_t i = 0; i < romBanks; i++) {
       const int bank = 0x100 - static_cast<int>(romBanks) + static_cast<int>(i);
@@ -1458,42 +1369,24 @@ const char *getMemoryBanksJSON() {
 // stream correctly.
 // ===========================================================================
 
-namespace {
-
-// One instruction as text, on whichever machine is running. The IIgs's lines
-// carry the bank, because on that machine an address without one is ambiguous.
-std::string disassembleOneAt(uint32_t address, uint8_t *lengthOut) {
-  if (g_iigs) {
-    const a2e::CPU65816 &cpu = g_iigs->cpu();
-    uint8_t bytes[4] = {0, 0, 0, 0};
-    for (int i = 0; i < 4; i++) {
-      const uint32_t at =
-          (address & 0xFF0000) | static_cast<uint16_t>((address & 0xFFFF) + i);
-      bytes[i] = g_iigs->memory().peek(at);
-    }
-    const a2e::Disasm816Instruction in = a2e::disassemble816(
-        bytes, 4, address, cpu.accumulator8(), cpu.index8());
-    if (lengthOut) *lengthOut = in.length;
-    return a2e::formatDisasm816(in);
-  }
-  if (!g_emulator) {
-    if (lengthOut) *lengthOut = 1;
-    return "";
-  }
-  const uint16_t at = static_cast<uint16_t>(address & 0xFFFF);
-  if (lengthOut) {
-    *lengthOut =
-        static_cast<uint8_t>(a2e::getInstructionLength(g_emulator->peekMemory(at)));
-  }
-  return g_emulator->disassembleAt(at);
-}
-
-} // namespace
 
 EMSCRIPTEN_KEEPALIVE
 const char *disassembleAt(uint32_t address) {
+  // The whole line as the machine's own monitor writes it, which the Stack
+  // Viewer reads the mnemonic out of.
   static std::string buffer;
-  buffer = disassembleOneAt(address & 0xFFFFFF, nullptr);
+  buffer.clear();
+  if (g_host.iigs()) {
+    const a2e::CPU65816 &cpu = g_host.iigs()->cpu();
+    uint8_t bytes[4];
+    for (int i = 0; i < 4; i++) {
+      bytes[i] = g_host.peek((address & 0xFF0000) | static_cast<uint16_t>((address & 0xFFFF) + i));
+    }
+    buffer = a2e::formatDisasm816(
+        a2e::disassemble816(bytes, 4, address & 0xFFFFFF, cpu.accumulator8(), cpu.index8()));
+  } else if (g_host.emulator()) {
+    buffer = g_host.emulator()->disassembleAt(static_cast<uint16_t>(address & 0xFFFF));
+  }
   return buffer.c_str();
 }
 
@@ -1526,73 +1419,47 @@ const char *disassembleRange(int32_t centerAddrOrPC, int instructionsBefore,
                              int count) {
   static std::string buffer;
   buffer.clear();
-  if (!g_emulator && !g_iigs) return buffer.c_str();
+  if (!g_host.emulator() && !g_host.iigs()) return buffer.c_str();
   if (count <= 0) return buffer.c_str();
   if (instructionsBefore < 0) instructionsBefore = 0;
 
   const uint32_t centre =
       centerAddrOrPC < 0 ? getPC() : (static_cast<uint32_t>(centerAddrOrPC) & 0xFFFFFF);
-  // A bank is a wall: walking off the end of one does not carry into the next,
-  // so the scan and the listing both stay inside the bank they started in.
-  const uint32_t bank = centre & 0xFF0000;
-  const uint16_t centreOffset = static_cast<uint16_t>(centre & 0xFFFF);
-
-  // Where to begin is an alignment search: the centre is a program counter
-  // (or was typed in as one) and must appear as an instruction, whatever the
-  // bytes above it decode to. See disasm_align.hpp for why a fixed lookback
-  // does not do that.
-  const int longestInstruction = g_iigs ? 4 : 3;
-  int at = a2e::alignedDisassemblyStart(
-      centreOffset, instructionsBefore, longestInstruction,
-      [bank](uint16_t offset) {
-        uint8_t length = 1;
-        disassembleOneAt(bank | offset, &length);
-        return length;
-      });
-
-  for (int i = 0; i < count && at <= 0xFFFF; i++) {
+  const std::vector<a2e::host::Instruction> lines =
+      g_host.disassembleRange(centre, instructionsBefore, count);
+  for (size_t i = 0; i < lines.size(); i++) {
+    const a2e::host::Instruction &in = lines[i];
     if (i > 0) buffer.push_back('\n');
-    uint8_t length = 1;
-    const uint32_t address = bank | static_cast<uint16_t>(at);
-    const std::string line = disassembleOneAt(address, &length);
-
     char head[16];
-    snprintf(head, sizeof head, "%06X\t", address);
+    snprintf(head, sizeof head, "%06X\t", in.address);
     buffer += head;
-    for (int b = 0; b < length; b++) {
+    for (int b = 0; b < in.length; b++) {
       char byteText[8];
-      const uint32_t byteAt =
-          bank | static_cast<uint16_t>(at + b);
-      snprintf(byteText, sizeof byteText, b == 0 ? "%02X" : " %02X",
-               g_iigs ? g_iigs->memory().peek(byteAt)
-                      : g_emulator->peekMemory(static_cast<uint16_t>(byteAt)));
+      snprintf(byteText, sizeof byteText, b == 0 ? "%02X" : " %02X", in.bytes[b]);
       buffer += byteText;
     }
     buffer.push_back('\t');
-    // The text after the bytes, which both formatters put after a double
-    // space: everything from the mnemonic on.
-    const size_t mnemonic = line.find("  ");
-    buffer += mnemonic == std::string::npos
-                  ? line
-                  : line.substr(line.find_first_not_of(' ', mnemonic));
-    at += length > 0 ? length : 1;
+    buffer += instructionText(in);
   }
 
   return buffer.c_str();
 }
 
 namespace {
-// A IIgs's //e switches are its Mega II's, and the pushbuttons and the
-// keyboard it reports them alongside come from the ADB rather than from a
-// game connector — which is the only part of the answer that differs.
+// Each machine packs its own word: a IIgs's switches are its Mega II's, and
+// the pushbuttons and the keyboard come from the ADB rather than a game
+// connector.
 uint64_t softSwitchState() {
-  if (g_iigs) {
-    return a2e::packSoftSwitchState(
-        g_iigs->memory().megaII().getSoftSwitches(), false, false, false,
-        (g_iigs->memory().adb().keyboardLatch() & 0x80) != 0);
+  return g_host.softSwitchValue(a2e::MachineDebug::SWITCH_FLAGS);
+}
+
+void appendJSONString(std::string &out, const char *text) {
+  out += '"';
+  for (const char *c = text; *c; c++) {
+    if (*c == '"' || *c == '\\') out += '\\';
+    out += *c;
   }
-  if (!g_emulator) return 0;
-  return g_emulator->getSoftSwitchState();
+  out += '"';
 }
 } // namespace
 
@@ -1606,6 +1473,89 @@ uint32_t getSoftSwitchStateHigh() {
   return static_cast<uint32_t>(softSwitchState() >> 32);
 }
 
+// The switches and registers the running machine has (soft_switch_catalog),
+// as a JSON array in one round trip.
+EMSCRIPTEN_KEEPALIVE
+const char *getSoftSwitchCatalogJSON() {
+  static std::string buffer;
+  buffer = "[";
+  bool first = true;
+  for (const a2e::SoftSwitchInfo &s : g_host.softSwitches()) {
+    if (!first) buffer += ',';
+    first = false;
+    buffer += "{\"key\":";
+    appendJSONString(buffer, s.key);
+    buffer += ",\"name\":";
+    appendJSONString(buffer, s.name);
+    buffer += ",\"group\":";
+    appendJSONString(buffer, s.group);
+    buffer += ",\"address\":";
+    appendJSONString(buffer, s.address);
+    buffer += ",\"desc\":";
+    appendJSONString(buffer, s.description);
+    buffer += ",\"source\":" + std::to_string(s.source);
+    buffer += ",\"bit\":" + std::to_string(s.bit);
+    buffer += std::string(",\"readOnly\":") + (s.readOnly ? "true" : "false");
+    buffer += "}";
+  }
+  buffer += "]";
+  return buffer.c_str();
+}
+
+// A register's byte, or the low half of the switch word for source 0.
+EMSCRIPTEN_KEEPALIVE
+uint32_t getSoftSwitchValue(uint32_t source) {
+  return static_cast<uint32_t>(g_host.softSwitchValue(source));
+}
+
+// Soft switch breakpoints (MachineDebug). Every switch in the word sits in
+// its low 32 bits, so a mask and a value of 32 bits reach all of them.
+EMSCRIPTEN_KEEPALIVE
+int32_t addSwitchBreakpoint(uint32_t source, uint32_t mask, int condition,
+                            uint32_t value) {
+  REQUIRE_DEBUG_OR(-1);
+  return machineDebug()->addSwitchBreakpoint(
+      source, mask, static_cast<a2e::MachineDebug::SwitchCondition>(condition),
+      value);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void removeSwitchBreakpoint(int32_t id) {
+  REQUIRE_DEBUG();
+  machineDebug()->removeSwitchBreakpoint(id);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void enableSwitchBreakpoint(int32_t id, bool enabled) {
+  REQUIRE_DEBUG();
+  machineDebug()->enableSwitchBreakpoint(id, enabled);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void clearSwitchBreakpoints() {
+  REQUIRE_DEBUG();
+  machineDebug()->clearSwitchBreakpoints();
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool isSwitchBreakpointHit() {
+  REQUIRE_DEBUG_OR(false);
+  return machineDebug()->isSwitchBreakpointHit();
+}
+
+EMSCRIPTEN_KEEPALIVE
+int32_t getSwitchBreakpointHitId() {
+  REQUIRE_DEBUG_OR(-1);
+  return machineDebug()->switchBreakpointHitId();
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char *getSwitchHitText() {
+  static std::string buffer;
+  buffer = g_host.switchHitText();
+  return buffer.c_str();
+}
+
 // Screen text extraction
 EMSCRIPTEN_KEEPALIVE
 int screenCodeToAscii(uint8_t code) {
@@ -1614,13 +1564,13 @@ int screenCodeToAscii(uint8_t code) {
 
 EMSCRIPTEN_KEEPALIVE
 const char* readScreenText(int startRow, int startCol, int endRow, int endCol) {
-  if (g_iigs) {
+  if (g_host.iigs()) {
     static std::string buffer;
-    buffer = g_iigs->screenText(startRow, startCol, endRow, endCol);
+    buffer = g_host.iigs()->screenText(startRow, startCol, endRow, endCol);
     return buffer.c_str();
   }
   REQUIRE_EMULATOR_OR("");
-  return g_emulator->readScreenText(startRow, startCol, endRow, endCol);
+  return g_host.emulator()->readScreenText(startRow, startCol, endRow, endCol);
 }
 
 // Disk controller state for debugging
@@ -1648,7 +1598,7 @@ EMSCRIPTEN_KEEPALIVE
 bool getDiskMotorOn(int drive) {
   REQUIRE_DISK_OR(false);
   (void)drive; // Motor state is controller-wide
-  return (*diskController()).isMotorOn();
+  return (*diskController()).isFiveInchMotorOn();
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -1685,8 +1635,7 @@ int getSelectedDrive() {
 
 EMSCRIPTEN_KEEPALIVE
 bool isDiskInserted(int drive) {
-  REQUIRE_DISK_OR(false);
-  return (*diskController()).hasDisk(drive);
+  return g_host.isDiskInserted(drive);
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -1799,9 +1748,8 @@ static a2e::DiskSaveFormat toSaveFormat(int format) {
 
 EMSCRIPTEN_KEEPALIVE
 const uint8_t *getDiskDataAs(int drive, int format, size_t *size) {
-  if (g_iigs) return g_iigs->exportDiskDataAs(drive, toSaveFormat(format), size);
-  REQUIRE_EMULATOR_OR(nullptr);
-  return g_emulator->exportDiskDataAs(drive, toSaveFormat(format), size);
+  if (!g_host.isBuilt()) return nullptr;
+  return g_host.exportDiskAs(drive, toSaveFormat(format), size);
 }
 
 // Sectors in DOS order for the filesystem parsers, whatever order the image
@@ -1809,42 +1757,29 @@ const uint8_t *getDiskDataAs(int drive, int format, size_t *size) {
 // not disturbed by a save conversion.
 EMSCRIPTEN_KEEPALIVE
 const uint8_t *getDiskSectorDataDOSOrder(int drive, size_t *size) {
-  if (g_iigs) return g_iigs->getDiskSectorsDOSOrder(drive, size);
+  if (g_host.iigs()) return g_host.iigs()->getDiskSectorsDOSOrder(drive, size);
   REQUIRE_EMULATOR_OR(nullptr);
-  return g_emulator->getDiskSectorsDOSOrder(drive, size);
+  return g_host.emulator()->getDiskSectorsDOSOrder(drive, size);
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool canSaveDiskAs(int drive, int format) {
-  if (g_iigs) return g_iigs->canExportDiskAs(drive, toSaveFormat(format));
-  REQUIRE_EMULATOR_OR(false);
-  return g_emulator->canExportDiskAs(drive, toSaveFormat(format));
+  return g_host.canExportDiskAs(drive, toSaveFormat(format));
 }
 
 EMSCRIPTEN_KEEPALIVE
 int getDiskNativeFormat(int drive) {
-  if (g_iigs) return static_cast<int>(g_iigs->getDiskNativeFormat(drive));
-  REQUIRE_EMULATOR_OR(0);
-  return static_cast<int>(g_emulator->getDiskNativeFormat(drive));
+  return static_cast<int>(g_host.diskNativeFormat(drive));
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool isDiskModified(int drive) {
-  REQUIRE_DISK_OR(false);
-  if ((*diskController()).hasDisk(drive)) {
-    const auto *image = (*diskController()).getDiskImage(drive);
-    if (image) {
-      return image->isModified();
-    }
-  }
-  return false;
+  return g_host.isDiskModified(drive);
 }
 
 EMSCRIPTEN_KEEPALIVE
 const char *getDiskFilename(int drive) {
-  if (g_iigs) return g_iigs->getDiskFilename(drive);
-  REQUIRE_EMULATOR_OR(nullptr);
-  return g_emulator->getDiskFilename(drive);
+  return g_host.diskFilename(drive);
 }
 
 // Memory tracking for debugger heat map
@@ -1854,78 +1789,76 @@ void enableMemoryTracking(bool enable) {
   // tracking works there — and it is the side that matters, since it is where
   // the video, the firmware's workspace and Applesoft all live. What it does
   // not cover is the fast RAM on the other side of the machine.
-  if (g_iigs) { g_iigs->memory().megaII().enableTracking(enable); return; }
+  if (g_host.iigs()) { g_host.iigs()->memory().megaII().enableTracking(enable); return; }
   REQUIRE_EMULATOR();
-  g_emulator->getMMU().enableTracking(enable);
+  g_host.emulator()->getMMU().enableTracking(enable);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void clearMemoryTracking() {
-  if (g_iigs) { g_iigs->memory().megaII().clearTracking(); return; }
+  if (g_host.iigs()) { g_host.iigs()->memory().megaII().clearTracking(); return; }
   REQUIRE_EMULATOR();
-  g_emulator->getMMU().clearTracking();
+  g_host.emulator()->getMMU().clearTracking();
 }
 
 EMSCRIPTEN_KEEPALIVE
 void decayMemoryTracking(uint8_t amount) {
-  if (g_iigs) { g_iigs->memory().megaII().decayTracking(amount); return; }
+  if (g_host.iigs()) { g_host.iigs()->memory().megaII().decayTracking(amount); return; }
   REQUIRE_EMULATOR();
-  g_emulator->getMMU().decayTracking(amount);
+  g_host.emulator()->getMMU().decayTracking(amount);
 }
 
 EMSCRIPTEN_KEEPALIVE
 const uint8_t* getMemoryReadCounts() {
-  if (g_iigs) return g_iigs->memory().megaII().getReadCounts();
+  if (g_host.iigs()) return g_host.iigs()->memory().megaII().getReadCounts();
   REQUIRE_EMULATOR_OR(nullptr);
-  return g_emulator->getMMU().getReadCounts();
+  return g_host.emulator()->getMMU().getReadCounts();
 }
 
 EMSCRIPTEN_KEEPALIVE
 const uint8_t* getMemoryWriteCounts() {
-  if (g_iigs) return g_iigs->memory().megaII().getWriteCounts();
+  if (g_host.iigs()) return g_host.iigs()->memory().megaII().getWriteCounts();
   REQUIRE_EMULATOR_OR(nullptr);
-  return g_emulator->getMMU().getWriteCounts();
+  return g_host.emulator()->getMMU().getWriteCounts();
 }
 
 // Direct memory array access for heat map visualization
 EMSCRIPTEN_KEEPALIVE
 const uint8_t* getMainRAM() {
-  if (g_iigs) return g_iigs->memory().megaII().getMainRAM();
+  if (g_host.iigs()) return g_host.iigs()->memory().megaII().getMainRAM();
   REQUIRE_EMULATOR_OR(nullptr);
-  return g_emulator->getMMU().getMainRAM();
+  return g_host.emulator()->getMMU().getMainRAM();
 }
 
 EMSCRIPTEN_KEEPALIVE
 const uint8_t* getAuxRAM() {
-  if (g_iigs) return g_iigs->memory().megaII().getAuxRAM();
+  if (g_host.iigs()) return g_host.iigs()->memory().megaII().getAuxRAM();
   REQUIRE_EMULATOR_OR(nullptr);
-  return g_emulator->getMMU().getAuxRAM();
+  return g_host.emulator()->getMMU().getAuxRAM();
 }
 
 EMSCRIPTEN_KEEPALIVE
 const uint8_t* getSystemROM() {
-  if (g_iigs) return g_iigs->memory().megaII().getSystemROM();
+  if (g_host.iigs()) return g_host.iigs()->memory().megaII().getSystemROM();
   REQUIRE_EMULATOR_OR(nullptr);
-  return g_emulator->getMMU().getSystemROM();
+  return g_host.emulator()->getMMU().getSystemROM();
 }
 
 // Read auxiliary memory directly (for 80-column text selection)
 EMSCRIPTEN_KEEPALIVE
 uint8_t peekAuxMemory(uint16_t address) {
-  if (g_iigs) {
-    return g_iigs->memory().megaII().readRAM(address, true);
+  if (g_host.iigs()) {
+    return g_host.iigs()->memory().megaII().readRAM(address, true);
   }
   REQUIRE_EMULATOR_OR(0);
-  return g_emulator->getMMU().peekAux(address);
+  return g_host.emulator()->getMMU().peekAux(address);
 }
 
 // The video generator of whichever machine is running. A IIgs's //e-mode
 // picture is drawn by the same class from the same memory — it *is* a //e's
 // video — so every display setting the host offers means the same thing to it.
 static a2e::Video *videoGenerator() {
-  if (g_emulator) return &g_emulator->getVideo();
-  if (g_iigs) return &g_iigs->video();
-  return nullptr;
+  return g_host.video();
 }
 
 #define REQUIRE_VIDEO() do { if (!videoGenerator()) return; } while(0)
@@ -1985,16 +1918,16 @@ bool isMonochrome() {
 // the host does not need to know which it has, and each refuses the other's.
 EMSCRIPTEN_KEEPALIVE
 uint8_t *exportState(size_t *size) {
-  if (g_emulator) return const_cast<uint8_t *>(g_emulator->exportState(size));
-  if (g_iigs) return const_cast<uint8_t *>(g_iigs->exportState(size));
+  if (g_host.emulator()) return const_cast<uint8_t *>(g_host.emulator()->exportState(size));
+  if (g_host.iigs()) return const_cast<uint8_t *>(g_host.iigs()->exportState(size));
   *size = 0;
   return nullptr;
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool importState(const uint8_t *data, size_t size) {
-  if (g_emulator) return g_emulator->importState(data, size);
-  if (g_iigs) return g_iigs->importState(data, size);
+  if (g_host.emulator()) return g_host.emulator()->importState(data, size);
+  if (g_host.iigs()) return g_host.iigs()->importState(data, size);
   return false;
 }
 
@@ -2049,7 +1982,7 @@ uint32_t disassembleWithFlowAnalysisMultiEntry(const uint8_t *data, size_t size,
 EMSCRIPTEN_KEEPALIVE
 bool isMockingboardEnabled() {
   REQUIRE_MOCKINGBOARD_OR(false);
-  return g_emulator->getMockingboard().isEnabled();
+  return g_host.emulator()->getMockingboard().isEnabled();
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -2057,9 +1990,9 @@ uint8_t getMockingboardPSGRegister(int psg, int reg) {
   REQUIRE_MOCKINGBOARD_OR(0);
   if (reg < 0 || reg >= 16) return 0;
   if (psg == 0) {
-    return g_emulator->getMockingboard().getPSG1().getRegister(reg);
+    return g_host.emulator()->getMockingboard().getPSG1().getRegister(reg);
   } else if (psg == 1) {
-    return g_emulator->getMockingboard().getPSG2().getRegister(reg);
+    return g_host.emulator()->getMockingboard().getPSG2().getRegister(reg);
   }
   return 0;
 }
@@ -2072,8 +2005,8 @@ EMSCRIPTEN_KEEPALIVE
 const uint8_t* getMockingboardPSGRegisters(int psg) {
   REQUIRE_MOCKINGBOARD_OR(nullptr);
   const auto& psgChip = (psg == 0)
-    ? g_emulator->getMockingboard().getPSG1()
-    : g_emulator->getMockingboard().getPSG2();
+    ? g_host.emulator()->getMockingboard().getPSG1()
+    : g_host.emulator()->getMockingboard().getPSG2();
   for (int i = 0; i < 16; i++) {
     g_psgRegisters[i] = psgChip.getRegister(i);
   }
@@ -2084,9 +2017,9 @@ EMSCRIPTEN_KEEPALIVE
 bool getMockingboardVIAIRQ(int via) {
   REQUIRE_MOCKINGBOARD_OR(false);
   if (via == 0) {
-    return g_emulator->getMockingboard().getVIA1().isIRQActive();
+    return g_host.emulator()->getMockingboard().getVIA1().isIRQActive();
   } else if (via == 1) {
-    return g_emulator->getMockingboard().getVIA2().isIRQActive();
+    return g_host.emulator()->getMockingboard().getVIA2().isIRQActive();
   }
   return false;
 }
@@ -2097,8 +2030,8 @@ EMSCRIPTEN_KEEPALIVE
 uint8_t getMockingboardVIAPort(int via, int reg) {
   REQUIRE_MOCKINGBOARD_OR(0);
   const auto& viaChip = (via == 0)
-      ? g_emulator->getMockingboard().getVIA1()
-      : g_emulator->getMockingboard().getVIA2();
+      ? g_host.emulator()->getMockingboard().getVIA1()
+      : g_host.emulator()->getMockingboard().getVIA2();
   switch (reg) {
     case 0: return viaChip.getORA();
     case 1: return viaChip.getORB();
@@ -2114,8 +2047,8 @@ EMSCRIPTEN_KEEPALIVE
 uint32_t getMockingboardPSGWriteInfo(int psg, int info) {
   REQUIRE_MOCKINGBOARD_OR(0);
   const auto& psgChip = (psg == 0)
-      ? g_emulator->getMockingboard().getPSG1()
-      : g_emulator->getMockingboard().getPSG2();
+      ? g_host.emulator()->getMockingboard().getPSG1()
+      : g_host.emulator()->getMockingboard().getPSG2();
   switch (info) {
     case 0: return psgChip.getWriteCount();
     case 1: return psgChip.getLastWriteReg();
@@ -2131,8 +2064,8 @@ EMSCRIPTEN_KEEPALIVE
 uint32_t getMockingboardVIATimerInfo(int via, int info) {
   REQUIRE_MOCKINGBOARD_OR(0);
   const auto& viaChip = (via == 0)
-      ? g_emulator->getMockingboard().getVIA1()
-      : g_emulator->getMockingboard().getVIA2();
+      ? g_host.emulator()->getMockingboard().getVIA1()
+      : g_host.emulator()->getMockingboard().getVIA2();
   switch (info) {
     case 0: return viaChip.getT1Counter();
     case 1: return viaChip.getT1Latch();
@@ -2149,7 +2082,7 @@ uint32_t getMockingboardVIATimerInfo(int via, int info) {
 EMSCRIPTEN_KEEPALIVE
 void setMockingboardDebugLogging(bool enabled) {
   REQUIRE_MOCKINGBOARD();
-  g_emulator->getMockingboard().setDebugLogging(enabled);
+  g_host.emulator()->getMockingboard().setDebugLogging(enabled);
 }
 
 // Mute/unmute a specific channel on a PSG
@@ -2160,9 +2093,23 @@ EMSCRIPTEN_KEEPALIVE
 void setMockingboardChannelMute(int psg, int channel, bool muted) {
   REQUIRE_MOCKINGBOARD();
   auto& psgChip = (psg == 0)
-      ? g_emulator->getMockingboard().getPSG1()
-      : g_emulator->getMockingboard().getPSG2();
+      ? g_host.emulator()->getMockingboard().getPSG1()
+      : g_host.emulator()->getMockingboard().getPSG2();
   psgChip.setChannelMute(channel, muted);
+}
+
+// Play the left chip on both sides while the two hold the same registers, so
+// a song mirrored to both chips cannot cancel itself on speakers close
+// together. A host preference for every Mockingboard, any machine.
+EMSCRIPTEN_KEEPALIVE
+void setMockingboardPhaseLock(bool on) {
+  a2e::MockingboardCard::setPhaseLock(on);
+}
+
+// Mix the two chips and play the mix on both sides, for every Mockingboard.
+EMSCRIPTEN_KEEPALIVE
+void setMockingboardMono(bool on) {
+  a2e::MockingboardCard::setMono(on);
 }
 
 // Check if a channel is muted
@@ -2170,8 +2117,8 @@ EMSCRIPTEN_KEEPALIVE
 bool getMockingboardChannelMute(int psg, int channel) {
   REQUIRE_MOCKINGBOARD_OR(false);
   const auto& psgChip = (psg == 0)
-      ? g_emulator->getMockingboard().getPSG1()
-      : g_emulator->getMockingboard().getPSG2();
+      ? g_host.emulator()->getMockingboard().getPSG1()
+      : g_host.emulator()->getMockingboard().getPSG2();
   return psgChip.isChannelMuted(channel);
 }
 
@@ -2188,8 +2135,8 @@ int getMockingboardWaveform(int psg, int channel, float* buffer, int count) {
 
   const int SAMPLE_RATE = 48000;
   auto& psgChip = (psg == 0)
-      ? g_emulator->getMockingboard().getPSG1()
-      : g_emulator->getMockingboard().getPSG2();
+      ? g_host.emulator()->getMockingboard().getPSG1()
+      : g_host.emulator()->getMockingboard().getPSG2();
 
   // Create a copy of the PSG to generate visualization samples
   // without affecting the actual audio state
@@ -2210,22 +2157,12 @@ int getMockingboardWaveform(int psg, int channel, float* buffer, int count) {
 
 EMSCRIPTEN_KEEPALIVE
 void mouseMove(int dx, int dy) {
-  if (g_iigs) {
-    g_iigs->mouseMove(dx, dy);
-    return;
-  }
-  REQUIRE_EMULATOR();
-  g_emulator->mouseMove(dx, dy);
+  g_host.mouseMove(dx, dy);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void mouseButton(bool pressed) {
-  if (g_iigs) {
-    g_iigs->mouseButton(pressed);
-    return;
-  }
-  REQUIRE_EMULATOR();
-  g_emulator->mouseButton(pressed);
+  g_host.mouseButton(pressed);
 }
 
 // ============================================================================
@@ -2239,9 +2176,9 @@ void mouseButton(bool pressed) {
 // pointer?") rather than a claim about a slot.
 EMSCRIPTEN_KEEPALIVE
 bool isMouseCardInstalled() {
-  if (g_iigs) return true;
+  if (g_host.iigs()) return true;
   REQUIRE_EMULATOR_OR(false);
-  return g_emulator->getMouseCard() != nullptr;
+  return g_host.emulator()->getMouseCard() != nullptr;
 }
 
 // Get mouse card state field
@@ -2252,7 +2189,7 @@ bool isMouseCardInstalled() {
 EMSCRIPTEN_KEEPALIVE
 int32_t getMouseCardState(int field) {
   REQUIRE_EMULATOR_OR(0);
-  auto* mouse = g_emulator->getMouseCard();
+  auto* mouse = g_host.emulator()->getMouseCard();
   if (!mouse) return 0;
   switch (field) {
     case 0: return mouse->getSlotNumber();
@@ -2282,7 +2219,7 @@ int32_t getMouseCardState(int field) {
 EMSCRIPTEN_KEEPALIVE
 uint32_t getMouseCardPIARegister(int reg) {
   REQUIRE_EMULATOR_OR(0);
-  auto* mouse = g_emulator->getMouseCard();
+  auto* mouse = g_host.emulator()->getMouseCard();
   if (!mouse) return 0;
   switch (reg) {
     case 0: return mouse->getDDRA();
@@ -2306,31 +2243,19 @@ uint32_t getMouseCardPIARegister(int reg) {
 // its SmartPort, and there is nothing to fit. Either way the host is asking
 // about block devices, and the class that holds them is the same class.
 static a2e::SmartPortCard* smartPortCard() {
-  if (g_emulator) return g_emulator->getSmartPortCard();
-  if (g_iigs) return &g_iigs->smartPort();
-  return nullptr;
+  return g_host.smartPort();
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool insertSmartPortImage(int device, uint8_t* data, int size, const char* filename) {
-  // A IIgs decides when its SmartPort's ROM may appear, so it goes through
-  // the machine rather than straight to the card.
-  if (g_iigs) {
-    return g_iigs->insertBlockImage(device, data, static_cast<size_t>(size),
-                                    filename ? filename : "");
-  }
-  auto* card = smartPortCard();
-  if (!card) return false;
-  return card->insertImage(device, data, static_cast<size_t>(size),
-                           filename ? filename : "");
+  return g_host.insertBlockImage(device, data, static_cast<size_t>(size), filename);
 }
 
 // An image is in, but the ROM that boots from it waits for the next reset: a
 // IIgs's SmartPort replaces the machine's own slot 5 firmware only then.
 EMSCRIPTEN_KEEPALIVE
 bool isSmartPortROMPending() {
-  auto* card = smartPortCard();
-  return card && card->isROMPending();
+  return g_host.isSmartPortROMPending();
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -2340,8 +2265,78 @@ void ejectSmartPortImage(int device) {
 
 EMSCRIPTEN_KEEPALIVE
 bool isSmartPortImageInserted(int device) {
-  auto* card = smartPortCard();
-  return card && card->isImageInserted(device);
+  return g_host.isBlockImageInserted(device);
+}
+
+// ============================================================================
+// 3.5" drives (a IIgs's IWM port)
+// ============================================================================
+
+EMSCRIPTEN_KEEPALIVE
+bool has35Drives() {
+  return g_host.has35Drives();
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool insert35Disk(int drive, uint8_t *data, int size, const char *filename) {
+  return g_host.insert35Disk(drive, data, static_cast<size_t>(size), filename);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void eject35Disk(int drive) {
+  g_host.eject35Disk(drive);
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool is35DiskInserted(int drive) {
+  return g_host.is35DiskInserted(drive);
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool is35DiskModified(int drive) {
+  return g_host.is35DiskModified(drive);
+}
+
+EMSCRIPTEN_KEEPALIVE
+const char *get35DiskFilename(int drive) {
+  static std::string name;
+  name = g_host.disk35Filename(drive);
+  return name.empty() ? nullptr : name.c_str();
+}
+
+EMSCRIPTEN_KEEPALIVE
+const uint8_t *export35Disk(int drive, size_t *size) {
+  return g_host.export35Disk(drive, size);
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool is35MotorOn(int drive) {
+  return g_host.is35MotorOn(drive);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int get35DiskTrack(int drive) {
+  return g_host.disk35Track(drive);
+}
+
+EMSCRIPTEN_KEEPALIVE
+int get35DiskSide(int drive) {
+  return g_host.disk35Side(drive);
+}
+
+EMSCRIPTEN_KEEPALIVE
+bool has35Ejected(int drive) {
+  return g_host.has35Ejected(drive);
+}
+
+EMSCRIPTEN_KEEPALIVE
+const uint8_t *export35Ejected(int drive, size_t *size) {
+  return g_host.export35Ejected(drive, size);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void clear35Ejected(int drive) {
+  g_host.clear35Ejected(drive);
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -2354,8 +2349,7 @@ const char* getSmartPortImageFilename(int device) {
 
 EMSCRIPTEN_KEEPALIVE
 bool isSmartPortImageModified(int device) {
-  auto* card = smartPortCard();
-  return card && card->isImageModified(device);
+  return g_host.isBlockImageModified(device);
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -2408,18 +2402,18 @@ void serialReceive(uint8_t byte) {
   // A serial line is a serial line whatever provides it: a //e's SSC, a //c's
   // built-in port, or a IIgs's SCC. The byte arrives at the modem port on
   // every machine that has two, because a printer does not talk back.
-  if (g_iigs) {
-    g_iigs->serialReceive(byte);
+  if (g_host.iigs()) {
+    g_host.iigs()->serialReceive(byte);
     return;
   }
   REQUIRE_EMULATOR();
-  g_emulator->serialReceive(byte);
+  g_host.emulator()->serialReceive(byte);
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool isSSCInstalled() {
   REQUIRE_EMULATOR_OR(false);
-  return g_emulator->isSSCInstalled();
+  return g_host.emulator()->isSSCInstalled();
 }
 
 /**
@@ -2452,14 +2446,14 @@ EM_JS(void, deliverSerialByte, (int port, uint8_t byte), {
 
 EMSCRIPTEN_KEEPALIVE
 void setSerialTxCallback() {
-  if (g_iigs) {
-    g_iigs->setSerialTxCallback([](int port, uint8_t byte) {
+  if (g_host.iigs()) {
+    g_host.iigs()->setSerialTxCallback([](int port, uint8_t byte) {
       deliverSerialByte(port, byte);
     });
     return;
   }
   REQUIRE_EMULATOR();
-  g_emulator->setSerialTxCallback([](uint8_t byte) {
+  g_host.emulator()->setSerialTxCallback([](uint8_t byte) {
     // One callback for every port this machine has, so there is no port to
     // name: a line device is asked first and the printer second, which is the
     // order this has always used.
@@ -2470,13 +2464,13 @@ void setSerialTxCallback() {
 EMSCRIPTEN_KEEPALIVE
 bool isParallelCardInstalled() {
   REQUIRE_EMULATOR_OR(false);
-  return g_emulator->isParallelCardInstalled();
+  return g_host.emulator()->isParallelCardInstalled();
 }
 
 EMSCRIPTEN_KEEPALIVE
 void setParallelTxCallback() {
   REQUIRE_EMULATOR();
-  g_emulator->setParallelTxCallback([](uint8_t byte) {
+  g_host.emulator()->setParallelTxCallback([](uint8_t byte) {
     EM_ASM({
       if (self.emulator && self.emulator.printer) {
         self.emulator.printer.receiveByte($0);
@@ -2491,14 +2485,14 @@ void setParallelTxCallback() {
 
 EMSCRIPTEN_KEEPALIVE
 const char* getSlotCard(int slot) {
-  if (g_emulator) {
-    return g_emulator->getSlotCardName(static_cast<uint8_t>(slot));
+  if (g_host.emulator()) {
+    return g_host.emulator()->getSlotCardName(static_cast<uint8_t>(slot));
   }
-  if (g_iigs) {
+  if (g_host.iigs()) {
     // Held in a static because the caller reads the string after this returns
     // and IIgsMachine hands back a value.
     static std::string name;
-    name = g_iigs->getSlotCardName(static_cast<uint8_t>(slot));
+    name = g_host.iigs()->getSlotCardName(static_cast<uint8_t>(slot));
     return name.c_str();
   }
   return "invalid";
@@ -2506,23 +2500,16 @@ const char* getSlotCard(int slot) {
 
 EMSCRIPTEN_KEEPALIVE
 bool setSlotCard(int slot, const char* cardId) {
-  if (g_emulator) {
-    return g_emulator->setSlotCard(static_cast<uint8_t>(slot), cardId);
-  }
-  if (g_iigs) {
-    return g_iigs->setSlotCard(static_cast<uint8_t>(slot),
-                               cardId ? cardId : "empty");
-  }
-  return false;
+  return g_host.setSlotCard(slot, cardId ? cardId : "empty");
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool isSlotEmpty(int slot) {
-  if (g_emulator) {
-    return g_emulator->isSlotEmpty(static_cast<uint8_t>(slot));
+  if (g_host.emulator()) {
+    return g_host.emulator()->isSlotEmpty(static_cast<uint8_t>(slot));
   }
-  if (g_iigs) {
-    return g_iigs->getSlotCardName(static_cast<uint8_t>(slot)) == "empty";
+  if (g_host.iigs()) {
+    return g_host.iigs()->getSlotCardName(static_cast<uint8_t>(slot)) == "empty";
   }
   return true;
 }
@@ -2538,13 +2525,12 @@ bool isSlotEmpty(int slot) {
 
 EMSCRIPTEN_KEEPALIVE
 bool isSlotInternal(int slot) {
-  if (g_iigs) return g_iigs->isSlotInternal(static_cast<uint8_t>(slot));
-  return true; // every other machine's slots are sockets and nothing else
+  return g_host.isSlotInternal(slot);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void setSlotInternal(int slot, bool internal) {
-  if (g_iigs) g_iigs->setSlotInternal(static_cast<uint8_t>(slot), internal);
+  g_host.setSlotInternal(slot, internal);
 }
 
 // ============================================================================
@@ -2556,8 +2542,8 @@ void addWatchpoint(uint32_t startAddr, uint32_t endAddr, uint8_t type) {
   // The //e routes this through the Emulator, which also has to tell its MMU
   // to start checking; a IIgs checks on the processor's own bus and needs no
   // such switch.
-  if (g_emulator) {
-    g_emulator->addWatchpoint(
+  if (g_host.emulator()) {
+    g_host.emulator()->addWatchpoint(
         static_cast<uint16_t>(startAddr), static_cast<uint16_t>(endAddr),
         static_cast<a2e::Emulator::WatchpointType>(type));
     return;
@@ -2569,8 +2555,8 @@ void addWatchpoint(uint32_t startAddr, uint32_t endAddr, uint8_t type) {
 
 EMSCRIPTEN_KEEPALIVE
 void removeWatchpoint(uint32_t startAddr) {
-  if (g_emulator) {
-    g_emulator->removeWatchpoint(static_cast<uint16_t>(startAddr));
+  if (g_host.emulator()) {
+    g_host.emulator()->removeWatchpoint(static_cast<uint16_t>(startAddr));
     return;
   }
   REQUIRE_DEBUG();
@@ -2579,8 +2565,8 @@ void removeWatchpoint(uint32_t startAddr) {
 
 EMSCRIPTEN_KEEPALIVE
 void clearWatchpoints() {
-  if (g_emulator) {
-    g_emulator->clearWatchpoints();
+  if (g_host.emulator()) {
+    g_host.emulator()->clearWatchpoints();
     return;
   }
   REQUIRE_DEBUG();
@@ -2665,15 +2651,7 @@ EMSCRIPTEN_KEEPALIVE
 const char *formatTraceRange(uint32_t startIndex, uint32_t count) {
   static std::string buffer;
   buffer.clear();
-  a2e::MachineDebug *dbg = machineDebug();
-  if (!dbg) return buffer.c_str();
-
-  const size_t total = dbg->traceCount();
-  const size_t capacity = dbg->traceCapacity();
-  if (total == 0 || capacity == 0) return buffer.c_str();
-  const a2e::MachineDebug::TraceEntry *entries = dbg->traceBuffer();
-  const size_t head = dbg->traceHead();
-  const bool wide = g_iigs != nullptr;
+  const bool wide = g_host.iigs() != nullptr;
   const int registerDigits = wide ? 4 : 2;
 
   auto hex = [](uint32_t value, int digits) {
@@ -2682,59 +2660,34 @@ const char *formatTraceRange(uint32_t startIndex, uint32_t count) {
     return std::string(text);
   };
 
-  for (uint32_t i = 0; i < count; i++) {
-    const size_t index = startIndex + i;
-    if (index >= total) break;
-    // The ring has not wrapped until it is full; after that the oldest entry
-    // is wherever the write position now points.
-    const size_t ring = total < capacity ? index : (head + index) % capacity;
-    const a2e::MachineDebug::TraceEntry &e = entries[ring];
-
+  const std::vector<a2e::host::TraceLine> lines = g_host.traceLines(startIndex, count);
+  for (size_t i = 0; i < lines.size(); i++) {
+    const a2e::host::TraceLine &line = lines[i];
+    const a2e::host::Instruction &in = line.instruction;
     if (i > 0) buffer.push_back('\n');
-    buffer += std::to_string(e.cycle);
+    buffer += std::to_string(line.cycle);
     buffer.push_back('\t');
-
-    // The address, and the instruction as the machine's own disassembler
-    // writes it.
-    std::string text;
-    if (wide) {
-      buffer += hex((e.pc >> 16) & 0xFF, 2) + "/" + hex(e.pc & 0xFFFF, 4);
-      const uint8_t bytes[4] = {e.opcode, e.operand1, e.operand2, e.operand3};
-      const a2e::Disasm816Instruction in = a2e::disassemble816(
-          bytes, 4, e.pc, (e.widths & a2e::MachineDebug::WIDTH_A8) != 0,
-          (e.widths & a2e::MachineDebug::WIDTH_INDEX8) != 0);
-      text = std::string(in.mnemonic);
-      const std::string operand = a2e::formatOperand816(in);
-      if (!operand.empty()) text += " " + operand;
-    } else {
-      buffer += hex(e.pc & 0xFFFF, 4);
-      const uint8_t bytes[3] = {e.opcode, e.operand1, e.operand2};
-      const a2e::DisasmInstruction in = a2e::disassembleInstruction(
-          bytes, 3, static_cast<uint16_t>(e.pc & 0xFFFF));
-      text = std::string(in.mnemonic);
-      const std::string operand = a2e::formatOperand(in);
-      if (!operand.empty()) text += " " + operand;
-    }
+    buffer += wide ? hex((in.address >> 16) & 0xFF, 2) + "/" + hex(in.address & 0xFFFF, 4)
+                   : hex(in.address & 0xFFFF, 4);
     buffer.push_back('\t');
-
-    for (int b = 0; b < e.instrLen && b < 4; b++) {
+    for (int b = 0; b < in.length && b < 4; b++) {
       if (b > 0) buffer.push_back(' ');
-      buffer += hex(b == 0 ? e.opcode : (&e.operand1)[b - 1], 2);
+      buffer += hex(in.bytes[b], 2);
     }
     buffer.push_back('\t');
-    buffer += text;
+    buffer += instructionText(in);
     buffer.push_back('\t');
-    buffer += hex(e.a, registerDigits);
+    buffer += hex(line.a, registerDigits);
     buffer.push_back('\t');
-    buffer += hex(e.x, registerDigits);
+    buffer += hex(line.x, registerDigits);
     buffer.push_back('\t');
-    buffer += hex(e.y, registerDigits);
+    buffer += hex(line.y, registerDigits);
     buffer.push_back('\t');
-    buffer += hex(e.sp, registerDigits);
+    buffer += hex(line.sp, registerDigits);
     buffer.push_back('\t');
-    buffer += hex(e.p, 2);
+    buffer += hex(line.p, 2);
     buffer.push_back('\t');
-    buffer += hex(e.widths, 2);
+    buffer += hex(line.widths, 2);
   }
   return buffer.c_str();
 }
@@ -2755,19 +2708,19 @@ uint32_t getTraceEntrySize() {
 EMSCRIPTEN_KEEPALIVE
 void setProfileEnabled(bool enabled) {
   REQUIRE_EMULATOR();
-  g_emulator->setProfileEnabled(enabled);
+  g_host.emulator()->setProfileEnabled(enabled);
 }
 
 EMSCRIPTEN_KEEPALIVE
 void clearProfile() {
   REQUIRE_EMULATOR();
-  g_emulator->clearProfile();
+  g_host.emulator()->clearProfile();
 }
 
 EMSCRIPTEN_KEEPALIVE
 const uint32_t* getProfileCycles() {
   REQUIRE_EMULATOR_OR(nullptr);
-  return g_emulator->getProfileCycles();
+  return g_host.emulator()->getProfileCycles();
 }
 
 // ============================================================================
@@ -2878,21 +2831,21 @@ int getCallStack() {
   REQUIRE_EMULATOR_OR(0);
   g_callStackCount = 0;
 
-  uint8_t sp = g_emulator->getSP();
+  uint8_t sp = g_host.emulator()->getSP();
   int i = sp + 1;
 
   while (i < 0xFF && g_callStackCount < 64) {
-    uint8_t low = g_emulator->peekMemory(0x100 + i);
-    uint8_t high = g_emulator->peekMemory(0x100 + i + 1);
+    uint8_t low = g_host.emulator()->peekMemory(0x100 + i);
+    uint8_t high = g_host.emulator()->peekMemory(0x100 + i + 1);
     uint16_t retAddr = ((high << 8) | low) + 1;
 
     // Validate: check if instruction before retAddr was a JSR
     if (retAddr >= 3 && retAddr <= 0xFFFF) {
-      uint8_t possibleJSR = g_emulator->peekMemory(retAddr - 3);
+      uint8_t possibleJSR = g_host.emulator()->peekMemory(retAddr - 3);
       if (possibleJSR == 0x20) {
         // JSR target
-        uint8_t jsrLo = g_emulator->peekMemory(retAddr - 2);
-        uint8_t jsrHi = g_emulator->peekMemory(retAddr - 1);
+        uint8_t jsrLo = g_host.emulator()->peekMemory(retAddr - 2);
+        uint8_t jsrHi = g_host.emulator()->peekMemory(retAddr - 1);
         g_callStack[g_callStackCount].returnAddr = retAddr;
         g_callStack[g_callStackCount].jsrTarget = (jsrHi << 8) | jsrLo;
         g_callStackCount++;
@@ -2917,7 +2870,7 @@ bool isLikelyReturnAddress(uint32_t addr) {
   // the screen pages and the ROM; on a IIgs a program's code can be in any
   // bank at almost any offset, so the only thing ruled out is the zero page
   // and the stack it would have been pushed from.
-  if (g_iigs) return (addr & 0xFFFF) >= 0x0200;
+  if (g_host.iigs()) return (addr & 0xFFFF) >= 0x0200;
   const uint16_t at = static_cast<uint16_t>(addr & 0xFFFF);
   return (at >= 0x0800 && at < 0xC000) ||  // Main RAM (program code)
          (at >= 0xD000 && at <= 0xFFFF);    // ROM
@@ -3267,13 +3220,13 @@ static void asmTextToSource(const uint8_t* data, int length, std::string& out) {
 }
 
 static bool asmReadIncludeFromDisk(const std::string& name, std::string& out) {
-  if (!g_emulator) return false;
+  if (!g_host.emulator()) return false;
 
   static std::vector<uint8_t> fileBuffer(128 * 1024);
 
   for (int drive = 0; drive < 2; drive++) {
     size_t size = 0;
-    const uint8_t* data = g_emulator->getDiskSectorsDOSOrder(drive, &size);
+    const uint8_t* data = g_host.emulator()->getDiskSectorsDOSOrder(drive, &size);
     if (!data || size == 0) continue;
 
     if (a2e::DOS33::isDOS33(data, size)) {
@@ -3461,7 +3414,7 @@ int writeAsmObjectToDisk() {
   REQUIRE_EMULATOR_OR(-1);
   if (!g_asmResult.hasObjectFile || !g_asmResult.success) return -1;
 
-  a2e::FsWriteStatus status = g_emulator->writeBinaryFileToDisk(
+  a2e::FsWriteStatus status = g_host.emulator()->writeBinaryFileToDisk(
       g_asmResult.objectDrive - 1, g_asmResult.objectFilename,
       g_asmResult.origin, g_asmResult.output.data(), g_asmResult.output.size());
   return static_cast<int>(status);
@@ -3475,13 +3428,13 @@ const char* getAsmObjectStatusMessage(int status) {
 
 EMSCRIPTEN_KEEPALIVE
 void loadAsmIntoMemory() {
-  if (!g_emulator || g_asmResult.output.empty()) return;
+  if (!g_host.emulator() || g_asmResult.output.empty()) return;
   // Each ORG starts a segment, so a source that assembles two pieces of code
   // to two addresses lands both where it asked for rather than one after the
   // other from the first origin.
   for (const auto& segment : g_asmResult.segments) {
     for (uint32_t i = 0; i < segment.length; i++) {
-      g_emulator->writeMemory(static_cast<uint16_t>(segment.address + i),
+      g_host.emulator()->writeMemory(static_cast<uint16_t>(segment.address + i),
                               g_asmResult.output[segment.offset + i]);
     }
   }
@@ -3494,8 +3447,8 @@ void loadAsmIntoMemory() {
 EMSCRIPTEN_KEEPALIVE
 int loadBasicProgram(const char* source) {
   REQUIRE_EMULATOR_OR(-1);
-  auto read = [](uint16_t addr) -> uint8_t { return g_emulator->readMemory(addr); };
-  auto write = [](uint16_t addr, uint8_t val) { g_emulator->writeMemory(addr, val); };
+  auto read = [](uint16_t addr) -> uint8_t { return g_host.emulator()->readMemory(addr); };
+  auto write = [](uint16_t addr, uint8_t val) { g_host.emulator()->writeMemory(addr, val); };
   return a2e::loadBasicProgram(source, read, write);
 }
 
@@ -3505,14 +3458,12 @@ int loadBasicProgram(const char* source) {
 
 EMSCRIPTEN_KEEPALIVE
 void enableNoSlotClock(bool enable) {
-  REQUIRE_EMULATOR();
-  g_emulator->enableNoSlotClock(enable);
+  g_host.setNoSlotClock(enable);
 }
 
 EMSCRIPTEN_KEEPALIVE
 bool isNoSlotClockEnabled() {
-  REQUIRE_EMULATOR_OR(false);
-  return g_emulator->isNoSlotClockEnabled();
+  return g_host.noSlotClock();
 }
 
 
@@ -3533,7 +3484,7 @@ static std::vector<a2e::BasicArrayInfo> g_basicArrays;
 static std::vector<std::string> g_basicArrayStringBlobs;
 
 static a2e::VarMemReadFn emulatorReader() {
-  return [](uint16_t addr) -> uint8_t { return g_emulator->peekMemory(addr); };
+  return [](uint16_t addr) -> uint8_t { return g_host.emulator()->peekMemory(addr); };
 }
 
 EMSCRIPTEN_KEEPALIVE
@@ -3678,7 +3629,7 @@ void writeApplesoftFloat(int addr, double value) {
   uint8_t bytes[a2e::APPLESOFT_FLOAT_SIZE];
   a2e::ApplesoftVars::encodeFloat(value, bytes);
   for (int i = 0; i < a2e::APPLESOFT_FLOAT_SIZE; i++) {
-    g_emulator->writeMemory(static_cast<uint16_t>(addr + i), bytes[i]);
+    g_host.emulator()->writeMemory(static_cast<uint16_t>(addr + i), bytes[i]);
   }
 }
 
@@ -3690,13 +3641,13 @@ void writeApplesoftFloat(int addr, double value) {
 EMSCRIPTEN_KEEPALIVE
 int getBasicStatementCountForLine(int lineNumber) {
   REQUIRE_EMULATOR_OR(1);
-  return g_emulator->getBasicStatementCountForLine(static_cast<uint16_t>(lineNumber));
+  return g_host.emulator()->getBasicStatementCountForLine(static_cast<uint16_t>(lineNumber));
 }
 
 EMSCRIPTEN_KEEPALIVE
 int getBasicStatementIndexForLine(int lineNumber, int txtptr) {
   REQUIRE_EMULATOR_OR(0);
-  return g_emulator->getBasicStatementIndexForLine(static_cast<uint16_t>(lineNumber),
+  return g_host.emulator()->getBasicStatementIndexForLine(static_cast<uint16_t>(lineNumber),
                                                    static_cast<uint16_t>(txtptr));
 }
 
@@ -3707,7 +3658,7 @@ int getBasicStatementIndexForLine(int lineNumber, int txtptr) {
 EMSCRIPTEN_KEEPALIVE
 void releaseModifiers() {
   REQUIRE_EMULATOR();
-  g_emulator->releaseModifiers();
+  g_host.emulator()->releaseModifiers();
 }
 
 } // extern "C"

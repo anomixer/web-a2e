@@ -6,7 +6,7 @@
  */
 
 /*
- * The layouts are described in src/core/disk-image/disk_inspection.hpp. The
+ * The layouts are described in core/src/core/disk-image/disk_inspection.hpp. The
  * arrays returned here are views onto the buffer handed in, not copies: an
  * overview is 250KB and is read whole every time the disk changes.
  */
@@ -55,7 +55,7 @@ const KIND_NAMES = [
   "Data prologue",
   "Data field",
   "Data epilogue",
-  "Non-standard",
+  "Unknown",
   "Noise",
 ];
 
@@ -265,7 +265,7 @@ export function summarizeDisk(overview) {
   if (summary.tracks === 0) {
     summary.format = "Empty";
   } else if (summary.sectors === 0) {
-    summary.format = "Non-standard";
+    summary.format = "Unknown format";
   } else if (summary.thirteenSector && summary.sixteenSector) {
     summary.format = "13 and 16 sector";
   } else if (summary.thirteenSector) {

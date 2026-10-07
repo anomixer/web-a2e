@@ -117,8 +117,8 @@ export class AudioDriver {
    * Start the audio nodes once the context runs, however it comes to.
    *
    * A browser leaves a context created before any gesture suspended until
-   * something resumes it, and a click or a key press is what does. WebKit in a
-   * desktop app's webview (the Tauri build) has no such rule: it creates the
+   * something resumes it, and a click or a key press is what does. WebKit in an
+   * app's webview has no such rule: it creates the
    * context suspended and starts it by itself a moment later. So by the first
    * click the context is already running; waiting for a gesture to find it
    * suspended left the nodes never built and the machine free-running in

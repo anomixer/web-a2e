@@ -5,6 +5,7 @@
  *  Mike Daley <michael_daley@icloud.com>
  */
 
+import { mediaKind } from "./media-kind.js";
 import { DriveSounds } from "./drive-sounds.js";
 import { showToast } from "../ui/toast.js";
 import { DiskSurfaceRenderer } from "./disk-surface-renderer.js";
@@ -108,9 +109,6 @@ export class DiskManager {
 
     // Set up drive 2
     this.setupDrive(1, "disk2");
-
-    // Set up drag and drop on the display
-    this.setupDragDrop();
 
     // Set up save modal
     this.setupSaveModal();
@@ -328,39 +326,6 @@ export class DiskManager {
     }
   }
 
-  setupDragDrop() {
-    const displayContainer = document.getElementById("monitor-frame");
-    if (!displayContainer) return;
-
-    displayContainer.addEventListener("dragover", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      displayContainer.classList.add("drag-over");
-    });
-
-    displayContainer.addEventListener("dragleave", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      displayContainer.classList.remove("drag-over");
-    });
-
-    displayContainer.addEventListener("drop", (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      displayContainer.classList.remove("drag-over");
-
-      if (e.dataTransfer.files.length > 0) {
-        // Load into first empty drive, or drive 1 if both full
-        const driveNum = !this.drives[0].filename
-          ? 0
-          : !this.drives[1].filename
-            ? 1
-            : 0;
-        this.loadDisk(driveNum, e.dataTransfer.files[0]);
-      }
-    });
-  }
-
   setupSaveModal() {
     this.saveModal = document.getElementById("save-disk-modal");
     this.saveFilenameInput = document.getElementById("save-disk-filename");
@@ -525,6 +490,18 @@ export class DiskManager {
   // Disk operations - delegate to disk-operations module
 
   async loadDisk(driveNum, file) {
+    // An 800K disk on a IIgs is for a 3.5" drive, not this one.
+    const disk35 = this.disk35Manager;
+    if (disk35 && (await disk35.hasDrives())) {
+      const header = new Uint8Array(await file.slice(0, 32).arrayBuffer());
+      if (mediaKind(file.name, file.size, { disk35: true, header }) === "disk35") {
+        await disk35.loadImage(driveNum, file);
+        if (disk35.drives[driveNum].filename === file.name) {
+          showToast(`${file.name} is a 3.5" disk, so it went into 3.5" drive ${driveNum + 1}.`, "info", 4000);
+        }
+        return;
+      }
+    }
     const drive = this.drives[driveNum];
     await loadDisk({
       wasmModule: this.wasmModule,

@@ -49,9 +49,9 @@ export function speedLabel(multiplier) {
   return `${clampSpeed(multiplier)}x`;
 }
 
-/** "4.09 MHz" */
-export function clockLabel(multiplier) {
-  return `${(BASE_CLOCK_MHZ * clampSpeed(multiplier)).toFixed(2)} MHz`;
+/** "4.09 MHz", from the machine's own clock when given (a PAL one is slower) */
+export function clockLabel(multiplier, baseMHz = BASE_CLOCK_MHZ) {
+  return `${(baseMHz * clampSpeed(multiplier)).toFixed(2)} MHz`;
 }
 
 export function loadStoredSpeed() {

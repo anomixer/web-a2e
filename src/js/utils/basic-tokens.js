@@ -2,7 +2,7 @@
  * basic-tokens.js - Applesoft BASIC token definitions
  *
  * GENERATED FILE - DO NOT EDIT.
- * Source: src/core/basic/basic_tokens.hpp
+ * Source: core/src/core/basic/basic_tokens.hpp
  * Regenerate with: npm run generate:basic-tokens
  *
  * Written by

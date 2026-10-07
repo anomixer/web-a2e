@@ -584,7 +584,7 @@ export class DiskInspectorWindow extends BaseWindow {
         ${chip(c.orange, "Data marks")}
         ${chip(c.green, "Data")}
         ${chip(c.red, "Bad checksum")}
-        ${chip(c.purple, "Non-standard")}
+        ${chip(c.purple, "Unknown")}
         ${chip(c.muted, "Noise")}`;
     }
   }
@@ -1218,7 +1218,7 @@ export class DiskInspectorWindow extends BaseWindow {
       chips.push([`${s.good}/${s.sectors} sectors good`, s.bad ? "warn" : "ok"]);
     }
     if (s.bad) chips.push([`${s.bad} bad checksums`, "bad"]);
-    if (s.nonStandardTracks) chips.push([`${s.nonStandardTracks} non-standard`, "odd"]);
+    if (s.nonStandardTracks) chips.push([`${s.nonStandardTracks} unknown`, "odd"]);
     if (s.fluxTracks) chips.push([`${s.fluxTracks} flux`, "flux"]);
     this.el.chips.innerHTML = chips
       .map(([text, cls]) => `<span class="dinsp-chip ${cls}">${text}</span>`)

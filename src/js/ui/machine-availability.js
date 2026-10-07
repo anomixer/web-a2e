@@ -29,7 +29,7 @@ function fitted(cards, wanted) {
  *
  * @param {object} profile - the machine's profile, as `getMachineProfile()` gives it
  * @param {object} cards - slot number → card id, fixed slots included
- * @returns {{slots:boolean, speed:boolean, hardDrives:boolean,
+ * @returns {{slots:boolean, speed:boolean, drives35:boolean, hardDrives:boolean,
  *            serialPort:boolean, printer:boolean, mockingboard:boolean,
  *            mouseCard:boolean, basic:boolean, assembler:boolean}}
  */
@@ -43,6 +43,8 @@ export function menuAvailability(profile, cards) {
     slots: caps.hasExpansionSlots !== false,
     // The multiplier lives in Emulator, which a IIgs is not built from.
     speed: !iigs,
+    // A IIgs's IWM has a 3.5" port as well as the 5.25" one.
+    drives35: iigs,
     // A IIgs has a SmartPort in slot 5 as part of the machine.
     hardDrives: iigs || fitted(cards, "smartport"),
     serialPort: fitted(cards, SERIAL_CARDS),

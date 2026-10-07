@@ -48,6 +48,7 @@ import {
   applyMachineAspectToDocument,
   machineAspect,
   machineDisplay,
+  machineTiming,
   restoreRememberedMachine,
 } from "./machine/machine-profile.js";
 import {
@@ -66,6 +67,12 @@ import { InputHandler, TextSelection, JoystickWindow, MouseHandler, GamepadHandl
 import { DiskManager } from "./disk-manager/index.js";
 import { DiskDrivesWindow } from "./disk-manager/disk-drives-window.js";
 import { HardDriveManager } from "./disk-manager/hard-drive-manager.js";
+import { setupScreenDrop } from "./disk-manager/screen-drop.js";
+import {
+  applyStandard,
+  loadRememberedStandard,
+  profileStandard,
+} from "./machine/video-standard.js";
 import { unzipSync } from "fflate";
 
 // Monkey patch HardDriveManager to support on-the-fly decompression for Cloudflare Pages limits
@@ -90,6 +97,8 @@ if (originalGetLibraryImageData) {
   };
 }
 import { HardDriveWindow } from "./disk-manager/hard-drive-window.js";
+import { Disk35Window } from "./disk-manager/disk35-window.js";
+import { Disk35Manager } from "./disk-manager/disk35-manager.js";
 import { readUrlMedia, loadUrlMedia } from "./disk-manager/url-media-loader.js";
 import { hasMediaParams } from "./utils/url-params.js";
 import { DiskInspectorWindow } from "./disk-manager/disk-inspector-window.js";
@@ -112,14 +121,13 @@ import { EmulationSpeed, clockLabel } from "./ui/emulation-speed.js";
 import { StateManager } from "./state/state-manager.js";
 import { SaveStatesWindow } from "./state/save-states-window.js";
 import { AgentManager } from "./agent/index.js";
-import { installDesktopHost } from "./platform/desktop-host.js";
-import { initNativeMenu } from "./platform/native-menu.js";
 import { SerialManager } from "./serial/serial-manager.js";
 import { DockManager } from "./docking/index.js";
 import {
   WindowManager,
   CPUDebuggerWindow,
   SoftSwitchWindow,
+  SwitchBreakpointManager,
   MemoryBrowserWindow,
   MemoryHeatMapWindow,
   MemoryMapWindow,
@@ -141,6 +149,7 @@ class AppleIIeEmulator {
     this.inputHandler = null;
     this.diskManager = null;
     this.hardDriveManager = null;
+    this.disk35Manager = null;
     this.fileExplorer = null;
     this.windowManager = null;
     this.displaySettings = null;
@@ -195,6 +204,11 @@ class AppleIIeEmulator {
       // before the renderer and the windows exist, so they are built for the
       // right machine rather than being rebuilt for it a moment later.
       this.machine = await restoreRememberedMachine(this.wasmModule);
+      // NTSC or PAL is chosen per machine too. The timing is part of the
+      // profile, so the profile is read again once the core has it.
+      if (await applyStandard(this.wasmModule, loadRememberedStandard(this.machine.key))) {
+        this.machine = await loadMachineProfile(this.wasmModule);
+      }
 
       // Set up renderer
       const canvas = document.getElementById("screen");
@@ -302,6 +316,25 @@ class AppleIIeEmulator {
       this.hardDriveManager.skipRestore = urlNamesMedia;
       this.hardDriveManager.init();
 
+      // A IIgs's 3.5" drives, on its IWM.
+      const disk35Window = new Disk35Window();
+      disk35Window.create();
+      this.windowManager.register(disk35Window);
+      this.disk35Manager = new Disk35Manager(this.wasmModule);
+      this.disk35Manager.isRunningCallback = () => this.running;
+      this.disk35Manager.skipRestore = urlNamesMedia;
+      this.disk35Manager.init();
+      this.diskManager.disk35Manager = this.disk35Manager;
+
+      // A disk image dropped on the screen goes into a floppy drive or the
+      // SmartPort, whichever it is for.
+      setupScreenDrop({
+        diskManager: this.diskManager,
+        hardDriveManager: this.hardDriveManager,
+        disk35Manager: this.disk35Manager,
+        refocus: () => this.diskManager.refocusCanvas(),
+      });
+
 
       const cpuWindow = new CPUDebuggerWindow(this.wasmModule, () => this.isRunning());
       cpuWindow.create();
@@ -336,9 +369,13 @@ class AppleIIeEmulator {
         }
       };
 
-      const switchWindow = new SoftSwitchWindow(this.wasmModule);
+      // Breakpoints on soft switches belong to the machine rather than to
+      // the window, so they are armed whether or not it is open.
+      this.switchBreakpoints = new SwitchBreakpointManager(this.wasmModule);
+      const switchWindow = new SoftSwitchWindow(this.wasmModule, this.switchBreakpoints);
       switchWindow.create();
       this.windowManager.register(switchWindow);
+      await this.switchBreakpoints.loadCatalog();
 
       // Set up display settings window (pass renderer for shader control, wasmModule for video settings)
       this.displaySettings = new DisplaySettingsWindow(
@@ -398,7 +435,7 @@ class AppleIIeEmulator {
 
       // Show accelerated speeds in the monitor title bar
       this.emulationSpeed.onChange((multiplier) => {
-        this.screenWindow.setSpeedState(multiplier, clockLabel(multiplier));
+        this.screenWindow.setSpeedState(multiplier, clockLabel(multiplier, machineTiming().cpuClockHz / 1e6));
       });
 
       // Wire monitor header toggle to joystick cursor keys
@@ -468,6 +505,7 @@ class AppleIIeEmulator {
       // put wherever it put it. Restored any earlier, an image was inserted
       // into the default card and lost when the layout was applied.
       await this.hardDriveManager.restoreImages();
+      await this.disk35Manager.restoreImages();
       this.slotConfigWindow = slotConfigWindow;
 
       // Release notes window
@@ -601,6 +639,10 @@ class AppleIIeEmulator {
       this.machineMenu = new MachineMenu({
         wasmModule: this.wasmModule,
         onMachineChanged: async (profile) => {
+          // A machine built afresh is NTSC until told otherwise.
+          if (await applyStandard(this.wasmModule, loadRememberedStandard(profile.key))) {
+            profile = await loadMachineProfile(this.wasmModule);
+          }
           this.machine = profile;
           // The core has been rebuilt, so its battery RAM is empty again.
           await restoreBatteryRam(this.wasmModule);
@@ -613,6 +655,20 @@ class AppleIIeEmulator {
           await this.onMachineChanged();
           showToast(`Switched to ${profile.name}`, "info", 4000);
         },
+        // NTSC or PAL: the same machine retimed, nothing rebuilt, so only
+        // what reads the timing needs to hear of it.
+        onStandardChanged: (profile) => {
+          this.machine = profile;
+          this.emulationSpeed?.apply();
+          this.windowManager?.notifyMachineChanged();
+          const pal = profileStandard(profile) === "pal";
+          showToast(
+            `${profile.name} timed for ${pal ? "PAL, 50Hz" : "NTSC, 60Hz"}. ` +
+              "Reboot to start a program afresh at the new rate.",
+            "info",
+            5000,
+          );
+        },
       });
       await this.machineMenu.init();
 
@@ -624,8 +680,10 @@ class AppleIIeEmulator {
         diskManager: this.diskManager,
         reminderController: this.reminderController,
         cpuDebuggerWindow: cpuWindow,
+        switchBreakpoints: this.switchBreakpoints,
         basicProgramWindow: this.basicProgramWindow,
         hardDriveManager: this.hardDriveManager,
+        disk35Manager: this.disk35Manager,
         // A state saved off another machine asks for that machine back.
         switchMachine: (key) => this.machineMenu.switchTo(key),
       });
@@ -667,9 +725,6 @@ class AppleIIeEmulator {
       this.showLoading(false);
       this.reminderController.showPowerReminder(true);
       this.autostart();
-
-      // The desktop build's menu bar, read off the header now that it is wired.
-      initNativeMenu();
 
       console.log("ApplEm initialized");
     } catch (error) {
@@ -816,6 +871,11 @@ class AppleIIeEmulator {
     await this.updateMouseHandlerState();
     if (this.diskManager) this.diskManager.syncWithEmulatorState?.();
     if (this.hardDriveManager) this.hardDriveManager.syncWithEmulatorState();
+    // A IIgs gets back the 3.5" disks it had; any other machine has no drives.
+    if (this.disk35Manager) {
+      await this.disk35Manager.restoreImages();
+      await this.disk35Manager.syncWithEmulatorState();
+    }
   }
 
   /**
@@ -1008,6 +1068,10 @@ class AppleIIeEmulator {
           if (this.hardDriveManager) {
             this.hardDriveManager.updateLEDs();
           }
+          if (this.disk35Manager) {
+            this.disk35Manager.windowVisible = this.windowManager.isWindowVisible("disk35-drives");
+            this.disk35Manager.updateLEDs();
+          }
         }
 
         const isPaused = this.running && this.wasmModule.isPaused;
@@ -1107,6 +1171,7 @@ class AppleIIeEmulator {
     this.renderer = null;
     this.diskManager = null;
     this.hardDriveManager = null;
+    this.disk35Manager = null;
     if (this.fileExplorer) {
       this.fileExplorer.destroy();
       this.fileExplorer = null;
@@ -1168,8 +1233,6 @@ if ("serviceWorker" in navigator && isInstalled) {
 
 // Initialize when DOM is ready
 document.addEventListener("DOMContentLoaded", () => {
-  installDesktopHost();
-
   // Display version in header
   const versionEl = document.getElementById("app-version");
   if (versionEl) {
