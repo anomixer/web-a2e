@@ -3,6 +3,7 @@ name: Deploy to Cloudflare Pages
 on:
   push:
     branches:
+      - feat/corsproxy
       - main
       - master
   workflow_dispatch: # 允許手動觸發

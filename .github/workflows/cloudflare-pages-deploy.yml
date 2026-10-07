@@ -19,6 +19,7 @@ name: Deploy to Cloudflare Pages (optional)
 on:
   push:
     branches:
+      - feat/corsproxy
       - main
       - master
   workflow_dispatch:
