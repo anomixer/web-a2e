@@ -646,4 +646,4 @@ MIT License. See [LICENSE](LICENSE) for details.
 - Based on the native [a2e](https://github.com/mikedaley/a2e) emulator
 - CPU emulation derived from [MOS6502](https://github.com/mikedaley/MOS6502)
 - Klaus Dormann's [6502 functional tests](https://github.com/Klaus2m5/6502_65C02_functional_tests)
-- Inspired by [AppleWin](https://github.com/AppleWin/AppleWin) and [Apple2TS](https://github.com/nickmcummins/apple2ts), both outstanding Apple II emulators that have been invaluable references for hardware accuracy and feature direction
+- Inspired by [AppleWin](https://github.com/AppleWin/AppleWin), [Apple2TS](https://github.com/nickmcummins/apple2ts) and [GSSquared](https://gssquared.net) both outstanding Apple II emulators that have been invaluable references for hardware accuracy and feature direction
