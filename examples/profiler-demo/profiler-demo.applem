@@ -1,7 +1,0 @@
-{
-  "build":   "make",
-  "output":  "build/demo",
-  "symbols": "build/demo.dbg",
-  "machine": "apple2e",
-  "start":   "memory"
-}

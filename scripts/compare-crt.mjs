@@ -2,14 +2,15 @@
 /*
  * compare-crt.mjs - The native CRT chain against the browser's, pixel by pixel
  *
- * native/shaders/crt.metal is a port of public/shaders/crt.glsl. This takes
- * the pictures native/tools/crt_render wrote (each source frame, the shader
- * parameters, and what Metal drew), draws the same frames with the same
- * parameters through the browser's own WebGLRenderer in headless Chrome, and
- * reports how far apart the two are. Side-by-side PNGs of each pair, with the
- * difference amplified, go next to them.
+ * The native app's native/shaders/crt.metal (github.com/mikedaley/applem)
+ * is a port of public/shaders/crt.glsl. This takes the pictures its
+ * native/tools/crt_render wrote (each source frame, the shader parameters,
+ * and what Metal drew), draws the same frames with the same parameters
+ * through the browser's own WebGLRenderer in headless Chrome, and reports how
+ * far apart the two are. Side-by-side PNGs of each pair, with the difference
+ * amplified, go next to them.
  *
- *   build-macos/native/crt_render native/shaders/crt.metal <dir>
+ *   (in applem) build-macos/native/crt_render native/shaders/crt.metal <dir>
  *   npm run dev -- --port 3011 --strictPort &
  *   <Chrome> --headless=new --remote-debugging-port=9233 ... &
  *   node scripts/compare-crt.mjs <dir> [http://localhost:3011] [9233]

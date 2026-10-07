@@ -6,7 +6,7 @@
  */
 
 /*
- * The layouts are described in src/core/disk-image/disk_inspection.hpp. The
+ * The layouts are described in core/src/core/disk-image/disk_inspection.hpp. The
  * arrays returned here are views onto the buffer handed in, not copies: an
  * overview is 250KB and is read whole every time the disk changes.
  */

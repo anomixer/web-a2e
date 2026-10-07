@@ -4,7 +4,7 @@ An Apple II emulator for the browser and the desktop.
 
 A cycle-accurate Apple II emulator running in the browser using WebAssembly and WebGL. No JavaScript frameworks — vanilla ES6 modules with Vite for bundling. Having built native emulators in the past, this is my first attempt at a browser-based emulator, hopefully making it easier to allow cross platform users from making use of it :)
 
-The same core also builds as a native macOS app, with its own Dear ImGui and Metal front end. See [Native macOS App](#native-macos-app).
+The emulation core is [applem-core](https://github.com/mikedaley/applem-core), included here as a submodule at `core/`. The same core runs as a native macOS app, [applem](https://github.com/mikedaley/applem), with its own Dear ImGui and Metal front end.
 
 Four machines are modelled: the **Apple IIe Enhanced**, the **Apple II Plus**, the **Apple IIc** and the **Apple IIgs**. See [Machines](#machines).
 
@@ -33,7 +33,7 @@ Four machines are modelled: the **Apple IIe Enhanced**, the **Apple II Plus**, t
 - **Light/Dark/System themes** — Switchable colour scheme with Apple rainbow logo accent palette
 - **AI Agent integration** — Full programmatic control via MCP and AG-UI event protocol for AI-assisted development
 - **PWA support** — Install as a standalone app with offline functionality
-- **Native macOS app**: the same core with a Dear ImGui and Metal front end, whose windows dock or float free as windows of their own, plus a ca65 Build and Run workflow and a profiler
+- **A native macOS app too**: the same core in [applem](https://github.com/mikedaley/applem), with a Dear ImGui and Metal front end, a ca65 Build and Run workflow and a profiler
 
 ### Machines
 
@@ -54,7 +54,7 @@ The emulator runs one machine at a time, and the badge in the header names it �
 
 A machine's differences are data in its profile rather than special cases scattered through the code, so the II+'s missing auxiliary bank is what makes 80 columns and double hi-res genuinely unreachable rather than merely hidden.
 
-The IIgs is the exception to that rule, and deliberately: it belongs to its own `MachineFamily` and is built from its own classes in `src/core/iigs/` — a 65816, a 24-bit memory controller that shadows banks, a second display system, an Ensoniq, an ADB controller and a Z8530. A number or a flag goes in the profile; a different mechanism goes in a different class that the profile names. The [Machines wiki page](https://github.com/mikedaley/web-a2e/wiki/Machines) covers each machine in full, and [Apple IIgs](https://github.com/mikedaley/web-a2e/wiki/Apple-IIgs) covers that one in depth.
+The IIgs is the exception to that rule, and deliberately: it belongs to its own `MachineFamily` and is built from its own classes in `core/src/core/iigs/`: a 65816, a 24-bit memory controller that shadows banks, a second display system, an Ensoniq, an ADB controller and a Z8530. A number or a flag goes in the profile; a different mechanism goes in a different class that the profile names. The [Machines wiki page](https://github.com/mikedaley/web-a2e/wiki/Machines) covers each machine in full, and [Apple IIgs](https://github.com/mikedaley/web-a2e/wiki/Apple-IIgs) covers that one in depth.
 
 Switching rebuilds the emulator, so inserted media and anything in memory are lost exactly as they would be on a page reload — the menu says so first. Volume, character set and CPU speed follow you across, because those were your choices rather than the machine's. Each machine remembers its own slot layout, display settings and save states, and the machine you last chose is restored at startup.
 
@@ -68,7 +68,7 @@ Menu items for hardware the running machine does not have are hidden rather than
 
 ## ROM Files
 
-Place the following ROM files in the `roms/` directory before building. ROMs are embedded into the WASM binary at compile time via `scripts/generate_roms.sh`.
+The ROMs are in the core, in `core/roms/`, and are embedded into the WASM binary at compile time via `core/scripts/generate_roms.sh`.
 
 | File | Size | Description |
 |------|------|-------------|
@@ -84,7 +84,7 @@ An alternate character ROM variant `341-0160-A-US-UK.bin` (8KB) is also supporte
 
 ### The other machines' ROMs
 
-Every machine's ROMs are in `roms/` and are embedded at compile time, so all
+Every machine's ROMs are in `core/roms/` and are embedded at compile time, so all
 four run out of the box. The rest of this section matters only if you want to
 substitute a different dump.
 
@@ -130,6 +130,8 @@ source ./emsdk_env.sh
 ### Build and Run
 
 ```bash
+git clone --recursive https://github.com/mikedaley/web-a2e.git   # with the core
+cd web-a2e
 npm install           # Install dependencies
 npm run build:wasm    # Build WASM module (required first time and after C++ changes)
 npm run dev           # Start dev server at localhost:3000 (hot-reload for JS only)
@@ -139,33 +141,8 @@ Open http://localhost:3000 in your browser.
 
 ### Native macOS App
 
-The same core also builds as a native macOS app, with its own Dear ImGui and
-Metal front end rather than the web page in a window. It shares the C++ core
-and the host layer (`src/host/`) with the browser build, and no JavaScript.
-It runs on macOS 15 and later.
-
-```bash
-git submodule update --init native/third_party/imgui   # once
-npm run native:build    # Build build-macos/native/ApplEm.app
-npm run native:run      # Build it and open it
-npm run native:release  # Signed with Developer ID, notarised and stapled
-```
-
-What it adds to the browser build:
-
-- **Windows of their own.** Any window can dock into the main one or be
-  dragged out into a separate Mac window, and each has a Mac title bar.
-- **Develop with ca65.** A project is a small `.applem` file beside a
-  Makefile. Build and Run (Command-B) runs the build and starts what it made,
-  from memory or from a ProDOS disk made for it, with the build's symbols
-  loaded into the debugger. Build errors are a list that opens the file.
-- **Profiler** (Debug > Profiler). Records where a program spends its time,
-  counted in the machine's own clock: a timeline of each frame, routines,
-  call tree, flame graph and hot lines, named by the debugger's symbols.
-  `examples/profiler-demo` is a ca65 project to try it on.
-- **Disks write back to their files** when idle, on eject and on quit.
-
-`docs/NATIVE.md` covers the app in full.
+The native macOS app is its own repository,
+[applem](https://github.com/mikedaley/applem), on the same core.
 
 ### Other Commands
 
@@ -183,10 +160,10 @@ npm run check         # Consistency checks + JavaScript tests
   `EXPORTED_FUNCTIONS` list in `CMakeLists.txt`, in both directions. A missing
   entry is dead-stripped by the linker and fails at runtime; a stale one is a
   leftover.
-- **`check:core-purity`** — `src/core/` contains no host-platform dependencies.
+- **`check:core-purity`** — the core's `src/core/` and `src/host/` contain no host-platform dependencies.
   Platform glue belongs in `src/bindings/`.
 - **`check:basic-tokens`** — `src/js/utils/basic-tokens.js` is still in step with
-  `src/core/basic/basic_tokens.hpp`, which generates it
+  `core/src/core/basic/basic_tokens.hpp`, which generates it
   (`npm run generate:basic-tokens`).
 
 ## Usage
@@ -459,8 +436,8 @@ The speed is a host preference, not machine state, so it survives reset and rebo
 `MachineFamily::AppleII` is the three 8-bit machines: one design, built from
 `MMU`, `Video`, `Audio` and `CPU6502`, differing only by the numbers in their
 profiles. `MachineFamily::AppleIIgs` is a different computer and is built from
-its own classes in `src/core/iigs/`. The family is chosen once, at
-construction. Nothing outside `src/core/iigs/` grows an `if (IIgs)`.
+its own classes in `core/src/core/iigs/`. The family is chosen once, at
+construction. Nothing outside it grows an `if (IIgs)`.
 
 The emulator core runs in a dedicated Web Worker, and where the browser allows
 `SharedArrayBuffer` the screen and audio travel through shared memory rather than
@@ -500,7 +477,7 @@ All debug windows are accessible from the **Debug** menu.
 | **Mouse Card** | PIA registers, position, mode, interrupt state |
 | **Rule Builder** | Complex conditional breakpoints with C-style expressions |
 
-The native app adds a **Profiler** (Debug > Profiler); see [Native macOS App](#native-macos-app).
+The native app ([applem](https://github.com/mikedaley/applem)) adds a **Profiler**.
 
 The CPU debugger supports breakpoints (conditional with expression evaluation) on an address, an address range or the stack pointer, watchpoints over an address or a range, beam breakpoints (video position with wildcard-scanline support), execution tracing, and a call stack viewer. Labels and symbols are supported for both system routines and user-defined addresses. Debugger state (breakpoints, watches, settings) persists across save/load.
 
@@ -570,80 +547,19 @@ npm run check         # the consistency checks above, then the tests
 
 ### C++ Tests
 
-Catch2, built with the core:
-
-```bash
-mkdir -p build-native && cd build-native
-cmake .. && make -j 4 && ctest --verbose
-```
-
-- `tests/unit/`: the CPUs, memory, video, audio, disk formats, filesystems,
-  cards, the assembler, BASIC and the debugger, each on its own.
-- `tests/integration/`: whole machines, including a IIgs booting its own
-  ROM, save states, and both front ends' host layer (`test_machine_host`).
-- `tests/conformance/`: the 65816 against the SingleStepTests vectors
-  recorded from real silicon. They are 3GB, so the test skips unless
-  `A2E_65816_VECTORS` points at them. `A2E_BANDITS_WOZ` likewise turns on
-  the tests that need the Bandits flux disk.
-
-Keep the build at `-j 4`.
-
-### Native App Tests
-
-The native front end's own tests (input mapping, the debugger and profiler
-model, the console, media, display, the BASIC editor, the equaliser, ca65
-projects and the window chrome) build with the app:
-
-```bash
-cmake --build build-macos -j 4
-cd build-macos && ctest -R test_native
-```
+The core's Catch2 tests (the CPUs, memory, video, disks, cards, whole
+machines, and the 65816 against recorded silicon) live in the core and run
+there; see `core/README.md`. The native app's tests are in
+[applem](https://github.com/mikedaley/applem).
 
 ## Project Structure
 
 ```
 web-a2e/
+├── core/                    # applem-core (submodule): the emulation in C++
+│                            #   (src/core), the host layer (src/host), the
+│                            #   ROMs, the core's tests and design notes
 ├── src/
-│   ├── core/                # C++ emulator core (namespace a2e::)
-│   │   ├── cpu/
-│   │   │   ├── 6502/        # Cycle-accurate 65C02 processor
-│   │   │   └── 65816/       # The IIgs's 65C816: 24-bit bus, 16-bit registers
-│   │   ├── mmu/             # Memory management, soft switches
-│   │   ├── machine/         # Machine profiles and the registry of machines
-│   │   ├── iigs/            # The IIgs's own parts, kept apart from every
-│   │   │                    #   other machine's: memory, video, ADB, clock,
-│   │   │                    #   Ensoniq, SCC, and the machine that owns them
-│   │   ├── video/           # Per-scanline signal generation + NTSC/RGB decoding
-│   │   ├── audio/           # Speaker emulation
-│   │   ├── disk-image/      # Disk formats (DSK/DO/PO/WOZ), GCR encoding
-│   │   ├── disassembler/    # 65C02 and 65816 disassemblers
-│   │   ├── input/           # Keyboard, Sirius Joyport, the //c's IOU mouse
-│   │   ├── cards/           # Expansion card system
-│   │   │   ├── disk_controller.*  # The drive mechanism both machines share
-│   │   │   ├── disk2/       # Disk II controller card
-│   │   │   ├── iwm/         # Integrated Woz Machine (//c and IIgs)
-│   │   │   ├── mockingboard/  # AY-3-8910 + VIA 6522
-│   │   │   ├── mouse/       # Apple Mouse Interface Card
-│   │   │   ├── smartport/   # SmartPort hard drive controller
-│   │   │   ├── softcard/    # Microsoft Z-80 SoftCard
-│   │   │   │   └── z80/     # Z80 CPU emulation core
-│   │   │   ├── parallel/    # Parallel (Centronics) card
-│   │   │   ├── serial/      # The //c's two built-in serial ports
-│   │   │   ├── ssc/         # Super Serial Card + ACIA 6551
-│   │   │   └── thunderclock/  # Thunderclock Plus
-│   │   ├── filesystem/      # DOS 3.3, ProDOS and Pascal parsers and writers
-│   │   ├── basic/           # BASIC tokenizer and detokenizer
-│   │   ├── assembler/       # 65C02 assembler (Merlin-style syntax)
-│   │   ├── debug/           # Shared debug facilities, condition evaluator
-│   │   ├── emulator/        # Split emulator implementation files
-│   │   │   ├── state_stream.hpp    # The writer/reader every machine uses
-│   │   │   ├── emulator_state.cpp  # State serialization
-│   │   │   └── emulator_debug.cpp  # Debug facilities
-│   │   ├── emulator.cpp     # Core coordinator
-│   │   ├── emulator.hpp     # Emulator class declaration
-│   │   └── types.hpp        # Shared constants
-│   ├── host/                # machine_host: which machine is alive, shared
-│   │                        #   by the browser and native front ends
 │   ├── bindings/            # wasm_interface.cpp (WASM exports)
 │   └── js/                  # ES6 modules
 │       ├── main.js          # AppleIIeEmulator entry point
@@ -663,30 +579,19 @@ web-a2e/
 │       ├── ui/              # Menu wiring, reminders, slot configuration
 │       ├── utils/           # Storage, string, BASIC utilities
 │       └── windows/         # Base window class and window manager
-├── native/                  # The native macOS app (Dear ImGui over Metal)
-│   ├── src/                 # App, debugger, drives, display, develop, sound...
-│   ├── shaders/             # crt.metal, the port of the CRT shader
-│   ├── tests/               # The native front end's tests
-│   └── third_party/imgui/   # Dear ImGui, docking branch (submodule)
 ├── public/                  # Static assets, built WASM, shaders
 │   ├── css/                 # Stylesheets
 │   ├── shaders/             # CRT vertex/fragment shaders
 │   ├── assets/              # Images and sounds
 │   └── index.html           # Main HTML entry point
-├── roms/                    # ROM files
 ├── tests/
-│   ├── unit/                # C++ unit tests (Catch2)
-│   ├── integration/         # Whole machines and the host layer
-│   ├── conformance/         # The 65816 against recorded silicon
-│   ├── common/              # Builders for disks and BASIC programs
 │   └── js/                  # JavaScript tests (Vitest)
 ├── docs/
-│   ├── design/              # Design notes, one per subsystem
-│   └── NATIVE.md            # The native app
-├── examples/                # BASIC, Merlin and ca65 programs to try
+│   └── design/              # The browser's design notes (the core's are in core/docs/design)
+├── examples/                # BASIC, Merlin and printer programs to try
 ├── wiki/                    # Mirror of the published GitHub wiki
 ├── scripts/                 # Build, check and deploy scripts
-├── CMakeLists.txt           # C++ build configuration
+├── CMakeLists.txt           # The WebAssembly build, around the core
 ├── vite.config.js           # Vite bundler configuration
 └── package.json
 ```

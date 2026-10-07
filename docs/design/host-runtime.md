@@ -132,7 +132,7 @@ Three details keep it honest:
 
 Single global `Emulator` instance in C++ (`wasm_interface.cpp`). WASM runs inside a Web Worker; all JS code accesses it via `WasmProxy` which returns Promises. Heap operations use `wasmProxy.heapRead()`/`heapWrite()` instead of direct `HEAPU8` access. `_malloc()` must be awaited; `_free()` is fire-and-forget. `stringToUTF8()`/`UTF8ToString()` are async. New WASM exports must be added to `CMakeLists.txt` EXPORTED_FUNCTIONS list.
 
-## Key Constants (src/core/types.hpp)
+## Key Constants (core/src/core/types.hpp)
 
 - CPU: 1.023 MHz clock
 - Audio: 48kHz sample rate
