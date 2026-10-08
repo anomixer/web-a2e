@@ -48,3 +48,6 @@ video-outline.md
 
 # Deploy target configuration (see .env.deploy.example)
 .env.deploy
+
+# Native app disk images, hosted for download but kept out of git
+public/downloads/
