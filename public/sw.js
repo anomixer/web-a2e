@@ -1,9 +1,10 @@
 // Service Worker for Apple //e Emulator
 // Enables offline functionality by caching app assets
 
-// Replaced at build time with the app version from src/js/config/version.js by
-// the stamp-service-worker-version plugin in vite.config.js — do not rely on
-// the literal below in production, and do not hand-bump it.
+// Replaced at build time with the app version and the build id (a hash of the
+// stable-named files below; see vite.config.js) by the
+// stamp-service-worker-version plugin. Do not rely on the literal below in
+// production, and do not hand-bump it.
 //
 // It has to change whenever a stable-named precached asset changes, because
 // those are served cache-first and their URLs never change. It used to be a
@@ -18,7 +19,10 @@ const CACHE_NAME = `a2e-cache-v${CACHE_VERSION}`;
 // version was not bumped: a cache-first index.html can otherwise pin a browser
 // to a stale build (and its stale hashed bundle) indefinitely. Offline still
 // works because network-first falls back to the cache on fetch failure.
-const NETWORK_FIRST_FILES = ["/", "/index.html", "/a2e.js", "/a2e.wasm"];
+//
+// The library list is here too: a cached list names disks a later deploy may
+// have removed, and a disk that 404s is a disk that will not load.
+const NETWORK_FIRST_FILES = ["/", "/index.html", "/a2e.js", "/a2e.wasm", "/disks/library.json"];
 
 // Assets to cache on install.
 //
@@ -97,8 +101,11 @@ async function precache() {
   const hashed = await findHashedAssets();
   const assets = [...PRECACHE_ASSETS, ...hashed];
 
+  // Past the browser's HTTP cache: a new cache filled from it could take a
+  // stale copy of a stable-named file and then serve it cache-first until the
+  // next build.
   const results = await Promise.allSettled(
-    assets.map((asset) => cache.add(asset)),
+    assets.map((asset) => cache.add(new Request(asset, { cache: "reload" }))),
   );
 
   const failed = assets.filter((_, i) => results[i].status === "rejected");
@@ -175,8 +182,12 @@ self.addEventListener("fetch", (event) => {
 
   // Use network-first for critical files (WASM, core JS)
   if (isNetworkFirst(url)) {
+    // Revalidated, not taken from the HTTP cache unasked. A navigation
+    // request cannot be rebuilt, so it goes as it came.
+    const request =
+      event.request.mode === "navigate" ? event.request : new Request(event.request, { cache: "no-cache" });
     event.respondWith(
-      fetch(event.request)
+      fetch(request)
         .then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
             // Update cache with fresh response

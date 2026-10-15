@@ -16,29 +16,19 @@ import {
   ejectDisk,
   performEject,
   saveDiskWithPicker,
+  fingerprintDisk,
 } from "./disk-operations.js";
 import {
   loadDiskFromStorage,
   saveDiskToStorage,
+  clearDiskFromStorage,
+  removeRecentDisk,
   getRecentDisks,
   loadRecentDisk,
   addToRecentDisks,
   clearRecentDisks,
 } from "./disk-persistence.js";
-import { createDatabaseManager } from "../utils/indexeddb-helper.js";
-
-const CACHE_STORE = "images";
-
-const libraryCacheDb = createDatabaseManager({
-  dbName: "a2e-disk-library-cache",
-  version: 1,
-  onUpgrade: (event) => {
-    const database = event.target.result;
-    if (!database.objectStoreNames.contains(CACHE_STORE)) {
-      database.createObjectStore(CACHE_STORE, { keyPath: "id" });
-    }
-  },
-});
+import { getLibraryImage, forgetLibraryImage, fetchLibrary } from "./library-image.js";
 
 /**
  * Create a new drive state object with default values
@@ -179,7 +169,7 @@ export class DiskManager {
         const diskData = await loadDiskFromStorage(driveNum);
         if (diskData) {
           const drive = this.drives[driveNum];
-          loadDiskFromData({
+          const restored = await loadDiskFromData({
             wasmModule: this.wasmModule,
             drive,
             driveNum,
@@ -195,6 +185,17 @@ export class DiskManager {
                 error,
               ),
           });
+          // A record that will not go in would fail the same way on every
+          // load, leaving the drive empty with no way to clear it but the
+          // browser's own storage. It goes, and the user is told once.
+          if (!restored) {
+            await clearDiskFromStorage(driveNum);
+            showToast(
+              `The disk last in drive ${driveNum + 1} (${diskData.filename}) could not be loaded, so it was taken out.`,
+              "warning",
+              6000,
+            );
+          }
         }
       } catch (error) {
         console.error(`Error restoring disk for drive ${driveNum + 1}:`, error);
@@ -516,15 +517,44 @@ export class DiskManager {
     });
   }
 
-  insertBlankDisk(driveNum) {
+  async insertBlankDisk(driveNum) {
     const drive = this.drives[driveNum];
-    insertBlankDisk({
+    const inserted = await insertBlankDisk({
       wasmModule: this.wasmModule,
       drive,
       driveNum,
       onSuccess: (filename) => this.setDiskName(driveNum, filename),
       onError: (error) => showToast(error, "error"),
     });
+    // Stored as the drive's disk like any other, or a reload would bring back
+    // the disk it replaced.
+    if (inserted) await this.persistDriveImage(driveNum);
+  }
+
+  /**
+   * Keep what the machine wrote to a disk, so a reload brings the disk back
+   * as it was left rather than as it was first inserted. Called when a
+   * drive's motor stops, which is when a write is finished; the image is
+   * stored only if it differs from the copy last stored.
+   */
+  async persistIfWritten(driveNum) {
+    const drive = this.drives[driveNum];
+    if (!drive?.filename || drive.persisting) return;
+    if (this.urlOwnedDrives?.has(driveNum)) return;
+    drive.persisting = true;
+    try {
+      const filename = drive.filename;
+      if (!(await this.wasmModule._isDiskModified(driveNum))) return;
+      const fingerprint = await fingerprintDisk(this.wasmModule, driveNum);
+      if (!fingerprint || fingerprint === drive.persistedFingerprint) return;
+      // A disk swapped while this was reading is not the one fingerprinted.
+      if (drive.filename !== filename) return;
+      if (await this.persistDriveImage(driveNum)) drive.persistedFingerprint = fingerprint;
+    } catch (err) {
+      console.warn(`Could not keep drive ${driveNum + 1}'s writes:`, err);
+    } finally {
+      drive.persisting = false;
+    }
   }
 
   async ejectDisk(driveNum) {
@@ -620,6 +650,9 @@ export class DiskManager {
     for (let driveNum = 0; driveNum < 2; driveNum++) {
       const drive = this.drives[driveNum];
       const motorOn = motorState[driveNum];
+      // The motor stopping is the end of a write, if there was one.
+      if (drive.lastMotorOn && !motorOn) this.persistIfWritten(driveNum);
+      drive.lastMotorOn = motorOn;
       const isActive = motorOn && driveNum === selectedDrive;
       const hasDisk = drive.filename !== null;
       const base = driveDataIndex[driveNum];
@@ -819,42 +852,11 @@ export class DiskManager {
   }
 
   /**
-   * Fetch a library image with IndexedDB caching
-   */
-  async _getLibraryImageData(entry) {
-    try {
-      const cached = await libraryCacheDb.get(CACHE_STORE, entry.id);
-      if (cached) return new Uint8Array(cached.data);
-    } catch (err) {
-      console.warn("Library cache read failed:", err);
-    }
-
-    const resp = await fetch(`/disks/${entry.file}`);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const arrayBuffer = await resp.arrayBuffer();
-    const data = new Uint8Array(arrayBuffer);
-
-    try {
-      await libraryCacheDb.put(CACHE_STORE, {
-        id: entry.id,
-        file: entry.file,
-        data: arrayBuffer,
-      });
-    } catch (err) {
-      console.warn("Library cache write failed:", err);
-    }
-
-    return data;
-  }
-
-  /**
    * Append library entries to a recent dropdown
    */
   async _appendLibrarySection(dropdown, driveNum, type) {
     try {
-      const resp = await fetch("/disks/library.json");
-      if (!resp.ok) return;
-      const library = await resp.json();
+      const library = await fetchLibrary();
       const entries = library.filter((e) => e.type === type);
       if (entries.length === 0) return;
 
@@ -876,9 +878,9 @@ export class DiskManager {
           e.stopPropagation();
           this.closeRecentDropdown();
           try {
-            const data = await this._getLibraryImageData(entry);
+            const data = await getLibraryImage(entry);
             const drive = this.drives[driveNum];
-            loadDiskFromData({
+            const inserted = await loadDiskFromData({
               wasmModule: this.wasmModule,
               drive,
               driveNum,
@@ -890,8 +892,15 @@ export class DiskManager {
               },
               onError: (error) => showToast(error, "error"),
             });
-            saveDiskToStorage(driveNum, entry.file, data);
-            addToRecentDisks(driveNum, entry.file, data);
+            // Only a disk that went in becomes the drive's disk and a recent
+            // one; a copy that will not load is dropped from the cache so the
+            // next try fetches it afresh.
+            if (inserted) {
+              await saveDiskToStorage(driveNum, entry.file, data);
+              await addToRecentDisks(driveNum, entry.file, data);
+            } else {
+              await forgetLibraryImage(entry);
+            }
           } catch (err) {
             console.error(`Failed to load ${entry.file}:`, err);
             showToast(`Failed to load ${entry.name}`, "error");
@@ -917,7 +926,7 @@ export class DiskManager {
     }
 
     const drive = this.drives[driveNum];
-    loadDiskFromData({
+    const inserted = await loadDiskFromData({
       wasmModule: this.wasmModule,
       drive,
       driveNum,
@@ -929,9 +938,16 @@ export class DiskManager {
       },
       onError: (error) => showToast(error, "error"),
     });
+    if (!inserted) {
+      // It would fail the same way every time it was chosen.
+      await removeRecentDisk(diskId);
+      return;
+    }
 
-    // Update access time by re-adding to recent list
-    addToRecentDisks(driveNum, diskData.filename, diskData.data);
+    // The drive's disk now, so a reload brings this one back and not the
+    // one it replaced, and first in the recent list.
+    await saveDiskToStorage(driveNum, diskData.filename, diskData.data);
+    await addToRecentDisks(driveNum, diskData.filename, diskData.data);
   }
 
   /**

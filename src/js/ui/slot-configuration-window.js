@@ -733,9 +733,44 @@ export class SlotConfigurationWindow extends BaseWindow {
     showToast("Expansion slot configuration updated", "info");
   }
 
+  /**
+   * A saved layout, with anything this machine cannot take left out.
+   *
+   * It goes into the core on every load, and the core takes out a slot's
+   * card before it looks at the new one, so a bad entry (a card id that is
+   * not a string, a card retired since it was saved, a card in a slot that
+   * cannot hold it, or one written into a fixed slot) left the machine
+   * short a card, its Disk II included, on every reload. Or, not being a
+   * string, it threw and stopped startup altogether.
+   */
+  validSlotConfig(config) {
+    const valid = {};
+    let dropped = false;
+    if (config && typeof config === "object" && !Array.isArray(config)) {
+      for (const [slot, cardId] of Object.entries(config)) {
+        const slotNum = Number(slot);
+        const ok =
+          Number.isInteger(slotNum) &&
+          typeof cardId === "string" &&
+          (cardId === "empty"
+            ? this.slots.some((s) => s.slot === slotNum && !s.fixed)
+            : this.isCompatible(cardId, slotNum));
+        if (ok) valid[slotNum] = cardId;
+        else dropped = true;
+      }
+    } else {
+      dropped = config != null;
+    }
+    return { valid, dropped };
+  }
+
   async applyInitialSettings() {
     // What this machine was last left with, or what it ships with.
-    const config = slotConfigOrDefaults();
+    const { valid: config, dropped } = this.validSlotConfig(slotConfigOrDefaults());
+    if (dropped) {
+      console.warn("Saved slot layout held entries this machine cannot take; they were left out.");
+      saveSlotConfig(config);
+    }
     if (this.wasmModule && this.wasmModule._setSlotCard) {
       for (const [slot, cardId] of Object.entries(config)) {
         const slotNum = parseInt(slot, 10);

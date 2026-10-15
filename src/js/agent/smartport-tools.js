@@ -80,7 +80,7 @@ export const smartportTools = {
 
       const filename = result.filename;
 
-      const success = hardDriveManager.loadImageFromData(deviceIndex, filename, data);
+      const success = await hardDriveManager.loadImageFromData(deviceIndex, filename, data);
       if (!success) {
         throw new Error("Failed to insert SmartPort image into emulator");
       }
@@ -169,7 +169,7 @@ export const smartportTools = {
         throw new Error(`Failed to load image data for "${name}"`);
       }
 
-      const success = hardDriveManager.loadImageFromData(deviceIndex, imageData.filename, imageData.data);
+      const success = await hardDriveManager.loadImageFromData(deviceIndex, imageData.filename, imageData.data);
       if (!success) {
         throw new Error("Failed to insert SmartPort image into emulator");
       }

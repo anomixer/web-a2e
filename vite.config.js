@@ -1,7 +1,38 @@
 import { defineConfig } from "vite";
 import { resolve } from "path";
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "fs";
+import { createHash } from "crypto";
 import { serialProxyPlugin } from "./plugins/serial-proxy-plugin.js";
+
+// A hash of every file the app loads at a fixed URL: the WASM core, its
+// loader, the two workers, the shaders and the library list. They are asked for
+// with ?v=<this>, and the service worker's cache is named for it, so a deploy
+// that changes any of them reaches every browser even when the release version
+// was not bumped. Keyed on the version alone, a deploy between releases paired
+// new JavaScript with an old cached core.
+function computeBuildId() {
+  const hash = createHash("sha256");
+  const files = [
+    "public/a2e.js",
+    "public/a2e.wasm",
+    "src/js/worker/emulator-worker.js",
+    "src/js/audio/audio-worklet.js",
+    "public/disks/library.json",
+    "src/js/config/version.js",
+  ];
+  const shaders = resolve(__dirname, "public/shaders");
+  if (existsSync(shaders)) {
+    for (const name of readdirSync(shaders).sort()) files.push(`public/shaders/${name}`);
+  }
+  for (const file of files) {
+    const path = resolve(__dirname, file);
+    hash.update(file);
+    if (existsSync(path)) hash.update(readFileSync(path));
+  }
+  return hash.digest("hex").slice(0, 12);
+}
+
+const BUILD_ID = computeBuildId();
 
 // Stamp the app version into the service worker's cache name.
 //
@@ -28,7 +59,7 @@ const stampServiceWorkerVersion = () => ({
     const sw = readFileSync(swPath, "utf8");
     const stamped = sw.replace(
       /const CACHE_VERSION = [^;]+;/,
-      `const CACHE_VERSION = "${version}";`,
+      `const CACHE_VERSION = "${version}-${BUILD_ID}";`,
     );
     if (stamped === sw) {
       throw new Error("stamp-service-worker-version: CACHE_VERSION not found");
@@ -55,6 +86,10 @@ const copyWorkerFiles = () => ({
 
 export default defineConfig({
   root: "public",
+
+  define: {
+    __BUILD_ID__: JSON.stringify(BUILD_ID),
+  },
   publicDir: "../public",
 
   server: {

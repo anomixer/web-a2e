@@ -5,7 +5,7 @@
  *  Mike Daley <michael_daley@icloud.com>
  */
 
-import { VERSION } from "../config/version.js";
+import { BUILD_ID } from "../config/build-id.js";
 import { buildNoSignalFrame } from "./no-signal-frame.js";
 import { machineDisplay } from "../machine/machine-profile.js";
 
@@ -907,7 +907,7 @@ export class WebGLRenderer {
    * offline launches still find them.
    */
   async loadShader(path) {
-    const url = `${path}?v=${VERSION}`;
+    const url = `${path}?v=${BUILD_ID}`;
     const response = await fetch(url);
     if (!response.ok) {
       throw new Error(`Failed to load shader: ${path}`);

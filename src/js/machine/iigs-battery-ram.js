@@ -50,6 +50,8 @@ export function loadBatteryRam() {
 }
 
 function storeBatteryRam(bytes) {
+  // Reset Defaults is clearing everything; saving now would put it back.
+  if (globalThis.window?._resettingDefaults) return;
   try {
     let hex = "";
     for (const byte of bytes) hex += byte.toString(16).padStart(2, "0");

@@ -335,6 +335,8 @@ export class StateManager {
    * @returns {Promise<void>}
    */
   async saveState() {
+    // Reset Defaults is clearing everything; saving now would put it back.
+    if (window._resettingDefaults) return;
     if (!this.emulator.isRunning() || !this.wasmModule) {
       return;
     }

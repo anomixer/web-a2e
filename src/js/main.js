@@ -38,6 +38,8 @@ import "../css/machine.css";
 import "../css/responsive.css";
 
 import { VERSION } from "./config/version.js";
+import { BUILD_ID } from "./config/build-id.js";
+import { clearSiteData } from "./state/site-data.js";
 import { DEFAULT_LAYOUT } from "./config/default-layout.js";
 import { WebGLRenderer } from "./display/webgl-renderer.js";
 import { AudioDriver } from "./audio/audio-driver.js";
@@ -84,6 +86,7 @@ import { DocumentationWindow, ReleaseNotesWindow } from "./help/index.js";
 import { ReminderController } from "./ui/reminder-controller.js";
 import { UIController } from "./ui/ui-controller.js";
 import { MenuBar } from "./ui/menu-bar.js";
+import { HiddenStopWatcher } from "./debug/hidden-stops.js";
 import { ThemeManager } from "./ui/theme-manager.js";
 import { showToast } from "./ui/toast.js";
 import { SlotConfigurationWindow } from "./ui/slot-configuration-window.js";
@@ -154,9 +157,11 @@ class AppleIIeEmulator {
     try {
       // Load WASM module in a Web Worker via proxy.
       // Cache-bust the loader AND the .wasm fetch: in dev use a per-load token
-      // so rebuilds are always picked up; in prod key off the app version.
+      // so rebuilds are always picked up; in prod key off the build id, a hash
+      // of the core itself (config/build-id.js), so a new core is never
+      // mistaken for the cached one.
       this.wasmModule = new WasmProxy();
-      const wasmBust = import.meta.env.DEV ? Date.now() : VERSION;
+      const wasmBust = import.meta.env.DEV ? Date.now() : BUILD_ID;
       await this.wasmModule.init(`/a2e.js?v=${wasmBust}`);
 
       // Ask the core which machine it is emulating before anything sizes
@@ -164,12 +169,6 @@ class AppleIIeEmulator {
       // the screenshot canvas, the selection overlay, the printer's screen
       // dump — reads the answer instead of assuming a //e.
       this.machine = await loadMachineProfile(this.wasmModule);
-      // A IIgs's 256 bytes of settings, put back before the machine runs:
-      // the firmware reads them on the way up and rewrites them the moment it
-      // does not trust what it finds.
-      await restoreBatteryRam(this.wasmModule);
-      watchBatteryRam(this.wasmModule);
-
       // How much memory a IIgs has is the user's choice too, and the core has
       // to be told before one is built rather than after: RAM cannot grow
       // underneath a running machine, so setting it afterwards would throw
@@ -186,6 +185,15 @@ class AppleIIeEmulator {
       if (await applyStandard(this.wasmModule, loadRememberedStandard(this.machine.key))) {
         this.machine = await loadMachineProfile(this.wasmModule);
       }
+
+      // A IIgs's 256 bytes of settings, put back before the machine runs:
+      // the firmware reads them on the way up and rewrites them the moment it
+      // does not trust what it finds. Only now, into the machine just built:
+      // restored into the //e the core starts as, they went nowhere, the IIgs
+      // came up with empty battery RAM, and the firmware's defaults were then
+      // saved over the user's Control Panel settings on every reload.
+      await restoreBatteryRam(this.wasmModule);
+      watchBatteryRam(this.wasmModule);
 
       // Set up renderer
       const canvas = document.getElementById("screen");
@@ -684,6 +692,14 @@ class AppleIIeEmulator {
         }
       };
 
+      // Breakpoints whose window is closed still get judged and explained.
+      this.hiddenStops = new HiddenStopWatcher({
+        wasmModule: this.wasmModule,
+        windowManager: this.windowManager,
+        isRunning: () => this.running,
+        notify: (message) => showToast(message, "info", 5000),
+      });
+
       // Enable mouse handler if a mouse card is configured
       this.updateMouseHandlerState();
 
@@ -706,8 +722,7 @@ class AppleIIeEmulator {
       console.log("ApplEm initialized");
     } catch (error) {
       console.error("Failed to initialize emulator:", error);
-      this.showLoading(false);
-      showToast("Failed to initialize emulator: " + error.message, "error");
+      this.showStartupError(error);
     }
   }
 
@@ -1042,6 +1057,9 @@ class AppleIIeEmulator {
         this.pollFrame();
         this.windowManager.updateAll(this.wasmModule);
 
+        // A breakpoint that fired with its window closed (hidden-stops.js).
+        if (this._renderFrameCount % 8 === 0) this.hiddenStops?.poll();
+
         // Throttle disk LED updates to ~15fps (every 4th frame)
         if (this._renderFrameCount % 4 === 0) {
           this.diskManager.drivesWindowVisible = this.windowManager.isWindowVisible('disk-drives');
@@ -1095,6 +1113,42 @@ class AppleIIeEmulator {
     } else {
       loading.classList.add("hidden");
     }
+  }
+
+  /**
+   * Say on the loading screen that startup failed, and offer the way out.
+   *
+   * Whatever stopped it may be stored (a disk, a setting, a cached file from
+   * an older build) and will stop it again on every reload, and with startup
+   * unfinished the menus that hold Reset Defaults may not exist. So the
+   * screen itself offers to clear what the emulator stores and start again.
+   */
+  showStartupError(error) {
+    const loading = document.getElementById("loading");
+    if (!loading) {
+      showToast("Failed to initialize emulator: " + error.message, "error");
+      return;
+    }
+    loading.classList.remove("hidden");
+    loading.classList.add("startup-failed");
+    loading.querySelector(".loader")?.remove();
+    const message = loading.querySelector("p") || loading.appendChild(document.createElement("p"));
+    message.textContent =
+      `ApplEm could not start: ${String(error.message).replace(/[.\s]+$/, "")}. Reload to try again. If it fails the same way, ` +
+      "clearing what ApplEm stores in this browser (settings, disks in the drives, save states) usually fixes it.";
+
+    if (loading.querySelector(".startup-reset")) return;
+    const button = document.createElement("button");
+    button.className = "modal-btn modal-btn-primary startup-reset";
+    button.type = "button";
+    button.textContent = "Clear Stored Data and Reload";
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      window._resettingDefaults = true;
+      await clearSiteData();
+      window.location.reload();
+    });
+    loading.appendChild(button);
   }
 
   /**

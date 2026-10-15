@@ -300,7 +300,10 @@ export class Disk35Manager {
     for (let driveNum = 0; driveNum < DRIVES; driveNum++) {
       if (await this.wasmModule._is35DiskInserted(driveNum)) continue;
       const saved = await store.loadImageFromStorage(driveNum);
-      if (saved) await this.loadImageFromData(driveNum, saved.filename, saved.data);
+      // A disk that will not go in would fail, and say so, on every load.
+      if (saved && !(await this.loadImageFromData(driveNum, saved.filename, saved.data))) {
+        await store.clearImageFromStorage(driveNum);
+      }
     }
   }
 

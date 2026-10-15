@@ -8,7 +8,7 @@
  *  Mike Daley <michael_daley@icloud.com>
  */
 
-import { VERSION } from '../config/version.js';
+import { BUILD_ID } from '../config/build-id.js';
 import {
   MSG_RPC_CALL, MSG_RPC_BATCH, MSG_INIT, MSG_TRANSFER_DATA,
   MSG_RPC_RESULT, MSG_RPC_BATCH_RESULT, MSG_RPC_ERROR,
@@ -120,15 +120,16 @@ export class WasmProxy {
    * @returns {Promise} Resolves when the Worker is ready
    */
   async init(wasmUrl) {
-    this._readyPromise = new Promise(resolve => {
+    this._readyPromise = new Promise((resolve, reject) => {
       this._readyResolve = resolve;
+      this._readyReject = reject;
     });
 
     // Classic Worker (not module) — required for importScripts() compatibility
     // In dev mode, load from src; in production, load from root
     const workerPath = import.meta.env.DEV
       ? '/src/js/worker/emulator-worker.js'
-      : `/emulator-worker.js?v=${VERSION}`;
+      : `/emulator-worker.js?v=${BUILD_ID}`;
     this.worker = new Worker(workerPath);
 
     this.worker.onmessage = (event) => this._handleMessage(event.data);
@@ -175,6 +176,13 @@ export class WasmProxy {
       }
 
       case MSG_RPC_ERROR: {
+        // The core failed to load. Nothing is waiting on an RPC yet, only on
+        // init(), which would otherwise never settle and leave the page on
+        // its loading screen with no word of what went wrong.
+        if (msg.id === '__init__' && !this._ready && this._readyReject) {
+          this._readyReject(new Error(`The emulator core did not load: ${msg.error}`));
+          break;
+        }
         const pending = this.pendingCalls.get(msg.id);
         if (pending) {
           this.pendingCalls.delete(msg.id);

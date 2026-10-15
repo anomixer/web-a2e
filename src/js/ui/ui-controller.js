@@ -11,6 +11,7 @@
  */
 
 import { clearStateFromStorage } from "../state/state-persistence.js";
+import { clearSiteData } from "../state/site-data.js";
 import { ThemeManager } from "./theme-manager.js";
 import { showConfirm } from "./confirm.js";
 import { FullscreenDrivePopouts } from "./fullscreen-drive-popouts.js";
@@ -434,23 +435,10 @@ export class UIController {
     );
     if (!confirmed) return;
 
-    localStorage.clear();
-
-    const dbNames = ["a2e-state-persistence", "a2e-hd-persistence"];
-    await Promise.all(
-      dbNames.map(
-        (name) =>
-          new Promise((resolve) => {
-            const req = indexedDB.deleteDatabase(name);
-            req.onsuccess = resolve;
-            req.onerror = resolve;
-            req.onblocked = resolve;
-          }),
-      ),
-    );
-
-    // Prevent beforeunload from re-saving state, then reload
+    // Set first, so no autosave, battery RAM save or window layout save
+    // writes anything back while the clear is in progress or on unload.
     window._resettingDefaults = true;
+    await clearSiteData();
     window.location.reload();
   }
 

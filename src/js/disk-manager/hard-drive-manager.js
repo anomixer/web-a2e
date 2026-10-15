@@ -15,20 +15,7 @@ import {
   clearRecentImages,
 } from "./hard-drive-persistence.js";
 import { showToast } from "../ui/toast.js";
-import { createDatabaseManager } from "../utils/indexeddb-helper.js";
-
-const CACHE_STORE = "images";
-
-const libraryCacheDb = createDatabaseManager({
-  dbName: "a2e-disk-library-cache",
-  version: 1,
-  onUpgrade: (event) => {
-    const database = event.target.result;
-    if (!database.objectStoreNames.contains(CACHE_STORE)) {
-      database.createObjectStore(CACHE_STORE, { keyPath: "id" });
-    }
-  },
-});
+import { getLibraryImage, forgetLibraryImage, fetchLibrary } from "./library-image.js";
 
 async function insertImageToWasm(wasmModule, deviceNum, data, filename) {
   const dataPtr = await wasmModule._malloc(data.length);
@@ -360,8 +347,16 @@ export class HardDriveManager {
       if (this.urlOwnedDevices?.has(deviceNum)) continue;
       try {
         const imageData = await loadImageFromStorage(deviceNum);
-        if (imageData) {
-          await this.loadImageFromData(deviceNum, imageData.filename, imageData.data);
+        // With no SmartPort fitted the image waits, kept, for the card to return.
+        if (!imageData || !(await this.isSmartPortInstalled())) continue;
+        if (!(await this.loadImageFromData(deviceNum, imageData.filename, imageData.data))) {
+          // It would fail the same way on every load; see DiskManager.restoreDisks.
+          await clearImageFromStorage(deviceNum);
+          showToast(
+            `The image last in SmartPort device ${deviceNum + 1} (${imageData.filename}) could not be loaded, so it was taken out.`,
+            "warning",
+            6000,
+          );
         }
       } catch (error) {
         console.error(`Error restoring HD image for device ${deviceNum + 1}:`, error);
@@ -458,37 +453,9 @@ export class HardDriveManager {
     await this._appendLibrarySection(device.recentDropdown, deviceNum);
   }
 
-  async _getLibraryImageData(entry) {
-    try {
-      const cached = await libraryCacheDb.get(CACHE_STORE, entry.id);
-      if (cached) return new Uint8Array(cached.data);
-    } catch (err) {
-      console.warn("Library cache read failed:", err);
-    }
-
-    const resp = await fetch(`/disks/${entry.file}`);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const arrayBuffer = await resp.arrayBuffer();
-    const data = new Uint8Array(arrayBuffer);
-
-    try {
-      await libraryCacheDb.put(CACHE_STORE, {
-        id: entry.id,
-        file: entry.file,
-        data: arrayBuffer,
-      });
-    } catch (err) {
-      console.warn("Library cache write failed:", err);
-    }
-
-    return data;
-  }
-
   async _appendLibrarySection(dropdown, deviceNum) {
     try {
-      const resp = await fetch("/disks/library.json");
-      if (!resp.ok) return;
-      const library = await resp.json();
+      const library = await fetchLibrary();
       const entries = library.filter((e) => e.type === "hard-drive");
       if (entries.length === 0) return;
 
@@ -510,10 +477,16 @@ export class HardDriveManager {
           e.stopPropagation();
           this.closeRecentDropdown();
           try {
-            const data = await this._getLibraryImageData(entry);
-            this.loadImageFromData(deviceNum, entry.file, data);
-            await saveImageToStorage(deviceNum, entry.file, data);
-            await addToRecentImages(deviceNum, entry.file, data);
+            const data = await getLibraryImage(entry);
+            // Kept as the device's image only if it went in; a copy that will
+            // not load is dropped from the cache so the next try fetches it.
+            if (await this.loadImageFromData(deviceNum, entry.file, data)) {
+              await saveImageToStorage(deviceNum, entry.file, data);
+              await addToRecentImages(deviceNum, entry.file, data);
+            } else {
+              await forgetLibraryImage(entry);
+              showToast(`${entry.name} could not be loaded`, "error");
+            }
           } catch (err) {
             console.error(`Failed to load ${entry.file}:`, err);
             showToast(`Failed to load ${entry.name}`, "error");
@@ -535,7 +508,10 @@ export class HardDriveManager {
       return;
     }
 
-    this.loadImageFromData(deviceNum, imageData.filename, imageData.data);
+    if (!(await this.loadImageFromData(deviceNum, imageData.filename, imageData.data))) {
+      showToast(`${imageData.filename} could not be loaded`, "error");
+      return;
+    }
     await saveImageToStorage(deviceNum, imageData.filename, imageData.data);
     await addToRecentImages(deviceNum, imageData.filename, imageData.data);
   }

@@ -10,7 +10,7 @@
  */
 
 // Audio constants
-import { VERSION } from '../config/version.js';
+import { BUILD_ID } from '../config/build-id.js';
 
 const SAMPLE_RATE = 48000;
 const DEFAULT_VOLUME = 0.5;
@@ -169,7 +169,7 @@ export class AudioDriver {
   async startWithWorklet() {
     const workletPath = import.meta.env.DEV
       ? "/src/js/audio/audio-worklet.js"
-      : `/audio-worklet.js?v=${VERSION}`;
+      : `/audio-worklet.js?v=${BUILD_ID}`;
     await this.audioContext.audioWorklet.addModule(workletPath);
 
     this.workletNode = new AudioWorkletNode(
