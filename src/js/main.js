@@ -38,7 +38,6 @@ import "../css/machine.css";
 import "../css/responsive.css";
 
 import { VERSION } from "./config/version.js";
-import { featureFlags } from "./config/feature-flags.js";
 import { DEFAULT_LAYOUT } from "./config/default-layout.js";
 import { WebGLRenderer } from "./display/webgl-renderer.js";
 import { AudioDriver } from "./audio/audio-driver.js";
@@ -84,6 +83,7 @@ import { DisplaySettingsWindow, ScreenWindow } from "./display/index.js";
 import { DocumentationWindow, ReleaseNotesWindow } from "./help/index.js";
 import { ReminderController } from "./ui/reminder-controller.js";
 import { UIController } from "./ui/ui-controller.js";
+import { MenuBar } from "./ui/menu-bar.js";
 import { ThemeManager } from "./ui/theme-manager.js";
 import { showToast } from "./ui/toast.js";
 import { SlotConfigurationWindow } from "./ui/slot-configuration-window.js";
@@ -422,7 +422,6 @@ class AppleIIeEmulator {
       });
       joystickWindow.onCursorKeysChanged = (enabled) => {
         this.screenWindow.setCursorKeysState(enabled);
-        this.uiController?.setCursorKeysMenuState(enabled);
       };
 
       const mockingboardWindow = new MockingboardWindow(this.wasmModule);
@@ -666,6 +665,13 @@ class AppleIIeEmulator {
       });
       this.stateManager.init();
 
+      // The menu bar, laid out as the native app's. Made now because it reads
+      // the machine menu, the state manager and the sound settings.
+      this.soundSettings = this.uiController.soundSettings;
+      this.menuBar = new MenuBar({ app: this, ui: this.uiController });
+      this.menuBar.init();
+      this.uiController.setMenuBar(this.menuBar);
+
       // Save States window
       const saveStatesWindow = new SaveStatesWindow(this.stateManager, this.uiController);
       saveStatesWindow.create();
@@ -677,12 +683,6 @@ class AppleIIeEmulator {
           saveStatesWindow.refreshAutosaveRow();
         }
       };
-
-      // Apply feature flags
-      if (!featureFlags.isEnabled('serialPort')) {
-        const el = document.getElementById('btn-serial-port');
-        if (el) el.style.display = 'none';
-      }
 
       // Enable mouse handler if a mouse card is configured
       this.updateMouseHandlerState();
@@ -816,7 +816,6 @@ class AppleIIeEmulator {
     if (this.uiController) this.uiController.applyCharacterSet?.();
     // Which host key is Open Apple is the machine's own choice.
     this.inputHandler?.applyAppleKeys();
-    this.uiController?.applyAppleKeysMenu?.();
     // A rebuilt core is back on the Apple joystick; the game port is the
     // user's choice, not the machine's.
     this.joystickWindow?.applyGamePort();
@@ -899,14 +898,19 @@ class AppleIIeEmulator {
 
     const { width, height } = machineDisplay();
 
+    // Sized for the machine running now, which a switch can change.
     if (!this._screenshotCanvas) {
       this._screenshotCanvas = document.createElement("canvas");
-      this._screenshotCanvas.width = width;
-      this._screenshotCanvas.height = height;
       this._screenshotCtx = this._screenshotCanvas.getContext("2d");
     }
+    if (this._screenshotCanvas.width !== width || this._screenshotCanvas.height !== height) {
+      this._screenshotCanvas.width = width;
+      this._screenshotCanvas.height = height;
+    }
 
-    const copy = new Uint8ClampedArray(this._lastFramebuffer);
+    // A shared frame slot is sized for the largest machine; the frame is its
+    // first width x height pixels, rows packed, as the renderer uploads it.
+    const copy = new Uint8ClampedArray(this._lastFramebuffer.subarray(0, width * height * 4));
     const imageData = new ImageData(copy, width, height);
     this._screenshotCtx.putImageData(imageData, 0, 0);
     return this._screenshotCanvas.toDataURL("image/png");
@@ -1189,6 +1193,8 @@ if ("serviceWorker" in navigator && isInstalled) {
                 if (navigator.serviceWorker.controller) {
                   // New version available - show badge on Help button
                   console.log("New version available - badge shown on Help button");
+                  // Flagged as well, for a menu bar not yet drawn.
+                  window._a2eUpdateAvailable = true;
                   const helpBtn = document.getElementById("btn-help-menu");
                   if (helpBtn) {
                     helpBtn.classList.add("update-available");

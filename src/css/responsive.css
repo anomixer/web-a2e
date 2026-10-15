@@ -10,6 +10,48 @@
     }
 }
 
+/* The full menu bar needs the header's width: the brand goes first, then the
+   version, and the titles close up. */
+@media (max-width: 1320px) {
+    .retro-brand {
+        display: none;
+    }
+}
+
+@media (max-width: 1000px) {
+    /* View › Enter Full Screen does what this button does. */
+    .app-version,
+    #btn-fullscreen {
+        display: none;
+    }
+
+    .menu-bar .header-menu-trigger,
+    .header-text-btn {
+        padding-left: 5px;
+        padding-right: 5px;
+    }
+}
+
+/* Below this the menu bar no longer fits beside the logo, so the header
+   takes two rows, as it does on every smaller screen. */
+@media (max-width: 880px) {
+    header {
+        flex-direction: column;
+        gap: var(--space-sm);
+        padding: var(--space-sm);
+    }
+
+    .header-left {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .header-controls {
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+}
+
 /* Small screens / large tablets */
 @media (max-width: 800px) {
     header {
@@ -104,8 +146,9 @@
     }
 
     /* Hide debug and help menus on mobile - not usable on small screens */
-    #debug-menu-container,
-    #help-menu-container,
+    #menubar-debug,
+    #menubar-develop,
+    #menubar-help,
     .debug-window {
         display: none !important;
     }
@@ -267,8 +310,9 @@
     }
 
     /* Hide debug/help menus in landscape mobile */
-    #debug-menu-container,
-    #help-menu-container,
+    #menubar-debug,
+    #menubar-develop,
+    #menubar-help,
     .debug-window {
         display: none !important;
     }

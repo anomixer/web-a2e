@@ -56,6 +56,14 @@ export class MouseHandler {
 
   _onCanvasClick(event) {
     if (!event.altKey) return;              // only ⌥-click engages capture
+    this.capture();
+  }
+
+  /**
+   * Take the pointer for the machine: ⌥-click, or Machine › Capture Mouse.
+   * The browser allows it only in answer to a click, so it is called inside one.
+   */
+  capture() {
     if (this.locked) return;                // already captured
     if (!this.enabled) {
       console.warn("[mouse] ⌥-click ignored — capture disabled (no Mouse card in a slot?). enabled=false");

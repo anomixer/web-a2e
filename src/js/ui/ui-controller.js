@@ -15,11 +15,7 @@ import { ThemeManager } from "./theme-manager.js";
 import { showConfirm } from "./confirm.js";
 import { FullscreenDrivePopouts } from "./fullscreen-drive-popouts.js";
 import { getMachineProfile } from "../machine/machine-profile.js";
-import { menuAvailability } from "./machine-availability.js";
-import {
-  commandKeyIsOpenApple,
-  setCommandKeyIsOpenApple,
-} from "../input/apple-keys.js";
+import { SoundSettings } from "../audio/sound-settings.js";
 
 // Timing constants
 const REMINDER_DISMISS_DELAY_MS = 2000;
@@ -76,14 +72,17 @@ export class UIController {
     this.setupAgentButton();
     this.setupFullPageModeControls();
     this.setupSoundControls();
-    this.setupSystemMenuActions();
-    this.setupHardwareMenuActions();
-    this.setupDebugMenuActions();
-    this.setupDevMenuActions();
-    this.setupHelpMenuActions();
-    this.setupThemeSelector();
-    this.setupSpeedSelector();
+    this.setupResetButtons();
     this.setupWindowSwitcher();
+  }
+
+  /**
+   * Hand over the menu bar (menu-bar.js), made once the machine menu and the
+   * state manager it reads from exist. It gets the cards already applied.
+   */
+  setMenuBar(menuBar) {
+    this.menuBar = menuBar;
+    menuBar.setCards(this.installedCards);
   }
 
   /**
@@ -108,7 +107,9 @@ export class UIController {
    * Set up generic menu open/close behavior for all header-menu-container elements
    */
   setupMenus() {
-    const containers = document.querySelectorAll(".header-menu-container");
+    // The menu bar's own menus open themselves (menu-bar.js); this is the
+    // machine badge's, and anything else built in the same idiom.
+    const containers = document.querySelectorAll(".header-menu-container:not(.menu-bar-menu)");
 
     containers.forEach((container) => {
       const trigger = container.querySelector(".header-menu-trigger");
@@ -168,19 +169,21 @@ export class UIController {
       return;
     }
 
-    // Power button - simple on/off
-    powerBtn.addEventListener("click", () => {
-      this.reminderController.dismissPowerReminder();
-      if (this.emulator.isRunning()) {
-        this.emulator.stop();
-        this.reminderController.showBasicReminder(false);
-      } else {
-        this.emulator.start();
-        // "No disk?" is the wrong advice while a disk boots.
-        this.reminderController.showBasicReminder(!this.anyMediaInserted());
-      }
-      this.refocusCanvas();
-    });
+    powerBtn.addEventListener("click", () => this.togglePower());
+  }
+
+  /** The power button, and Machine › Power. */
+  togglePower() {
+    this.reminderController.dismissPowerReminder();
+    if (this.emulator.isRunning()) {
+      this.emulator.stop();
+      this.reminderController.showBasicReminder(false);
+    } else {
+      this.emulator.start();
+      // "No disk?" is the wrong advice while a disk boots.
+      this.reminderController.showBasicReminder(!this.anyMediaInserted());
+    }
+    this.refocusCanvas();
   }
 
   /** Whether any drive holds anything: a floppy, a 3.5" disk or a SmartPort image. */
@@ -399,495 +402,94 @@ export class UIController {
     updateButtonState();
   }
 
-  /**
-   * Set up reset buttons and System menu state management actions
-   */
-  setupSystemMenuActions() {
-    // Warm reset button (top-level, preserves memory)
-    const warmResetBtn = document.getElementById("btn-warm-reset");
-    if (warmResetBtn) {
-      warmResetBtn.addEventListener("click", () => {
-        if (this.inputHandler) this.inputHandler.cancelPaste();
-        this.wasmModule._warmReset();
-        setTimeout(() => {
-          this.reminderController.dismissBasicReminder();
-        }, REMINDER_DISMISS_DELAY_MS);
-        this.refocusCanvas();
-      });
-    }
-
-    // Cold reset button (top-level, full restart)
-    const coldResetBtn = document.getElementById("btn-cold-reset");
-    if (coldResetBtn) {
-      coldResetBtn.addEventListener("click", async () => {
-        if (this.inputHandler) this.inputHandler.cancelPaste();
-        this.wasmModule._reset();
-        await clearStateFromStorage(getMachineProfile().key);
-        this.refocusCanvas();
-      });
-    }
-
-    // Save States window button
-    const saveStatesBtn = document.getElementById("btn-save-states");
-    if (saveStatesBtn) {
-      saveStatesBtn.addEventListener("click", () => {
-        this.windowManager.toggleWindow("save-states");
-        this.closeAllMenus();
-        this.refocusCanvas();
-      });
-    }
-
-    // Reset Defaults — clear all persisted data and reload
-    const resetDefaultsBtn = document.getElementById("btn-reset-defaults");
-    if (resetDefaultsBtn) {
-      resetDefaultsBtn.addEventListener("click", async () => {
-        this.closeAllMenus();
-        const confirmed = await showConfirm(
-          "Reset all settings, save states, and window positions to factory defaults? This cannot be undone.",
-          "Reset Defaults",
-        );
-        if (!confirmed) return;
-
-        // Clear all localStorage
-        localStorage.clear();
-
-        // Delete all IndexedDB databases used by the emulator
-        const dbNames = ["a2e-state-persistence", "a2e-hd-persistence"];
-        await Promise.all(
-          dbNames.map(
-            (name) =>
-              new Promise((resolve) => {
-                const req = indexedDB.deleteDatabase(name);
-                req.onsuccess = resolve;
-                req.onerror = resolve;
-                req.onblocked = resolve;
-              }),
-          ),
-        );
-
-        // Prevent beforeunload from re-saving state, then reload
-        window._resettingDefaults = true;
-        window.location.reload();
-      });
-    }
-
-    // Prevent system menu from closing when clicking toggle items
-    const systemMenu = document.getElementById("file-menu");
-    if (systemMenu) {
-      systemMenu.querySelectorAll(".menu-toggle-item").forEach((item) => {
-        item.addEventListener("click", (e) => {
-          e.stopPropagation();
-        });
-      });
-    }
+  /** The header's Ctrl+Reset and Reboot buttons. */
+  setupResetButtons() {
+    document.getElementById("btn-warm-reset")?.addEventListener("click", () => this.controlReset());
+    document.getElementById("btn-cold-reset")?.addEventListener("click", () => this.reboot());
   }
 
-  /**
-   * Set up Hardware menu action items
-   */
-  setupHardwareMenuActions() {
-    // Layout preset buttons
-    const layoutBtns = document.querySelectorAll('.layout-btn');
-
-    // Sync active state when View menu opens
-    const viewContainer = document.getElementById('view-menu-container');
-    if (viewContainer) {
-      const observer = new MutationObserver(() => {
-        if (viewContainer.classList.contains('open')) {
-          const dockManager = this.windowManager.dockManager;
-          layoutBtns.forEach(b => {
-            b.classList.toggle('active', dockManager && dockManager._activePreset === b.dataset.layout);
-          });
-        }
-      });
-      observer.observe(viewContainer, { attributes: true, attributeFilter: ['class'] });
-    }
-
-    layoutBtns.forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const layout = btn.dataset.layout;
-        const dockManager = this.windowManager.dockManager;
-        if (!dockManager) return;
-
-        layoutBtns.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-
-        dockManager.loadPreset(layout);
-        this.closeAllMenus();
-        this.refocusCanvas();
-      });
-    });
-
-    // Popout side buttons
-    const popoutSideBtns = document.querySelectorAll('.popout-side-btn');
-
-    if (viewContainer) {
-      const sideObserver = new MutationObserver(() => {
-        if (viewContainer.classList.contains('open')) {
-          const currentSide = this._drivePopouts?.getSide() || localStorage.getItem('a2e-popout-side') || 'left';
-          popoutSideBtns.forEach(b => {
-            b.classList.toggle('active', b.dataset.popoutSide === currentSide);
-          });
-        }
-      });
-      sideObserver.observe(viewContainer, { attributes: true, attributeFilter: ['class'] });
-    }
-
-    popoutSideBtns.forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const side = btn.dataset.popoutSide;
-        popoutSideBtns.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        if (this._drivePopouts) {
-          this._drivePopouts.setSide(side);
-        }
-        this.closeAllMenus();
-        this.refocusCanvas();
-      });
-    });
-
-    const drivesBtn = document.getElementById("btn-drives");
-    if (drivesBtn) {
-      drivesBtn.addEventListener("click", () => {
-        this.windowManager.toggleWindow("disk-drives");
-        this.closeAllMenus();
-        this.refocusCanvas();
-      });
-    }
-
-    const disk35Btn = document.getElementById("btn-disk35-drives");
-    if (disk35Btn) {
-      disk35Btn.addEventListener("click", () => {
-        this.windowManager.toggleWindow("disk35-drives");
-        this.closeAllMenus();
-        this.refocusCanvas();
-      });
-    }
-
-    const hardDrivesBtn = document.getElementById("btn-hard-drives");
-    if (hardDrivesBtn) {
-      hardDrivesBtn.addEventListener("click", () => {
-        this.windowManager.toggleWindow("hard-drives");
-        this.closeAllMenus();
-        this.refocusCanvas();
-      });
-    }
-
-
-    const fileExplorerBtn = document.getElementById("btn-file-explorer");
-    if (fileExplorerBtn) {
-      fileExplorerBtn.addEventListener("click", () => {
-        this.windowManager.toggleWindow("file-explorer-window");
-        this.closeAllMenus();
-        this.refocusCanvas();
-      });
-    }
-
-    const diskInspectorBtn = document.getElementById("btn-disk-inspector");
-    if (diskInspectorBtn) {
-      diskInspectorBtn.addEventListener("click", () => {
-        this.windowManager.toggleWindow("disk-inspector");
-        this.closeAllMenus();
-        this.refocusCanvas();
-      });
-    }
-
-    const displayBtn = document.getElementById("btn-display");
-    if (displayBtn) {
-      displayBtn.addEventListener("click", () => {
-        this.windowManager.toggleWindow("display-settings");
-        this.closeAllMenus();
-        this.refocusCanvas();
-      });
-    }
-
-    const joystickBtn = document.getElementById("btn-joystick");
-    if (joystickBtn) {
-      joystickBtn.addEventListener("click", () => {
-        this.windowManager.toggleWindow("joystick");
-        this.closeAllMenus();
-        this.refocusCanvas();
-      });
-    }
-
-    // --- Cursor keys as joystick (mirrors the Monitor header toggle) ---
-    this.cursorKeysBtn = document.getElementById("btn-cursor-keys-joystick");
-    if (this.cursorKeysBtn) {
-      const joystickWindow = this.windowManager.getWindow("joystick");
-      this.setCursorKeysMenuState(
-        joystickWindow
-          ? joystickWindow.cursorKeysEnabled
-          : localStorage.getItem("joystick-cursor-keys") === "true",
-      );
-      this.cursorKeysBtn.addEventListener("click", () => {
-        const win = this.windowManager.getWindow("joystick");
-        if (win) {
-          win.setCursorKeysEnabled(!win.cursorKeysEnabled);
-        }
-        this.closeAllMenus();
-        this.refocusCanvas();
-      });
-    }
-
-    // --- ⌘ as Open Apple (per machine; a IIgs has it on by default) ---
-    this.commandAppleBtn = document.getElementById("btn-command-apple-key");
-    if (this.commandAppleBtn) {
-      this.applyAppleKeysMenu();
-      this.commandAppleBtn.addEventListener("click", () => {
-        setCommandKeyIsOpenApple(!commandKeyIsOpenApple());
-        this.applyAppleKeysMenu();
-        this.inputHandler?.applyAppleKeys?.();
-        this.closeAllMenus();
-        this.refocusCanvas();
-      });
-    }
-
-    const slotsBtn = document.getElementById("btn-slots");
-    if (slotsBtn) {
-      slotsBtn.addEventListener("click", () => {
-        this.windowManager.toggleWindow("slot-configuration");
-        this.closeAllMenus();
-        this.refocusCanvas();
-      });
-    }
-
-    const serialBtn = document.getElementById("btn-serial-port");
-    if (serialBtn) {
-      serialBtn.addEventListener("click", () => {
-        this.windowManager.toggleWindow("serial-connection");
-        this.closeAllMenus();
-        this.refocusCanvas();
-      });
-    }
-
-    const printerBtn = document.getElementById("btn-printer");
-    if (printerBtn) {
-      printerBtn.addEventListener("click", () => {
-        this.windowManager.toggleWindow("printer-output");
-        this.closeAllMenus();
-        this.refocusCanvas();
-      });
-    }
-
-    const printBrowserBtn = document.getElementById("btn-print-browser");
-    if (printBrowserBtn) {
-      printBrowserBtn.addEventListener("click", () => {
-        this.windowManager.toggleWindow("print-browser");
-        this.closeAllMenus();
-        this.refocusCanvas();
-      });
-    }
+  /** Control-Reset: a warm reset, memory kept. */
+  controlReset() {
+    if (this.inputHandler) this.inputHandler.cancelPaste();
+    this.wasmModule._warmReset();
+    setTimeout(() => {
+      this.reminderController.dismissBasicReminder();
+    }, REMINDER_DISMISS_DELAY_MS);
+    this.refocusCanvas();
   }
 
+  /** Reboot: a cold start, and the machine's autosave forgotten. */
+  async reboot() {
+    if (this.inputHandler) this.inputHandler.cancelPaste();
+    this.wasmModule._reset();
+    await clearStateFromStorage(getMachineProfile().key);
+    this.refocusCanvas();
+  }
+
+  /** File › Reset Defaults: clear all persisted data and reload. */
+  async resetDefaults() {
+    const confirmed = await showConfirm(
+      "Reset all settings, save states, and window positions to factory defaults? This cannot be undone.",
+      "Reset Defaults",
+    );
+    if (!confirmed) return;
+
+    localStorage.clear();
+
+    const dbNames = ["a2e-state-persistence", "a2e-hd-persistence"];
+    await Promise.all(
+      dbNames.map(
+        (name) =>
+          new Promise((resolve) => {
+            const req = indexedDB.deleteDatabase(name);
+            req.onsuccess = resolve;
+            req.onerror = resolve;
+            req.onblocked = resolve;
+          }),
+      ),
+    );
+
+    // Prevent beforeunload from re-saving state, then reload
+    window._resettingDefaults = true;
+    window.location.reload();
+  }
 
   /**
    * Hide what the running machine cannot use.
    *
    * Called at startup, after a machine switch, and whenever the cards change,
    * because each answer is about the machine or about what is fitted to it.
-   * An item is hidden rather than disabled: a greyed "Expansion Slots" on a
-   * //c invites the question of how to enable it, and the answer is a
-   * different computer. A separator left with nothing after it goes too.
+   * The menu bar asks menuAvailability() as each menu opens; this tells it
+   * which cards are fitted and redraws it.
    *
    * @param {object} installedCards - slot number → card id, fixed slots included
    */
   applyMachineMenus(installedCards) {
-    const can = menuAvailability(getMachineProfile(), installedCards);
-    const show = (el, visible) => {
-      if (el) el.hidden = !visible;
-    };
-    show(document.getElementById("btn-slots"), can.slots);
-    show(document.querySelector(".speed-selector-row"), can.speed);
-    show(document.getElementById("btn-disk35-drives"), can.drives35);
-    show(document.getElementById("btn-hard-drives"), can.hardDrives);
-    show(document.getElementById("btn-serial-port"), can.serialPort);
-    show(document.getElementById("btn-printer"), can.printer);
-    show(document.querySelector('#debug-menu [data-window="mockingboard"]'), can.mockingboard);
-    show(document.querySelector('#debug-menu [data-window="mouse-card"]'), can.mouseCard);
-    show(document.querySelector('#dev-menu [data-window="basic"]'), can.basic);
-    show(document.querySelector('#dev-menu [data-window="assembler"]'), can.assembler);
-    // A menu with nothing left in it goes from the header altogether.
-    show(document.getElementById("dev-menu-container"), can.basic || can.assembler);
-
-    for (const menu of document.querySelectorAll(".header-menu")) {
-      this.tidySeparators(menu);
-    }
+    this.installedCards = installedCards;
+    this.menuBar?.setCards(installedCards);
   }
 
-  /** Hide a separator that has no visible item after it, or before it. */
-  tidySeparators(menu) {
-    const items = [...menu.children].filter((el) => !el.hidden || el.classList.contains("header-menu-separator"));
-    let seenItem = false;
-    let pending = null;
-    for (const el of items) {
-      if (el.classList.contains("header-menu-separator")) {
-        // A separator at the top, or straight after another, has nothing to divide.
-        el.hidden = !seenItem || pending !== null;
-        if (!el.hidden) pending = el;
-        continue;
+  /** Help › Check for Updates, on an installed app: drop the cache and reload. */
+  async checkForUpdates() {
+    if (!("serviceWorker" in navigator)) {
+      window.location.reload(true);
+      return;
+    }
+    try {
+      const registration = await navigator.serviceWorker.getRegistration();
+      if (registration) {
+        await registration.unregister();
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map((name) => caches.delete(name)));
+        this.showNotification("Updating... page will reload");
+        setTimeout(() => window.location.reload(true), 500);
+      } else {
+        this.showNotification("No service worker registered");
       }
-      if (el.hidden) continue;
-      seenItem = true;
-      pending = null;
+    } catch (error) {
+      console.error("Update failed:", error);
+      this.showNotification("Update failed: " + error.message);
     }
-    // ...and one at the bottom divides nothing either.
-    if (pending) pending.hidden = true;
-  }
-
-  /**
-   * Set up debug menu dropdown actions
-   */
-  setupDebugMenuActions() {
-    const debugMenu = document.getElementById("debug-menu");
-    if (!debugMenu) return;
-
-    const windowMap = {
-      cpu: "cpu-debugger",
-      switches: "soft-switches",
-      memmap: "memory-map",
-      memory: "memory-browser",
-      heatmap: "memory-heatmap",
-      stack: "stack-viewer",
-      zeropage: "zeropage-watch",
-      trace: "trace-panel",
-      mockingboard: "mockingboard-debug",
-      "mouse-card": "mouse-card-debug",
-      "basic-debugger": "basic-debugger",
-    };
-
-    debugMenu.querySelectorAll(".header-menu-item").forEach((item) => {
-      item.addEventListener("click", () => {
-        const windowType = item.dataset.window;
-        if (windowMap[windowType]) {
-          this.windowManager.toggleWindow(windowMap[windowType]);
-        }
-        this.closeAllMenus();
-        this.refocusCanvas();
-      });
-    });
-  }
-
-  /**
-   * Set up dev menu dropdown actions
-   */
-  setupDevMenuActions() {
-    const devMenu = document.getElementById("dev-menu");
-    if (!devMenu) return;
-
-    const windowMap = {
-      basic: "basic-program",
-      assembler: "assembler-editor",
-    };
-
-    devMenu.querySelectorAll(".header-menu-item").forEach((item) => {
-      item.addEventListener("click", () => {
-        const windowType = item.dataset.window;
-        if (windowMap[windowType]) {
-          this.windowManager.toggleWindow(windowMap[windowType]);
-        }
-        this.closeAllMenus();
-        this.refocusCanvas();
-      });
-    });
-  }
-
-  /**
-   * Set up Help menu actions
-   */
-  setupHelpMenuActions() {
-    // Documentation (btn-help) is handled by DocumentationWindow via F1 and direct click
-    // btn-help is now inside the help menu - DocumentationWindow binds to it in its own create()
-
-    // Release notes menu item
-    const releaseNotesMenuBtn = document.getElementById("btn-release-notes-menu");
-    if (releaseNotesMenuBtn) {
-      releaseNotesMenuBtn.addEventListener("click", () => {
-        this.windowManager.toggleWindow("release-notes");
-        this.closeAllMenus();
-      });
-    }
-
-    // Update/refresh button - only visible when installed as PWA
-    const updateBtn = document.getElementById("btn-update");
-    const isInstalled = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
-    if (updateBtn && !isInstalled) {
-      updateBtn.style.display = "none";
-      const separator = updateBtn.previousElementSibling;
-      if (separator && separator.classList.contains("header-menu-separator")) {
-        separator.style.display = "none";
-      }
-    }
-    if (updateBtn && isInstalled) {
-      updateBtn.addEventListener("click", async () => {
-        this.closeAllMenus();
-        if ("serviceWorker" in navigator) {
-          try {
-            const registration = await navigator.serviceWorker.getRegistration();
-            if (registration) {
-              await registration.unregister();
-              const cacheNames = await caches.keys();
-              await Promise.all(cacheNames.map((name) => caches.delete(name)));
-              this.showNotification("Updating... page will reload");
-              setTimeout(() => window.location.reload(true), 500);
-            } else {
-              this.showNotification("No service worker registered");
-            }
-          } catch (error) {
-            console.error("Update failed:", error);
-            this.showNotification("Update failed: " + error.message);
-          }
-        } else {
-          window.location.reload(true);
-        }
-      });
-    }
-  }
-
-  /**
-   * Set up theme selector buttons in View menu
-   */
-  setupThemeSelector() {
-    const buttons = document.querySelectorAll(".theme-btn");
-    if (!buttons.length || !this.themeManager) return;
-
-    const updateActive = () => {
-      const pref = this.themeManager.getPreference();
-      buttons.forEach((btn) => {
-        btn.classList.toggle("active", btn.dataset.theme === pref);
-      });
-    };
-
-    buttons.forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        this.themeManager.setPreference(btn.dataset.theme);
-        updateActive();
-      });
-    });
-
-    updateActive();
-  }
-
-  /**
-   * Set up the CPU speed selector in the View menu.
-   * The menu stays open on click so speeds can be compared by ear.
-   */
-  setupSpeedSelector() {
-    const buttons = document.querySelectorAll(".speed-btn");
-    if (!buttons.length || !this.emulationSpeed) return;
-
-    this.emulationSpeed.onChange((multiplier) => {
-      buttons.forEach((btn) => {
-        btn.classList.toggle("active", Number(btn.dataset.speed) === multiplier);
-      });
-    });
-
-    buttons.forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        this.emulationSpeed.setSpeed(Number(btn.dataset.speed));
-      });
-    });
   }
 
   /**
@@ -938,62 +540,80 @@ export class UIController {
   /**
    * Set up fullscreen/full page mode controls
    */
+  /** View › Full Page: the picture alone, filling the page, every window put away. */
+  enterFullPageMode() {
+    if (this.isFullPageMode) return;
+    this.closeAllMenus();
+
+    // Remember which windows are visible before hiding them
+    this._windowsBeforeFullPage = this.windowManager.getVisibleWindowIds();
+
+    // Detach canvas from ScreenWindow into monitor-frame for full-page rendering
+    if (this.screenWindow && this.screenWindow.isVisible) {
+      this.screenWindow.detachCanvas();
+      this.screenWindow.isVisible = false;
+      this.screenWindow.element.classList.add("hidden");
+    }
+
+    this.windowManager.hideAll();
+    document.body.classList.add("full-page-mode");
+    this.isFullPageMode = true;
+    this.syncFullPagePowerButton();
+    this.refocusCanvas();
+  }
+
+  exitFullPageMode() {
+    if (!this.isFullPageMode) return;
+    document.body.classList.remove("full-page-mode");
+    this.isFullPageMode = false;
+
+    // Restore ScreenWindow and re-attach canvas from monitor-frame
+    if (this.screenWindow) {
+      this.screenWindow.show();
+      this.screenWindow.attachCanvas();
+    }
+
+    // Restore windows that were visible before entering full page mode
+    if (this._windowsBeforeFullPage) {
+      for (const id of this._windowsBeforeFullPage) {
+        this.windowManager.showWindow(id);
+      }
+      this._windowsBeforeFullPage = null;
+    }
+
+    this.refocusCanvas();
+  }
+
+  /** The browser's own full screen: the header button and View › Enter Full Screen. */
+  setFullScreen(on) {
+    if (!on && document.fullscreenElement) {
+      document.exitFullscreen();
+    } else if (on && !document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch((err) => {
+        console.warn("Fullscreen request failed:", err);
+      });
+    }
+    this.refocusCanvas();
+  }
+
+  isHeaderAutoHidden() {
+    return !!document.querySelector("header")?.classList.contains("auto-hide");
+  }
+
+  /** View › Auto-hide Menu Bar: the header slides away until the pointer reaches the top. */
+  setHeaderAutoHidden(on) {
+    const headerEl = document.querySelector("header");
+    if (!headerEl) return;
+    headerEl.classList.toggle("auto-hide", on);
+    if (!on) headerEl.classList.remove("header-visible");
+    localStorage.setItem("a2e-auto-hide-header", on);
+  }
+
   setupFullPageModeControls() {
     const fullscreenBtn = document.getElementById("btn-fullscreen");
     if (!fullscreenBtn) return;
 
-    const exitFullPageMode = () => {
-      document.body.classList.remove("full-page-mode");
-      this.isFullPageMode = false;
-
-      // Restore ScreenWindow and re-attach canvas from monitor-frame
-      if (this.screenWindow) {
-        this.screenWindow.show();
-        this.screenWindow.attachCanvas();
-      }
-
-      // Restore windows that were visible before entering full page mode
-      if (this._windowsBeforeFullPage) {
-        for (const id of this._windowsBeforeFullPage) {
-          this.windowManager.showWindow(id);
-        }
-        this._windowsBeforeFullPage = null;
-      }
-
-      this.refocusCanvas();
-    };
-
-    const enterFullPageMode = () => {
-      // Close any open menus
-      this.closeAllMenus();
-
-      // Remember which windows are visible before hiding them
-      this._windowsBeforeFullPage = this.windowManager.getVisibleWindowIds();
-
-      // Detach canvas from ScreenWindow into monitor-frame for full-page rendering
-      if (this.screenWindow && this.screenWindow.isVisible) {
-        this.screenWindow.detachCanvas();
-        this.screenWindow.isVisible = false;
-        this.screenWindow.element.classList.add('hidden');
-      }
-
-      this.windowManager.hideAll();
-      document.body.classList.add("full-page-mode");
-      this.isFullPageMode = true;
-      this.syncFullPagePowerButton();
-      this.refocusCanvas();
-    };
-
-    fullscreenBtn.addEventListener("click", () => {
-      if (document.fullscreenElement) {
-        document.exitFullscreen();
-      } else {
-        document.documentElement.requestFullscreen().catch((err) => {
-          console.warn("Fullscreen request failed:", err);
-        });
-      }
-      this.refocusCanvas();
-    });
+    fullscreenBtn.addEventListener("click", () => this.setFullScreen(!document.fullscreenElement));
 
     const headerEl = document.querySelector("header");
 
@@ -1054,23 +674,9 @@ export class UIController {
       });
     });
 
-    // --- Auto-hide header toggle ---
-    const autoHideBtn = document.getElementById("btn-auto-hide-header");
-    if (autoHideBtn) {
-      // Restore saved preference
-      if (localStorage.getItem("a2e-auto-hide-header") === "true") {
-        headerEl.classList.add("auto-hide");
-        autoHideBtn.classList.add("active");
-      }
-      autoHideBtn.addEventListener("click", () => {
-        const enabled = headerEl.classList.toggle("auto-hide");
-        autoHideBtn.classList.toggle("active", enabled);
-        localStorage.setItem("a2e-auto-hide-header", enabled);
-        if (!enabled) {
-          headerEl.classList.remove("header-visible");
-        }
-        this.closeAllMenus();
-      });
+    // The auto-hide header, as it was left.
+    if (headerEl && localStorage.getItem("a2e-auto-hide-header") === "true") {
+      headerEl.classList.add("auto-hide");
     }
 
     // Show/hide header based on mouse proximity to top edge (auto-hide only)
@@ -1089,11 +695,12 @@ export class UIController {
       }
     });
 
-    // Exit full page mode on Ctrl+Escape
+    // Control-Escape goes into full page and back out, as View › Full Page does.
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && e.ctrlKey && this.isFullPageMode) {
+      if (e.key === "Escape" && e.ctrlKey) {
         e.preventDefault();
-        exitFullPageMode();
+        if (this.isFullPageMode) this.exitFullPageMode();
+        else this.enterFullPageMode();
       }
     });
 
@@ -1102,7 +709,7 @@ export class UIController {
     if (mainEl) {
       mainEl.addEventListener("click", (e) => {
         if (this.isFullPageMode && e.target.tagName !== "CANVAS") {
-          exitFullPageMode();
+          this.exitFullPageMode();
         }
       });
     }
@@ -1149,7 +756,7 @@ export class UIController {
     if (fpExit) {
       fpExit.addEventListener("click", (e) => {
         e.stopPropagation();
-        exitFullPageMode();
+        this.exitFullPageMode();
       });
     }
 
@@ -1162,31 +769,48 @@ export class UIController {
   }
 
   /**
-   * Set up sound controls popup
+   * The sound popup on the header's speaker button. Machine › Sound offers
+   * the same settings, so the popup reads them afresh each time it opens.
    */
   setupSoundControls() {
+    this.soundSettings = new SoundSettings({
+      wasmModule: this.wasmModule,
+      diskManager: this.diskManager,
+    });
+    this.soundSettings.apply();
+    this.diskManager.setMasterVolume(this.audioDriver.isMuted() ? 0 : this.audioDriver.getVolume());
+    this.updateSoundButton();
+    this.setupCharacterSetToggle();
+
     const soundBtn = document.getElementById("btn-sound");
     const soundPopup = document.getElementById("sound-popup");
-    const volumeSlider = document.getElementById("volume-slider");
-    const volumeValue = document.getElementById("volume-value");
-    const muteToggle = document.getElementById("mute-toggle");
-    const driveSoundsToggle = document.getElementById("drive-sounds-toggle");
     if (!soundBtn || !soundPopup) return;
 
-    // Load saved drive sounds setting
-    const savedDriveSounds = localStorage.getItem("a2e-drive-sounds");
-    const driveSoundsEnabled = savedDriveSounds !== "false";
-    if (driveSoundsToggle) {
-      driveSoundsToggle.checked = driveSoundsEnabled;
-    }
-    this.diskManager.setSeekSoundEnabled(driveSoundsEnabled);
-    this.diskManager.setMotorSoundEnabled(driveSoundsEnabled);
+    const volumeSlider = document.getElementById("volume-slider");
+    const volumeValue = document.getElementById("volume-value");
+    const toggles = {
+      mute: document.getElementById("mute-toggle"),
+      driveSounds: document.getElementById("drive-sounds-toggle"),
+      phaseLock: document.getElementById("mockingboard-phase-lock-toggle"),
+      mono: document.getElementById("mockingboard-mono-toggle"),
+      printerSounds: document.getElementById("printer-sounds-toggle"),
+    };
 
-    // Toggle popup on button click
+    const sync = () => {
+      const percent = Math.round(this.audioDriver.getVolume() * 100);
+      if (volumeSlider) volumeSlider.value = percent;
+      if (volumeValue) volumeValue.textContent = `${percent}%`;
+      if (toggles.mute) toggles.mute.checked = this.audioDriver.isMuted();
+      if (toggles.driveSounds) toggles.driveSounds.checked = this.soundSettings.driveSounds;
+      if (toggles.phaseLock) toggles.phaseLock.checked = this.soundSettings.phaseLock;
+      if (toggles.mono) toggles.mono.checked = this.soundSettings.mono;
+      if (toggles.printerSounds) toggles.printerSounds.checked = this.soundSettings.printerSounds;
+    };
+
     soundBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      // Close header menus when opening sound popup
       this.closeAllMenus();
+      sync();
       soundPopup.classList.toggle("hidden");
     });
 
@@ -1202,113 +826,55 @@ export class UIController {
       e.stopPropagation();
     });
 
-    // Volume slider
-    if (volumeSlider && volumeValue) {
-      const initialVolume = Math.round(this.audioDriver.getVolume() * 100);
-      volumeSlider.value = initialVolume;
-      volumeValue.textContent = `${initialVolume}%`;
-      this.diskManager.setMasterVolume(this.audioDriver.isMuted() ? 0 : this.audioDriver.getVolume());
+    volumeSlider?.addEventListener("input", (e) => {
+      const percent = parseInt(e.target.value, 10);
+      if (volumeValue) volumeValue.textContent = `${percent}%`;
+      this.setVolume(percent / 100);
+    });
+    toggles.mute?.addEventListener("change", (e) => this.setMuted(e.target.checked));
+    toggles.driveSounds?.addEventListener("change", (e) => this.soundSettings.setDriveSounds(e.target.checked));
+    toggles.phaseLock?.addEventListener("change", (e) => this.soundSettings.setPhaseLock(e.target.checked));
+    toggles.mono?.addEventListener("change", (e) => this.soundSettings.setMono(e.target.checked));
+    toggles.printerSounds?.addEventListener("change", (e) => this.soundSettings.setPrinterSounds(e.target.checked));
+  }
 
-      volumeSlider.addEventListener("input", (e) => {
-        const volume = parseInt(e.target.value, 10);
-        volumeValue.textContent = `${volume}%`;
-        this.audioDriver.setVolume(volume / 100);
-        if (!this.audioDriver.isMuted()) {
-          this.diskManager.setMasterVolume(volume / 100);
-        }
-      });
+  /** Machine › Sound › Mute, and the popup's switch. */
+  setMuted(muted) {
+    if (muted) {
+      this.audioDriver.mute();
+      this.diskManager.setMasterVolume(0);
+    } else {
+      this.audioDriver.unmute();
+      this.diskManager.setMasterVolume(this.audioDriver.getVolume());
     }
-
-    // Mute toggle
-    if (muteToggle) {
-      muteToggle.checked = this.audioDriver.isMuted();
-      muteToggle.addEventListener("change", (e) => {
-        if (e.target.checked) {
-          this.audioDriver.mute();
-          this.diskManager.setMasterVolume(0);
-        } else {
-          this.audioDriver.unmute();
-          this.diskManager.setMasterVolume(this.audioDriver.getVolume());
-        }
-        this.updateSoundButton();
-      });
-    }
-
-    // Sync sound button icon with persisted mute state
     this.updateSoundButton();
+  }
 
-    // Drive sounds toggle
-    if (driveSoundsToggle) {
-      driveSoundsToggle.addEventListener("change", (e) => {
-        const enabled = e.target.checked;
-        this.diskManager.setSeekSoundEnabled(enabled);
-        this.diskManager.setMotorSoundEnabled(enabled);
-        localStorage.setItem("a2e-drive-sounds", enabled);
-      });
-    }
+  /** Machine › Sound › Volume, and the popup's slider: 0 to 1. */
+  setVolume(volume) {
+    this.audioDriver.setVolume(volume);
+    if (!this.audioDriver.isMuted()) this.diskManager.setMasterVolume(volume);
+  }
 
-    // Mockingboard Phase Lock: a song that mirrors its notes to both chips
-    // can leave them half a cycle apart, and on speakers close together the
-    // two sides then cancel. On by default; off plays the chips apart, as a
-    // real card does. The core keeps it for every Mockingboard on every
-    // machine.
-    const phaseLockToggle = document.getElementById("mockingboard-phase-lock-toggle");
-    if (phaseLockToggle) {
-      phaseLockToggle.checked = localStorage.getItem("a2e-mockingboard-phase-lock") !== "false";
-      this.wasmModule._setMockingboardPhaseLock(phaseLockToggle.checked);
-      phaseLockToggle.addEventListener("change", (e) => {
-        localStorage.setItem("a2e-mockingboard-phase-lock", e.target.checked);
-        this.wasmModule._setMockingboardPhaseLock(e.target.checked);
-      });
-    }
+  /**
+   * The US/UK switch in the screen window's title bar. Checked is UK: the
+   * switch reads "US [toggle] UK" and the stylesheet lights the label on the
+   * side the knob is on.
+   */
+  setupCharacterSetToggle() {
+    const toggle = document.getElementById("screen-window-charset-toggle");
+    const isUK = this.applyCharacterSet();
+    if (!toggle) return;
+    toggle.checked = isUK;
+    toggle.addEventListener("change", (e) => this.setCharacterSet(e.target.checked));
+  }
 
-    // Mockingboard Mono: both chips mixed and played on both sides. On by
-    // default; the core keeps it for every Mockingboard on every machine.
-    const mbMonoToggle = document.getElementById("mockingboard-mono-toggle");
-    if (mbMonoToggle) {
-      mbMonoToggle.checked = localStorage.getItem("a2e-mockingboard-mono") !== "false";
-      this.wasmModule._setMockingboardMono(mbMonoToggle.checked);
-      mbMonoToggle.addEventListener("change", (e) => {
-        localStorage.setItem("a2e-mockingboard-mono", e.target.checked);
-        this.wasmModule._setMockingboardMono(e.target.checked);
-      });
-    }
-
-    // Printer sounds toggle. PrinterSound reads a2e-printer-sounds live from
-    // localStorage (same pattern as the main volume/mute keys), so this toggle
-    // only has to persist the flag — no object to plumb through.
-    const printerSoundsToggle = document.getElementById("printer-sounds-toggle");
-    if (printerSoundsToggle) {
-      printerSoundsToggle.checked = localStorage.getItem("a2e-printer-sounds") !== "false";
-      printerSoundsToggle.addEventListener("change", (e) => {
-        localStorage.setItem("a2e-printer-sounds", e.target.checked);
-      });
-    }
-
-    // Character set toggle (UK/US) - screen window header
-    const screenWindowCharsetToggle = document.getElementById("screen-window-charset-toggle");
-
-    // Checked is UK. The switch reads "US [toggle] UK" and the stylesheet
-    // lights the label on the side the knob is on, so the checkbox has to
-    // agree with that: it was inverted, which left a machine set to US
-    // showing UK lit, and a IIgs, which has no second set and is always US,
-    // showing UK permanently.
-    const syncCharsetToggle = (isUK) => {
-      this.wasmModule._setUKCharacterSet(isUK);
-      localStorage.setItem("a2e-charset", isUK ? "uk" : "us");
-      if (screenWindowCharsetToggle) screenWindowCharsetToggle.checked = isUK;
-    };
-
-    // Initialize from saved setting
-    const isUKInitial = this.applyCharacterSet();
-    if (screenWindowCharsetToggle) screenWindowCharsetToggle.checked = isUKInitial;
-
-    // Screen window header toggle listener
-    if (screenWindowCharsetToggle) {
-      screenWindowCharsetToggle.addEventListener("change", (e) => {
-        syncCharsetToggle(e.target.checked);
-      });
-    }
+  /** Machine › Keyboard › UK Character Set, and the screen window's switch. */
+  setCharacterSet(isUK) {
+    this.wasmModule._setUKCharacterSet(isUK);
+    localStorage.setItem("a2e-charset", isUK ? "uk" : "us");
+    const toggle = document.getElementById("screen-window-charset-toggle");
+    if (toggle) toggle.checked = isUK;
   }
 
   /**
@@ -1328,19 +894,6 @@ export class UIController {
       iconUnmuted?.classList.remove("hidden");
       iconMuted?.classList.add("hidden");
     }
-  }
-
-  /**
-   * Reflect the cursor-keys-as-joystick state in the View menu
-   * @param {boolean} enabled
-   */
-  setCursorKeysMenuState(enabled) {
-    this.cursorKeysBtn?.classList.toggle("active", enabled);
-  }
-
-  /** The tick follows the running machine's own setting. */
-  applyAppleKeysMenu() {
-    this.commandAppleBtn?.classList.toggle("active", commandKeyIsOpenApple());
   }
 
   /**

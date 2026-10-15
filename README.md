@@ -58,7 +58,7 @@ The IIgs is the exception to that rule, and deliberately: it belongs to its own 
 
 Switching rebuilds the emulator, so inserted media and anything in memory are lost exactly as they would be on a page reload — the menu says so first. Volume, character set and CPU speed follow you across, because those were your choices rather than the machine's. Each machine remembers its own slot layout, display settings and save states, and the machine you last chose is restored at startup.
 
-Menu items for hardware the running machine does not have are hidden rather than disabled: a greyed-out "Expansion Slots" on a //c only invites the question of how to enable it, and the answer is a different computer.
+The menu bar is laid out as the macOS app's is: File, Edit, Machine, View, Debug, Develop, Window and Help, each with the same items in the same places. Menu items for hardware the running machine does not have are hidden rather than disabled: a greyed-out "Expansion Slots" on a //c only invites the question of how to enable it, and the answer is a different computer.
 
 ## Prerequisites
 
@@ -215,8 +215,8 @@ no lower case and Applesoft on it rejects a lower-case keyword.
 the two Option keys are the Apple keys — left Open, right Closed — and ⌘ is
 left to the browser. A IIgs's keyboard is a Mac's: ⌘ *is* its Open Apple and
 Option its Closed Apple, and GS/OS drives its menus with ⌘-letter, so on that
-machine the emulator takes ⌘ while it has the keyboard. **View > ⌘ as Open
-Apple** is the switch, remembered per machine and on by default for the IIgs
+machine the emulator takes ⌘ while it has the keyboard. **Machine > Keyboard >
+Command as Open Apple** is the switch, remembered per machine and on by default for the IIgs
 only. A browser still keeps ⌘W, ⌘Q and the like for itself, which is why this
 is a choice rather than a rule.
 
@@ -234,7 +234,7 @@ Each drive supports:
 
 Drag and drop disk files directly onto drives. Drive seek and motor sounds can be toggled on or off.
 
-A IIgs also has two 3.5" drives, in **View > 3.5" Drives**, with the same Insert, Recent and Eject. They take 800K and 400K disk images, a 2MG holding one, or a 3.5" WOZ, and save a disk back in the format it came in. An 800K image dropped on the screen of a IIgs goes into a 3.5" drive; on any other machine it is a SmartPort volume.
+A IIgs also has two 3.5" drives, in **Window > 3.5" Drives**, with the same Insert, Recent and Eject. They take 800K and 400K disk images, a 2MG holding one, or a 3.5" WOZ, and save a disk back in the format it came in. An 800K image dropped on the screen of a IIgs goes into a 3.5" drive; on any other machine it is a SmartPort volume.
 
 ### Sharing a Link
 
@@ -361,7 +361,7 @@ Pixel Exact applies no composite effects whatsoever: unlit dots are black and co
 
 ### Expansion Cards
 
-Cards are configured via **View > Expansion Slots**.
+Cards are configured via **Window > Expansion Slots**.
 
 | Slot | Default | Available Cards |
 |------|---------|-----------------|
@@ -373,7 +373,7 @@ Cards are configured via **View > Expansion Slots**.
 | 6 | Disk II | Empty |
 | 7 | SmartPort | Thunderclock Plus, Z-80 SoftCard, Empty |
 
-**Mockingboard** — Dual AY-3-8910 sound chips with VIA 6522 timers. Stereo output with per-channel mute controls. All audio (speaker, Mockingboard, drive sounds) is unified under a single volume slider and mute toggle.
+**Mockingboard** — Dual AY-3-8910 sound chips with VIA 6522 timers, or Yamaha's pin-compatible YM2149F from **Machine > Sound > Mockingboard Chip**. Stereo output with per-channel mute controls. All audio (speaker, Mockingboard, drive sounds) is unified under a single volume slider and mute toggle.
 
 **Thunderclock Plus** — ProDOS-compatible real-time clock card.
 
@@ -389,7 +389,7 @@ Cards are configured via **View > Expansion Slots**.
 
 ### Joystick & Game Controllers
 
-A floating joystick window provides visual paddle/joystick controls that map to the Apple II game ports ($C064-$C067). Physical game controllers are supported via the Gamepad API — the left stick maps to paddle values and buttons A/B map to Apple II buttons 0/1, with a configurable deadzone. A **Cursor Keys** toggle makes the arrow keys drive the joystick as well as the keyboard — they still reach the emulator, so arrow-key navigation in ProDOS and BASIC keeps working — with an indicator chip in the Monitor title bar when active. The same toggle is in **View > Cursor Keys as Joystick**, which is the way to reach it in the layouts that have no Monitor title bar.
+A floating joystick window provides visual paddle/joystick controls that map to the Apple II game ports ($C064-$C067). Physical game controllers are supported via the Gamepad API — the left stick maps to paddle values and buttons A/B map to Apple II buttons 0/1, with a configurable deadzone. A **Cursor Keys** toggle makes the arrow keys drive the joystick as well as the keyboard — they still reach the emulator, so arrow-key navigation in ProDOS and BASIC keeps working — with an indicator chip in the Monitor title bar when active. The same toggle is in **Machine > Keyboard > Cursor Keys as Joystick**, which is the way to reach it in the layouts that have no Monitor title bar.
 
 **Game port device.** The window's **Game port** selector chooses what is plugged into the game I/O connector: the Apple resistive joystick, or a **Sirius Joyport**. The Joyport was Sirius Software's 1981 adapter that put two Atari CX40-style digital sticks on the same connector, reading them through the annunciators — no RC discharge to wait for, and two players. Choose it and the window swaps its paddle knob for a pair of digital sticks, each with a D-pad and a fire button that can be held with the mouse; a connected gamepad drives stick 1 (or both, with only one pad connected) from either its D-pad or its left stick, and a second gamepad drives stick 2. Games from Sirius Software and others that offer a "Joyport" option will find it. The choice is remembered, and survives reset and a machine switch.
 
@@ -397,7 +397,7 @@ One deliberate departure from the hardware: a Joyport idles the two pushbutton l
 
 ### CPU Speed
 
-**View > CPU Speed** runs the machine at 1x, 2x, 4x or 8x the real 1.023 MHz clock — 8x is roughly an accelerator card. Audio still paces the emulation and still plays, but it plays sped up: everything the speaker does happens in a fraction of the time and rises in pitch to match, exactly as it did on accelerated hardware. The display stays at 60fps; the machine simply gets through more work between frames.
+**Machine > CPU Speed** runs the machine at 1x, 2x, 4x or 8x the real 1.023 MHz clock — 8x is roughly an accelerator card. Audio still paces the emulation and still plays, but it plays sped up: everything the speaker does happens in a fraction of the time and rises in pitch to match, exactly as it did on accelerated hardware. The display stays at 60fps; the machine simply gets through more work between frames.
 
 The speed is a host preference, not machine state, so it survives reset and reboot, persists across sessions, and is not written into save states. Pasting still boosts to 8x for the duration of the paste and then hands the machine back to the chosen speed. Any setting above 1x shows a chip in the Monitor title bar.
 
@@ -483,7 +483,7 @@ The CPU debugger supports breakpoints (conditional with expression evaluation) o
 
 ## Dev Tools
 
-Development tools are accessible from the **Dev** menu.
+The assembler is in the **Develop** menu, and the BASIC window in the **Debug** menu.
 
 | Tool | Description |
 |------|-------------|

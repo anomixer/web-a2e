@@ -41,17 +41,6 @@ export class DocumentationWindow extends BaseWindow {
         this.toggle();
       }
     });
-
-    // Set up help button (inside help menu dropdown)
-    const helpButton = document.getElementById("btn-help");
-    if (helpButton) {
-      helpButton.addEventListener("click", () => {
-        this.toggle();
-        // Close the help menu dropdown
-        const menuContainer = helpButton.closest(".header-menu-container");
-        if (menuContainer) menuContainer.classList.remove("open");
-      });
-    }
   }
 
   /**
@@ -392,7 +381,7 @@ export class DocumentationWindow extends BaseWindow {
 
         <h4>Which key is Open Apple depends on the machine</h4>
         <p>On the 8-bit machines the two Option keys are the Apple keys &mdash; left Open, right Closed &mdash; and &#8984; is left to the browser. A IIgs's keyboard is a Mac's: &#8984; <em>is</em> its Open Apple and Option its Closed Apple, and GS/OS drives its menus with &#8984;-letter, so on that machine the emulator takes &#8984; while it has the keyboard.</p>
-        <p><strong>View &gt; &#8984; as Open Apple</strong> is the switch. It is remembered per machine and is on by default for the IIgs only. Your browser still keeps &#8984;W, &#8984;Q and a few others for itself, which is why this is a choice rather than a rule.</p>
+        <p><strong>Machine &gt; Keyboard &gt; Command as Open Apple</strong> is the switch. It is remembered per machine and is on by default for the IIgs only. Your browser still keeps &#8984;W, &#8984;Q and a few others for itself, which is why this is a choice rather than a rule.</p>
         <p><strong>An Apple II Plus types upper case only.</strong> Its keyboard has no lower case and Applesoft on it rejects a lower-case keyword, so letters arrive as capitals whatever Shift or Caps Lock say.</p>
 
         <h4>Control Key Combinations</h4>
@@ -448,7 +437,7 @@ export class DocumentationWindow extends BaseWindow {
         <p>You can paste text into the emulator using <kbd>Ctrl</kbd>+<kbd>V</kbd>. The emulator will type the text character by character at the appropriate speed. This is useful for entering BASIC programs.</p>
 
         <h4>Joystick, Paddles &amp; Game Controllers</h4>
-        <p>Open <strong>View &gt; Joystick / Paddles</strong> for an on-screen controller with a draggable pad, PDL0/PDL1 gauges, and button 0/1 (Open/Closed Apple) indicators.</p>
+        <p>Open <strong>Window &gt; Joystick</strong> for an on-screen controller with a draggable pad, PDL0/PDL1 gauges, and button 0/1 (Open/Closed Apple) indicators.</p>
         <ul>
           <li><strong>Game port:</strong> The selector at the top of the window chooses what is plugged into the machine's game connector &mdash; an <strong>Apple Joystick</strong> (the usual analog paddles) or a <strong>Sirius Joyport</strong>. The Joyport was Sirius Software's 1981 adapter, and it put two Atari-style digital sticks on the same connector: switches rather than potentiometers, so nothing has to wait for a capacitor, and two players rather than one. Most Sirius games offer &quot;Apple Joystick&quot; or &quot;Joyport&quot; as a choice on their title screen &mdash; pick the one that matches this selector. Choosing the Joyport swaps the paddle knob for a pair of digital sticks, each with a D-pad and a fire button you can hold with the mouse. The choice is remembered, and survives a reset and a change of machine. (A real Joyport idles the two pushbutton lines high, and on a //e those lines <em>are</em> the Open and Closed Apple keys &mdash; so a //e with one fitted ran its self test at every reset instead of booting. Here the Joyport lets go of them for an instant after a reset, so the machine starts normally.)</li>
           <li><strong>Physical controllers:</strong> Enable the <strong>Gamepad</strong> toggle to use a connected game controller via the browser Gamepad API. On an Apple Joystick the left stick maps to the paddles and the A/B buttons to Apple buttons 0/1, with an adjustable deadzone. On a Joyport either the D-pad or the left stick closes the four direction switches and A/B is fire; connect two controllers and each drives one stick, or leave one connected and it drives both so a game that reads the second stick still plays.</li>
@@ -459,7 +448,7 @@ export class DocumentationWindow extends BaseWindow {
       <!-- Display Settings Section -->
       <section id="doc-display" class="documentation-section">
         <h3>Display Settings</h3>
-        <p>Open from <strong>View &gt; Display</strong> to access extensive CRT simulation options.</p>
+        <p>Open from <strong>Window &gt; Display Settings</strong> to access extensive CRT simulation options.</p>
 
         <h4>Display Modes</h4>
         <ul>
@@ -508,7 +497,7 @@ export class DocumentationWindow extends BaseWindow {
         <p>Drag any corner of the monitor frame to resize. The 4:3 aspect ratio is maintained. A lock icon appears when using custom sizing - click it to return to auto-fit mode.</p>
 
         <h4>Full Page Mode</h4>
-        <p>Click the <strong>fullscreen button</strong> for an immersive experience. Press <kbd>Ctrl</kbd>+<kbd>Escape</kbd> to exit.</p>
+        <p>Choose <strong>View &gt; Enter Full Screen</strong>, or click the <strong>fullscreen button</strong>, for an immersive experience. Press <kbd>Esc</kbd> to leave.</p>
 
         <h4>Character Set</h4>
         <p>Toggle between US and UK character sets using the switch in the screen window header. The UK set replaces some symbols with British variants.</p>
@@ -519,8 +508,21 @@ export class DocumentationWindow extends BaseWindow {
         <h3>Workspace &amp; Windows</h3>
         <p>Every tool &mdash; the screen, disk drives, debuggers, editors &mdash; lives in a moveable, resizable window. The workspace can either float those windows freely or dock them into a tiled layout, controlled from the <strong>View</strong> menu.</p>
 
+        <h4>The Menu Bar</h4>
+        <p>The menus are laid out as the macOS app's are:</p>
+        <ul>
+          <li><strong>File:</strong> Insert, eject and recent disks for every drive, screenshots, auto-save, and resetting to defaults</li>
+          <li><strong>Edit:</strong> Copy the screen's text, and paste text into the machine</li>
+          <li><strong>Machine:</strong> Power and reset, which computer to run, CPU speed, video standard, IIgs memory, the keyboard, mouse capture, and sound</li>
+          <li><strong>View:</strong> Appearance, layouts, the drive popouts, and full page or full screen</li>
+          <li><strong>Debug:</strong> The debugger and memory views, with Pause/Continue and stepping (<kbd>F5</kbd>, <kbd>F10</kbd>, <kbd>F11</kbd>)</li>
+          <li><strong>Develop:</strong> The assembler</li>
+          <li><strong>Window:</strong> Every other window, ticked while it is open</li>
+          <li><strong>Help:</strong> This guide and the release notes</li>
+        </ul>
+
         <h4>Layout Modes</h4>
-        <p>Choose a layout from the <strong>Layout</strong> row in the View menu. Each layout remembers its own window arrangement:</p>
+        <p>Choose a layout from <strong>View &gt; Layout</strong>. Each layout remembers its own window arrangement:</p>
         <ul>
           <li><strong>Window:</strong> Free-floating windows you can move and overlap anywhere.</li>
           <li><strong>Play:</strong> A clean arrangement focused on the screen and drives &mdash; the default for new users.</li>
@@ -539,10 +541,10 @@ export class DocumentationWindow extends BaseWindow {
         <p>Window positions, sizes, and stacking order are saved between sessions, so your workspace reopens exactly as you left it.</p>
 
         <h4>Full-Page &amp; Fullscreen Modes</h4>
-        <p>Click the <strong>Full Page</strong> button for an immersive, chrome-free view. The header bar auto-hides to maximise screen space (you can also force this with <strong>View &gt; Auto-hide Header</strong>), and a compact toolbar with Power, Ctrl+Reset, Reboot, and Exit appears when you move the pointer to the top. Press <kbd>Ctrl</kbd>+<kbd>Escape</kbd> to exit.</p>
+        <p>Choose <strong>View &gt; Full Page</strong>, or press <kbd>Ctrl</kbd>+<kbd>Escape</kbd>, for an immersive, chrome-free view. The header bar auto-hides to maximise screen space (you can also force this with <strong>View &gt; Auto-hide Menu Bar</strong>), and a compact toolbar with Power, Ctrl+Reset, Reboot, and Exit appears when you move the pointer to the top. Press <kbd>Ctrl</kbd>+<kbd>Escape</kbd> again to leave.</p>
 
         <h4>Slide-Out Drive Popouts</h4>
-        <p>In full-page and fullscreen modes the disk drives slide out as popout panels from the edge of the screen. Use <strong>View &gt; Popout Side</strong> to place them on the left or right.</p>
+        <p>In full-page and fullscreen modes the disk drives slide out as popout panels from the edge of the screen. Use <strong>View &gt; Drive Popouts</strong> to place them on the left or right.</p>
 
         <h4>Reset Defaults</h4>
         <p>To start fresh, use <strong>File &gt; Reset Defaults&hellip;</strong> to restore the default window layout and settings.</p>
@@ -555,7 +557,7 @@ export class DocumentationWindow extends BaseWindow {
       <!-- Disk Drives Section -->
       <section id="doc-disks" class="documentation-section">
         <h3>5.25" Drives</h3>
-        <p>The emulator includes two Disk II floppy drives, just like a real Apple //e system. Open from <strong>View &gt; 5.25" Drives</strong>. A IIgs also has two 3.5" drives, in <strong>View &gt; 3.5" Drives</strong>: an 800K or 400K disk image, a 2MG holding one, or a 3.5" WOZ goes in one, and an 800K disk dropped on the screen goes there by itself.</p>
+        <p>The emulator includes two Disk II floppy drives, just like a real Apple //e system. Open from <strong>Window &gt; 5.25" Drives</strong>. A IIgs also has two 3.5" drives, in <strong>Window &gt; 3.5" Drives</strong>: an 800K or 400K disk image, a 2MG holding one, or a 3.5" WOZ goes in one, and an 800K disk dropped on the screen goes there by itself.</p>
 
         <h4>Supported Formats</h4>
         <div class="format-list">
@@ -634,7 +636,7 @@ export class DocumentationWindow extends BaseWindow {
       <!-- SmartPort Drives Section -->
       <section id="doc-smartport" class="documentation-section">
         <h3>SmartPort Drives</h3>
-        <p>The emulator supports SmartPort hard drive emulation, providing high-capacity storage. Open from <strong>View &gt; SmartPort Drives</strong>.</p>
+        <p>The emulator supports SmartPort hard drive emulation, providing high-capacity storage. Open from <strong>Window &gt; SmartPort Drives</strong>.</p>
 
         <h4>Supported Formats</h4>
         <div class="format-list">
@@ -652,7 +654,7 @@ export class DocumentationWindow extends BaseWindow {
         </ul>
 
         <h4>Setup</h4>
-        <p>The SmartPort card must be installed in an expansion slot before images can be loaded. Configure this in <strong>View &gt; Expansion Slots</strong>.</p>
+        <p>The SmartPort card must be installed in an expansion slot before images can be loaded. Configure this in <strong>Window &gt; Expansion Slots</strong>.</p>
 
         <h4>Activity LED</h4>
         <p>Each device has an LED indicator that glows green when the drive is being accessed.</p>
@@ -665,7 +667,7 @@ export class DocumentationWindow extends BaseWindow {
       <!-- Expansion Cards Section -->
       <section id="doc-expansion" class="documentation-section">
         <h3>Expansion Slots &amp; Cards</h3>
-        <p>Like a real Apple //e, the emulator has seven expansion slots you can populate with peripheral cards. Open <strong>View &gt; Expansion Slots</strong> to configure them.</p>
+        <p>Like a real Apple //e, the emulator has seven expansion slots you can populate with peripheral cards. Open <strong>Window &gt; Expansion Slots</strong> to configure them.</p>
 
         <h4>The Slots Window</h4>
         <p>The window shows a tray of <strong>available cards</strong> above a <strong>motherboard</strong> with slots 1&ndash;7. <strong>Drag a card</strong> from the tray into a slot to install it, or drag it out to remove it. Each slot notes any restrictions (some cards only fit certain slots). Slot&nbsp;6 is fixed to the Disk II controller, and slot&nbsp;3 is the built-in 80-column card.</p>
@@ -687,7 +689,7 @@ export class DocumentationWindow extends BaseWindow {
         <p>The <strong>Other Hardware</strong> area of the Slots window has a toggle for the DS1215 No-Slot Clock &mdash; a ProDOS-compatible real-time clock that piggybacks on the 80-column firmware ROM at $C300 without occupying an expansion slot. Enable it for automatic date/time stamping in ProDOS.</p>
 
         <h4>Serial Port &amp; Modem</h4>
-        <p>With a Super Serial Card installed, open <strong>View &gt; Serial Port&hellip;</strong> to connect the Apple //e to the outside world. A built-in Hayes-compatible modem emulation (AT command set) runs over the card's ACIA 6551 and a WebSocket-to-TCP proxy, letting classic terminal and BBS software dial remote services.</p>
+        <p>With a Super Serial Card installed, open <strong>Window &gt; Serial Port</strong> to connect the Apple //e to the outside world. A built-in Hayes-compatible modem emulation (AT command set) runs over the card's ACIA 6551 and a WebSocket-to-TCP proxy, letting classic terminal and BBS software dial remote services.</p>
         <ul>
           <li>Enter a <strong>Host</strong> and <strong>Port</strong> (Telnet defaults to 23).</li>
           <li>Click <strong>Connect</strong> to open the link; the status indicator shows the connection state.</li>
@@ -708,7 +710,7 @@ export class DocumentationWindow extends BaseWindow {
         <p>The File Explorer lets you browse the contents of disk images and view files without running programs.</p>
 
         <h4>Opening the File Explorer</h4>
-        <p>Open from <strong>View &gt; File Explorer</strong> or click the <strong>folder icon</strong> in the toolbar. Select which drive to browse using the drive selector at the top.</p>
+        <p>Open from <strong>Window &gt; File Explorer</strong> or click the <strong>folder icon</strong> in the toolbar. Select which drive to browse using the drive selector at the top.</p>
 
         <h4>Supported Disk Formats</h4>
         <ul>
@@ -752,7 +754,7 @@ export class DocumentationWindow extends BaseWindow {
       <!-- Disk Inspector Section -->
       <section id="doc-disk-inspector" class="documentation-section">
         <h3>Disk Inspector</h3>
-        <p>The Disk Inspector shows what is physically recorded on a floppy: every track, every sector, every byte, and on a flux image, how long each bit took to pass the head. It works the same way for every format (<code>.dsk</code>, <code>.do</code>, <code>.po</code> and <code>.woz</code>, flux included) because it reads each track exactly as the drive would. Open it from <strong>View &gt; Disk Inspector</strong>, or from the window switcher (<kbd>Ctrl</kbd>+<kbd>\`</kbd>).</p>
+        <p>The Disk Inspector shows what is physically recorded on a floppy: every track, every sector, every byte, and on a flux image, how long each bit took to pass the head. It works the same way for every format (<code>.dsk</code>, <code>.do</code>, <code>.po</code> and <code>.woz</code>, flux included) because it reads each track exactly as the drive would. Open it from <strong>Window &gt; Disk Inspector</strong>, or from the window switcher (<kbd>Ctrl</kbd>+<kbd>\`</kbd>).</p>
 
         <h4>Toolbar</h4>
         <ul>
@@ -848,7 +850,7 @@ export class DocumentationWindow extends BaseWindow {
         <p>Toggle auto-save on or off from the <strong>File</strong> menu.</p>
 
         <h4>Save States Window</h4>
-        <p>Open the Save States window from <strong>File &gt; Save States...</strong> to manage all your saved states in one place.</p>
+        <p>Open the Save States window from <strong>Window &gt; Save States</strong> to manage all your saved states in one place.</p>
 
         <h4>Autosave Slot</h4>
         <p>The top row shows the current autosave with a screenshot thumbnail and timestamp. Use the <strong>Load</strong> button to restore it, or <strong>DL</strong> to download it as a file. This slot updates automatically while the window is open.</p>
@@ -876,20 +878,23 @@ export class DocumentationWindow extends BaseWindow {
       <!-- Sound Section -->
       <section id="doc-sound" class="documentation-section">
         <h3>Sound Settings</h3>
-        <p>Click the <strong>speaker icon</strong> in the toolbar to access audio controls.</p>
+        <p>Sound is set from <strong>Machine &gt; Sound</strong>, or from the <strong>speaker icon</strong> in the toolbar, which has a volume slider and the same switches.</p>
 
         <h4>Audio Controls</h4>
         <ul>
-          <li><strong>Volume Slider:</strong> Adjust master volume (0-100%)</li>
-          <li><strong>Mute Toggle:</strong> Quickly mute/unmute all sound</li>
+          <li><strong>Mute</strong> and <strong>Volume:</strong> All sound off, or the master volume</li>
+          <li><strong>Mockingboard Phase Lock:</strong> Keeps the card's two chips in step when a song plays the same notes on both, so the two sides cannot cancel on speakers close together</li>
+          <li><strong>Mockingboard Mono:</strong> Mixes the two chips and plays them on both sides, for a single speaker</li>
+          <li><strong>Mockingboard Chip:</strong> The original AY-3-8910, or Yamaha's pin-compatible YM2149F, whose 32-step volume makes envelopes smoother and quiet notes a little louder</li>
           <li><strong>Drive Sounds:</strong> Enable/disable disk drive sound effects</li>
           <li><strong>Printer Sounds:</strong> Enable/disable the printer's impact and carriage sound effects</li>
         </ul>
+        <p>None of these is part of a save state, and switching machine keeps them.</p>
 
         <h4>Sound Sources</h4>
         <ul>
           <li><strong>Speaker:</strong> The Apple II's built-in speaker for music and sound effects</li>
-          <li><strong>Mockingboard:</strong> Dual AY-3-8910 sound chips for rich stereo music and sound</li>
+          <li><strong>Mockingboard:</strong> Two AY-3-8910 (or YM2149F) sound chips for rich stereo music and sound</li>
           <li><strong>Disk Seek:</strong> Stepper motor sounds when the drive head moves</li>
         </ul>
 
@@ -904,7 +909,7 @@ export class DocumentationWindow extends BaseWindow {
       <!-- Printer Section -->
       <section id="doc-printer" class="documentation-section">
         <h3>Virtual Printer</h3>
-        <p>The emulator includes a faithful dot-matrix printer that catches output from your Apple II programs and renders it to an on-screen sheet of fanfold paper, dot by dot, in true carriage travel order. Open it from <strong>View &gt; Printer...</strong> in the toolbar.</p>
+        <p>The emulator includes a faithful dot-matrix printer that catches output from your Apple II programs and renders it to an on-screen sheet of fanfold paper, dot by dot, in true carriage travel order. Open it from <strong>Window &gt; Printer</strong>.</p>
 
         <h4>Printer Models</h4>
         <p>Pick a model from the <strong>model</strong> selector in the printer toolbar. Four period-correct models are emulated, each reproducing its real protocol, fonts, character sets, and timing.</p>
@@ -998,7 +1003,7 @@ export class DocumentationWindow extends BaseWindow {
         <p>The glyph banks the models render from can be authored in a standalone editor at <code>/printers/rom-editor.html</code>. It draws characters dot by dot, handles the alternate-language code points each printer swapped in per locale, imports and exports either as a ROM module or as ASCII dot art, and can trace over a scan of a manual's character chart so a font can be rebuilt from the page it was printed on. It is one plain page with no build step, so it opens straight off disk as readily as from the emulator.</p>
 
         <h4>Print History &amp; Print Browser</h4>
-        <p>Every page is captured automatically as it exits the printer and stored in your browser, so output survives closing the window or reloading the page. Open <strong>View &gt; Print Browser...</strong> to review your full print history:</p>
+        <p>Every page is captured automatically as it exits the printer and stored in your browser, so output survives closing the window or reloading the page. Open <strong>Window &gt; Print Browser</strong> to review your full print history:</p>
         <ul>
           <li>Browse jobs and individual pages as thumbnails, grouped by job (model, timestamp, and page count).</li>
           <li><strong>Send a whole job back to the printer</strong> to re-preview it on the live paper &mdash; the model, ribbon, paper size, and head position are all restored so you can continue printing.</li>
@@ -1195,10 +1200,10 @@ export class DocumentationWindow extends BaseWindow {
       <!-- Dev Tools Section -->
       <section id="doc-dev" class="documentation-section">
         <h3>Dev Tools</h3>
-        <p>Development tools for writing and testing software. Access via the <strong>Dev</strong> menu in the toolbar.</p>
+        <p>Development tools for writing and testing software. The assembler is in the <strong>Develop</strong> menu, and the Applesoft BASIC window in the <strong>Debug</strong> menu.</p>
 
         <h4>Applesoft BASIC Window</h4>
-        <p>Write, edit, debug, and load Applesoft BASIC programs. Open from <strong>Dev &gt; Applesoft BASIC</strong>.</p>
+        <p>Write, edit, debug, and load Applesoft BASIC programs. Open from <strong>Debug &gt; Applesoft BASIC</strong>.</p>
 
         <h5>Editor Features</h5>
         <ul>
@@ -1243,7 +1248,7 @@ export class DocumentationWindow extends BaseWindow {
         </div>
 
         <h4>Assembler</h4>
-        <p>Write 65C02 assembly code using Merlin-style syntax. Open from <strong>Dev &gt; Assembler</strong>.</p>
+        <p>Write 65C02 assembly code using Merlin-style syntax. Open from <strong>Develop &gt; Assembler</strong>.</p>
 
         <h5>Editor Features</h5>
         <ul>
@@ -1573,7 +1578,7 @@ export class DocumentationWindow extends BaseWindow {
         <h4>Saving Your Work</h4>
         <ul>
           <li>State auto-saves every 5 seconds by default</li>
-          <li>Use <strong>File &gt; Save States...</strong> to save to manual slots or download states</li>
+          <li>Use <strong>Window &gt; Save States</strong> to save to manual slots or download states</li>
           <li>Modified disks are saved when ejected</li>
           <li>Export disks via File Explorer for backup</li>
         </ul>

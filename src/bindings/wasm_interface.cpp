@@ -2112,6 +2112,13 @@ void setMockingboardMono(bool on) {
   a2e::MockingboardCard::setMono(on);
 }
 
+// The chip on every Mockingboard: 0 the AY-3-8910, 1 Yamaha's YM2149F. A host
+// preference, as the two above are, and not in a save state.
+EMSCRIPTEN_KEEPALIVE
+void setMockingboardChip(int chip) {
+  a2e::AY8910::setModel(chip == 1 ? a2e::AY8910::Model::YM2149 : a2e::AY8910::Model::AY38910);
+}
+
 // Check if a channel is muted
 EMSCRIPTEN_KEEPALIVE
 bool getMockingboardChannelMute(int psg, int channel) {
