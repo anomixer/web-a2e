@@ -472,14 +472,14 @@ All debug windows are accessible from the **Debug** menu.
 | **Memory Map** | Address space layout overview |
 | **Stack Viewer** | Monitor stack page ($0100-$01FF) |
 | **Zero Page Watch** | Monitor zero page locations with predefined and custom watches |
-| **Soft Switch Monitor** | Apple II soft switch states ($C000-$C0FF) |
+| **Soft Switch Monitor** | Apple II soft switch states ($C000-$C0FF), and breakpoints on them |
 | **Mockingboard** | Unified channel-centric view: AY-3-8910 and VIA registers, inline waveforms, level meters, per-channel mute controls |
 | **Mouse Card** | PIA registers, position, mode, interrupt state |
 | **Rule Builder** | Complex conditional breakpoints with C-style expressions |
 
 The native app ([applem](https://github.com/mikedaley/applem)) adds a **Profiler**.
 
-The CPU debugger supports breakpoints (conditional with expression evaluation) on an address, an address range or the stack pointer, watchpoints over an address or a range, beam breakpoints (video position with wildcard-scanline support), execution tracing, and a call stack viewer. Labels and symbols are supported for both system routines and user-defined addresses. Debugger state (breakpoints, watches, settings) persists across save/load.
+The CPU debugger supports breakpoints (conditional with expression evaluation) on an address, an address range or the stack pointer, watchpoints over an address or a range, beam breakpoints (video position with wildcard-scanline support), soft switch breakpoints set from the Soft Switch Monitor (a switch changing, or turning on or off; on a IIgs, one of its registers changing), execution tracing, and a call stack viewer. Labels and symbols are supported for both system routines and user-defined addresses. Debugger state (breakpoints, watches, settings) persists across save/load.
 
 ## Dev Tools
 

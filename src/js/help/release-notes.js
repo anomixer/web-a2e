@@ -11,6 +11,62 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "October 20, 2026",
+    features: [
+      {
+        title: "Break on soft switches",
+        description:
+          "The Soft Switch Monitor sets breakpoints that stop the machine when a switch changes, or turns on or off; on a IIgs, when one of its registers changes. The stop names the instruction that moved it.",
+      },
+      {
+        title: "A new menu bar",
+        description:
+          "File, Edit, Machine, View, Debug, Develop, Window and Help, laid out as the Mac app's, with the same items in the same places.",
+      },
+      {
+        title: "YM2149F for the Mockingboard",
+        description:
+          "Machine > Sound > Mockingboard Chip swaps the AY-3-8910s for Yamaha's pin-compatible YM2149Fs.",
+      },
+      {
+        title: "A faster IIgs",
+        description:
+          "The IIgs runs //e programs about twice as fast as it did, leaving more room on slower computers.",
+      },
+      {
+        title: "Blaze in the disk library",
+        description:
+          "The Blaze editor's 140K floppy and its 800K ProDOS volume.",
+      },
+    ],
+    fixes: [
+      {
+        title: "Reset Defaults clears everything",
+        description:
+          "A bad disk or saved state no longer comes back after Reset Defaults, and a saved conditional breakpoint can no longer freeze the machine with nothing on screen.",
+      },
+      {
+        title: "IIgs sound that never clips",
+        description:
+          "The Ensoniq is mixed as Apple's documents describe and no longer runs dry at the end of each buffer.",
+      },
+      {
+        title: "IIgs vertical blank",
+        description:
+          "$C019 reads the IIgs way round, high during the vertical blank, so programs that wait for it run at the right pace.",
+      },
+      {
+        title: "Double lo-res page 2",
+        description: "Shown when PAGE2 is set, instead of page 1.",
+      },
+      {
+        title: "Mockingboard notes",
+        description:
+          "The Mockingboard window names every note correctly, on PAL machines too.",
+      },
+    ],
+  },
+  {
     week: "October 3, 2026",
     features: [
       {
