@@ -75,23 +75,20 @@ export class StateManager {
    */
   init() {
     this.setupAutoSave();
-    this.setupStatePopup();
   }
 
   /**
    * Turn autosave off for this session only, leaving the stored preference
    * alone so it comes back on the next visit.
    *
-   * The toggle is unticked to match, otherwise the System menu would claim
-   * autosave is on while nothing is being written.
+   * File › Auto-Save reads autoSaveEnabled, so it is unticked to match rather
+   * than claiming autosave is on while nothing is being written.
    *
    * @param {string} reason - Logged so the silence is explainable
    */
   suspendAutoSave(reason) {
     if (!this.autoSaveEnabled) return;
     this.autoSaveEnabled = false;
-    const toggle = document.getElementById("autosave-toggle");
-    if (toggle) toggle.checked = false;
     console.log(`Autosave suspended for this session: ${reason}`);
   }
 
@@ -149,24 +146,10 @@ export class StateManager {
     }, AUTO_SAVE_INTERVAL_MS);
   }
 
-  /**
-   * Set up state controls within the System menu
-   */
-  setupStatePopup() {
-    const autosaveToggle = document.getElementById("autosave-toggle");
-
-    // Initialize toggle state
-    if (autosaveToggle) {
-      autosaveToggle.checked = this.autoSaveEnabled;
-    }
-
-    // Auto-save toggle
-    if (autosaveToggle) {
-      autosaveToggle.addEventListener("change", () => {
-        this.autoSaveEnabled = autosaveToggle.checked;
-        localStorage.setItem("a2e-autosave-state", this.autoSaveEnabled);
-      });
-    }
+  /** File › Auto-Save, remembered. */
+  setAutoSaveEnabled(enabled) {
+    this.autoSaveEnabled = enabled;
+    localStorage.setItem("a2e-autosave-state", enabled);
   }
 
   /** The key of the machine in the core, which is the machine any state is for. */
@@ -352,6 +335,8 @@ export class StateManager {
    * @returns {Promise<void>}
    */
   async saveState() {
+    // Reset Defaults is clearing everything; saving now would put it back.
+    if (window._resettingDefaults) return;
     if (!this.emulator.isRunning() || !this.wasmModule) {
       return;
     }

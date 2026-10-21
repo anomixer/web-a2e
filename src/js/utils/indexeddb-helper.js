@@ -37,11 +37,44 @@ export function createDatabaseManager({ dbName, version, onUpgrade }) {
       };
 
       request.onsuccess = () => {
-        cachedDb = request.result;
-        resolve(cachedDb);
+        const db = request.result;
+        // Let go when another page wants to delete or upgrade the database
+        // (Reset Defaults, a newer build in another tab), or the browser
+        // closes the connection itself: the next call opens a fresh one
+        // rather than failing on a dead handle for the rest of the session.
+        db.onversionchange = () => {
+          db.close();
+          if (cachedDb === db) cachedDb = null;
+        };
+        db.onclose = () => {
+          if (cachedDb === db) cachedDb = null;
+        };
+        cachedDb = db;
+        resolve(db);
+      };
+
+      request.onblocked = () => {
+        console.warn(`Opening ${dbName} is waiting for another tab to let go of it`);
       };
 
       request.onupgradeneeded = onUpgrade;
+    });
+  }
+
+  /**
+   * Run one write and settle when its transaction commits, not when the
+   * request succeeds: a write can succeed and its transaction still abort
+   * (storage quota is checked at commit), and that has to reach the caller.
+   */
+  async function write(storeName, operation) {
+    const db = await open();
+    const transaction = db.transaction(storeName, "readwrite");
+    const request = operation(transaction.objectStore(storeName));
+
+    return new Promise((resolve, reject) => {
+      transaction.oncomplete = () => resolve(request.result);
+      transaction.onerror = () => reject(transaction.error || request.error);
+      transaction.onabort = () => reject(transaction.error || new Error(`${dbName}: transaction aborted`));
     });
   }
 
@@ -70,15 +103,7 @@ export function createDatabaseManager({ dbName, version, onUpgrade }) {
    * @returns {Promise<*>} The key of the stored record
    */
   async function put(storeName, record) {
-    const db = await open();
-    const transaction = db.transaction(storeName, "readwrite");
-    const store = transaction.objectStore(storeName);
-
-    return new Promise((resolve, reject) => {
-      const request = store.put(record);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
+    return write(storeName, (store) => store.put(record));
   }
 
   /**
@@ -88,15 +113,7 @@ export function createDatabaseManager({ dbName, version, onUpgrade }) {
    * @returns {Promise<*>} The key of the added record
    */
   async function add(storeName, record) {
-    const db = await open();
-    const transaction = db.transaction(storeName, "readwrite");
-    const store = transaction.objectStore(storeName);
-
-    return new Promise((resolve, reject) => {
-      const request = store.add(record);
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-    });
+    return write(storeName, (store) => store.add(record));
   }
 
   /**
@@ -106,15 +123,7 @@ export function createDatabaseManager({ dbName, version, onUpgrade }) {
    * @returns {Promise<void>}
    */
   async function remove(storeName, key) {
-    const db = await open();
-    const transaction = db.transaction(storeName, "readwrite");
-    const store = transaction.objectStore(storeName);
-
-    return new Promise((resolve, reject) => {
-      const request = store.delete(key);
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
+    await write(storeName, (store) => store.delete(key));
   }
 
   /**

@@ -395,6 +395,122 @@
 }
 
 
+/* =============================================
+   Menu bar (menu-bar.js): the native app's menus
+   ============================================= */
+
+.menu-bar {
+    display: flex;
+    align-items: center;
+}
+
+/* A desktop menu bar: plain titles, tighter than the other triggers. */
+.menu-bar .header-menu-trigger {
+    padding: 6px 8px;
+}
+
+.menu-bar-menu[hidden] {
+    display: none;
+}
+
+/* An open menu comes in front of the floating reminders (z-index 10001),
+   which sit over the header's own stacking context otherwise. */
+header:has(.header-menu-container.open) {
+    z-index: 10002;
+}
+
+.menu-bar .header-menu {
+    min-width: 220px;
+}
+
+/* A gutter on the left for the tick, as a Mac menu has, so labels line up
+   whether or not an item can be ticked. */
+.menu-bar-item {
+    gap: 6px;
+    padding: 6px 12px 6px 6px;
+    justify-content: flex-start;
+    white-space: nowrap;
+}
+
+.menu-bar-tick {
+    flex: 0 0 14px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent-green);
+}
+
+.menu-bar-label {
+    flex: 1 1 auto;
+}
+
+.menu-bar-item .menu-hint {
+    margin-left: 24px;
+}
+
+.menu-bar-item:disabled,
+.menu-bar-item.disabled {
+    color: var(--text-muted);
+    opacity: 0.55;
+    cursor: default;
+}
+
+.menu-bar-item:disabled:hover,
+.menu-bar-item.disabled:hover {
+    background: none;
+}
+
+/* A heading inside a menu (Open Recent's drives): a label, not a choice. */
+.menu-bar-item.menu-bar-heading:disabled {
+    opacity: 1;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+/* Submenus open beside their item on hover, or on a tap (.open). They are
+   kept laid out while hidden so menu-bar.js can measure which side has room. */
+.menu-bar-parent {
+    position: relative;
+    cursor: default;
+}
+
+.menu-submenu-arrow {
+    margin-left: 24px;
+    color: var(--text-muted);
+}
+
+.header-menu.menu-bar-submenu {
+    top: -5px;
+    left: 100%;
+    transform: none;
+    transition: opacity 0.1s, visibility 0.1s;
+}
+
+.menu-bar-parent.flip > .menu-bar-submenu {
+    left: auto;
+    right: 100%;
+}
+
+/* Specific enough to beat ".header-menu-container.open .header-menu", which
+   would otherwise show every submenu as soon as its menu opens. */
+.header-menu-container .menu-bar-parent > .header-menu.menu-bar-submenu {
+    opacity: 0;
+    visibility: hidden;
+}
+
+.header-menu-container .menu-bar-parent:not(.disabled):hover > .header-menu.menu-bar-submenu,
+.header-menu-container .menu-bar-parent.open > .header-menu.menu-bar-submenu {
+    opacity: 1;
+    visibility: visible;
+}
+
+.menu-bar-parent:not(.disabled):hover,
+.menu-bar-parent.open {
+    background: var(--overlay-hover);
+}
+
 /* Menu separator */
 .header-menu-separator {
     height: 1px;

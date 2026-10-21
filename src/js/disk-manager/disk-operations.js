@@ -105,6 +105,7 @@ export async function loadDisk({ wasmModule, drive, driveNum, file, onSuccess, o
       if (drive.ejectBtn) drive.ejectBtn.disabled = false;
       if (drive.browseBtn) drive.browseBtn.disabled = false;
       drive.baselineFingerprint = await fingerprintDisk(wasmModule, driveNum);
+      drive.persistedFingerprint = drive.baselineFingerprint;
       console.log(`Inserted disk in drive ${driveNum + 1}: ${file.name}`);
 
       // Save to IndexedDB for persistence across sessions
@@ -135,6 +136,8 @@ export async function loadDisk({ wasmModule, drive, driveNum, file, onSuccess, o
  * @param {Uint8Array} options.data - The disk image data
  * @param {Function} [options.onSuccess] - Callback on successful load
  * @param {Function} [options.onError] - Callback on error
+ * @returns {Promise<boolean>} whether the disk went in, so a caller saves it
+ *   as the drive's disk only when it did
  */
 export async function loadDiskFromData({ wasmModule, drive, driveNum, filename, data, onSuccess, onError }) {
   try {
@@ -145,16 +148,19 @@ export async function loadDiskFromData({ wasmModule, drive, driveNum, filename, 
       if (drive.ejectBtn) drive.ejectBtn.disabled = false;
       if (drive.browseBtn) drive.browseBtn.disabled = false;
       drive.baselineFingerprint = await fingerprintDisk(wasmModule, driveNum);
+      drive.persistedFingerprint = drive.baselineFingerprint;
       console.log(`Restored disk in drive ${driveNum + 1}: ${filename}`);
       if (onSuccess) onSuccess(filename);
-    } else {
-      const msg = `Failed to restore disk image: ${filename}`;
-      console.error(msg);
-      if (onError) onError(msg);
+      return true;
     }
+    const msg = `Failed to restore disk image: ${filename}`;
+    console.error(msg);
+    if (onError) onError(msg);
+    return false;
   } catch (error) {
     console.error("Error restoring disk:", error);
     if (onError) onError("Error restoring disk: " + error.message);
+    return false;
   }
 }
 
@@ -177,13 +183,15 @@ export async function insertBlankDisk({ wasmModule, drive, driveNum, onSuccess, 
     drive.filename = filename;
     if (drive.ejectBtn) drive.ejectBtn.disabled = false;
     drive.baselineFingerprint = await fingerprintDisk(wasmModule, driveNum);
+    drive.persistedFingerprint = drive.baselineFingerprint;
     console.log(`Inserted blank disk in drive ${driveNum + 1}`);
     if (onSuccess) onSuccess(filename);
-  } else {
-    const msg = "Failed to insert blank disk";
-    console.error(msg);
-    if (onError) onError(msg);
+    return true;
   }
+  const msg = "Failed to insert blank disk";
+  console.error(msg);
+  if (onError) onError(msg);
+  return false;
 }
 
 /**
@@ -199,6 +207,7 @@ export function performEject({ wasmModule, drive, driveNum, onEject }) {
 
   drive.filename = null;
   drive.baselineFingerprint = null;
+  drive.persistedFingerprint = null;
   if (drive.ejectBtn) drive.ejectBtn.disabled = true;
   if (drive.browseBtn) drive.browseBtn.disabled = true;
   if (drive.input) drive.input.value = "";

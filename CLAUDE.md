@@ -73,12 +73,17 @@ wiki/          mirror of the published GitHub wiki (the published wiki wins)
 The core's rules are in `core/CLAUDE.md`. The browser adds:
 
 - **Host preferences are not machine state.** Speed multiplier, game port
-  device, video standard, Mockingboard phase lock and mono, paste buffer: none
-  is in a save state, and `reset()` keeps them.
+  device, video standard, Mockingboard phase lock, mono and chip, paste
+  buffer: none is in a save state, and `reset()` keeps them.
 - **Remembered per machine** in localStorage: slot layout, display settings,
   video standard, ⌘ as Open Apple, autosave.
 - **Hidden, not disabled**: menu items a machine cannot use are hidden
   (`src/js/ui/machine-availability.js`).
+- **The menu bar follows the native app's.** `src/js/ui/menu-model.js` lays
+  out File, Edit, Machine, View, Debug, Develop, Window and Help as applem's
+  `App::buildMenus` does; `menu-bar.js` draws it. A menu item added to one
+  goes in the same place in the other, or is left out where the feature is
+  missing.
 
 ### Browser host
 

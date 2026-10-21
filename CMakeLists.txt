@@ -182,6 +182,7 @@ set_target_properties(a2e PROPERTIES
             \"_setMockingboardChannelMute\", \
             \"_setMockingboardPhaseLock\", \
             \"_setMockingboardMono\", \
+            \"_setMockingboardChip\", \
             \"_getMockingboardChannelMute\", \
             \"_isKeyboardReady\", \
             \"_setSpeedMultiplier\", \
