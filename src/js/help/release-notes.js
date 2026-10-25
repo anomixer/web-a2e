@@ -11,6 +11,16 @@
 
 export const RELEASE_NOTES = [
   {
+    week: "October 25, 2026",
+    fixes: [
+      {
+        title: "Double lo-res colours",
+        description:
+          "Only auxiliary memory's nibbles are rotated, as on the hardware, so solid areas no longer come out in vertical stripes.",
+      },
+    ],
+  },
+  {
     week: "October 20, 2026",
     features: [
       {
